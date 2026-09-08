@@ -1,140 +1,139 @@
-# Code vendorisé depuis Radarr — `Bigarr.Parsing`
+# Code vendored from Radarr — `Bigarr.Parsing`
 
-Ce document est le **contrat de reprise** entre Bigarr et Radarr. Il liste précisément ce qui a été
-copié, depuis quelle version, et quelles modifications ont été appliquées. Toute comparaison
-trimestrielle avec l'amont doit partir de ce fichier.
+This document is the **sync contract** between Bigarr and Radarr. It lists exactly what was copied,
+from which version, and which modifications were applied. Every quarterly comparison with upstream
+must start from this file.
 
 ## Source
 
 | | |
 |---|---|
-| Projet amont | [Radarr/Radarr](https://github.com/Radarr/Radarr) |
-| Licence | GPL-3.0 (Bigarr est également GPL-3.0 — reprise conforme) |
-| Tag | `v6.3.0.10514` (dernière release stable, non-prerelease) |
+| Upstream project | [Radarr/Radarr](https://github.com/Radarr/Radarr) |
+| License | GPL-3.0 (Bigarr is GPL-3.0 as well — compliant reuse) |
+| Tag | `v6.3.0.10514` (latest stable, non-prerelease) |
 | Commit SHA | `7827e5368947f158ad06f757334f5cde6c406411` |
-| Date du commit | 2026-07-12 |
-| Date de la vendorisation | 2026-09-08 |
+| Commit date | 2026-07-12 |
+| Vendoring date | 2026-09-08 |
 
-Commande de récupération pour le prochain diff :
+Checkout command for the next diff:
 
 ```bash
 git clone --depth 1 --branch v6.3.0.10514 https://github.com/Radarr/Radarr.git /tmp/radarr
 ```
 
-## Périmètre
+## Scope
 
-Seul le **parseur de noms de release** est reprisé : analyse d'un titre de release ou d'un chemin de
-fichier vers un `ParsedMovieInfo` (titre, année, édition, groupe, qualité, langues, IMDb/TMDb id,
-sous-titres hardcodés). Tout ce qui suppose une base de données, un dépôt de films ou le reste de
-`NzbDrone.Core` est exclu (voir « Exclusions »).
+Only the **release-name parser** is vendored: turning a release title or a file path into a
+`ParsedMovieInfo` (title, year, edition, group, quality, languages, IMDb/TMDb id, hardcoded
+subtitles). Anything that assumes a database, a movie repository or the rest of `NzbDrone.Core`
+is excluded (see "Exclusions").
 
-## Points d'entrée publics
+## Public entry points
 
-| API | Rôle |
+| API | Role |
 |---|---|
-| `Parser.ParseMovieTitle(string title, bool isDir = false)` | parse un nom de release → `ParsedMovieInfo` (`null` si non parsable) |
-| `Parser.ParseMoviePath(string path)` | parse un chemin de fichier (retombe sur le nom du dossier) |
-| `Parser.ParseEdition`, `ParseImdbId`, `ParseTmdbId`, `ParseHardcodeSubs`, `HasMultipleLanguages` | extractions unitaires |
-| `Parser.NormalizeImdbId`, `ToUrlSlug`, `NormalizeMovieTitle`, `NormalizeTitle`, `ReplaceGermanUmlauts` | normalisations |
-| `Parser.CleanMovieTitle()`, `SimplifyReleaseTitle()` | méthodes d'extension sur `string` |
-| `ReleaseGroupParser.ParseReleaseGroup(string title)` | groupe de release |
+| `Parser.ParseMovieTitle(string title, bool isDir = false)` | parses a release name → `ParsedMovieInfo` (`null` when not parsable) |
+| `Parser.ParseMoviePath(string path)` | parses a file path (falls back to the folder name) |
+| `Parser.ParseEdition`, `ParseImdbId`, `ParseTmdbId`, `ParseHardcodeSubs`, `HasMultipleLanguages` | single-purpose extractions |
+| `Parser.NormalizeImdbId`, `ToUrlSlug`, `NormalizeMovieTitle`, `NormalizeTitle`, `ReplaceGermanUmlauts` | normalizations |
+| `Parser.CleanMovieTitle()`, `SimplifyReleaseTitle()` | extension methods on `string` |
+| `ReleaseGroupParser.ParseReleaseGroup(string title)` | release group |
 | `QualityParser.ParseQuality(string name)` / `ParseQualityName(string name)` | → `QualityModel` |
 | `LanguageParser.ParseLanguages(string title)` | → `List<Language>` |
-| `LanguageParser.ParseSubtitleLanguage`, `ParseLanguageTags`, `ParseSubtitleLanguageInformation` | sous-titres |
-| `SceneChecker.IsSceneTitle` / `GetSceneTitle` | détection de nommage « scene » |
-| `Quality.All`, `Quality.AllLookup`, `Quality.FindById`, `Quality.DefaultQualityDefinitions` | référentiel qualité |
-| `Language.All`, `Language.FindById` | référentiel langues |
-| `QualityFinder.FindBySourceAndResolution` | résolution source+résolution+modifier → `Quality` |
+| `LanguageParser.ParseSubtitleLanguage`, `ParseLanguageTags`, `ParseSubtitleLanguageInformation` | subtitles |
+| `SceneChecker.IsSceneTitle` / `GetSceneTitle` | "scene" naming detection |
+| `Quality.All`, `Quality.AllLookup`, `Quality.FindById`, `Quality.DefaultQualityDefinitions` | quality reference data |
+| `Language.All`, `Language.FindById` | language reference data |
+| `QualityFinder.FindBySourceAndResolution` | source + resolution + modifier → `Quality` |
 
-> **Les ids de `Quality` et de `Language` sont identiques à ceux de Radarr** (vérifié : 30 qualités,
-> ids 0 à 31 hors 11/13, et 60 langues). La table `QualityDefinition` de Bigarr doit être semée
-> depuis `Quality.DefaultQualityDefinitions` sans réindexation.
+> **`Quality` and `Language` ids are identical to Radarr's** (verified: 30 qualities, ids 0 to 31
+> minus 11/13, and 60 languages). Bigarr's `QualityDefinition` table must be seeded from
+> `Quality.DefaultQualityDefinitions` without re-indexing.
 
-## Prérequis d'exécution — à ne pas oublier
+## Runtime prerequisite — do not forget
 
-`Parser.CleanMovieTitle()` et `Parser.ToUrlSlug()` retirent les diacritiques via
-`string.Normalize(NormalizationForm.FormD)`. En **mode globalization-invariant**, `Normalize()` est
-un no-op : « Carnivàle » ne devient jamais « carnivale » et les titres accentués cessent
-silencieusement de matcher.
+`Parser.CleanMovieTitle()` and `Parser.ToUrlSlug()` strip diacritics through
+`string.Normalize(NormalizationForm.FormD)`. In **globalization-invariant mode**, `Normalize()` is a
+no-op: "Carnivàle" never becomes "carnivale" and accented titles silently stop matching.
 
-Le dépôt n'active donc **pas** `InvariantGlobalization` (retiré de `Directory.Build.props` le
-2026-09-08 : Bigarr a besoin d'ICU pour les titres, le tri et les slugs), et l'image Docker installe
-ICU (`icu-libs`, `icu-data-full`) avec `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false`, l'image
-`aspnet:alpine` l'activant par défaut. Si l'un des deux saute, 12 cas de test amont deviennent faux
-en production sans aucune erreur visible.
+The repository therefore does **not** enable `InvariantGlobalization` (removed from
+`Directory.Build.props` on 2026-09-08: Bigarr needs ICU for titles, sorting and slugs), and the Docker
+image installs ICU (`icu-libs`, `icu-data-full`) with `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false`,
+since the `aspnet:alpine` image enables invariant mode by default. If either is dropped, 12 upstream
+test cases become wrong in production without any visible error.
 
-## Fichiers vendorisés (27 fichiers)
+## Vendored files (27 files)
 
-Chaque fichier porte un en-tête indiquant tag, SHA, chemin d'origine et licence.
+Each file carries a header with the tag, SHA, original path and license.
 
-### Parseur — `Bigarr.Parsing` (ex `NzbDrone.Core.Parser`)
+### Parser — `Bigarr.Parsing` (was `NzbDrone.Core.Parser`)
 
-| Fichier Bigarr | Chemin d'origine |
+| Bigarr file | Original path |
 |---|---|
 | `Parser.cs` | `src/NzbDrone.Core/Parser/Parser.cs` |
 | `ParserCommon.cs` | `src/NzbDrone.Core/Parser/ParserCommon.cs` |
 | `RegexReplace.cs` | `src/NzbDrone.Core/Parser/RegexReplace.cs` |
 | `ReleaseGroupParser.cs` | `src/NzbDrone.Core/Parser/ReleaseGroupParser.cs` |
-| `QualityParser.cs` | `src/NzbDrone.Core/Parser/QualityParser.cs` (contient l'enum `Resolution`) |
+| `QualityParser.cs` | `src/NzbDrone.Core/Parser/QualityParser.cs` (contains the `Resolution` enum) |
 | `LanguageParser.cs` | `src/NzbDrone.Core/Parser/LanguageParser.cs` |
 | `IsoLanguage.cs` | `src/NzbDrone.Core/Parser/IsoLanguage.cs` |
 | `IsoLanguages.cs` | `src/NzbDrone.Core/Parser/IsoLanguages.cs` |
 | `InvalidDateException.cs` | `src/NzbDrone.Core/Parser/InvalidDateException.cs` |
 | `SceneChecker.cs` | `src/NzbDrone.Core/Parser/SceneChecker.cs` |
 
-### Modèles — `Bigarr.Parsing.Model` (ex `NzbDrone.Core.Parser.Model`)
+### Models — `Bigarr.Parsing.Model` (was `NzbDrone.Core.Parser.Model`)
 
-| Fichier Bigarr | Chemin d'origine |
+| Bigarr file | Original path |
 |---|---|
 | `Model/ParsedMovieInfo.cs` | `src/NzbDrone.Core/Parser/Model/ParsedMovieInfo.cs` |
 | `Model/SubtitleTitleInfo.cs` | `src/NzbDrone.Core/Parser/Model/SubtitleTitleInfo.cs` |
 
-### Qualités — `Bigarr.Parsing.Qualities` (ex `NzbDrone.Core.Qualities`)
+### Qualities — `Bigarr.Parsing.Qualities` (was `NzbDrone.Core.Qualities`)
 
-| Fichier Bigarr | Chemin d'origine |
+| Bigarr file | Original path |
 |---|---|
 | `Qualities/Quality.cs` | `src/NzbDrone.Core/Qualities/Quality.cs` |
 | `Qualities/QualityModel.cs` | `src/NzbDrone.Core/Qualities/QualityModel.cs` |
 | `Qualities/QualityDefinition.cs` | `src/NzbDrone.Core/Qualities/QualityDefinition.cs` |
 | `Qualities/QualityDetectionSource.cs` | `src/NzbDrone.Core/Qualities/QualityDetectionSource.cs` |
 | `Qualities/QualityFinder.cs` | `src/NzbDrone.Core/Qualities/QualityFinder.cs` |
-| `Qualities/QualitySource.cs` | `src/NzbDrone.Core/Qualities/QualitySource.cs` (enum `QualitySource`) |
+| `Qualities/QualitySource.cs` | `src/NzbDrone.Core/Qualities/QualitySource.cs` (`QualitySource` enum) |
 | `Qualities/Modifier.cs` | `src/NzbDrone.Core/Qualities/Modifier.cs` |
 | `Qualities/Revision.cs` | `src/NzbDrone.Core/Qualities/Revision.cs` |
 
-> `Resolution` n'a pas de fichier dédié en amont : l'enum est déclaré en fin de
-> `Parser/QualityParser.cs` et a été conservé au même endroit.
+> `Resolution` has no dedicated file upstream: the enum is declared at the end of
+> `Parser/QualityParser.cs` and was kept in the same place.
 
-### Langues — `Bigarr.Parsing.Languages` (ex `NzbDrone.Core.Languages`)
+### Languages — `Bigarr.Parsing.Languages` (was `NzbDrone.Core.Languages`)
 
-| Fichier Bigarr | Chemin d'origine |
+| Bigarr file | Original path |
 |---|---|
 | `Languages/Language.cs` | `src/NzbDrone.Core/Languages/Language.cs` |
 
-### Helpers internes — `Bigarr.Parsing.Internal`
+### Internal helpers — `Bigarr.Parsing.Internal`
 
-| Fichier Bigarr | Chemin d'origine | Réduction |
+| Bigarr file | Original path | Trimming |
 |---|---|---|
-| `Internal/StringExtensions.cs` | `src/NzbDrone.Common/Extensions/StringExtensions.cs` | 4 membres conservés sur 25 : `RemoveAccent`, `IsNullOrWhiteSpace`, `IsNotNullOrWhiteSpace`, `ContainsIgnoreCase` |
-| `Internal/EnumerableExtensions.cs` | `src/NzbDrone.Common/Extensions/IEnumerableExtensions.cs` | 1 membre conservé : `Empty<T>` |
-| `Internal/PathExtensions.cs` | `src/NzbDrone.Common/Extensions/PathExtensions.cs` | 2 membres conservés : `GetPathExtension`, `ContainsInvalidPathChars` |
-| `Internal/FileExtensions.cs` | `src/NzbDrone.Core/MediaFiles/FileExtensions.cs` | seul `RemoveFileExtension` conservé (les sets archive/dangerous/executable relèvent de l'import) |
-| `Internal/MediaFileExtensions.cs` | `src/NzbDrone.Core/MediaFiles/MediaFileExtensions.cs` | intégral |
-| `Internal/Iso639BTMap.cs` | `src/NzbDrone.Core/Organizer/FileNameBuilder.cs` | **uniquement** le champ `Iso639BTMap` |
+| `Internal/StringExtensions.cs` | `src/NzbDrone.Common/Extensions/StringExtensions.cs` | 4 members kept out of 25: `RemoveAccent`, `IsNullOrWhiteSpace`, `IsNotNullOrWhiteSpace`, `ContainsIgnoreCase` |
+| `Internal/EnumerableExtensions.cs` | `src/NzbDrone.Common/Extensions/IEnumerableExtensions.cs` | 1 member kept: `Empty<T>` |
+| `Internal/PathExtensions.cs` | `src/NzbDrone.Common/Extensions/PathExtensions.cs` | 2 members kept: `GetPathExtension`, `ContainsInvalidPathChars` |
+| `Internal/FileExtensions.cs` | `src/NzbDrone.Core/MediaFiles/FileExtensions.cs` | only `RemoveFileExtension` kept (the archive/dangerous/executable sets belong to import) |
+| `Internal/MediaFileExtensions.cs` | `src/NzbDrone.Core/MediaFiles/MediaFileExtensions.cs` | whole file |
+| `Internal/Iso639BTMap.cs` | `src/NzbDrone.Core/Organizer/FileNameBuilder.cs` | **only** the `Iso639BTMap` field |
 
-### Fichier ajouté par Bigarr (non vendorisé)
+### File added by Bigarr (not vendored)
 
-| Fichier | Rôle |
+| File | Role |
 |---|---|
-| `Internal/ParserLog.cs` | remplace NLog. Voir « Journalisation ». |
+| `Internal/ParserLog.cs` | replaces NLog. See "Logging". |
 
-## Modifications appliquées
+## Modifications applied
 
-Toutes les modifications sont mécaniques. **Aucune regex n'a été touchée.**
+All modifications are mechanical. **No regex was touched.**
 
 ### 1. Namespaces
 
-| Amont | Bigarr |
+| Upstream | Bigarr |
 |---|---|
 | `NzbDrone.Core.Parser` | `Bigarr.Parsing` |
 | `NzbDrone.Core.Parser.Model` | `Bigarr.Parsing.Model` |
@@ -142,168 +141,165 @@ Toutes les modifications sont mécaniques. **Aucune regex n'a été touchée.**
 | `NzbDrone.Core.Languages` | `Bigarr.Parsing.Languages` |
 | `NzbDrone.Common.Extensions`, `NzbDrone.Core.MediaFiles`, `NzbDrone.Core.Organizer` | `Bigarr.Parsing.Internal` |
 
-Les `using` correspondants ont été réécrits. Comme deux namespaces amont fusionnent vers
-`Bigarr.Parsing.Internal`, le doublon de `using` a été supprimé dans `Parser.cs` et
-`QualityParser.cs`.
+The matching `using` directives were rewritten. Since two upstream namespaces merge into
+`Bigarr.Parsing.Internal`, the duplicated `using` was removed in `Parser.cs` and `QualityParser.cs`.
 
-### 2. Classes de base et interfaces de persistance retirées
+### 2. Persistence base classes and interfaces removed
 
-| Type | Amont | Bigarr |
+| Type | Upstream | Bigarr |
 |---|---|---|
 | `Quality` | `: IEmbeddedDocument, IEquatable<Quality>` | `: IEquatable<Quality>` |
 | `QualityModel` | `: IEmbeddedDocument, IEquatable<QualityModel>` | `: IEquatable<QualityModel>` |
 | `Language` | `: IEmbeddedDocument, IEquatable<Language>` | `: IEquatable<Language>` |
-| `QualityDefinition` | `: ModelBase` | plus de base ; ajout d'un `public int Id { get; set; }` (seul membre que `ModelBase` fournissait) |
-| `InvalidDateException` | `: NzbDroneException` | `: Exception`, avec `base(string.Format(message, args))` pour préserver la surcharge `params object[]` |
+| `QualityDefinition` | `: ModelBase` | no base; a `public int Id { get; set; }` was added (the only member `ModelBase` provided) |
+| `InvalidDateException` | `: NzbDroneException` | `: Exception`, with `base(string.Format(message, args))` to keep the `params object[]` overload |
 
-`using NzbDrone.Core.Datastore;` et `using NzbDrone.Common.Exceptions;` supprimés.
+`using NzbDrone.Core.Datastore;` and `using NzbDrone.Common.Exceptions;` removed.
 
-### 3. Journalisation : NLog → `ParserLog`
+### 3. Logging: NLog → `ParserLog`
 
-NLog n'est pas une dépendance de Bigarr. `Microsoft.Extensions.Logging.Abstractions` n'a **pas** été
-retenu : ses gabarits de message interprètent les accolades, or les titres de release en contiennent
-(`Movie Name (2016) {tmdb-43074}`), et les signatures NLog utilisées en amont (`Trace(object)`,
-`Debug(Exception, string, params object[])`) ne correspondent pas une pour une.
+NLog is not a Bigarr dependency. `Microsoft.Extensions.Logging.Abstractions` was **not** chosen: its
+message templates interpret braces, and release titles contain them (`Movie Name (2016) {tmdb-43074}`),
+and the NLog signatures used upstream (`Trace(object)`, `Debug(Exception, string, params object[])`)
+do not map one to one.
 
-`Internal/ParserLog.cs` fournit donc un logger minimal aux signatures identiques à NLog, ce qui
-laisse **tous les sites d'appel inchangés**. Seule la ligne de déclaration a été modifiée dans les
-4 fichiers concernés (`Parser.cs`, `QualityParser.cs`, `LanguageParser.cs`, `QualityFinder.cs`) :
+`Internal/ParserLog.cs` therefore provides a minimal logger with NLog-identical signatures, which
+leaves **every call site unchanged**. Only the declaration line was modified in the 4 files concerned
+(`Parser.cs`, `QualityParser.cs`, `LanguageParser.cs`, `QualityFinder.cs`):
 
 ```diff
 -private static readonly Logger Logger = NzbDroneLogger.GetLogger(typeof(Parser));
 +private static readonly ParserLog Logger = ParserLog.For(typeof(Parser));
 ```
 
-`ParserLog` est **silencieux par défaut**. Pour brancher la journalisation, affecter une fois au
-démarrage :
+`ParserLog` is **silent by default**. To wire logging, assign once at startup:
 
 ```csharp
 ParserLog.Sink = (level, name, message, ex) => logger.Log(/* ... */);
 ```
 
-Aucun paquet NuGet n'est référencé par `src/Bigarr.Parsing`.
+`src/Bigarr.Parsing` references no NuGet package.
 
-### 4. `Iso639BTMap` extrait de `FileNameBuilder`
+### 4. `Iso639BTMap` extracted from `FileNameBuilder`
 
-`IsoLanguages.Find` avait besoin de la table de correspondance ISO 639-2/B → 639-2/T, déclarée en
-amont dans `Organizer/FileNameBuilder`, une classe qui tire tout le graphe de dépendances de
-`Core` (config de nommage, service de qualité, traductions, custom formats). Seul le champ a été
-copié, dans `Internal/Iso639BTMap`. Unique changement d'appel :
+`IsoLanguages.Find` needed the ISO 639-2/B → 639-2/T mapping table, declared upstream in
+`Organizer/FileNameBuilder`, a class that pulls the whole `Core` dependency graph (naming config,
+quality service, translations, custom formats). Only the field was copied, into
+`Internal/Iso639BTMap`. Single call-site change:
 
 ```diff
 -if (FileNameBuilder.Iso639BTMap.TryGetValue(langCode, out var mapped))
 +if (Iso639BTMap.Map.TryGetValue(langCode, out var mapped))
 ```
 
-### 5. Visibilité
+### 5. Visibility
 
-Les helpers de `Bigarr.Parsing.Internal` sont passés `internal` (`StringExtensions`,
+The `Bigarr.Parsing.Internal` helpers were made `internal` (`StringExtensions`,
 `EnumerableExtensions`, `PathExtensions`, `FileExtensions`, `MediaFileExtensions`, `Iso639BTMap`).
-`ParserLog` reste public : c'est le point de branchement de la journalisation. Tous les types du
-parseur, des modèles, des qualités et des langues gardent la visibilité de l'amont.
+`ParserLog` stays public: it is the logging hook. All parser, model, quality and language types keep
+their upstream visibility.
 
 ### 6. `NoWarn` — `src/Bigarr.Parsing/Bigarr.Parsing.csproj`
 
-Le code amont est antérieur aux types référence nullables ; `Directory.Build.props` active
-`Nullable`. Annoter les fichiers vendorisés compliquerait le diff trimestriel sans changer le
-comportement, donc les diagnostics correspondants sont désactivés **au niveau du projet** plutôt que
-« corrigés » dans les fichiers :
+The upstream code predates nullable reference types; `Directory.Build.props` enables `Nullable`.
+Annotating the vendored files would complicate the quarterly diff without changing behavior, so the
+corresponding diagnostics are disabled **at project level** rather than "fixed" in the files:
 
-- `CS8600`–`CS8625`, `CS8629`, `CS8714` — analyse de nullabilité
-- `CS8632` — annotation `?` hors contexte `#nullable`
-- `CS8765`, `CS8767` — nullabilité des paramètres de `Equals` / `CompareTo`
+- `CS8600`–`CS8625`, `CS8629`, `CS8714` — nullability analysis
+- `CS8632` — `?` annotation outside a `#nullable` context
+- `CS8765`, `CS8767` — nullability of `Equals` / `CompareTo` parameters
 
-Avec ces exclusions, `dotnet build src/Bigarr.Parsing` sort à **0 warning, 0 erreur**. Tout autre
-avertissement reste actif : un nouveau warning après une mise à jour amont est donc un signal.
+With these exclusions, `dotnet build src/Bigarr.Parsing` ends with **0 warnings, 0 errors**. Every
+other warning stays active: a new warning after an upstream bump is a signal.
 
-### 7. Globalisation
+### 7. Globalization
 
-Aucune modification dans les `.csproj` : la contrainte est portée par le dépôt
-(`Directory.Build.props`) et par l'image Docker, voir « Prérequis d'exécution ».
+No change in the `.csproj` files: the constraint is carried by the repository
+(`Directory.Build.props`) and by the Docker image, see "Runtime prerequisite".
 
 ## Exclusions
 
-| Élément amont | Raison |
+| Upstream item | Reason |
 |---|---|
-| `Parser/ParsingService.cs` | dépend de `IMovieService`, `IMovieTranslationService`, du cache et de la base |
-| `Parser/Model/{LocalMovie,RemoteMovie,ReleaseInfo,TorrentInfo,GrabbedReleaseInfo,FindMovieResult,IndexerFlags,SeriesTitleInfo}.cs` | modèles indexer / download / import, hors parseur |
-| `Parser/RomanNumerals/*` | non utilisé par le parseur de release (sert à la recherche de titres) |
-| `Parser/Augmenters/*`, `CustomFormats/*` | pipeline de décision, dépend de la base |
-| `Qualities/{QualityDefinitionService,QualityDefinitionRepository,QualityDefinitionLimits,QualitiesBelowCutoff,QualityModelComparer,ProperDownloadTypes}.cs`, `Qualities/Commands/*` | persistance, configuration et comparaison — relèvent de `Bigarr.Decision` / `Bigarr.Domain` |
-| `Languages/{LanguageExtensions,LanguagesComparer,LanguageFieldConverter,OriginalLanguageFieldConverter,RealLanguageFieldConverter}.cs` | profils, comparaison et convertisseurs de champs de config |
-| `Datastore/IEmbeddedDocument`, `Datastore/ModelBase` | contrat de persistance (voir modification 2) |
-| `Common/Instrumentation/*` (NLog) | voir modification 3 |
-| `Common/EnvironmentInfo/OsInfo` | remplacé par `OperatingSystem.IsWindows()` côté tests |
+| `Parser/ParsingService.cs` | depends on `IMovieService`, `IMovieTranslationService`, the cache and the database |
+| `Parser/Model/{LocalMovie,RemoteMovie,ReleaseInfo,TorrentInfo,GrabbedReleaseInfo,FindMovieResult,IndexerFlags,SeriesTitleInfo}.cs` | indexer / download / import models, outside the parser |
+| `Parser/RomanNumerals/*` | not used by the release parser (serves title search) |
+| `Parser/Augmenters/*`, `CustomFormats/*` | decision pipeline, depends on the database |
+| `Qualities/{QualityDefinitionService,QualityDefinitionRepository,QualityDefinitionLimits,QualitiesBelowCutoff,QualityModelComparer,ProperDownloadTypes}.cs`, `Qualities/Commands/*` | persistence, configuration and comparison — belong to `Bigarr.Decision` / `Bigarr.Domain` |
+| `Languages/{LanguageExtensions,LanguagesComparer,LanguageFieldConverter,OriginalLanguageFieldConverter,RealLanguageFieldConverter}.cs` | profiles, comparison and config field converters |
+| `Datastore/IEmbeddedDocument`, `Datastore/ModelBase` | persistence contract (see modification 2) |
+| `Common/Instrumentation/*` (NLog) | see modification 3 |
+| `Common/EnvironmentInfo/OsInfo` | replaced by `OperatingSystem.IsWindows()` on the test side |
 
-## Tests portés
+## Ported tests
 
-Source : `src/NzbDrone.Core.Test/ParserTests/`. Conversion NUnit → xUnit v2.
+Source: `src/NzbDrone.Core.Test/ParserTests/`. NUnit → xUnit v2 conversion.
 
-**14 fixtures portées, 1065 cas de test, 1065 passants, 0 ignoré.**
+**14 fixtures ported, 1065 test cases, 1065 passing, 0 skipped.**
 
-| Fixture | Cas | Couvre |
+| Fixture | Cases | Covers |
 |---|---|---|
-| `ParserFixture` | 111 | titres, titres alternatifs (AKA), releases allemandes/anime, année, TMDb, IMDb, subs hardcodés |
-| `QualityParserFixture` | 287 | toutes les qualités, sources de détection, repack/proper |
-| `LanguageParserFixture` | 195 | ~50 langues, sous-titres, tags `DL`/`ML` allemands |
-| `ReleaseGroupParserFixture` | 152 | groupes standards, groupes d'exception, anime, suffixes parasites |
-| `SlugParserFixture` | 79 | `ToUrlSlug` (accents, trim, déduplication) |
-| `EditionParserFixture` | 48 | éditions (Director's Cut, Extended, IMAX…) |
-| `IsoLanguagesFixture` | 43 | résolution des codes ISO 639-1/2 |
-| `NormalizeTitleFixture` | 43 | `CleanMovieTitle` (mots communs, acronymes) |
+| `ParserFixture` | 111 | titles, alternative titles (AKA), German/anime releases, year, TMDb, IMDb, hardcoded subs |
+| `QualityParserFixture` | 287 | every quality, detection sources, repack/proper |
+| `LanguageParserFixture` | 195 | ~50 languages, subtitles, German `DL`/`ML` tags |
+| `ReleaseGroupParserFixture` | 152 | standard groups, exception groups, anime, stray suffixes |
+| `SlugParserFixture` | 79 | `ToUrlSlug` (accents, trimming, de-duplication) |
+| `EditionParserFixture` | 48 | editions (Director's Cut, Extended, IMAX…) |
+| `IsoLanguagesFixture` | 43 | ISO 639-1/2 code resolution |
+| `NormalizeTitleFixture` | 43 | `CleanMovieTitle` (common words, acronyms) |
 | `ExtendedQualityParserRegex` | 30 | `REAL`/`PROPER`, version, UltraHD |
-| `CrapParserFixture` | 26 | rejet des hashes, MD5, chaînes aléatoires |
-| `UrlFixture` | 22 | préfixes/suffixes de sites dans les noms |
-| `SceneCheckerFixture` | 12 | détection de nommage « scene » |
-| `HashedReleaseFixture` | 11 | `ParseMoviePath` sur des releases hashées |
-| `AnimeVersionFixture` | 6 | versions `v2`/`v3` anime |
+| `CrapParserFixture` | 26 | rejection of hashes, MD5, random strings |
+| `UrlFixture` | 22 | site prefixes/suffixes in names |
+| `SceneCheckerFixture` | 12 | "scene" naming detection |
+| `HashedReleaseFixture` | 11 | `ParseMoviePath` on hashed releases |
+| `AnimeVersionFixture` | 6 | anime `v2`/`v3` versions |
 
-### Conversions appliquées aux tests
+### Conversions applied to the tests
 
-- `[TestCase(...)]` → `[InlineData(...)]`, plus un `[Theory]` en tête de chaque bloc de données
+- `[TestCase(...)]` → `[InlineData(...)]`, plus one `[Theory]` at the top of each data block
 - `[Test]` → `[Fact]`
-- `[TestCaseSource(nameof(X))]` → `[MemberData(nameof(X))]`, et `public static object[] X` →
+- `[TestCaseSource(nameof(X))]` → `[MemberData(nameof(X))]`, and `public static object[] X` →
   `public static IEnumerable<object[]> X = new[]` (`HashedReleaseFixture`, `QualityParserFixture`)
-- `[TestFixture]` et la classe de base `CoreTest` supprimés ; blocs `[SetUp] Setup()` (vides en
-  amont) supprimés
-- `Description = "..."` de `TestCase` : `InlineData` n'a pas d'équivalent, la note amont est
-  conservée en commentaire de fin de ligne
-- `ExceptionVerification.IgnoreWarns()` supprimé (plumbing NUnit/NLog)
+- `[TestFixture]` and the `CoreTest` base class removed; `[SetUp] Setup()` blocks (empty upstream)
+  removed
+- `TestCase`'s `Description = "..."`: `InlineData` has no equivalent, the upstream note is kept as an
+  end-of-line comment
+- `ExceptionVerification.IgnoreWarns()` removed (NUnit/NLog plumbing)
 - `Parser.Parser.X` → `Parser.X`, `Parser.ReleaseGroupParser.X` → `ReleaseGroupParser.X`
-- `AsOsAgnostic()` : réimplémenté dans `tests/Bigarr.Parsing.Tests/TestPathExtensions.cs` depuis
-  `src/NzbDrone.Test.Common/StringExtensions.cs`, avec `OsInfo.IsNotWindows` →
+- `AsOsAgnostic()`: re-implemented in `tests/Bigarr.Parsing.Tests/TestPathExtensions.cs` from
+  `src/NzbDrone.Test.Common/StringExtensions.cs`, with `OsInfo.IsNotWindows` →
   `!OperatingSystem.IsWindows()`
-- `FluentAssertions 7.2.0` **exactement** (Apache-2.0) : la 8.x a changé de licence. Les assertions
-  amont (`Should().Be()`, `AssertionScope`, `BeEquivalentTo`) sont reprises sans modification.
-- `NoWarn` du projet de test : `xUnit1012` (l'amont passe `null` à des paramètres `string`),
-  `xUnit1026` (`should_parse_ultrahd_from_title` reçoit un `version` qu'il n'assert pas), plus les
-  diagnostics de nullabilité.
+- `FluentAssertions 7.2.0` **exactly** (Apache-2.0): 8.x changed license. Upstream assertions
+  (`Should().Be()`, `AssertionScope`, `BeEquivalentTo`) are kept unchanged.
+- Test project `NoWarn`: `xUnit1012` (upstream passes `null` to `string` parameters), `xUnit1026`
+  (`should_parse_ultrahd_from_title` receives a `version` it never asserts), plus the nullability
+  diagnostics.
 
-### Cas de test retiré
+### Removed test case
 
-- `EditionParserFixture.should_parse_edition` : l'amont répète à l'identique
-  `[TestCase("Movie Title 2012 Directors Cut", "Directors Cut")]` (deux fois dans le même bloc).
-  xUnit refuse les `InlineData` dupliqués (`xUnit1025`) ; le doublon a été supprimé. **Aucune perte
-  de couverture.**
+- `EditionParserFixture.should_parse_edition`: upstream repeats
+  `[TestCase("Movie Title 2012 Directors Cut", "Directors Cut")]` verbatim (twice in the same block).
+  xUnit rejects duplicated `InlineData` (`xUnit1025`); the duplicate was removed. **No coverage
+  lost.**
 
-### Fixtures non portées
+### Fixtures not ported
 
-| Fixture amont | Raison |
+| Upstream fixture | Reason |
 |---|---|
-| `ParsingServiceTests/GetMovieFixture.cs` | teste `ParsingService`, exclu (base + `IMovieService`) |
-| `ParsingServiceTests/MapFixture.cs` | idem, plus des mocks Moq |
-| `ParsingServiceTests/ParseQualityDefinitionFixture.cs` | teste `IQualityDefinitionService`, exclu |
-| `RomanNumeralTests/RomanNumeralConversionFixture.cs` | teste `Parser/RomanNumerals`, exclu ; nécessite en outre Newtonsoft.Json et un fichier de données JSON |
+| `ParsingServiceTests/GetMovieFixture.cs` | tests `ParsingService`, excluded (database + `IMovieService`) |
+| `ParsingServiceTests/MapFixture.cs` | same, plus Moq mocks |
+| `ParsingServiceTests/ParseQualityDefinitionFixture.cs` | tests `IQualityDefinitionService`, excluded |
+| `RomanNumeralTests/RomanNumeralConversionFixture.cs` | tests `Parser/RomanNumerals`, excluded; also needs Newtonsoft.Json and a JSON data file |
 
-## Procédure de diff trimestriel
+## Quarterly diff procedure
 
-1. Relever le dernier tag stable : `gh release list -R Radarr/Radarr --exclude-pre-releases -L 1`
-2. Cloner ce tag et diffusé chaque fichier du tableau « Fichiers vendorisés » contre son chemin
-   d'origine. Les seuls écarts attendus sont ceux listés en « Modifications appliquées » (en-tête,
-   namespaces, `using`, ligne de déclaration du logger, classes de base, appel `Iso639BTMap.Map`).
-3. Diffuser également les 14 fixtures : un nouveau `TestCase` amont signale une regex corrigée.
-4. Mettre à jour tag / SHA / date en tête de ce fichier.
-5. `dotnet build src/Bigarr.Parsing` doit rester à 0 warning ; `dotnet test tests/Bigarr.Parsing.Tests`
-   doit rester à 100 % vert.
-6. Si un id de `Quality` ou de `Language` change en amont : **ne pas suivre aveuglément**, la table
-   `QualityDefinition` de Bigarr est semée depuis ces ids et une migration serait nécessaire.
+1. Find the latest stable tag: `gh release list -R Radarr/Radarr --exclude-pre-releases -L 1`
+2. Clone that tag and diff every file of the "Vendored files" table against its original path. The
+   only expected differences are those listed under "Modifications applied" (header, namespaces,
+   `using`, logger declaration line, base classes, `Iso639BTMap.Map` call).
+3. Diff the 14 fixtures as well: a new upstream `TestCase` signals a fixed regex.
+4. Update tag / SHA / date at the top of this file.
+5. `dotnet build src/Bigarr.Parsing` must stay at 0 warnings; `dotnet test tests/Bigarr.Parsing.Tests`
+   must stay 100% green.
+6. If a `Quality` or `Language` id changes upstream: **do not follow blindly**, Bigarr's
+   `QualityDefinition` table is seeded from these ids and a migration would be needed.
