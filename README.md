@@ -1,26 +1,36 @@
 # Bigarr
 
-Gestion unifiée de médiathèque : une seule application pour remplacer, brique par brique, Radarr puis Sonarr, Seerr, Tautulli et Prowlarr.
+Unified media library manager: one application that replaces, brick by brick, Radarr, then Sonarr, Seerr, Tautulli and Prowlarr.
 
-Ce que Bigarr corrige au niveau du modèle : un film peut avoir **plusieurs versions** dans la même instance (1080p, 4K, Director's Cut…), chacune monitorée, cherchée et upgradée indépendamment. En sortie, Bigarr expose une API compatible **Radarr v3** pour que Seerr, Bazarr et le reste de l'écosystème s'y branchent sans le savoir.
+What Bigarr fixes at the model level: a movie can have **several versions** in the same instance (1080p, 4K, Director's Cut…), each monitored, searched and upgraded on its own. On the way out, Bigarr exposes a **Radarr v3 compatible API** so Seerr, Bazarr and the rest of the ecosystem plug in without noticing.
 
-- Statut : **MVP en cours**, jalon M0 (squelette). Films uniquement.
+- Status: **MVP in progress**, milestone M0 (skeleton). Movies only.
 
 ## Stack
 
-C# / .NET 10, ASP.NET Core minimal APIs, EF Core + SQLite, React + Vite + TanStack (outillé avec Bun), Docker multi-arch. Licence GPL-3.0.
+C# / .NET 10, ASP.NET Core minimal APIs, EF Core + SQLite, React + Vite + TanStack (tooled with Bun), multi-arch Docker image. GPL-3.0.
 
-## Développement
+## Development
 
 ```bash
-# backend
+# backend — http://localhost:7979
 dotnet build
 dotnet test
+dotnet run --project src/Bigarr.Api
 
-# front (servi en statique par le backend une fois buildé)
+# front — Vite dev server proxying /api to the backend
 cd web && bun install && bun run dev
+
+# production build of the front, served by the backend from wwwroot
+cd web && bun run build
 ```
 
-## Licence
+On first start an `admin` account is created. Set `Bigarr__InitialAdminPassword` to choose its password; otherwise a random one is generated and printed once in the logs.
 
-GPL-3.0-or-later. Le parseur de releases est vendoré depuis [Radarr](https://github.com/Radarr/Radarr) (GPL-3.0), voir `src/Bigarr.Parsing/VENDORED.md`.
+## Deployment
+
+A multi-arch image (amd64, arm64) is published to `ghcr.io/hezflix/bigarr` on every merge to `main`. See [`deploy/docker-compose.example.yml`](deploy/docker-compose.example.yml). Downloads and libraries must live under **one shared mount**, otherwise hardlinks are impossible and imports fall back to copies.
+
+## License
+
+GPL-3.0-or-later. The release parser is vendored from [Radarr](https://github.com/Radarr/Radarr) (GPL-3.0); see `src/Bigarr.Parsing/VENDORED.md` for the inventory and the upstream sync procedure.
