@@ -1,0 +1,28 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+*.binlog
+artifacts/
+
+# Front build output is produced into the API's wwwroot by `pnpm build`
+src/Bigarr.Api/wwwroot/
+web/node_modules/
+web/dist/
+web/src/api/generated/
+
+# Local data
+*.db
+*.db-wal
+*.db-shm
+config/
+.env
+.env.*
+
+# OS / editors
+.DS_Store
+.idea/
+*.swp
