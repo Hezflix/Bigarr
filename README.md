@@ -8,7 +8,7 @@ Ce que Bigarr corrige au niveau du modèle : un film peut avoir **plusieurs vers
 
 ## Stack
 
-C# / .NET 10, ASP.NET Core minimal APIs, EF Core + SQLite, React + Vite + TanStack, Docker multi-arch. Licence GPL-3.0.
+C# / .NET 10, ASP.NET Core minimal APIs, EF Core + SQLite, React + Vite + TanStack (outillé avec Bun), Docker multi-arch. Licence GPL-3.0.
 
 ## Développement
 
@@ -18,7 +18,7 @@ dotnet build
 dotnet test
 
 # front (servi en statique par le backend une fois buildé)
-cd web && pnpm install && pnpm dev
+cd web && bun install && bun run dev
 ```
 
 ## Licence
