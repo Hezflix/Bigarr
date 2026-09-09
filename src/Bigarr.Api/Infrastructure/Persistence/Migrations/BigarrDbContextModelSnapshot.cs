@@ -82,6 +82,8 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("IndexerId");
+
                     b.HasIndex("InfoHash");
 
                     b.HasIndex("TargetId", "ReleaseGuid")
@@ -155,6 +157,8 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("DownloadId");
+
+                    b.HasIndex("IndexerId");
 
                     b.HasIndex("State");
 
@@ -317,6 +321,8 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("EventType");
 
+                    b.HasIndex("IndexerId");
+
                     b.HasIndex("MediaFileId");
 
                     b.HasIndex("MovieId");
@@ -324,6 +330,94 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("TargetId");
 
                     b.ToTable("History", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Indexers.Indexer", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ApiKey")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ApiPath")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BaseUrl")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Categories")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("EnableAutomaticSearch")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("EnableInteractiveSearch")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("EnableRss")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Implementation")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MinimumSeeders")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ProwlarrId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RateLimitSeconds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double?>("SeedRatio")
+                        .HasColumnType("REAL");
+
+                    b.Property<int?>("SeedTimeMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.HasIndex("ProwlarrId")
+                        .IsUnique()
+                        .HasFilter("\"ProwlarrId\" IS NOT NULL");
+
+                    b.ToTable("Indexers", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Indexers.IndexerTag", b =>
+                {
+                    b.Property<int>("IndexerId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TagId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("IndexerId", "TagId");
+
+                    b.HasIndex("TagId");
+
+                    b.ToTable("IndexerTags", (string)null);
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Library.RootFolder", b =>
@@ -793,6 +887,11 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Bigarr.Domain.Acquisition.BlocklistEntry", b =>
                 {
+                    b.HasOne("Bigarr.Domain.Indexers.Indexer", null)
+                        .WithMany()
+                        .HasForeignKey("IndexerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Bigarr.Domain.Acquisition.AcquisitionTarget", "Target")
                         .WithMany()
                         .HasForeignKey("TargetId")
@@ -800,6 +899,14 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Target");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Acquisition.Grab", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Indexers.Indexer", null)
+                        .WithMany()
+                        .HasForeignKey("IndexerId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Acquisition.GrabTarget", b =>
@@ -834,6 +941,11 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Bigarr.Domain.History.HistoryEvent", b =>
                 {
+                    b.HasOne("Bigarr.Domain.Indexers.Indexer", null)
+                        .WithMany()
+                        .HasForeignKey("IndexerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Bigarr.Domain.Movies.MediaFile", "MediaFile")
                         .WithMany()
                         .HasForeignKey("MediaFileId")
@@ -854,6 +966,25 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Movie");
 
                     b.Navigation("Target");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Indexers.IndexerTag", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Indexers.Indexer", "Indexer")
+                        .WithMany()
+                        .HasForeignKey("IndexerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Bigarr.Domain.Tags.Tag", "Tag")
+                        .WithMany()
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Indexer");
+
+                    b.Navigation("Tag");
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Library.UnmappedFolder", b =>

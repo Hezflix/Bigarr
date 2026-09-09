@@ -1,6 +1,7 @@
 using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Auth;
 using Bigarr.Domain.History;
+using Bigarr.Domain.Indexers;
 using Bigarr.Domain.Library;
 using Bigarr.Domain.Movies;
 using Bigarr.Domain.Quality;
@@ -38,6 +39,8 @@ public sealed class BigarrDbContext(DbContextOptions<BigarrDbContext> options) :
     public DbSet<QualityProfile> QualityProfiles => Set<QualityProfile>();
 
     public DbSet<CustomFormat> CustomFormats => Set<CustomFormat>();
+
+    public DbSet<Indexer> Indexers => Set<Indexer>();
 
     public DbSet<RootFolder> RootFolders => Set<RootFolder>();
 

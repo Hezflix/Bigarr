@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Bigarr.Domain\Bigarr.Domain.csproj" />
+    <ProjectReference Include="..\Bigarr.Parsing\Bigarr.Parsing.csproj" />
   </ItemGroup>
 
 </Project>

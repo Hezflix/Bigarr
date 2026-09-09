@@ -1,6 +1,7 @@
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Common;
 using Bigarr.Domain.History;
+using Bigarr.Domain.Indexers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -22,6 +23,7 @@ public sealed class HistoryEventConfiguration : IEntityTypeConfiguration<History
         builder.HasOne(h => h.Target).WithMany().HasForeignKey(h => h.TargetId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(h => h.Movie).WithMany().HasForeignKey(h => h.MovieId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(h => h.MediaFile).WithMany().HasForeignKey(h => h.MediaFileId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne<Indexer>().WithMany().HasForeignKey(h => h.IndexerId).OnDelete(DeleteBehavior.SetNull);
 
         builder.HasIndex(h => h.CreatedAt);
         builder.HasIndex(h => h.EventType);

@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { ApiError, movies, quality, rootFolders, type MinimumAvailability, type Movie, type Version, type VersionMode } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import { StatusBadge } from '@/components/StatusBadge'
+import { InteractiveSearch } from '@/features/search/InteractiveSearch'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -183,6 +184,7 @@ export function MovieDetailPage() {
         <AddVersionDialog movie={m} onAdded={invalidate} />
       </div>
       <VersionsTable movie={m} onChanged={invalidate} />
+      <InteractiveSearch movie={m} />
     </>
   )
 }

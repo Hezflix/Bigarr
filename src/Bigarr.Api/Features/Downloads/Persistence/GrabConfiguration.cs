@@ -1,5 +1,6 @@
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Acquisition;
+using Bigarr.Domain.Indexers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -27,5 +28,8 @@ public sealed class GrabConfiguration : IEntityTypeConfiguration<Grab>
             .WithOne(t => t.Grab)
             .HasForeignKey(t => t.GrabId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // The indexer may be deleted after the grab; the snapshotted name keeps the row readable.
+        builder.HasOne<Indexer>().WithMany().HasForeignKey(g => g.IndexerId).OnDelete(DeleteBehavior.SetNull);
     }
 }
