@@ -28,3 +28,23 @@ export function formatBytes(bytes: number | null | undefined): string {
   }
   return `${new Intl.NumberFormat(i18n.language, { maximumFractionDigits: unit >= 3 ? 2 : 0 }).format(value)} ${units[unit]}`
 }
+
+/** "3d", "5h", "2y": the age column of a release list. */
+export function formatAge(iso: string | null | undefined, now: number = Date.now()): string {
+  if (!iso) return ''
+  const seconds = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000))
+  const units: [Intl.RelativeTimeFormatUnit, number][] = [
+    ['year', 31_536_000],
+    ['month', 2_592_000],
+    ['day', 86_400],
+    ['hour', 3_600],
+    ['minute', 60],
+  ]
+  const format = new Intl.RelativeTimeFormat(i18n.language, { numeric: 'always', style: 'narrow' })
+  for (const [unit, size] of units) {
+    if (seconds >= size) {
+      return format.format(-Math.floor(seconds / size), unit)
+    }
+  }
+  return format.format(0, 'minute')
+}

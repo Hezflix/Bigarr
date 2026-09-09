@@ -1,12 +1,15 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Bigarr.Api.Features.Auth;
+using Bigarr.Api.Features.Indexers;
 using Bigarr.Api.Features.Library;
 using Bigarr.Api.Features.Movies;
 using Bigarr.Api.Features.Quality;
+using Bigarr.Api.Features.Search;
 using Bigarr.Api.Features.Server;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Auth;
+using Bigarr.Api.Infrastructure.Indexers;
 using Bigarr.Api.Infrastructure.Metadata;
 using Bigarr.Api.Infrastructure.Persistence;
 
@@ -18,9 +21,15 @@ builder.Services.AddBigarrAuthentication();
 builder.Services.AddScoped<IStartupTask, AdminSeeder>();
 builder.Services.AddScoped<IStartupTask, QualitySeeder>();
 builder.Services.AddBigarrMetadata(builder.Configuration);
+builder.Services.AddBigarrIndexers(builder.Configuration);
 builder.Services.AddScoped<MovieService>();
 builder.Services.AddScoped<LibraryScanner>();
 builder.Services.AddSingleton<LibraryScanRunner>();
+builder.Services.AddScoped<IndexerService>();
+builder.Services.AddScoped<ProwlarrSyncService>();
+builder.Services.AddSingleton<ProwlarrSyncState>();
+builder.Services.AddHostedService<ProwlarrStartupSync>();
+builder.Services.AddScoped<InteractiveSearchService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<LibraryScanRunner>());
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
 builder.Services.AddHealthChecks().AddDbContextCheck<BigarrDbContext>();
@@ -48,6 +57,8 @@ app.MapSystem();
 app.MapMovies();
 app.MapQuality();
 app.MapRootFolders();
+app.MapIndexers();
+app.MapSearch();
 
 // The SPA is built into wwwroot by `bun run build`; anything that is not API falls back to index.html.
 app.MapFallbackToFile("{*path:regex(^(?!api/|health$|openapi/).*$)}", "index.html");

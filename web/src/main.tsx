@@ -9,6 +9,7 @@ import { LoginPage } from './features/auth/LoginPage'
 import { LibraryPage } from './features/library/LibraryPage'
 import { AddMoviePage } from './features/movies/AddMoviePage'
 import { MovieDetailPage } from './features/movies/MovieDetailPage'
+import { IndexersSettingsPage } from './features/settings/IndexersSettingsPage'
 import { LibrarySettingsPage } from './features/settings/LibrarySettingsPage'
 import './i18n'
 import './index.css'
@@ -46,9 +47,10 @@ const libraryRoute = createRoute({ getParentRoute: () => appRoute, path: '/', co
 const addRoute = createRoute({ getParentRoute: () => appRoute, path: '/add', component: AddMoviePage })
 const movieRoute = createRoute({ getParentRoute: () => appRoute, path: '/movies/$movieId', component: MovieDetailPage })
 const librarySettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/library', component: LibrarySettingsPage })
+const indexersSettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/indexers', component: IndexersSettingsPage })
 
 const router = createRouter({
-  routeTree: rootRoute.addChildren([loginRoute, appRoute.addChildren([libraryRoute, addRoute, movieRoute, librarySettingsRoute])]),
+  routeTree: rootRoute.addChildren([loginRoute, appRoute.addChildren([libraryRoute, addRoute, movieRoute, librarySettingsRoute, indexersSettingsRoute])]),
 })
 
 declare module '@tanstack/react-router' {

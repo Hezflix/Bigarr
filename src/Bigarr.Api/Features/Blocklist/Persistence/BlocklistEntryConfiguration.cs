@@ -1,4 +1,5 @@
 using Bigarr.Domain.Acquisition;
+using Bigarr.Domain.Indexers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -20,6 +21,8 @@ public sealed class BlocklistEntryConfiguration : IEntityTypeConfiguration<Block
             .WithMany()
             .HasForeignKey(e => e.TargetId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne<Indexer>().WithMany().HasForeignKey(e => e.IndexerId).OnDelete(DeleteBehavior.SetNull);
 
         // Unique on the guid when there is one; the title fallback is enforced by the application.
         builder.HasIndex(e => new { e.TargetId, e.ReleaseGuid })

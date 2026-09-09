@@ -290,6 +290,132 @@ export const rootFolders = {
   unmapped: () => api<UnmappedFolder[]>('/api/v1/rootfolders/unmapped'),
 }
 
+// ---- indexers --------------------------------------------------------------
+
+export type IndexerImplementation = 'torznab' | 'mock'
+
+export type IndexerStatus = {
+  healthy: boolean
+  failures: number
+  disabledUntil: string | null
+  lastError: string | null
+  lastFailureAt: string | null
+  lastSuccessAt: string | null
+}
+
+export type Indexer = {
+  id: number
+  name: string
+  implementation: IndexerImplementation
+  baseUrl: string | null
+  apiPath: string
+  apiKey: string | null
+  categories: number[]
+  priority: number
+  enableRss: boolean
+  enableAutomaticSearch: boolean
+  enableInteractiveSearch: boolean
+  minimumSeeders: number
+  seedRatio: number | null
+  seedTimeMinutes: number | null
+  rateLimitSeconds: number
+  protocol: 'torrent' | 'usenet'
+  /** Set when the row comes from Prowlarr: name, URL, key, priority and enabled state follow it. */
+  prowlarrId: number | null
+  status: IndexerStatus
+  createdAt: string
+}
+
+export type IndexerRequest = Omit<Indexer, 'id' | 'protocol' | 'prowlarrId' | 'status' | 'createdAt'>
+
+export type IndexerTestResult = {
+  supportsMovieSearch: boolean
+  supportsImdbSearch: boolean
+  supportsTmdbSearch: boolean
+  categoryCount: number
+  recentReleases: number
+}
+
+export type ProwlarrSyncResult = { total: number; added: number; updated: number; removed: number; skipped: number; skippedNames: string[] }
+
+export type ProwlarrStatus = {
+  configured: boolean
+  host: string | null
+  syncOnStartup: boolean
+  lastSyncAt: string | null
+  lastError: string | null
+  lastResult: ProwlarrSyncResult | null
+}
+
+export const prowlarr = {
+  status: () => api<ProwlarrStatus>('/api/v1/indexers/prowlarr'),
+  sync: () => post<ProwlarrSyncResult>('/api/v1/indexers/prowlarr/sync'),
+}
+
+export const indexers = {
+  list: () => api<Indexer[]>('/api/v1/indexers'),
+  get: (id: number) => api<Indexer>(`/api/v1/indexers/${id}`),
+  add: (body: IndexerRequest) => post<Indexer>('/api/v1/indexers', body),
+  update: (id: number, body: IndexerRequest) => put<Indexer>(`/api/v1/indexers/${id}`, body),
+  remove: (id: number) => del(`/api/v1/indexers/${id}`),
+  /** Tests an unsaved configuration: what the form calls. */
+  test: (body: IndexerRequest) => post<IndexerTestResult>('/api/v1/indexers/test', body),
+  testSaved: (id: number) => post<IndexerTestResult>(`/api/v1/indexers/${id}/test`),
+}
+
+// ---- search ----------------------------------------------------------------
+
+export type Rejection = { reason: string; temporary: boolean }
+
+export type VersionDecision = { versionId: number; versionName: string; approved: boolean; rejections: Rejection[] }
+
+export type IndexerFailureKind = 'unreachable' | 'authentication' | 'rateLimited' | 'serverError' | 'invalidResponse' | 'request' | 'disabled'
+
+export type Release = {
+  guid: string
+  title: string
+  indexerId: number
+  indexer: string
+  indexerPriority: number
+  protocol: 'torrent' | 'usenet'
+  size: number
+  seeders: number | null
+  leechers: number | null
+  publishDate: string
+  downloadUrl: string | null
+  magnetUrl: string | null
+  infoUrl: string | null
+  infoHash: string | null
+  /** Comma-separated flag names, "none" when there are none. */
+  flags: string
+  qualityId: number
+  quality: string
+  resolution: number
+  revisionVersion: number
+  isRepack: boolean
+  edition: string | null
+  releaseGroup: string | null
+  languages: string[]
+  parsedTitle: string | null
+  parsedYear: number | null
+  matchesMovie: boolean
+  rejections: Rejection[]
+  versions: VersionDecision[]
+}
+
+export type SearchResult = {
+  movieId: number
+  searchedAt: string
+  indexersQueried: number
+  releases: Release[]
+  indexerErrors: { indexerId: number; indexer: string; kind: IndexerFailureKind; message: string }[]
+}
+
+export const search = {
+  movie: (movieId: number, versionId?: number) =>
+    api<SearchResult>(`/api/v1/search?movieId=${movieId}${versionId ? `&versionId=${versionId}` : ''}`),
+}
+
 // ---- helpers ---------------------------------------------------------------
 
 export function slugify(value: string): string {
