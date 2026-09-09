@@ -2,7 +2,12 @@ import { useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { ApiError, auth } from '../../api/client'
+import { ApiError, auth } from '@/api/client'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 export function LoginPage() {
   const { t } = useTranslation()
@@ -32,26 +37,54 @@ export function LoginPage() {
         : null
 
   return (
-    <main className="card">
-      <h1>{t('app.name')}</h1>
-      <form onSubmit={onSubmit}>
-        <label>
-          {t('auth.username')}
-          <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" autoFocus />
-        </label>
-        <label>
-          {t('auth.password')}
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
-        </label>
-        {error && (
-          <p role="alert" className="error">
-            {error}
-          </p>
-        )}
-        <button type="submit" disabled={login.isPending || !username || !password}>
-          {t('auth.login')}
-        </button>
-      </form>
+    <main className="flex min-h-svh items-center justify-center bg-muted/40 p-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle className="text-2xl">{t('app.name')}</CardTitle>
+          <CardDescription>{t('auth.subtitle')}</CardDescription>
+        </CardHeader>
+        <form onSubmit={onSubmit}>
+          <CardContent className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-2">
+              <Label htmlFor="username">{t('auth.username')}</Label>
+              <Input
+                id="username"
+                data-testid="login-username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                autoFocus
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              <Label htmlFor="password">{t('auth.password')}</Label>
+              <Input
+                id="password"
+                data-testid="login-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+          <CardFooter className="pt-6">
+            <Button
+              type="submit"
+              className="w-full"
+              data-testid="login-submit"
+              disabled={login.isPending || !username || !password}
+            >
+              {t('auth.login')}
+            </Button>
+          </CardFooter>
+        </form>
+      </Card>
     </main>
   )
 }

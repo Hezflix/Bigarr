@@ -1,8 +1,27 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { ApiError, rootFolders, type RootFolder } from '../../api/client'
-import { formatBytes } from '../../i18n'
+import { toast } from 'sonner'
+import { ApiError, rootFolders, type RootFolder } from '@/api/client'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Progress } from '@/components/ui/progress'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { formatBytes } from '@/i18n'
 
 export function LibrarySettingsPage() {
   const { t } = useTranslation()
@@ -10,6 +29,7 @@ export function LibrarySettingsPage() {
   const roots = useQuery({ queryKey: ['rootFolders'], queryFn: rootFolders.list })
   const unmapped = useQuery({ queryKey: ['unmapped'], queryFn: rootFolders.unmapped })
   const [path, setPath] = useState('')
+  const [pendingRemove, setPendingRemove] = useState<RootFolder | null>(null)
 
   const add = useMutation({
     mutationFn: () => rootFolders.add(path.trim()),
@@ -20,7 +40,14 @@ export function LibrarySettingsPage() {
   })
   const remove = useMutation({
     mutationFn: (id: number) => rootFolders.remove(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rootFolders'] }),
+    onSuccess: async () => {
+      setPendingRemove(null)
+      await queryClient.invalidateQueries({ queryKey: ['rootFolders'] })
+    },
+    onError: (e) => {
+      setPendingRemove(null)
+      toast.error(e instanceof ApiError ? e.message : t('settings.removeFailed'))
+    },
   })
 
   const submit = (e: FormEvent) => {
@@ -30,79 +57,112 @@ export function LibrarySettingsPage() {
 
   return (
     <>
-      <div className="page-header">
-        <h1>{t('settings.library')}</h1>
-      </div>
+      <h1 className="text-2xl font-semibold tracking-tight">{t('settings.library')}</h1>
 
-      <h2>{t('settings.rootFolders')}</h2>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>{t('settings.path')}</th>
-              <th>{t('settings.freeSpace')}</th>
-              <th>{t('settings.versions')}</th>
-              <th>{t('settings.unmapped')}</th>
-              <th>{t('settings.scan')}</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {roots.data?.map((r) => (
-              <RootFolderRow key={r.id} root={r} onDelete={() => remove.mutate(r.id)} />
-            ))}
-            {roots.data?.length === 0 && (
-              <tr>
-                <td colSpan={6} className="muted">
-                  {t('settings.noRootFolders')}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      {remove.error && <p className="error">{remove.error instanceof ApiError ? remove.error.message : t('settings.removeFailed')}</p>}
+      <section className="flex flex-col gap-3">
+        <h2 className="text-xl font-semibold tracking-tight">{t('settings.rootFolders')}</h2>
 
-      <form className="inline-form" onSubmit={submit}>
-        <input value={path} onChange={(e) => setPath(e.target.value)} placeholder={t('settings.pathPlaceholder')} />
-        <button type="submit" disabled={add.isPending || !path.trim()}>
-          {t('settings.addRootFolder')}
-        </button>
-        {add.error && <span className="error">{add.error instanceof ApiError ? add.error.message : t('settings.addFailed')}</span>}
-      </form>
-      <p className="muted small">{t('settings.scanHint')}</p>
-
-      <h2>{t('settings.unmappedFolders')}</h2>
-      {unmapped.data?.length === 0 && <p className="muted">{t('settings.unmappedEmpty')}</p>}
-      {unmapped.data && unmapped.data.length > 0 && (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>{t('settings.folder')}</th>
-                <th>{t('settings.files')}</th>
-                <th>{t('settings.reason')}</th>
-                <th>{t('settings.detail')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {unmapped.data.map((u) => (
-                <tr key={u.id}>
-                  <td title={u.path}>{u.relativePath}</td>
-                  <td>{u.fileCount}</td>
-                  <td>{t(`unmappedReason.${u.reason}`)}</td>
-                  <td className="muted small">{u.detail}</td>
-                </tr>
+        <div className="overflow-x-auto rounded-lg border">
+          <Table data-testid="rootfolders-table">
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('settings.path')}</TableHead>
+                <TableHead>{t('settings.freeSpace')}</TableHead>
+                <TableHead>{t('settings.versions')}</TableHead>
+                <TableHead>{t('settings.unmapped')}</TableHead>
+                <TableHead className="w-[28%]">{t('settings.scan')}</TableHead>
+                <TableHead className="text-right">{t('versions.actions')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {roots.data?.map((r) => (
+                <RootFolderRow key={r.id} root={r} onRequestRemove={() => setPendingRemove(r)} />
               ))}
-            </tbody>
-          </table>
+              {roots.data?.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-muted-foreground">
+                    {t('settings.noRootFolders')}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </div>
-      )}
+
+        <form className="flex max-w-xl flex-wrap items-start gap-2" onSubmit={submit}>
+          <Input
+            className="min-w-56 flex-1"
+            value={path}
+            onChange={(e) => setPath(e.target.value)}
+            placeholder={t('settings.pathPlaceholder')}
+          />
+          <Button type="submit" disabled={add.isPending || !path.trim()}>
+            {t('settings.addRootFolder')}
+          </Button>
+          {add.error && (
+            <Alert variant="destructive" className="basis-full">
+              <AlertDescription>{add.error instanceof ApiError ? add.error.message : t('settings.addFailed')}</AlertDescription>
+            </Alert>
+          )}
+        </form>
+
+        <p className="max-w-3xl text-xs text-muted-foreground">{t('settings.scanHint')}</p>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-xl font-semibold tracking-tight">{t('settings.unmappedFolders')}</h2>
+        {unmapped.data?.length === 0 && <p className="text-sm text-muted-foreground">{t('settings.unmappedEmpty')}</p>}
+        {unmapped.data && unmapped.data.length > 0 && (
+          <div className="overflow-x-auto rounded-lg border">
+            <Table data-testid="unmapped-table">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('settings.folder')}</TableHead>
+                  <TableHead>{t('settings.files')}</TableHead>
+                  <TableHead>{t('settings.reason')}</TableHead>
+                  <TableHead>{t('settings.detail')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {unmapped.data.map((u) => (
+                  <TableRow key={u.id}>
+                    <TableCell title={u.path}>{u.relativePath}</TableCell>
+                    <TableCell>{u.fileCount}</TableCell>
+                    <TableCell>{t(`unmappedReason.${u.reason}`)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{u.detail}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </section>
+
+      <AlertDialog open={pendingRemove !== null} onOpenChange={(open) => !open && setPendingRemove(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('settings.removeRootTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('settings.confirmRemoveRoot', { path: pendingRemove?.path ?? '' })}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault()
+                if (pendingRemove) remove.mutate(pendingRemove.id)
+              }}
+              disabled={remove.isPending}
+            >
+              {t('settings.remove')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }
 
-function RootFolderRow({ root, onDelete }: { root: RootFolder; onDelete: () => void }) {
+function RootFolderRow({ root, onRequestRemove }: { root: RootFolder; onRequestRemove: () => void }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const status = useQuery({
@@ -113,6 +173,7 @@ function RootFolderRow({ root, onDelete }: { root: RootFolder; onDelete: () => v
   const scan = useMutation({
     mutationFn: () => rootFolders.scan(root.id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['scan', root.id] }),
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : t('common.unexpectedError')),
   })
 
   const s = status.data
@@ -123,46 +184,65 @@ function RootFolderRow({ root, onDelete }: { root: RootFolder; onDelete: () => v
     void queryClient.invalidateQueries({ queryKey: ['unmapped'] })
   }
 
+  const progress = busy && s && s.foldersTotal > 0 ? Math.round((s.foldersProcessed / s.foldersTotal) * 100) : 0
+
   return (
-    <tr>
-      <td>
-        <code>{root.path}</code>
-        {!root.accessible && <span className="badge status-missing">{t('settings.inaccessible')}</span>}
-      </td>
-      <td>
-        {formatBytes(root.freeSpace)} <span className="muted">/ {formatBytes(root.totalSpace)}</span>
-      </td>
-      <td>{root.versionCount}</td>
-      <td>{root.unmappedFolderCount}</td>
-      <td>
+    <TableRow>
+      <TableCell className="align-top whitespace-normal">
+        <span className="flex flex-wrap items-center gap-2">
+          <code className="rounded bg-muted px-1.5 py-0.5 text-xs break-all">{root.path}</code>
+          {!root.accessible && (
+            <Badge variant="outline" className="border-amber-600/30 bg-amber-500/15 text-amber-700 dark:border-amber-400/30 dark:text-amber-300">
+              {t('settings.inaccessible')}
+            </Badge>
+          )}
+        </span>
+      </TableCell>
+      <TableCell className="align-top whitespace-nowrap">
+        {formatBytes(root.freeSpace)} <span className="text-muted-foreground">/ {formatBytes(root.totalSpace)}</span>
+      </TableCell>
+      <TableCell className="align-top">{root.versionCount}</TableCell>
+      <TableCell className="align-top">{root.unmappedFolderCount}</TableCell>
+      <TableCell className="align-top">
         {busy && s && (
-          <span className="muted small">
-            {s.foldersProcessed}/{s.foldersTotal} {s.currentFolder ? `· ${s.currentFolder}` : ''}
-          </span>
+          <div className="flex flex-col gap-1">
+            <Progress value={progress} />
+            <span className="text-xs text-muted-foreground">
+              {s.foldersProcessed}/{s.foldersTotal}
+              {s.currentFolder ? ` · ${s.currentFolder}` : ''}
+            </span>
+          </div>
         )}
         {s?.state === 'completed' && (
-          <span className="muted small">
+          <span className="text-xs text-muted-foreground">
             {t('settings.scanMovies', { count: s.moviesAdded })}, {t('settings.scanVersions', { count: s.versionsAdded })},{' '}
             {t('settings.scanUnmapped', { count: s.unmapped })}
           </span>
         )}
-        {s?.state === 'failed' && <span className="error small">{s.error}</span>}
-      </td>
-      <td className="row-actions">
-        <button type="button" onClick={() => scan.mutate()} disabled={busy || scan.isPending || !root.accessible}>
-          {busy ? t('settings.scanning') : t('settings.scan')}
-        </button>
-        <button
-          type="button"
-          className="ghost danger"
-          onClick={() => {
-            if (window.confirm(t('settings.confirmRemoveRoot', { path: root.path }))) onDelete()
-          }}
-          title={t('settings.remove')}
-        >
-          ✕
-        </button>
-      </td>
-    </tr>
+        {s?.state === 'failed' && <span className="text-xs text-destructive">{s.error}</span>}
+      </TableCell>
+      <TableCell className="align-top">
+        <div className="flex items-center justify-end gap-1">
+          <Button type="button" size="sm" onClick={() => scan.mutate()} disabled={busy || scan.isPending || !root.accessible}>
+            {busy ? t('settings.scanning') : t('settings.scan')}
+          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="text-destructive hover:text-destructive"
+                onClick={onRequestRemove}
+                aria-label={t('settings.remove')}
+              >
+                <Trash2Icon />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('settings.remove')}</TooltipContent>
+          </Tooltip>
+        </div>
+      </TableCell>
+    </TableRow>
   )
 }
