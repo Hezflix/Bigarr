@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Bigarr.Api/Bigarr.Api.csproj" />
+    <Project Path="src/Bigarr.Decision/Bigarr.Decision.csproj" />
+    <Project Path="src/Bigarr.Domain/Bigarr.Domain.csproj" />
+    <Project Path="src/Bigarr.Parsing/Bigarr.Parsing.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Bigarr.Api.Tests/Bigarr.Api.Tests.csproj" />
+    <Project Path="tests/Bigarr.Parsing.Tests/Bigarr.Parsing.Tests.csproj" />
+  </Folder>
+</Solution>

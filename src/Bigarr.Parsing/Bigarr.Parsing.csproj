@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    This project contains code vendored from Radarr (GPL-3.0) — see VENDORED.md.
+    The vendored parser predates nullable reference types; keeping it byte-comparable with
+    upstream matters more than annotating it, so the nullable-reference diagnostics are
+    silenced here instead of being "fixed" in vendored files. Everything else still warns.
+      CS8600-CS8629, CS8714  nullable reference/value analysis
+      CS8632                 nullable annotation in a non-#nullable context
+      CS8765/CS8767          nullability mismatch on Equals/CompareTo overrides
+  -->
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);CS8600;CS8601;CS8602;CS8603;CS8604;CS8605;CS8606;CS8607;CS8608;CS8609;CS8610;CS8611;CS8612;CS8613;CS8614;CS8615;CS8616;CS8617;CS8618;CS8619;CS8620;CS8621;CS8622;CS8623;CS8624;CS8625;CS8629;CS8632;CS8714;CS8765;CS8767</NoWarn>
+  </PropertyGroup>
+
+</Project>
