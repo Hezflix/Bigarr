@@ -4,7 +4,7 @@ Unified media library manager: one application that replaces, brick by brick, Ra
 
 What Bigarr fixes at the model level: a movie can have **several versions** in the same instance (1080p, 4K, Director's Cut…), each monitored, searched and upgraded on its own. On the way out, Bigarr exposes a **Radarr v3 compatible API** so Seerr, Bazarr and the rest of the ecosystem plug in without noticing.
 
-- Status: **MVP in progress**, milestone M0 (skeleton). Movies only.
+- Status: **MVP in progress**, milestone M1 (catalogue: TMDB metadata, movies and versions, library scan). Movies only.
 
 ## Stack
 
@@ -24,6 +24,8 @@ cd web && bun install && bun run dev
 # production build of the front, served by the backend from wwwroot
 cd web && bun run build
 ```
+
+Metadata comes from TMDB. Set `Bigarr__Tmdb__ApiKey` (a v3 API key or a v4 read access token, free at themoviedb.org). Without it Bigarr runs on an embedded fixture catalogue of a dozen films, which is what the tests use.
 
 On first start an `admin` account is created. Set `Bigarr__InitialAdminPassword` to choose its password; otherwise a random one is generated and printed once in the logs.
 

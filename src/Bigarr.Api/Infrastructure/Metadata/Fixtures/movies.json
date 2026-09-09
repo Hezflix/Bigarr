@@ -1,0 +1,104 @@
+[
+  {
+    "tmdbId": 603, "imdbId": "tt0133093", "title": "The Matrix", "originalTitle": "The Matrix", "year": 1999, "runtime": 136,
+    "overview": "Set in the 22nd century, The Matrix tells the story of a computer hacker who joins a group of underground insurgents fighting the vast and powerful computers who now rule the earth.",
+    "certification": "R", "originalLanguage": "en", "genres": ["Action", "Science Fiction"],
+    "ratings": { "tmdb": { "value": 8.2, "votes": 25000 } },
+    "alternativeTitles": [ { "title": "Matrix", "language": "FR" } ],
+    "status": "Released", "inCinemasDate": "1999-03-31", "digitalReleaseDate": "1999-09-21", "physicalReleaseDate": "1999-09-21",
+    "collectionTmdbId": 2344, "images": []
+  },
+  {
+    "tmdbId": 604, "imdbId": "tt0234215", "title": "The Matrix Reloaded", "originalTitle": "The Matrix Reloaded", "year": 2003, "runtime": 138,
+    "overview": "Six months after the events depicted in The Matrix, Neo has proved to be a good omen for the free humans.",
+    "certification": "R", "originalLanguage": "en", "genres": ["Adventure", "Action", "Thriller", "Science Fiction"],
+    "ratings": { "tmdb": { "value": 7.0, "votes": 12000 } },
+    "alternativeTitles": [ { "title": "Matrix Reloaded", "language": "FR" } ],
+    "status": "Released", "inCinemasDate": "2003-05-15", "digitalReleaseDate": "2003-10-14", "physicalReleaseDate": "2003-10-14",
+    "collectionTmdbId": 2344, "images": []
+  },
+  {
+    "tmdbId": 157336, "imdbId": "tt0816692", "title": "Interstellar", "originalTitle": "Interstellar", "year": 2014, "runtime": 169,
+    "overview": "The adventures of a group of explorers who make use of a newly discovered wormhole to surpass the limitations on human space travel.",
+    "certification": "PG-13", "originalLanguage": "en", "genres": ["Adventure", "Drama", "Science Fiction"],
+    "ratings": { "tmdb": { "value": 8.4, "votes": 35000 } },
+    "alternativeTitles": [], "status": "Released", "inCinemasDate": "2014-11-05", "digitalReleaseDate": "2015-03-17", "physicalReleaseDate": "2015-03-31",
+    "collectionTmdbId": null, "images": []
+  },
+  {
+    "tmdbId": 27205, "imdbId": "tt1375666", "title": "Inception", "originalTitle": "Inception", "year": 2010, "runtime": 148,
+    "overview": "Cobb, a skilled thief who commits corporate espionage by infiltrating the subconscious of his targets, is offered a chance to regain his old life.",
+    "certification": "PG-13", "originalLanguage": "en", "genres": ["Action", "Science Fiction", "Adventure"],
+    "ratings": { "tmdb": { "value": 8.4, "votes": 36000 } },
+    "alternativeTitles": [], "status": "Released", "inCinemasDate": "2010-07-15", "digitalReleaseDate": "2010-12-07", "physicalReleaseDate": "2010-12-07",
+    "collectionTmdbId": null, "images": []
+  },
+  {
+    "tmdbId": 335984, "imdbId": "tt1856101", "title": "Blade Runner 2049", "originalTitle": "Blade Runner 2049", "year": 2017, "runtime": 164,
+    "overview": "Thirty years after the events of the first film, a new blade runner, LAPD Officer K, unearths a long-buried secret.",
+    "certification": "R", "originalLanguage": "en", "genres": ["Science Fiction", "Drama"],
+    "ratings": { "tmdb": { "value": 7.5, "votes": 13000 } },
+    "alternativeTitles": [], "status": "Released", "inCinemasDate": "2017-10-04", "digitalReleaseDate": "2017-12-26", "physicalReleaseDate": "2018-01-16",
+    "collectionTmdbId": 422837, "images": []
+  },
+  {
+    "tmdbId": 78, "imdbId": "tt0083658", "title": "Blade Runner", "originalTitle": "Blade Runner", "year": 1982, "runtime": 118,
+    "overview": "In the smog-choked dystopian Los Angeles of 2019, blade runner Rick Deckard is called out of retirement to terminate a quartet of replicants.",
+    "certification": "R", "originalLanguage": "en", "genres": ["Science Fiction", "Drama", "Thriller"],
+    "ratings": { "tmdb": { "value": 7.9, "votes": 13500 } },
+    "alternativeTitles": [ { "title": "Blade Runner: The Final Cut", "language": "US" } ],
+    "status": "Released", "inCinemasDate": "1982-06-25", "digitalReleaseDate": "2007-12-18", "physicalReleaseDate": "2007-12-18",
+    "collectionTmdbId": 422837, "images": []
+  },
+  {
+    "tmdbId": 496243, "imdbId": "tt6751668", "title": "Parasite", "originalTitle": "기생충", "year": 2019, "runtime": 133,
+    "overview": "All unemployed, Ki-taek's family takes peculiar interest in the wealthy and glamorous Parks for their livelihood until they get entangled in an unexpected incident.",
+    "certification": "R", "originalLanguage": "ko", "genres": ["Comedy", "Thriller", "Drama"],
+    "ratings": { "tmdb": { "value": 8.5, "votes": 18000 } },
+    "alternativeTitles": [ { "title": "Gisaengchung", "language": "KR" } ],
+    "status": "Released", "inCinemasDate": "2019-05-30", "digitalReleaseDate": "2019-10-11", "physicalReleaseDate": "2020-01-28",
+    "collectionTmdbId": null, "images": []
+  },
+  {
+    "tmdbId": 194, "imdbId": "tt0211915", "title": "Amélie", "originalTitle": "Le Fabuleux Destin d'Amélie Poulain", "year": 2001, "runtime": 122,
+    "overview": "At a tiny Parisian café, the adorable yet painfully shy Amélie accidentally discovers a gift for helping others.",
+    "certification": "R", "originalLanguage": "fr", "genres": ["Comedy", "Romance"],
+    "ratings": { "tmdb": { "value": 7.9, "votes": 11000 } },
+    "alternativeTitles": [ { "title": "Amelie", "language": "US" }, { "title": "Die fabelhafte Welt der Amélie", "language": "DE" } ],
+    "status": "Released", "inCinemasDate": "2001-04-25", "digitalReleaseDate": "2002-07-16", "physicalReleaseDate": "2002-07-16",
+    "collectionTmdbId": null, "images": []
+  },
+  {
+    "tmdbId": 129, "imdbId": "tt0245429", "title": "Spirited Away", "originalTitle": "千と千尋の神隠し", "year": 2001, "runtime": 125,
+    "overview": "A young girl, Chihiro, becomes trapped in a strange new world of spirits. When her parents undergo a mysterious transformation, she must call upon the courage she never knew she had to free her family.",
+    "certification": "PG", "originalLanguage": "ja", "genres": ["Animation", "Family", "Fantasy"],
+    "ratings": { "tmdb": { "value": 8.5, "votes": 16000 } },
+    "alternativeTitles": [ { "title": "Le Voyage de Chihiro", "language": "FR" }, { "title": "Sen to Chihiro no Kamikakushi", "language": "JP" } ],
+    "status": "Released", "inCinemasDate": "2001-07-20", "digitalReleaseDate": "2003-04-15", "physicalReleaseDate": "2003-04-15",
+    "collectionTmdbId": null, "images": []
+  },
+  {
+    "tmdbId": 693134, "imdbId": "tt15239678", "title": "Dune: Part Two", "originalTitle": "Dune: Part Two", "year": 2024, "runtime": 167,
+    "overview": "Follow the mythic journey of Paul Atreides as he unites with Chani and the Fremen while on a path of revenge against the conspirators who destroyed his family.",
+    "certification": "PG-13", "originalLanguage": "en", "genres": ["Science Fiction", "Adventure"],
+    "ratings": { "tmdb": { "value": 8.2, "votes": 6000 } },
+    "alternativeTitles": [ { "title": "Dune 2", "language": "US" }, { "title": "Dune : Deuxième partie", "language": "FR" } ],
+    "status": "Released", "inCinemasDate": "2024-02-27", "digitalReleaseDate": "2024-04-16", "physicalReleaseDate": "2024-05-14",
+    "collectionTmdbId": 726871, "images": []
+  },
+  {
+    "tmdbId": 954, "imdbId": "tt0117060", "title": "Mission: Impossible", "originalTitle": "Mission: Impossible", "year": 1996, "runtime": 110,
+    "overview": "When Ethan Hunt, the leader of a crack espionage team whose perilous operation has gone awry with no explanation, discovers that a mole has penetrated the CIA, he's surprised to learn that he's the No. 1 suspect.",
+    "certification": "PG-13", "originalLanguage": "en", "genres": ["Adventure", "Action", "Thriller"],
+    "ratings": { "tmdb": { "value": 7.0, "votes": 9000 } },
+    "alternativeTitles": [], "status": "Released", "inCinemasDate": "1996-05-22", "digitalReleaseDate": "1998-11-17", "physicalReleaseDate": "1998-11-17",
+    "collectionTmdbId": 87359, "images": []
+  },
+  {
+    "tmdbId": 900000001, "imdbId": null, "title": "Bigarr Test: Unreleased", "originalTitle": "Bigarr Test: Unreleased", "year": 2027, "runtime": null,
+    "overview": "Fixture only. A film that is announced but not released, to exercise minimum availability and the pending status.",
+    "certification": null, "originalLanguage": "en", "genres": ["Drama"],
+    "ratings": null, "alternativeTitles": [], "status": "Announced", "inCinemasDate": "2027-06-01", "digitalReleaseDate": null, "physicalReleaseDate": null,
+    "collectionTmdbId": null, "images": []
+  }
+]

@@ -1,4 +1,5 @@
 using Bigarr.Domain.Library;
+using Bigarr.Domain.Metadata;
 using Bigarr.Domain.Tags;
 
 namespace Bigarr.Domain.Movies;
@@ -65,4 +66,46 @@ public sealed class Movie
 
     /// <summary>Computed: at least one monitored version. Not mapped.</summary>
     public bool Monitored => Versions.Any(v => v.Monitored);
+
+    public static Movie FromMetadata(MovieMetadata metadata, int defaultRootFolderId)
+    {
+        ArgumentNullException.ThrowIfNull(metadata);
+
+        var movie = new Movie
+        {
+            TmdbId = metadata.TmdbId,
+            Title = metadata.Title,
+            SortTitle = Movies.SortTitle.Build(metadata.Title),
+            DefaultRootFolderId = defaultRootFolderId,
+        };
+        movie.ApplyMetadata(metadata);
+        return movie;
+    }
+
+    /// <summary>Refreshes the metadata cache. Never touches versions, files or the root folder.</summary>
+    public void ApplyMetadata(MovieMetadata metadata)
+    {
+        ArgumentNullException.ThrowIfNull(metadata);
+
+        TmdbId = metadata.TmdbId;
+        ImdbId = metadata.ImdbId;
+        Title = metadata.Title;
+        OriginalTitle = metadata.OriginalTitle;
+        SortTitle = Movies.SortTitle.Build(metadata.Title);
+        Year = metadata.Year;
+        Runtime = metadata.Runtime;
+        Overview = metadata.Overview;
+        Certification = metadata.Certification;
+        OriginalLanguage = metadata.OriginalLanguage;
+        Genres = [.. metadata.Genres];
+        Ratings = metadata.Ratings;
+        AlternativeTitles = [.. metadata.AlternativeTitles];
+        TmdbStatus = metadata.Status;
+        InCinemasDate = metadata.InCinemasDate;
+        DigitalReleaseDate = metadata.DigitalReleaseDate;
+        PhysicalReleaseDate = metadata.PhysicalReleaseDate;
+        CollectionTmdbId = metadata.CollectionTmdbId;
+        Images = [.. metadata.Images];
+        LastMetadataRefreshAt = DateTime.UtcNow;
+    }
 }

@@ -17,6 +17,8 @@ public sealed class BigarrDbContext(DbContextOptions<BigarrDbContext> options) :
 {
     public DbSet<Movie> Movies => Set<Movie>();
 
+    public DbSet<MovieExclusion> MovieExclusions => Set<MovieExclusion>();
+
     public DbSet<AcquisitionTarget> AcquisitionTargets => Set<AcquisitionTarget>();
 
     public DbSet<MovieVersion> MovieVersions => Set<MovieVersion>();
@@ -38,6 +40,8 @@ public sealed class BigarrDbContext(DbContextOptions<BigarrDbContext> options) :
     public DbSet<CustomFormat> CustomFormats => Set<CustomFormat>();
 
     public DbSet<RootFolder> RootFolders => Set<RootFolder>();
+
+    public DbSet<UnmappedFolder> UnmappedFolders => Set<UnmappedFolder>();
 
     public DbSet<Tag> Tags => Set<Tag>();
 

@@ -1,0 +1,157 @@
+{
+  "app": {
+    "name": "Bigarr"
+  },
+  "nav": {
+    "movies": "Movies",
+    "library": "Library",
+    "addMovie": "Add a movie",
+    "settings": "Settings",
+    "settingsLibrary": "Library",
+    "logout": "Log out",
+    "menu": "Menu"
+  },
+  "auth": {
+    "username": "Username",
+    "password": "Password",
+    "login": "Log in",
+    "invalidCredentials": "Invalid username or password.",
+    "unexpectedError": "Unexpected error, please try again."
+  },
+  "common": {
+    "loading": "Loading…",
+    "cancel": "Cancel",
+    "none": "—",
+    "unexpectedError": "Unexpected error.",
+    "minutes": "{{count}} min"
+  },
+  "library": {
+    "title": "Library",
+    "count_one": "{{count}} movie",
+    "count_other": "{{count}} movies",
+    "addMovie": "Add a movie",
+    "empty": "No movies yet.",
+    "emptyHint": "<add>Add a movie</add> or <scan>scan an existing library</scan>.",
+    "loadError": "The library could not be loaded.",
+    "noFile": "no file"
+  },
+  "lookup": {
+    "title": "Add a movie",
+    "placeholder": "Title, “title (year)”, tmdb:603 or tt0133093…",
+    "searching": "Searching…",
+    "failed": "The search failed.",
+    "noResults": "No results.",
+    "excluded": "Excluded",
+    "alreadyInLibrary": "Already in the library",
+    "choose": "Choose"
+  },
+  "addMovie": {
+    "noRootFolder": "No root folder yet. <link>Add one</link> before adding a movie.",
+    "qualityProfile": "Quality profile",
+    "rootFolder": "Root folder",
+    "versionName": "Version name",
+    "versionNameHint": "Lowercase slug, for example 1080p, 4k, directors-cut.",
+    "minimumAvailability": "Minimum availability",
+    "monitor": "Monitor this version",
+    "submit": "Add"
+  },
+  "availability": {
+    "announced": "Announced",
+    "inCinemas": "In cinemas",
+    "released": "Released"
+  },
+  "movieStatus": {
+    "tba": "TBA",
+    "announced": "Announced",
+    "inCinemas": "In cinemas",
+    "released": "Released",
+    "deleted": "Removed from TMDB"
+  },
+  "status": {
+    "pending": "Pending",
+    "missing": "Missing",
+    "downloading": "Downloading",
+    "available": "Available"
+  },
+  "movie": {
+    "notFound": "Movie not found.",
+    "refresh": "Refresh metadata",
+    "delete": "Delete",
+    "confirmDelete": "Delete “{{title}}” and all its versions? Files stay on disk.",
+    "confirmExclude": "Also exclude this movie from future automatic additions?",
+    "inCinemas": "In cinemas {{date}}",
+    "digital": "Digital {{date}}",
+    "physical": "Physical {{date}}",
+    "tmdbRating": "TMDB {{value}}"
+  },
+  "versions": {
+    "title": "Versions",
+    "version": "Version",
+    "mode": "Mode",
+    "profile": "Profile",
+    "minAvailability": "Min. availability",
+    "status": "Status",
+    "file": "File",
+    "folder": "Folder",
+    "managed": "Managed",
+    "oneShot": "One shot",
+    "default": "Default version",
+    "edition": "edition: {{value}}",
+    "group": "group: {{value}}",
+    "repack": "(repack)",
+    "monitor": "Monitor",
+    "unmonitor": "Stop monitoring",
+    "promote": "Make this the default version",
+    "delete": "Delete version",
+    "confirmDelete": "Delete version “{{name}}”? The file stays on disk.",
+    "noManagedCandidate": "No other managed version can become the default.",
+    "add": "+ Add a version",
+    "new": "New version",
+    "name": "Name",
+    "namePlaceholder": "4k, directors-cut…",
+    "modeManaged": "Managed: profile, RSS, upgrades",
+    "modeOneShot": "One shot: downloaded once, never upgraded",
+    "editionConstraint": "Edition constraint (regex)",
+    "releaseGroup": "Required release group",
+    "create": "Create version",
+    "manageRootFolders": "Manage root folders"
+  },
+  "settings": {
+    "library": "Library",
+    "rootFolders": "Root folders",
+    "path": "Path",
+    "freeSpace": "Free space",
+    "versions": "Versions",
+    "unmapped": "Unmapped",
+    "scan": "Scan",
+    "scanning": "Scanning…",
+    "noRootFolders": "No root folders.",
+    "addRootFolder": "Add folder",
+    "pathPlaceholder": "/data/movies",
+    "removeFailed": "The root folder could not be removed.",
+    "addFailed": "The root folder could not be added.",
+    "scanHint": "The scan is read-only: one top-level folder is one movie, one video file is one version on the “Any” profile, unmonitored. Nothing is moved or renamed.",
+    "unmappedFolders": "Unmapped folders",
+    "unmappedEmpty": "None. Everything scanned found its movie.",
+    "folder": "Folder",
+    "files": "Files",
+    "reason": "Reason",
+    "detail": "Detail",
+    "inaccessible": "inaccessible",
+    "remove": "Remove",
+    "confirmRemoveRoot": "Remove root folder {{path}}?",
+    "scanMovies_one": "{{count}} movie",
+    "scanMovies_other": "{{count}} movies",
+    "scanVersions_one": "{{count}} version",
+    "scanVersions_other": "{{count}} versions",
+    "scanUnmapped_one": "{{count}} unmapped",
+    "scanUnmapped_other": "{{count}} unmapped"
+  },
+  "unmappedReason": {
+    "noVideoFiles": "No video files",
+    "notParsable": "Name not recognised",
+    "noMatch": "No matching movie",
+    "ambiguousMatch": "Several possible movies",
+    "metadataError": "Metadata provider error"
+  }
+}

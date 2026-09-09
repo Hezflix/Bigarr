@@ -345,6 +345,44 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("RootFolders", (string)null);
                 });
 
+            modelBuilder.Entity("Bigarr.Domain.Library.UnmappedFolder", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DiscoveredAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("FileCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("LastSeenAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Reason")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RelativePath")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RootFolderId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RootFolderId", "RelativePath")
+                        .IsUnique();
+
+                    b.ToTable("UnmappedFolders", (string)null);
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Movies.MediaFile", b =>
                 {
                     b.Property<int>("Id")
@@ -495,6 +533,34 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("Movies", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Movies.MovieExclusion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TmdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Year")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TmdbId")
+                        .IsUnique();
+
+                    b.ToTable("MovieExclusions", (string)null);
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Movies.MovieTag", b =>
@@ -788,6 +854,17 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Movie");
 
                     b.Navigation("Target");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Library.UnmappedFolder", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Library.RootFolder", "RootFolder")
+                        .WithMany()
+                        .HasForeignKey("RootFolderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RootFolder");
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Movies.MediaFile", b =>
