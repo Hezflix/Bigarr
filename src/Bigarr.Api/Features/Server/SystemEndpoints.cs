@@ -2,10 +2,11 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Auth;
+using Bigarr.Domain.Metadata;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Options;
 
-namespace Bigarr.Api.Features.System;
+namespace Bigarr.Api.Features.Server;
 
 public sealed record SystemStatusResponse(
     string AppName,
@@ -15,7 +16,9 @@ public sealed record SystemStatusResponse(
     string RuntimeVersion,
     string Os,
     bool IsDocker,
-    string ConfigDirectory);
+    string ConfigDirectory,
+    /// <summary><c>tmdb</c> or <c>fixtures</c>.</summary>
+    string MetadataProvider);
 
 public static class SystemEndpoints
 {
@@ -34,7 +37,7 @@ public static class SystemEndpoints
         return app;
     }
 
-    private static Ok<SystemStatusResponse> Status(IOptions<BigarrOptions> options, IHostEnvironment environment) =>
+    private static Ok<SystemStatusResponse> Status(IOptions<BigarrOptions> options, IHostEnvironment environment, IMetadataProvider metadata) =>
         TypedResults.Ok(new SystemStatusResponse(
             AppName: "Bigarr",
             Version: Version,
@@ -43,5 +46,6 @@ public static class SystemEndpoints
             RuntimeVersion: RuntimeInformation.FrameworkDescription,
             Os: RuntimeInformation.OSDescription,
             IsDocker: string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase),
-            ConfigDirectory: Path.GetFullPath(options.Value.ConfigDirectory)));
+            ConfigDirectory: Path.GetFullPath(options.Value.ConfigDirectory),
+            MetadataProvider: metadata.Name));
 }

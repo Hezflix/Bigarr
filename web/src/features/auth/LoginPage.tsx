@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { ApiError, auth } from '../../api/client'
 
 export function LoginPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [username, setUsername] = useState('')
@@ -24,27 +26,22 @@ export function LoginPage() {
 
   const error =
     login.error instanceof ApiError && login.error.status === 401
-      ? 'Identifiants incorrects.'
+      ? t('auth.invalidCredentials')
       : login.error
-        ? 'Erreur inattendue, réessaie.'
+        ? t('auth.unexpectedError')
         : null
 
   return (
     <main className="card">
-      <h1>Bigarr</h1>
+      <h1>{t('app.name')}</h1>
       <form onSubmit={onSubmit}>
         <label>
-          Utilisateur
+          {t('auth.username')}
           <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" autoFocus />
         </label>
         <label>
-          Mot de passe
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-          />
+          {t('auth.password')}
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
         </label>
         {error && (
           <p role="alert" className="error">
@@ -52,7 +49,7 @@ export function LoginPage() {
           </p>
         )}
         <button type="submit" disabled={login.isPending || !username || !password}>
-          Se connecter
+          {t('auth.login')}
         </button>
       </form>
     </main>

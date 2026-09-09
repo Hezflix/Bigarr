@@ -29,7 +29,7 @@ public sealed class MediaFile
 
     public string? ReleaseGroup { get; set; }
 
-    /// <summary>ISO 639-1 codes.</summary>
+    /// <summary>Language names as the parser and Radarr use them ("English", "French"): Bazarr reads <c>languages[].name</c>.</summary>
     public List<string> Languages { get; set; } = [];
 
     public IndexerFlags IndexerFlags { get; set; }

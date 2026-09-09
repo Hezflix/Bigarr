@@ -3,8 +3,13 @@ import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Outlet, RouterProvider, createRootRoute, createRoute, createRouter, redirect } from '@tanstack/react-router'
 import { ApiError, auth } from './api/client'
+import { AppShell } from './components/AppShell'
 import { LoginPage } from './features/auth/LoginPage'
-import { HomePage } from './features/system/HomePage'
+import { LibraryPage } from './features/library/LibraryPage'
+import { AddMoviePage } from './features/movies/AddMoviePage'
+import { MovieDetailPage } from './features/movies/MovieDetailPage'
+import { LibrarySettingsPage } from './features/settings/LibrarySettingsPage'
+import './i18n'
 import './app.css'
 
 const queryClient = new QueryClient({
@@ -13,9 +18,16 @@ const queryClient = new QueryClient({
 
 const rootRoute = createRootRoute({ component: () => <Outlet /> })
 
-const homeRoute = createRoute({
+const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/',
+  path: '/login',
+  component: LoginPage,
+})
+
+// Everything under the shell requires a session; a 401 sends to the login page.
+const appRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: 'app',
   beforeLoad: async () => {
     try {
       await queryClient.fetchQuery({ queryKey: ['me'], queryFn: auth.me, staleTime: 60_000 })
@@ -26,16 +38,17 @@ const homeRoute = createRoute({
       throw error
     }
   },
-  component: HomePage,
+  component: AppShell,
 })
 
-const loginRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/login',
-  component: LoginPage,
-})
+const libraryRoute = createRoute({ getParentRoute: () => appRoute, path: '/', component: LibraryPage })
+const addRoute = createRoute({ getParentRoute: () => appRoute, path: '/add', component: AddMoviePage })
+const movieRoute = createRoute({ getParentRoute: () => appRoute, path: '/movies/$movieId', component: MovieDetailPage })
+const librarySettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/library', component: LibrarySettingsPage })
 
-const router = createRouter({ routeTree: rootRoute.addChildren([homeRoute, loginRoute]) })
+const router = createRouter({
+  routeTree: rootRoute.addChildren([loginRoute, appRoute.addChildren([libraryRoute, addRoute, movieRoute, librarySettingsRoute])]),
+})
 
 declare module '@tanstack/react-router' {
   interface Register {
