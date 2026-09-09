@@ -8,7 +8,7 @@ TestResults/
 *.binlog
 artifacts/
 
-# Front build output is produced into the API's wwwroot by `pnpm build`
+# Front build output is produced into the API's wwwroot by `bun run build`
 src/Bigarr.Api/wwwroot/
 web/node_modules/
 web/dist/
@@ -26,3 +26,6 @@ config/
 .DS_Store
 .idea/
 *.swp
+
+# Design documents stay local
+docs/

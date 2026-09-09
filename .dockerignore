@@ -1,0 +1,15 @@
+.git
+.github
+**/bin/
+**/obj/
+**/TestResults/
+web/node_modules/
+web/dist/
+src/Bigarr.Api/wwwroot/
+config/
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+docs/

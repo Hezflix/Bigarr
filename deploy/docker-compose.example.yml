@@ -1,0 +1,20 @@
+# Deployment example. Copy to docker-compose.yml and adapt the paths.
+#
+# Keep ONE /data mount shared with qBittorrent (downloads AND libraries below it):
+# hardlinks are impossible across mounts and imports would fall back to copies.
+services:
+  bigarr:
+    image: ghcr.io/hezflix/bigarr:edge
+    container_name: bigarr
+    # The image runs rootless (uid 1654). Match the owner of /config and /data.
+    user: "1000:1000"
+    ports:
+      - "7979:7979"
+    environment:
+      - TZ=Europe/Paris
+      # Admin password on first start. Without it a password is generated and printed once in the logs.
+      # - Bigarr__InitialAdminPassword=change-me
+    volumes:
+      - ./config:/config
+      - /srv/data:/data
+    restart: unless-stopped
