@@ -11,12 +11,19 @@
     "logout": "Log out",
     "menu": "Menu"
   },
+  "theme": {
+    "label": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
   "auth": {
     "username": "Username",
     "password": "Password",
     "login": "Log in",
     "invalidCredentials": "Invalid username or password.",
-    "unexpectedError": "Unexpected error, please try again."
+    "unexpectedError": "Unexpected error, please try again.",
+    "subtitle": "Sign in to manage your library."
   },
   "common": {
     "loading": "Loading…",
@@ -82,7 +89,8 @@
     "inCinemas": "In cinemas {{date}}",
     "digital": "Digital {{date}}",
     "physical": "Physical {{date}}",
-    "tmdbRating": "TMDB {{value}}"
+    "tmdbRating": "TMDB {{value}}",
+    "deleteTitle": "Delete this movie?"
   },
   "versions": {
     "title": "Versions",
@@ -105,7 +113,7 @@
     "delete": "Delete version",
     "confirmDelete": "Delete version “{{name}}”? The file stays on disk.",
     "noManagedCandidate": "No other managed version can become the default.",
-    "add": "+ Add a version",
+    "add": "Add a version",
     "new": "New version",
     "name": "Name",
     "namePlaceholder": "4k, directors-cut…",
@@ -114,7 +122,9 @@
     "editionConstraint": "Edition constraint (regex)",
     "releaseGroup": "Required release group",
     "create": "Create version",
-    "manageRootFolders": "Manage root folders"
+    "manageRootFolders": "Manage root folders",
+    "actions": "Actions",
+    "deleteTitle": "Delete this version?"
   },
   "settings": {
     "library": "Library",
@@ -145,7 +155,8 @@
     "scanVersions_one": "{{count}} version",
     "scanVersions_other": "{{count}} versions",
     "scanUnmapped_one": "{{count}} unmapped",
-    "scanUnmapped_other": "{{count}} unmapped"
+    "scanUnmapped_other": "{{count}} unmapped",
+    "removeRootTitle": "Remove this root folder?"
   },
   "unmappedReason": {
     "noVideoFiles": "No video files",

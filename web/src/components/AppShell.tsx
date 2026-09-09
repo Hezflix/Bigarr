@@ -1,14 +1,34 @@
-import { useState } from 'react'
-import { Link, Outlet, useNavigate } from '@tanstack/react-router'
+import { Link, Outlet, useMatchRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { FilmIcon, FolderOpenIcon, LogOutIcon, PlusIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { auth, system } from '../api/client'
-import { FilmIcon, FolderIcon, LogOutIcon, MenuIcon, PlusIcon } from './icons'
+import { auth, system } from '@/api/client'
+import { ThemeToggle } from '@/components/ThemeToggle'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+  useSidebar,
+} from '@/components/ui/sidebar'
+import { Toaster } from '@/components/ui/sonner'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 type NavItem = {
   to: '/' | '/add' | '/settings/library'
   label: string
-  icon: React.ReactNode
+  icon: React.ComponentType<{ className?: string }>
   exact?: boolean
 }
 
@@ -21,23 +41,48 @@ function useSections(): NavSection[] {
     {
       title: t('nav.movies'),
       items: [
-        { to: '/', label: t('nav.library'), icon: <FilmIcon />, exact: true },
-        { to: '/add', label: t('nav.addMovie'), icon: <PlusIcon /> },
+        { to: '/', label: t('nav.library'), icon: FilmIcon, exact: true },
+        { to: '/add', label: t('nav.addMovie'), icon: PlusIcon },
       ],
     },
     {
       title: t('nav.settings'),
-      items: [{ to: '/settings/library', label: t('nav.settingsLibrary'), icon: <FolderIcon /> }],
+      items: [{ to: '/settings/library', label: t('nav.settingsLibrary'), icon: FolderOpenIcon }],
     },
   ]
 }
 
 export function AppShell() {
   const { t } = useTranslation()
+
+  return (
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset className="min-w-0">
+        {/* The sidebar is a sheet below the `md` breakpoint, so small screens need a trigger. */}
+        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur md:hidden">
+          <SidebarTrigger />
+          <Separator orientation="vertical" className="!h-5" />
+          <Link to="/" className="font-semibold tracking-tight">
+            {t('app.name')}
+          </Link>
+        </header>
+        <div className="flex min-w-0 flex-1 flex-col gap-6 p-4 md:p-6">
+          <Outlet />
+        </div>
+      </SidebarInset>
+      <Toaster />
+    </SidebarProvider>
+  )
+}
+
+function AppSidebar() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const matchRoute = useMatchRoute()
   const sections = useSections()
-  const [open, setOpen] = useState(false)
+  const { setOpenMobile } = useSidebar()
 
   const me = useQuery({ queryKey: ['me'], queryFn: auth.me })
   const status = useQuery({ queryKey: ['system', 'status'], queryFn: system.status, staleTime: 5 * 60_000 })
@@ -49,59 +94,66 @@ export function AppShell() {
     },
   })
 
+  const version = status.data ? `v${status.data.version.split('+')[0]}` : null
+
   return (
-    <div className={open ? 'layout drawer-open' : 'layout'}>
-      <header className="mobile-bar">
-        <button type="button" className="ghost icon-button" onClick={() => setOpen((v) => !v)} aria-label={t('nav.menu')} aria-expanded={open}>
-          <MenuIcon />
-        </button>
-        <Link to="/" className="brand" onClick={() => setOpen(false)}>
-          {t('app.name')}
-        </Link>
-      </header>
+    // The test id sits on an inner wrapper: on mobile <Sidebar> forwards its props to the
+    // Sheet root, which renders nothing, so a test id on <Sidebar> itself would disappear.
+    <Sidebar>
+      <div className="flex h-full w-full flex-col" data-testid="app-sidebar">
+        <SidebarHeader>
+          <Link to="/" onClick={() => setOpenMobile(false)} className="px-2 py-1 text-lg font-semibold tracking-tight">
+            {t('app.name')}
+          </Link>
+        </SidebarHeader>
 
-      <aside className="sidebar">
-        <Link to="/" className="brand" onClick={() => setOpen(false)}>
-          {t('app.name')}
-        </Link>
-
-        <nav>
+        <SidebarContent>
           {sections.map((section) => (
-            <div key={section.title} className="nav-section">
-              <div className="nav-title">{section.title}</div>
-              {section.items.map((item) => (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  className="nav-item"
-                  activeProps={{ className: 'nav-item active' }}
-                  activeOptions={{ exact: item.exact ?? false }}
-                  onClick={() => setOpen(false)}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </Link>
-              ))}
-            </div>
+            <SidebarGroup key={section.title}>
+              <SidebarGroupLabel>{section.title}</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {section.items.map((item) => (
+                    <SidebarMenuItem key={item.to}>
+                      <SidebarMenuButton asChild isActive={!!matchRoute({ to: item.to, fuzzy: !item.exact })} tooltip={item.label}>
+                        <Link to={item.to} onClick={() => setOpenMobile(false)}>
+                          <item.icon />
+                          <span>{item.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
           ))}
-        </nav>
+        </SidebarContent>
 
-        <div className="sidebar-footer">
-          <div className="user">
-            <strong>{me.data?.username}</strong>
-            <span className="muted small">{status.data ? `v${status.data.version.split('+')[0]}` : ''}</span>
+        <SidebarFooter>
+          <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col">
+            <div className="flex min-w-0 flex-1 flex-col px-2 group-data-[collapsible=icon]:hidden">
+              <span className="truncate text-sm font-medium">{me.data?.username}</span>
+              {version && <span className="text-xs text-muted-foreground">{version}</span>}
+            </div>
+            <ThemeToggle />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => logout.mutate()}
+                  disabled={logout.isPending}
+                  aria-label={t('nav.logout')}
+                  data-testid="logout"
+                >
+                  <LogOutIcon />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">{t('nav.logout')}</TooltipContent>
+            </Tooltip>
           </div>
-          <button type="button" className="ghost icon-button" onClick={() => logout.mutate()} disabled={logout.isPending} title={t('nav.logout')}>
-            <LogOutIcon />
-          </button>
-        </div>
-      </aside>
-
-      {open && <div className="backdrop" onClick={() => setOpen(false)} aria-hidden="true" />}
-
-      <main className="content">
-        <Outlet />
-      </main>
-    </div>
+        </SidebarFooter>
+      </div>
+    </Sidebar>
   )
 }

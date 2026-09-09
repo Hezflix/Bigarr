@@ -1,9 +1,18 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
+import { Loader2Icon, SearchIcon } from 'lucide-react'
 import { Trans, useTranslation } from 'react-i18next'
-import { ApiError, movies, quality, rootFolders, slugify, type MinimumAvailability, type MovieLookupResult } from '../../api/client'
-import { Poster } from '../../components/Poster'
+import { ApiError, movies, quality, rootFolders, slugify, type MinimumAvailability, type MovieLookupResult } from '@/api/client'
+import { Poster } from '@/components/Poster'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 const availabilities: MinimumAvailability[] = ['announced', 'inCinemas', 'released']
 
@@ -27,50 +36,66 @@ export function AddMoviePage() {
 
   return (
     <>
-      <div className="page-header">
-        <h1>{t('lookup.title')}</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">{t('lookup.title')}</h1>
+
+      <div className="relative max-w-xl">
+        <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          data-testid="lookup-input"
+          className="pl-9"
+          placeholder={t('lookup.placeholder')}
+          value={term}
+          onChange={(e) => {
+            setTerm(e.target.value)
+            setSelected(null)
+          }}
+          autoFocus
+        />
+        {results.isFetching && (
+          <Loader2Icon className="absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+        )}
       </div>
 
-      <input
-        className="search"
-        placeholder={t('lookup.placeholder')}
-        value={term}
-        onChange={(e) => {
-          setTerm(e.target.value)
-          setSelected(null)
-        }}
-        autoFocus
-      />
-
-      {results.isFetching && <p className="muted">{t('lookup.searching')}</p>}
-      {results.error && <p className="error">{t('lookup.failed')}</p>}
+      {results.isFetching && <p className="text-sm text-muted-foreground">{t('lookup.searching')}</p>}
+      {results.error && (
+        <Alert variant="destructive" className="max-w-xl">
+          <AlertDescription>{t('lookup.failed')}</AlertDescription>
+        </Alert>
+      )}
 
       {!selected && results.data && (
-        <ul className="results">
-          {results.data.length === 0 && <li className="muted">{t('lookup.noResults')}</li>}
+        <div className="flex flex-col gap-3">
+          {results.data.length === 0 && <p className="text-sm text-muted-foreground">{t('lookup.noResults')}</p>}
           {results.data.map((r) => (
-            <li key={r.tmdbId} className="result">
-              <Poster url={r.posterUrl} title={r.title} className="small" />
-              <div className="result-body">
-                <strong>
-                  {r.title} {r.year && <span className="muted">({r.year})</span>}
-                </strong>
-                {r.originalTitle && r.originalTitle !== r.title && <div className="muted">{r.originalTitle}</div>}
-                <p className="overview">{r.overview}</p>
-                {r.excluded && <span className="badge">{t('lookup.excluded')}</span>}
-              </div>
-              {r.existingMovieId ? (
-                <Link to="/movies/$movieId" params={{ movieId: String(r.existingMovieId) }} className="button ghost">
-                  {t('lookup.alreadyInLibrary')}
-                </Link>
-              ) : (
-                <button type="button" onClick={() => setSelected(r)}>
-                  {t('lookup.choose')}
-                </button>
-              )}
-            </li>
+            <Card key={r.tmdbId} data-testid="lookup-result" className="py-4">
+              <CardContent className="flex items-start gap-4">
+                <Poster url={r.posterUrl} title={r.title} size="small" />
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <span className="font-medium">{r.title}</span>
+                    {r.year && <span className="text-sm text-muted-foreground">({r.year})</span>}
+                    {r.excluded && <Badge variant="secondary">{t('lookup.excluded')}</Badge>}
+                  </div>
+                  {r.originalTitle && r.originalTitle !== r.title && (
+                    <span className="text-sm text-muted-foreground">{r.originalTitle}</span>
+                  )}
+                  {r.overview && <p className="line-clamp-3 text-sm text-muted-foreground">{r.overview}</p>}
+                </div>
+                {r.existingMovieId ? (
+                  <Button asChild variant="outline">
+                    <Link to="/movies/$movieId" params={{ movieId: String(r.existingMovieId) }}>
+                      {t('lookup.alreadyInLibrary')}
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button type="button" onClick={() => setSelected(r)}>
+                    {t('lookup.choose')}
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
           ))}
-        </ul>
+        </div>
       )}
 
       {selected && (
@@ -125,75 +150,116 @@ function AddForm({ movie, onCancel, onAdded }: { movie: MovieLookupResult; onCan
   const noRoot = roots.data && roots.data.length === 0
 
   return (
-    <form className="panel" onSubmit={submit}>
-      <div className="panel-header">
-        <Poster url={movie.posterUrl} title={movie.title} className="small" />
-        <div>
-          <h2>
-            {movie.title} {movie.year && <span className="muted">({movie.year})</span>}
-          </h2>
-          <p className="overview">{movie.overview}</p>
-        </div>
-      </div>
+    <Card className="max-w-3xl">
+      <form onSubmit={submit}>
+        <CardHeader className="grid-cols-[auto_1fr] gap-4">
+          <Poster url={movie.posterUrl} title={movie.title} size="small" className="row-span-2" />
+          <CardTitle className="flex flex-wrap items-baseline gap-2 text-lg">
+            {movie.title}
+            {movie.year && <span className="text-sm font-normal text-muted-foreground">({movie.year})</span>}
+          </CardTitle>
+          {movie.overview && <p className="line-clamp-3 text-sm text-muted-foreground">{movie.overview}</p>}
+        </CardHeader>
 
-      {noRoot && (
-        <p className="error">
-          <Trans i18nKey="addMovie.noRootFolder" components={{ link: <Link to="/settings/library" /> }} />
-        </p>
-      )}
+        <CardContent className="mt-6 flex flex-col gap-4">
+          {noRoot && (
+            <Alert variant="destructive">
+              <AlertDescription>
+                <Trans
+                  i18nKey="addMovie.noRootFolder"
+                  components={{ link: <Link to="/settings/library" className="underline underline-offset-4" /> }}
+                />
+              </AlertDescription>
+            </Alert>
+          )}
 
-      <div className="form-grid">
-        <label>
-          {t('addMovie.qualityProfile')}
-          <select value={profileId} onChange={(e) => setProfileId(Number(e.target.value))}>
-            {profiles.data?.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          {t('addMovie.rootFolder')}
-          <select value={rootId} onChange={(e) => setRootId(Number(e.target.value))}>
-            {roots.data?.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.path}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          {t('addMovie.versionName')}
-          <input value={versionName} onChange={(e) => setVersionName(e.target.value)} placeholder={effectiveName} />
-          <small className="muted">{t('addMovie.versionNameHint')}</small>
-        </label>
-        <label>
-          {t('addMovie.minimumAvailability')}
-          <select value={availability} onChange={(e) => setAvailability(e.target.value as MinimumAvailability)}>
-            {availabilities.map((a) => (
-              <option key={a} value={a}>
-                {t(`availability.${a}`)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="checkbox">
-          <input type="checkbox" checked={monitored} onChange={(e) => setMonitored(e.target.checked)} />
-          {t('addMovie.monitor')}
-        </label>
-      </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2">
+              <Label htmlFor="add-profile">{t('addMovie.qualityProfile')}</Label>
+              <Select
+                value={profileId === '' ? undefined : String(profileId)}
+                onValueChange={(value) => setProfileId(Number(value))}
+              >
+                <SelectTrigger id="add-profile" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {profiles.data?.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-      {add.error && <p className="error">{add.error instanceof ApiError ? add.error.message : t('common.unexpectedError')}</p>}
+            <div className="grid grid-cols-1 gap-2">
+              <Label htmlFor="add-root">{t('addMovie.rootFolder')}</Label>
+              <Select value={rootId === '' ? undefined : String(rootId)} onValueChange={(value) => setRootId(Number(value))}>
+                <SelectTrigger id="add-root" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {roots.data?.map((r) => (
+                    <SelectItem key={r.id} value={String(r.id)}>
+                      {r.path}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-      <div className="actions">
-        <button type="button" className="ghost" onClick={onCancel}>
-          {t('common.cancel')}
-        </button>
-        <button type="submit" disabled={add.isPending || noRoot || profileId === '' || rootId === ''}>
-          {t('addMovie.submit')}
-        </button>
-      </div>
-    </form>
+            <div className="grid grid-cols-1 gap-2">
+              <Label htmlFor="add-version-name">{t('addMovie.versionName')}</Label>
+              <Input
+                id="add-version-name"
+                value={versionName}
+                onChange={(e) => setVersionName(e.target.value)}
+                placeholder={effectiveName}
+              />
+              <p className="text-xs text-muted-foreground">{t('addMovie.versionNameHint')}</p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2">
+              <Label htmlFor="add-availability">{t('addMovie.minimumAvailability')}</Label>
+              <Select value={availability} onValueChange={(value) => setAvailability(value as MinimumAvailability)}>
+                <SelectTrigger id="add-availability" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {availabilities.map((a) => (
+                    <SelectItem key={a} value={a}>
+                      {t(`availability.${a}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox id="add-monitored" checked={monitored} onCheckedChange={(checked) => setMonitored(checked === true)} />
+            <Label htmlFor="add-monitored" className="font-normal">
+              {t('addMovie.monitor')}
+            </Label>
+          </div>
+
+          {add.error && (
+            <Alert variant="destructive">
+              <AlertDescription>{add.error instanceof ApiError ? add.error.message : t('common.unexpectedError')}</AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+
+        <CardFooter className="mt-6 justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onCancel}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" data-testid="add-form-submit" disabled={add.isPending || noRoot || profileId === '' || rootId === ''}>
+            {t('addMovie.submit')}
+          </Button>
+        </CardFooter>
+      </form>
+    </Card>
   )
 }

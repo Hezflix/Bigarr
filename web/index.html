@@ -5,6 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <title>Bigarr</title>
+    <script>
+      // Apply the stored theme before first paint so dark mode does not flash white.
+      // Keep the storage key in sync with src/components/theme.tsx.
+      try {
+        var mode = localStorage.getItem('bigarr.theme') || 'system'
+        var dark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        document.documentElement.classList.toggle('dark', dark)
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+      } catch (e) {
+        /* storage unavailable: React applies the theme on mount */
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
