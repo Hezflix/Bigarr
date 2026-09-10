@@ -10,7 +10,9 @@
     "settingsLibrary": "Library",
     "logout": "Log out",
     "menu": "Menu",
-    "settingsIndexers": "Indexers"
+    "settingsIndexers": "Indexers",
+    "activity": "Activity",
+    "releases": "Releases"
   },
   "theme": {
     "label": "Theme",
@@ -255,5 +257,25 @@
       "freeleech25": "Freeleech 25%",
       "nuked": "Nuked"
     }
+  },
+  "rss": {
+    "title": "Releases",
+    "hint": "Every release the RSS feeds bring in is matched to the library and judged by each version of the film. The first pass runs a minute after startup.",
+    "schedule": "RSS sync every {{minutes}} min",
+    "disabled": "RSS sync disabled",
+    "lastRun": "last pass {{date}}",
+    "neverRan": "no pass yet",
+    "nextRun": "next {{date}}",
+    "stored": "{{stored}} releases kept, {{matched}} matched, {{wouldGrab}} would be grabbed",
+    "matchedOnly": "Matched only",
+    "sync": "Sync now",
+    "syncing": "Syncing…",
+    "synced": "RSS pass done: {{fetched}} releases, {{new}} new, {{matched}} matched, {{wouldGrab}} would be grabbed.",
+    "syncFailed": "The RSS pass failed.",
+    "empty": "No releases seen yet.",
+    "emptyMatched": "No release matched a film of the library yet.",
+    "movie": "Movie",
+    "noMatch": "Not in the library",
+    "wouldGrab": "Would grab for {{version}}"
   }
 }

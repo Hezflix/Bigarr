@@ -5,6 +5,7 @@ import { Outlet, RouterProvider, createRootRoute, createRoute, createRouter, red
 import { ApiError, auth } from './api/client'
 import { AppShell } from './components/AppShell'
 import { ThemeProvider } from './components/theme'
+import { ReleasesPage } from './features/activity/ReleasesPage'
 import { LoginPage } from './features/auth/LoginPage'
 import { LibraryPage } from './features/library/LibraryPage'
 import { AddMoviePage } from './features/movies/AddMoviePage'
@@ -46,11 +47,12 @@ const appRoute = createRoute({
 const libraryRoute = createRoute({ getParentRoute: () => appRoute, path: '/', component: LibraryPage })
 const addRoute = createRoute({ getParentRoute: () => appRoute, path: '/add', component: AddMoviePage })
 const movieRoute = createRoute({ getParentRoute: () => appRoute, path: '/movies/$movieId', component: MovieDetailPage })
+const releasesRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/releases', component: ReleasesPage })
 const librarySettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/library', component: LibrarySettingsPage })
 const indexersSettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/indexers', component: IndexersSettingsPage })
 
 const router = createRouter({
-  routeTree: rootRoute.addChildren([loginRoute, appRoute.addChildren([libraryRoute, addRoute, movieRoute, librarySettingsRoute, indexersSettingsRoute])]),
+  routeTree: rootRoute.addChildren([loginRoute, appRoute.addChildren([libraryRoute, addRoute, movieRoute, releasesRoute, librarySettingsRoute, indexersSettingsRoute])]),
 })
 
 declare module '@tanstack/react-router' {

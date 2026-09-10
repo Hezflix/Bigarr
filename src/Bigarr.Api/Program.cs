@@ -29,7 +29,12 @@ builder.Services.AddScoped<IndexerService>();
 builder.Services.AddScoped<ProwlarrSyncService>();
 builder.Services.AddSingleton<ProwlarrSyncState>();
 builder.Services.AddHostedService<ProwlarrStartupSync>();
+builder.Services.AddScoped<TargetContextFactory>();
 builder.Services.AddScoped<InteractiveSearchService>();
+builder.Services.Configure<RssSyncOptions>(builder.Configuration.GetSection(RssSyncOptions.Section));
+builder.Services.AddSingleton<RssFeedState>();
+builder.Services.AddScoped<RssSyncService>();
+builder.Services.AddHostedService<RssSyncRunner>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<LibraryScanRunner>());
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
 builder.Services.AddHealthChecks().AddDbContextCheck<BigarrDbContext>();
@@ -59,6 +64,7 @@ app.MapQuality();
 app.MapRootFolders();
 app.MapIndexers();
 app.MapSearch();
+app.MapRss();
 
 // The SPA is built into wwwroot by `bun run build`; anything that is not API falls back to index.html.
 app.MapFallbackToFile("{*path:regex(^(?!api/|health$|openapi/).*$)}", "index.html");

@@ -1,0 +1,68 @@
+using Bigarr.Domain.Acquisition;
+
+namespace Bigarr.Api.Features.Search;
+
+/// <summary>Bound from <c>Bigarr:Rss</c>. Radarr's defaults: every 15 minutes, never below 10.</summary>
+public sealed class RssSyncOptions
+{
+    public const string Section = "Bigarr:Rss";
+
+    public const int MinimumIntervalMinutes = 10;
+
+    public int IntervalMinutes { get; set; } = 15;
+
+    /// <summary>Grace period after startup before the first pass, so a restart does not hammer the indexers.</summary>
+    public int InitialDelaySeconds { get; set; } = 60;
+
+    public bool Enabled { get; set; } = true;
+
+    public TimeSpan Interval => TimeSpan.FromMinutes(Math.Max(MinimumIntervalMinutes, IntervalMinutes));
+}
+
+public sealed record RssMovieRef(int Id, string Title, int? Year, string? PosterUrl);
+
+/// <summary>One release seen in a feed, with what the library made of it.</summary>
+public sealed record RssReleaseResponse(
+    string Guid,
+    string Title,
+    int IndexerId,
+    string Indexer,
+    long Size,
+    int? Seeders,
+    int? Leechers,
+    DateTimeOffset PublishDate,
+    DateTime SeenAt,
+    string? InfoUrl,
+    IndexerFlags Flags,
+    int QualityId,
+    string Quality,
+    int RevisionVersion,
+    bool IsRepack,
+    string? Edition,
+    string? ReleaseGroup,
+    List<string> Languages,
+    string? ParsedTitle,
+    int? ParsedYear,
+    /// <summary>The film of the library this release belongs to, or null with <see cref="UnmatchedReason"/>.</summary>
+    RssMovieRef? Movie,
+    string? UnmatchedReason,
+    /// <summary>One verdict per version of the matched film (automatic rules: monitoring and availability count).</summary>
+    List<VersionDecisionResponse> Versions,
+    /// <summary>The single version the release would be grabbed for, when at least one accepts it (blueprint §3.3).</summary>
+    int? AttributedVersionId,
+    string? AttributedVersionName);
+
+public sealed record RssIndexerStatusResponse(int IndexerId, string Indexer, DateTime? LastRunAt, string? LastError, int LastFetched, int LastNew);
+
+public sealed record RssStatusResponse(
+    bool Enabled,
+    int IntervalMinutes,
+    bool Running,
+    DateTime? LastRunAt,
+    DateTime? NextRunAt,
+    int Stored,
+    int Matched,
+    int WouldGrab,
+    List<RssIndexerStatusResponse> Indexers);
+
+public sealed record RssSyncResponse(int Indexers, int Fetched, int New, int Matched, int WouldGrab, List<IndexerErrorResponse> IndexerErrors);

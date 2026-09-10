@@ -416,6 +416,68 @@ export const search = {
     api<SearchResult>(`/api/v1/search?movieId=${movieId}${versionId ? `&versionId=${versionId}` : ''}`),
 }
 
+// ---- rss -------------------------------------------------------------------
+
+export type RssMovieRef = { id: number; title: string; year: number | null; posterUrl: string | null }
+
+export type RssRelease = {
+  guid: string
+  title: string
+  indexerId: number
+  indexer: string
+  size: number
+  seeders: number | null
+  leechers: number | null
+  publishDate: string
+  seenAt: string
+  infoUrl: string | null
+  flags: string
+  qualityId: number
+  quality: string
+  revisionVersion: number
+  isRepack: boolean
+  edition: string | null
+  releaseGroup: string | null
+  languages: string[]
+  parsedTitle: string | null
+  parsedYear: number | null
+  movie: RssMovieRef | null
+  unmatchedReason: string | null
+  versions: VersionDecision[]
+  attributedVersionId: number | null
+  attributedVersionName: string | null
+}
+
+export type RssIndexerStatus = { indexerId: number; indexer: string; lastRunAt: string | null; lastError: string | null; lastFetched: number; lastNew: number }
+
+export type RssStatus = {
+  enabled: boolean
+  intervalMinutes: number
+  running: boolean
+  lastRunAt: string | null
+  nextRunAt: string | null
+  stored: number
+  matched: number
+  wouldGrab: number
+  indexers: RssIndexerStatus[]
+}
+
+export type RssSyncResult = {
+  indexers: number
+  fetched: number
+  new: number
+  matched: number
+  wouldGrab: number
+  indexerErrors: { indexerId: number; indexer: string; kind: IndexerFailureKind; message: string }[]
+}
+
+export const rss = {
+  status: () => api<RssStatus>('/api/v1/rss'),
+  releases: (matched?: boolean, limit = 200) =>
+    api<RssRelease[]>(`/api/v1/rss/releases?limit=${limit}${matched === undefined ? '' : `&matched=${matched}`}`),
+  sync: () => post<RssSyncResult>('/api/v1/rss/sync'),
+}
+
 // ---- helpers ---------------------------------------------------------------
 
 export function slugify(value: string): string {
