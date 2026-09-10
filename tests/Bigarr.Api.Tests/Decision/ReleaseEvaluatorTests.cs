@@ -47,14 +47,15 @@ public sealed class ReleaseEvaluatorTests
             MaxSize = d.Quality.Id == ParserQuality.Bluray1080p.Id ? 200 : d.MaxSize,
         });
 
-    private static MovieVersion Version(VersionMode mode = VersionMode.Managed, AcquisitionConstraints? constraints = null) => new()
+    private static MovieVersion Version(VersionMode mode = VersionMode.Managed, AcquisitionConstraints? constraints = null, int id = 7, string name = "1080p", bool monitored = true) => new()
     {
-        Id = 7,
-        Name = "1080p",
+        Id = id,
+        Name = name,
         Mode = mode,
         QualityProfileId = 1,
         Constraints = constraints,
         FolderName = "The Matrix (1999)",
+        Monitored = monitored,
     };
 
     private static TargetContext Context(
@@ -232,6 +233,51 @@ public sealed class ReleaseEvaluatorTests
         profile.Cutoff = 1000; // the group id
         Assert.Equal(2, ProfileRanking.CutoffRank(profile));
         Assert.True(ProfileRanking.CutoffMet(profile, ParserQuality.WEBRip1080p.Id));
+    }
+
+    [Fact]
+    public void Automatic_rules_reject_unmonitored_and_unavailable_versions_but_interactive_search_ignores_them()
+    {
+        var automatic = ReleaseEvaluator.Automatic();
+        var interactive = ReleaseEvaluator.Interactive();
+        var release = Candidate("The.Matrix.1999.1080p.BluRay.x264-GRP");
+
+        var unmonitored = Version(monitored: false);
+        Assert.Equal("Version is not monitored", Assert.Single(automatic.Evaluate(release, Context(unmonitored)).Rejections).Reason);
+        Assert.True(interactive.Evaluate(release, Context(unmonitored)).Approved);
+
+        var pending = Context() with { IsAvailable = false };
+        var rejection = Assert.Single(automatic.Evaluate(release, pending).Rejections);
+        Assert.Equal("Minimum availability not reached yet", rejection.Reason);
+        Assert.Equal(RejectionType.Temporary, rejection.Type);
+        Assert.True(interactive.Evaluate(release, pending).Approved);
+    }
+
+    [Fact]
+    public void Attribution_picks_the_most_specific_accepting_version_then_the_default_then_the_oldest()
+    {
+        var evaluator = ReleaseEvaluator.Automatic();
+        var release = Candidate("The.Matrix.1999.Directors.Cut.1080p.BluRay.x264-GRP");
+
+        var plain = Version(id: 1);
+        var directorsCut = Version(constraints: new AcquisitionConstraints { Edition = "director'?s cut" }, id: 2, name: "directors-cut");
+        var rejected = Version(constraints: new AcquisitionConstraints { ReleaseGroup = "FraMeSToR" }, id: 3, name: "framestor");
+        var decisions = new[]
+        {
+            evaluator.Evaluate(release, Context(plain) with { IsDefaultTarget = true }),
+            evaluator.Evaluate(release, Context(directorsCut)),
+            evaluator.Evaluate(release, Context(rejected)),
+        };
+
+        Assert.Equal(2, VersionAttribution.Choose(decisions)!.Target.Target.Id);
+
+        // Two unconstrained versions accept: the default wins; without a default, the oldest.
+        var older = evaluator.Evaluate(release, Context(Version(id: 5)));
+        var newerDefault = evaluator.Evaluate(release, Context(Version(id: 9)) with { IsDefaultTarget = true });
+        Assert.Equal(9, VersionAttribution.Choose([older, newerDefault])!.Target.Target.Id);
+        Assert.Equal(5, VersionAttribution.Choose([older, evaluator.Evaluate(release, Context(Version(id: 9)))])!.Target.Target.Id);
+
+        Assert.Null(VersionAttribution.Choose([decisions[2]]));
     }
 
     [Fact]

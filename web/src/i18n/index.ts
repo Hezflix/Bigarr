@@ -17,6 +17,11 @@ export function formatDate(iso: string | null | undefined): string {
   return new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium' }).format(new Date(iso))
 }
 
+export function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return ''
+  return new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
+}
+
 export function formatBytes(bytes: number | null | undefined): string {
   if (bytes === null || bytes === undefined) return '—'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
@@ -46,5 +51,6 @@ export function formatAge(iso: string | null | undefined, now: number = Date.now
       return format.format(-Math.floor(seconds / size), unit)
     }
   }
-  return format.format(0, 'minute')
+  // Under a minute "0m" would read as a future date once rounded; seconds keep the "ago".
+  return format.format(-Math.max(1, seconds), 'second')
 }

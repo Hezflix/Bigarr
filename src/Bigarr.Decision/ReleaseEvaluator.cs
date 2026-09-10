@@ -5,6 +5,7 @@ namespace Bigarr.Decision;
 /// <summary>Runs every specification and keeps every rejection: the interactive search shows them all (blueprint §5).</summary>
 public sealed class ReleaseEvaluator
 {
+    /// <summary>What the interactive search applies: the user decides about monitoring and availability.</summary>
     public static readonly IReadOnlyList<IReleaseSpecification> DefaultSpecifications =
     [
         new QualityAllowedSpecification(),
@@ -16,12 +17,24 @@ public sealed class ReleaseEvaluator
         new UpgradableSpecification(),
     ];
 
+    /// <summary>What RSS and automatic search apply: the defaults plus monitoring and availability.</summary>
+    public static readonly IReadOnlyList<IReleaseSpecification> AutomaticSpecifications =
+    [
+        new MonitoredSpecification(),
+        new AvailabilitySpecification(),
+        .. DefaultSpecifications,
+    ];
+
     private readonly IReadOnlyList<IReleaseSpecification> _specifications;
 
     public ReleaseEvaluator()
         : this(DefaultSpecifications)
     {
     }
+
+    public static ReleaseEvaluator Interactive() => new(DefaultSpecifications);
+
+    public static ReleaseEvaluator Automatic() => new(AutomaticSpecifications);
 
     public ReleaseEvaluator(IReadOnlyList<IReleaseSpecification> specifications)
     {

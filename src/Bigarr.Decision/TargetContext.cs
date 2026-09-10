@@ -18,7 +18,11 @@ public sealed record TargetContext(
     /// <summary>Drives the size check. Null falls back to <see cref="DefaultRuntimeMinutes"/>.</summary>
     int? RuntimeMinutes,
     IReadOnlyCollection<BlocklistEntry> Blocklist,
-    bool HasActiveGrab)
+    bool HasActiveGrab,
+    /// <summary>Minimum availability reached. Only the automatic paths (RSS, auto search) reject on it.</summary>
+    bool IsAvailable = true,
+    /// <summary>Tie-breaker for attribution after constraint specificity (blueprint §3.3).</summary>
+    bool IsDefaultTarget = false)
 {
     /// <summary>Radarr's assumption when TMDB has no runtime yet.</summary>
     public const int DefaultRuntimeMinutes = 110;

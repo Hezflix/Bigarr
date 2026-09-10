@@ -1,6 +1,6 @@
 import { Link, Outlet, useMatchRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FilmIcon, FolderOpenIcon, LogOutIcon, PlusIcon, RadioTowerIcon } from 'lucide-react'
+import { FilmIcon, FolderOpenIcon, LogOutIcon, PlusIcon, RadioTowerIcon, RssIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { auth, system } from '@/api/client'
 import { ThemeToggle } from '@/components/ThemeToggle'
@@ -26,7 +26,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 type NavItem = {
-  to: '/' | '/add' | '/settings/library' | '/settings/indexers'
+  to: '/' | '/add' | '/activity/releases' | '/settings/library' | '/settings/indexers'
   label: string
   icon: React.ComponentType<{ className?: string }>
   exact?: boolean
@@ -44,6 +44,10 @@ function useSections(): NavSection[] {
         { to: '/', label: t('nav.library'), icon: FilmIcon, exact: true },
         { to: '/add', label: t('nav.addMovie'), icon: PlusIcon },
       ],
+    },
+    {
+      title: t('nav.activity'),
+      items: [{ to: '/activity/releases', label: t('nav.releases'), icon: RssIcon }],
     },
     {
       title: t('nav.settings'),

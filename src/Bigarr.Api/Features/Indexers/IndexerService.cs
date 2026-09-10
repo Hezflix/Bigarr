@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Bigarr.Api.Features.Indexers;
 
 /// <summary>Validation, mapping and the test action of the Indexers slice.</summary>
-public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, ILogger<IndexerService> logger)
+public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, Search.RssFeedState rss, ILogger<IndexerService> logger)
 {
     public const int MaxNameLength = 128;
 
@@ -80,6 +80,7 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, I
         db.Indexers.Remove(indexer);
         await db.SaveChangesAsync(ct);
         gateway.Forget(id);
+        rss.ForgetIndexer(id);
         logger.LogInformation("Indexer {Name} deleted", indexer.Name);
         return Result<bool>.Ok(true);
     }
