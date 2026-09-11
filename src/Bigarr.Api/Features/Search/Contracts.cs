@@ -6,7 +6,7 @@ namespace Bigarr.Api.Features.Search;
 public sealed record RejectionResponse(string Reason, bool Temporary);
 
 /// <summary>The verdict of one version on one release. A release matched to the film has one per version searched.</summary>
-public sealed record VersionDecisionResponse(int VersionId, string VersionName, bool Approved, List<RejectionResponse> Rejections);
+public sealed record VersionDecisionResponse(int VersionId, string VersionName, bool Approved, List<RejectionResponse> Rejections, int CustomFormatScore = 0);
 
 public sealed record ReleaseResponse(
     string Guid,
@@ -32,6 +32,8 @@ public sealed record ReleaseResponse(
     string? Edition,
     string? ReleaseGroup,
     List<string> Languages,
+    /// <summary>Custom formats matched; the score depends on each version's profile and sits on the verdict.</summary>
+    List<string> CustomFormats,
     string? ParsedTitle,
     int? ParsedYear,
     /// <summary>False when the release is not this film at all; then <see cref="Versions"/> is empty.</summary>

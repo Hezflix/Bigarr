@@ -281,6 +281,81 @@ public sealed class ReleaseEvaluatorTests
     }
 
     [Fact]
+    public void Custom_format_scores_come_from_the_profile_and_gate_on_the_minimum()
+    {
+        var profile = Profile();
+        profile.FormatScores.Add(new ProfileFormatScore { CustomFormatId = 1, Score = 1950 });
+        profile.FormatScores.Add(new ProfileFormatScore { CustomFormatId = 2, Score = -10000 });
+        profile.FormatScores.Add(new ProfileFormatScore { CustomFormatId = 3, Score = 5 });
+        var context = Context(profile: profile);
+
+        var tier = Evaluator.Evaluate(Candidate("The.Matrix.1999.1080p.BluRay.REMUX.AVC-FraMeSToR") with { CustomFormatIds = [1, 3] }, context);
+        Assert.True(tier.Approved);
+        Assert.Equal(1955, tier.CustomFormatScore);
+
+        var lq = Evaluator.Evaluate(Candidate("The.Matrix.1999.1080p.BluRay.x264-YIFY") with { CustomFormatIds = [2] }, context);
+        Assert.Equal(-10000, lq.CustomFormatScore);
+        Assert.Equal("Custom format score -10000 is below the profile minimum 0", Assert.Single(lq.Rejections).Reason);
+
+        // A format the profile does not score counts zero.
+        Assert.Equal(0, Evaluator.Evaluate(Candidate("The.Matrix.1999.1080p.BluRay.x264-GRP") with { CustomFormatIds = [99] }, context).CustomFormatScore);
+
+        profile.MinFormatScore = 100;
+        Assert.Contains(Evaluator.Evaluate(Candidate("The.Matrix.1999.1080p.BluRay.x264-GRP") with { CustomFormatIds = [3] }, context).Rejections,
+            r => r.Reason == "Custom format score 5 is below the profile minimum 100");
+    }
+
+    [Fact]
+    public void Upgrades_at_equal_quality_follow_the_score_its_minimum_gain_and_the_format_cutoff()
+    {
+        var profile = Profile();
+        profile.MinUpgradeFormatScore = 100;
+        profile.CutoffFormatScore = 2000;
+        profile.FormatScores.Add(new ProfileFormatScore { CustomFormatId = 1, Score = 1950 });
+        profile.FormatScores.Add(new ProfileFormatScore { CustomFormatId = 3, Score = 5 });
+        var plainFile = new ExistingFile(ParserQuality.Bluray1080p.Id, 1, 0, false);
+        var tierFile = new ExistingFile(ParserQuality.Bluray1080p.Id, 1, 0, false) { CustomFormatIds = [1] };
+        var bluray = Candidate("The.Matrix.1999.1080p.BluRay.x264-GRP");
+        var remux = Candidate("The.Matrix.1999.1080p.BluRay.REMUX.AVC.DTS-HD.MA.5.1-GRP", sizeGb: 25);
+
+        // Same quality, file at the quality cutoff but below the format cutoff: a better-scored release is an upgrade.
+        Assert.True(Evaluator.Evaluate(bluray with { CustomFormatIds = [1] }, Context(profile: profile, file: plainFile)).Approved);
+        Assert.Contains(Evaluator.Evaluate(bluray with { CustomFormatIds = [3] }, Context(profile: profile, file: plainFile)).Rejections,
+            r => r.Reason == "Custom format score gain 5 is below the profile minimum 100");
+        Assert.Contains(Evaluator.Evaluate(bluray with { CustomFormatIds = [1] }, Context(profile: profile, file: tierFile)).Rejections,
+            r => r.Reason == "Not an upgrade over the existing Bluray-1080p: same custom format score 1950");
+        Assert.Contains(Evaluator.Evaluate(bluray, Context(profile: profile, file: tierFile)).Rejections,
+            r => r.Reason == "Custom format score 0 is lower than the existing 1950");
+
+        // Higher quality is welcome while the file's score stays below the format cutoff...
+        Assert.True(Evaluator.Evaluate(remux, Context(profile: profile, file: tierFile)).Approved);
+
+        // ...and refused once the file meets both cutoffs, a proper excepted.
+        profile.CutoffFormatScore = 1000;
+        Assert.Contains(Evaluator.Evaluate(remux, Context(profile: profile, file: tierFile)).Rejections,
+            r => r.Reason == "Existing Bluray-1080p already meets the profile cutoff (custom format score 1950)");
+        Assert.True(Evaluator.Evaluate(Candidate("The.Matrix.1999.PROPER.1080p.BluRay.x264-GRP"), Context(profile: profile, file: tierFile)).Approved);
+    }
+
+    [Fact]
+    public void Version_constraints_can_require_or_forbid_custom_formats()
+    {
+        var names = new Dictionary<int, string> { [1] = "Remux Tier 01", [2] = "LQ" };
+        var release = Candidate("The.Matrix.1999.1080p.BluRay.x264-GRP");
+
+        var required = Context(Version(constraints: new AcquisitionConstraints { RequiredCustomFormatIds = [1] })) with { CustomFormatNames = names };
+        Assert.True(Evaluator.Evaluate(release with { CustomFormatIds = [1] }, required).Approved);
+        Assert.Contains(Evaluator.Evaluate(release, required).Rejections, r => r.Reason == "Required custom format Remux Tier 01 not matched");
+
+        var forbidden = Context(Version(constraints: new AcquisitionConstraints { ForbiddenCustomFormatIds = [2] })) with { CustomFormatNames = names };
+        Assert.True(Evaluator.Evaluate(release, forbidden).Approved);
+        Assert.Contains(Evaluator.Evaluate(release with { CustomFormatIds = [2] }, forbidden).Rejections, r => r.Reason == "Forbidden custom format LQ matched");
+
+        var unnamed = Context(Version(constraints: new AcquisitionConstraints { RequiredCustomFormatIds = [7] }));
+        Assert.Contains(Evaluator.Evaluate(release, unnamed).Rejections, r => r.Reason == "Required custom format #7 not matched");
+    }
+
+    [Fact]
     public void Specifications_can_be_composed()
     {
         var evaluator = new ReleaseEvaluator([new QualityAllowedSpecification()]);

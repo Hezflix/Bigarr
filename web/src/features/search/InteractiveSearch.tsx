@@ -19,10 +19,10 @@ const temporaryStyle = 'border-amber-600/30 bg-amber-500/15 text-amber-700 dark:
 const permanentStyle = 'border-red-600/30 bg-red-500/10 text-red-700 dark:border-red-400/30 dark:text-red-300'
 
 /** The verdict of one version on one release, or why the release is not the film at all. */
-function verdictOf(release: Release, versionId: number): { approved: boolean; rejections: Rejection[] } {
-  if (!release.matchesMovie) return { approved: false, rejections: release.rejections }
+function verdictOf(release: Release, versionId: number): { approved: boolean; rejections: Rejection[]; score: number | null } {
+  if (!release.matchesMovie) return { approved: false, rejections: release.rejections, score: null }
   const decision = release.versions.find((v) => v.versionId === versionId)
-  return { approved: decision?.approved ?? false, rejections: decision?.rejections ?? [] }
+  return { approved: decision?.approved ?? false, rejections: decision?.rejections ?? [], score: decision?.customFormatScore ?? null }
 }
 
 /** Interactive search for one film: every indexer once, every release judged by the selected version (blueprint §5). */
@@ -146,7 +146,7 @@ export function InteractiveSearch({ movie }: { movie: Movie }) {
 
 function ReleaseRow({ release, versionId }: { release: Release; versionId: number }) {
   const { t } = useTranslation()
-  const { approved, rejections } = verdictOf(release, versionId)
+  const { approved, rejections, score } = verdictOf(release, versionId)
   const flags = release.flags === 'none' ? [] : release.flags.split(', ')
   const details = [
     release.edition,
@@ -183,6 +183,11 @@ function ReleaseRow({ release, versionId }: { release: Release; versionId: numbe
               {t(`search.flags.${flag}`, { defaultValue: flag })}
             </Badge>
           ))}
+          {release.customFormats.map((format) => (
+            <Badge key={format} variant="outline" className="border-violet-600/30 bg-violet-500/10 text-violet-700 dark:border-violet-400/30 dark:text-violet-300">
+              {format}
+            </Badge>
+          ))}
           {details.length > 0 && <span className="text-xs text-muted-foreground">{details.join(' · ')}</span>}
         </span>
       </TableCell>
@@ -205,6 +210,7 @@ function ReleaseRow({ release, versionId }: { release: Release; versionId: numbe
             ))}
           </span>
         )}
+        {score !== null && <span className="mt-1 block text-xs text-muted-foreground">{t('search.score', { score })}</span>}
       </TableCell>
     </TableRow>
   )

@@ -118,6 +118,11 @@ export type Version = {
   isAvailable: boolean
   file: MediaFile | null
   createdAt: string
+  /** Custom formats the file matches, judged at read time; null without a file. */
+  customFormats: string[] | null
+  customFormatScore: number | null
+  /** Quality at the profile cutoff and score at the cutoff format score: nothing more is wanted. */
+  cutoffMet: boolean | null
 }
 
 export type Movie = {
@@ -234,8 +239,142 @@ export const movies = {
 
 export type QualityProfile = { id: number; name: string; cutoff: number; upgradeAllowed: boolean; isSystem: boolean; preferredLanguage: string }
 
+export type QualityDefinition = {
+  id: number
+  name: string
+  title: string | null
+  source: string
+  resolution: number
+  modifier: string
+  /** MB per minute of runtime; null max means unlimited. */
+  minSize: number | null
+  preferredSize: number | null
+  maxSize: number | null
+}
+
+export type QualityDefinitionUpdate = { title: string | null; minSize: number | null; preferredSize: number | null; maxSize: number | null }
+
+/** One entry of the ordered items list, worst first: the position is the rank. */
+export type QualityProfileItem = { groupId: number | null; groupName: string | null; qualityIds: number[]; allowed: boolean }
+
+export type FormatScore = { customFormatId: number; customFormat: string; score: number }
+
+export type QualityProfileDetail = {
+  id: number
+  name: string
+  items: QualityProfileItem[]
+  cutoff: number
+  upgradeAllowed: boolean
+  minFormatScore: number
+  cutoffFormatScore: number
+  minUpgradeFormatScore: number
+  preferredLanguage: string
+  isSystem: boolean
+  formatScores: FormatScore[]
+  versionCount: number
+}
+
+export type QualityProfileRequest = {
+  name: string
+  items: QualityProfileItem[]
+  cutoff: number
+  upgradeAllowed: boolean
+  minFormatScore: number
+  cutoffFormatScore: number
+  minUpgradeFormatScore: number
+  preferredLanguage: string
+  formatScores: { customFormatId: number; score: number }[]
+}
+
 export const quality = {
   profiles: () => api<QualityProfile[]>('/api/v1/qualityprofiles'),
+  profile: (id: number) => api<QualityProfileDetail>(`/api/v1/qualityprofiles/${id}`),
+  /** A blank profile with every quality in order, nothing allowed. */
+  schema: () => api<QualityProfileDetail>('/api/v1/qualityprofiles/schema'),
+  addProfile: (body: QualityProfileRequest) => post<QualityProfileDetail>('/api/v1/qualityprofiles', body),
+  updateProfile: (id: number, body: QualityProfileRequest) => put<QualityProfileDetail>(`/api/v1/qualityprofiles/${id}`, body),
+  removeProfile: (id: number) => del(`/api/v1/qualityprofiles/${id}`),
+  definitions: () => api<QualityDefinition[]>('/api/v1/qualitydefinitions'),
+  updateDefinition: (id: number, body: QualityDefinitionUpdate) => put<QualityDefinition>(`/api/v1/qualitydefinitions/${id}`, body),
+}
+
+// ---- custom formats --------------------------------------------------------
+
+export type CustomFormatSpecification = { name: string; implementation: string; negate: boolean; required: boolean; fields: Record<string, unknown> }
+
+export type CustomFormat = {
+  id: number
+  name: string
+  includeWhenRenaming: boolean
+  specifications: CustomFormatSpecification[]
+  /** Set when the format came from a guide file; a re-import updates the same row. */
+  trashId: string | null
+  /** Scores the guide file suggested, by profile family (default…); shown as a hint, never applied on its own. */
+  trashScores: Record<string, number> | null
+  scores: { qualityProfileId: number; qualityProfile: string; score: number }[]
+}
+
+/** `scores` is the full list: a profile left out or at zero loses its score. */
+export type CustomFormatRequest = {
+  name: string
+  includeWhenRenaming: boolean
+  specifications: CustomFormatSpecification[]
+  scores: { qualityProfileId: number; score: number }[]
+}
+
+export type SpecificationFieldType = 'regex' | 'number' | 'select' | 'boolean'
+
+export type SpecificationFieldSchema = { name: string; type: SpecificationFieldType; required: boolean; options: { value: number; label: string }[] | null }
+
+export type SpecificationSchema = { implementation: string; fields: SpecificationFieldSchema[] }
+
+export type CustomFormatSchema = { specifications: SpecificationSchema[] }
+
+export type CustomFormatImportResult = { added: CustomFormat[]; updated: CustomFormat[]; scoresApplied: string[] }
+
+export type CustomFormatEvaluation = {
+  title: string
+  parsedTitle: string | null
+  year: number | null
+  quality: string
+  edition: string | null
+  releaseGroup: string | null
+  languages: string[]
+  formats: { id: number; name: string }[]
+  scores: { qualityProfileId: number; qualityProfile: string; score: number }[]
+}
+
+export type CustomFormatTestRequest = { title: string; specifications: CustomFormatSpecification[]; originalLanguage?: string; size?: number }
+
+export type CustomFormatTest = {
+  matches: boolean
+  parsedTitle: string | null
+  year: number | null
+  quality: string
+  edition: string | null
+  releaseGroup: string | null
+  languages: string[]
+  specifications: { name: string; implementation: string; satisfied: boolean }[]
+}
+
+export const customFormats = {
+  list: () => api<CustomFormat[]>('/api/v1/customformats'),
+  /** The condition types the engine knows and the fields each one takes. */
+  schema: () => api<CustomFormatSchema>('/api/v1/customformats/schema'),
+  add: (body: CustomFormatRequest) => post<CustomFormat>('/api/v1/customformats', body),
+  update: (id: number, body: CustomFormatRequest) => put<CustomFormat>(`/api/v1/customformats/${id}`, body),
+  remove: (id: number) => del(`/api/v1/customformats/${id}`),
+  /** The body is a Radarr export or guide JSON itself, one format or an array. Scores are left untouched. */
+  import: (json: string) => api<CustomFormatImportResult>('/api/v1/customformats/import', { method: 'POST', body: json }),
+  /** A draft judged before it is saved, condition by condition. */
+  test: (body: CustomFormatTestRequest) => post<CustomFormatTest>('/api/v1/customformats/test', body),
+  /** Without a film, a release naming no language has an unknown language; pass the original language to judge as Radarr would. */
+  evaluate: (title: string, options: { movieId?: number; originalLanguage?: string } = {}) =>
+    api<CustomFormatEvaluation>(
+      `/api/v1/customformats/evaluate?title=${encodeURIComponent(title)}${options.movieId ? `&movieId=${options.movieId}` : ''}${
+        options.originalLanguage ? `&originalLanguage=${encodeURIComponent(options.originalLanguage)}` : ''
+      }`,
+    ),
 }
 
 // ---- library ---------------------------------------------------------------
@@ -367,7 +506,7 @@ export const indexers = {
 
 export type Rejection = { reason: string; temporary: boolean }
 
-export type VersionDecision = { versionId: number; versionName: string; approved: boolean; rejections: Rejection[] }
+export type VersionDecision = { versionId: number; versionName: string; approved: boolean; rejections: Rejection[]; customFormatScore: number }
 
 export type IndexerFailureKind = 'unreachable' | 'authentication' | 'rateLimited' | 'serverError' | 'invalidResponse' | 'request' | 'disabled'
 
@@ -396,6 +535,8 @@ export type Release = {
   edition: string | null
   releaseGroup: string | null
   languages: string[]
+  /** Custom formats matched; the score depends on each version's profile and sits on the verdict. */
+  customFormats: string[]
   parsedTitle: string | null
   parsedYear: number | null
   matchesMovie: boolean
@@ -439,6 +580,7 @@ export type RssRelease = {
   edition: string | null
   releaseGroup: string | null
   languages: string[]
+  customFormats: string[]
   parsedTitle: string | null
   parsedYear: number | null
   movie: RssMovieRef | null

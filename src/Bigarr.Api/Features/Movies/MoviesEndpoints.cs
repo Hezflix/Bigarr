@@ -1,4 +1,5 @@
 using Bigarr.Api.Infrastructure.Auth;
+using Bigarr.Api.Infrastructure.Decision;
 using Bigarr.Domain.Movies;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
@@ -45,7 +46,7 @@ public static class MoviesEndpoints
         return result.IsSuccess ? TypedResults.Ok(result.Value!.ToList()) : result.Failure!.ToProblem();
     }
 
-    private static async Task<Results<Ok<MovieResponse>, NotFound>> GetAsync(int id, MovieService movies, CancellationToken ct)
+    private static async Task<Results<Ok<MovieResponse>, NotFound>> GetAsync(int id, MovieService movies, CustomFormatScorer scorer, CancellationToken ct)
     {
         var movie = await movies.WithGraph().FirstOrDefaultAsync(m => m.Id == id, ct);
         if (movie is null)
@@ -53,10 +54,10 @@ public static class MoviesEndpoints
             return TypedResults.NotFound();
         }
 
-        return TypedResults.Ok(await ToResponseAsync(movie, movies, ct));
+        return TypedResults.Ok(await ToResponseAsync(movie, movies, scorer, ct));
     }
 
-    private static async Task<Results<Created<MovieResponse>, ProblemHttpResult>> AddAsync(AddMovieRequest request, MovieService movies, CancellationToken ct)
+    private static async Task<Results<Created<MovieResponse>, ProblemHttpResult>> AddAsync(AddMovieRequest request, MovieService movies, CustomFormatScorer scorer, CancellationToken ct)
     {
         var result = await movies.AddMovieAsync(request, ct);
         if (!result.IsSuccess)
@@ -65,7 +66,7 @@ public static class MoviesEndpoints
         }
 
         var movie = await movies.WithGraph().FirstAsync(m => m.Id == result.Value!.Id, ct);
-        return TypedResults.Created($"/api/v1/movies/{movie.Id}", await ToResponseAsync(movie, movies, ct));
+        return TypedResults.Created($"/api/v1/movies/{movie.Id}", await ToResponseAsync(movie, movies, scorer, ct));
     }
 
     private static async Task<Results<NoContent, ProblemHttpResult>> DeleteAsync(
@@ -75,7 +76,7 @@ public static class MoviesEndpoints
         return result.IsSuccess ? TypedResults.NoContent() : result.Failure!.ToProblem();
     }
 
-    private static async Task<Results<Ok<MovieResponse>, ProblemHttpResult>> RefreshAsync(int id, MovieService movies, CancellationToken ct)
+    private static async Task<Results<Ok<MovieResponse>, ProblemHttpResult>> RefreshAsync(int id, MovieService movies, CustomFormatScorer scorer, CancellationToken ct)
     {
         var result = await movies.RefreshAsync(id, ct);
         if (!result.IsSuccess)
@@ -84,11 +85,11 @@ public static class MoviesEndpoints
         }
 
         var movie = await movies.WithGraph().FirstAsync(m => m.Id == id, ct);
-        return TypedResults.Ok(await ToResponseAsync(movie, movies, ct));
+        return TypedResults.Ok(await ToResponseAsync(movie, movies, scorer, ct));
     }
 
     private static async Task<Results<Created<VersionResponse>, ProblemHttpResult>> AddVersionAsync(
-        int id, AddVersionRequest request, MovieService movies, CancellationToken ct)
+        int id, AddVersionRequest request, MovieService movies, CustomFormatScorer scorer, CancellationToken ct)
     {
         var result = await movies.AddVersionAsync(id, request, ct);
         if (!result.IsSuccess)
@@ -96,12 +97,12 @@ public static class MoviesEndpoints
             return result.Failure!.ToProblem();
         }
 
-        var version = await LoadVersionAsync(id, result.Value!.Id, movies, ct);
+        var version = await LoadVersionAsync(id, result.Value!.Id, movies, scorer, ct);
         return TypedResults.Created($"/api/v1/movies/{id}/versions/{version.Id}", version);
     }
 
     private static async Task<Results<Ok<VersionResponse>, ProblemHttpResult>> UpdateVersionAsync(
-        int id, int versionId, UpdateVersionRequest request, MovieService movies, CancellationToken ct)
+        int id, int versionId, UpdateVersionRequest request, MovieService movies, CustomFormatScorer scorer, CancellationToken ct)
     {
         var result = await movies.UpdateVersionAsync(id, versionId, request, ct);
         if (!result.IsSuccess)
@@ -109,7 +110,7 @@ public static class MoviesEndpoints
             return result.Failure!.ToProblem();
         }
 
-        return TypedResults.Ok(await LoadVersionAsync(id, versionId, movies, ct));
+        return TypedResults.Ok(await LoadVersionAsync(id, versionId, movies, scorer, ct));
     }
 
     private static async Task<Results<NoContent, ProblemHttpResult>> DeleteVersionAsync(
@@ -120,7 +121,7 @@ public static class MoviesEndpoints
     }
 
     private static async Task<Results<Ok<VersionResponse>, ProblemHttpResult>> PromoteAsync(
-        int id, int versionId, MovieService movies, CancellationToken ct)
+        int id, int versionId, MovieService movies, CustomFormatScorer scorer, CancellationToken ct)
     {
         var result = await movies.PromoteAsync(id, versionId, ct);
         if (!result.IsSuccess)
@@ -128,20 +129,43 @@ public static class MoviesEndpoints
             return result.Failure!.ToProblem();
         }
 
-        return TypedResults.Ok(await LoadVersionAsync(id, versionId, movies, ct));
+        return TypedResults.Ok(await LoadVersionAsync(id, versionId, movies, scorer, ct));
     }
 
-    private static async Task<MovieResponse> ToResponseAsync(Movie movie, MovieService movies, CancellationToken ct)
+    private static async Task<MovieResponse> ToResponseAsync(Movie movie, MovieService movies, CustomFormatScorer scorer, CancellationToken ct)
     {
         var active = await movies.ActiveTargetsAsync(movie.Versions.Select(v => v.Id), ct);
-        return MovieMapper.ToResponse(movie, active, movies.Today);
+        return MovieMapper.ToResponse(movie, active, movies.Today, await AssessFilesAsync(movie, scorer, ct));
     }
 
-    private static async Task<VersionResponse> LoadVersionAsync(int movieId, int versionId, MovieService movies, CancellationToken ct)
+    private static async Task<VersionResponse> LoadVersionAsync(int movieId, int versionId, MovieService movies, CustomFormatScorer scorer, CancellationToken ct)
     {
         var movie = await movies.WithGraph().FirstAsync(m => m.Id == movieId, ct);
         var version = movie.Versions.First(v => v.Id == versionId);
         var active = await movies.ActiveTargetsAsync([versionId], ct);
-        return MovieMapper.ToVersion(version, active.Contains(versionId), movies.Today);
+        var assessments = await AssessFilesAsync(movie, scorer, ct);
+        return MovieMapper.ToVersion(version, active.Contains(versionId), movies.Today, assessments.GetValueOrDefault(versionId));
+    }
+
+    /// <summary>Custom formats and cutoff of every file of the film, judged now against the version's profile (§3.6).</summary>
+    private static async Task<Dictionary<int, FileAssessment>> AssessFilesAsync(Movie movie, CustomFormatScorer scorer, CancellationToken ct)
+    {
+        var result = new Dictionary<int, FileAssessment>();
+        var withFiles = movie.Versions.Where(v => v.File is not null).ToList();
+        if (withFiles.Count == 0)
+        {
+            return result;
+        }
+
+        var calculator = await scorer.CalculatorAsync(ct);
+        foreach (var version in withFiles)
+        {
+            var file = version.File!;
+            var matched = calculator.Match(CustomFormatScorer.FileInput(
+                file.OriginalReleaseTitle, file.RelativePath, file.Size, file.IndexerFlags, file.Quality, file.Languages, file.Edition, file.ReleaseGroup, movie.Year, movie.OriginalLanguage));
+            result[version.Id] = CustomFormatScorer.Assess(version.QualityProfile, file.QualityId, matched);
+        }
+
+        return result;
     }
 }

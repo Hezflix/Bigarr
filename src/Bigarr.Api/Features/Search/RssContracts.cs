@@ -41,6 +41,7 @@ public sealed record RssReleaseResponse(
     string? Edition,
     string? ReleaseGroup,
     List<string> Languages,
+    List<string> CustomFormats,
     string? ParsedTitle,
     int? ParsedYear,
     /// <summary>The film of the library this release belongs to, or null with <see cref="UnmatchedReason"/>.</summary>

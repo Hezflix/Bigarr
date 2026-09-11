@@ -705,10 +705,21 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("TrashId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TrashScoresJson")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
                         .IsUnique();
+
+                    b.HasIndex("TrashId")
+                        .IsUnique()
+                        .HasFilter("\"TrashId\" IS NOT NULL");
 
                     b.ToTable("CustomFormats", (string)null);
                 });

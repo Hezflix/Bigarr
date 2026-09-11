@@ -46,7 +46,7 @@ public sealed class RssSyncTests(BigarrApiFactory factory) : IClassFixture<Bigar
             Assert.Equal(15, first.Fetched); // 5 films × 3 releases in the mock feed
             Assert.Equal(15, first.New);
             Assert.Equal(6, first.Matched); // The Matrix and Inception
-            Assert.Equal(6, first.WouldGrab);
+            Assert.Equal(4, first.WouldGrab); // their 2160p releases are out of the seeded 1080p profile
             Assert.Empty(first.IndexerErrors);
 
             var matched = (await client.GetFromJsonAsync<List<RssReleaseResponse>>("/api/v1/rss/releases?matched=true", Json))!;
@@ -55,10 +55,25 @@ public sealed class RssSyncTests(BigarrApiFactory factory) : IClassFixture<Bigar
             {
                 Assert.NotNull(r.Movie);
                 Assert.Null(r.UnmatchedReason);
-                Assert.Equal("any", r.AttributedVersionName);
+            });
+
+            var wanted = matched.Where(r => r.Quality != "WEBDL-2160p").ToList();
+            Assert.Equal(4, wanted.Count);
+            Assert.All(wanted, r =>
+            {
+                Assert.Equal(QualitySeeder.HdProfileName, r.AttributedVersionName);
                 var verdict = Assert.Single(r.Versions);
                 Assert.True(verdict.Approved);
                 Assert.Equal(r.AttributedVersionId, verdict.VersionId);
+            });
+
+            // A 4K release is matched and judged, then refused: no 4K version exists on these films.
+            Assert.All(matched.Where(r => r.Quality == "WEBDL-2160p"), r =>
+            {
+                Assert.Null(r.AttributedVersionId);
+                var verdict = Assert.Single(r.Versions);
+                Assert.False(verdict.Approved);
+                Assert.Contains(verdict.Rejections, x => x.Reason == $"WEBDL-2160p is not wanted in profile {QualitySeeder.HdProfileName}");
             });
             Assert.Contains(matched, r => r.Movie!.Id == matrix.Id && r.Title.Contains("Matrix"));
             Assert.Contains(matched, r => r.Movie!.Id == inception.Id && r.Quality == "WEBDL-2160p");
@@ -89,7 +104,7 @@ public sealed class RssSyncTests(BigarrApiFactory factory) : IClassFixture<Bigar
             Assert.NotNull(status.LastRunAt);
             Assert.Equal(15, status.Stored);
             Assert.Equal(6, status.Matched);
-            Assert.Equal(6, status.WouldGrab);
+            Assert.Equal(4, status.WouldGrab);
             var indexerStatus = Assert.Single(status.Indexers);
             Assert.Equal(mock.Id, indexerStatus.IndexerId);
             Assert.Equal(15, indexerStatus.LastFetched);
@@ -107,7 +122,7 @@ public sealed class RssSyncTests(BigarrApiFactory factory) : IClassFixture<Bigar
                 Assert.Equal(2, third.Indexers);
                 Assert.Equal(15, third.New);
                 Assert.Equal(6, third.Matched);
-                Assert.Equal(3, third.WouldGrab);
+                Assert.Equal(2, third.WouldGrab); // Inception only, minus its 2160p release
 
                 var refused = (await client.GetFromJsonAsync<List<RssReleaseResponse>>("/api/v1/rss/releases?matched=true", Json))!
                     .Where(r => r.IndexerId == second_feed.Id && r.Movie!.Id == matrix.Id).ToList();
@@ -115,7 +130,7 @@ public sealed class RssSyncTests(BigarrApiFactory factory) : IClassFixture<Bigar
                 Assert.All(refused, r =>
                 {
                     Assert.Null(r.AttributedVersionId);
-                    Assert.Equal("Version is not monitored", Assert.Single(Assert.Single(r.Versions).Rejections).Reason);
+                    Assert.Contains(Assert.Single(r.Versions).Rejections, x => x.Reason == "Version is not monitored");
                 });
             }
             finally
@@ -175,7 +190,7 @@ public sealed class RssSyncTests(BigarrApiFactory factory) : IClassFixture<Bigar
     private static async Task<(int ProfileId, int RootId)> SetupAsync(HttpClient client)
     {
         var profiles = await client.GetFromJsonAsync<List<QualityProfileSummary>>("/api/v1/qualityprofiles", Json);
-        var any = profiles!.Single(p => p.Name == QualitySeeder.AnyProfileName);
+        var hd = profiles!.Single(p => p.Name == QualitySeeder.HdProfileName);
 
         var roots = await client.GetFromJsonAsync<List<RootFolderResponse>>("/api/v1/rootfolders", Json);
         if (roots!.Count == 0)
@@ -186,7 +201,7 @@ public sealed class RssSyncTests(BigarrApiFactory factory) : IClassFixture<Bigar
             roots = [(await created.Content.ReadFromJsonAsync<RootFolderResponse>(Json))!];
         }
 
-        return (any.Id, roots[0].Id);
+        return (hd.Id, roots[0].Id);
     }
 
     private static async Task<MovieResponse> AddMovieAsync(HttpClient client, int tmdbId, int profileId, int rootId)

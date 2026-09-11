@@ -63,7 +63,7 @@ public sealed class MoviesEndpointsTests(BigarrApiFactory factory) : IClassFixtu
         Assert.True(movie.Monitored);
 
         var version = Assert.Single(movie.Versions);
-        Assert.Equal("any", version.Name);
+        Assert.Equal("1080p", version.Name);
         Assert.True(version.IsDefault);
         Assert.Equal(VersionMode.Managed, version.Mode);
         Assert.Equal("The Matrix (1999)", version.FolderName);
@@ -144,7 +144,7 @@ public sealed class MoviesEndpointsTests(BigarrApiFactory factory) : IClassFixtu
         var deleteWithPromote = await client.DeleteAsync($"/api/v1/movies/{movie.Id}/versions/{fourK.Id}?promote={defaultVersion.Id}");
         Assert.Equal(HttpStatusCode.NoContent, deleteWithPromote.StatusCode);
         var afterDelete = (await client.GetFromJsonAsync<MovieResponse>($"/api/v1/movies/{movie.Id}", Json))!;
-        Assert.Equal(["any", "imax"], afterDelete.Versions.Select(v => v.Name));
+        Assert.Equal(["1080p", "imax"], afterDelete.Versions.Select(v => v.Name));
         Assert.True(afterDelete.Versions[0].IsDefault);
 
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/v1/movies/{movie.Id}/versions/{imax.Id}")).StatusCode);
@@ -203,7 +203,7 @@ public sealed class MoviesEndpointsTests(BigarrApiFactory factory) : IClassFixtu
     private static async Task<(int ProfileId, int RootId)> SetupAsync(HttpClient client)
     {
         var profiles = await client.GetFromJsonAsync<List<QualityProfileSummary>>("/api/v1/qualityprofiles", Json);
-        var any = profiles!.Single(p => p.Name == QualitySeeder.AnyProfileName);
+        var hd = profiles!.Single(p => p.Name == QualitySeeder.HdProfileName);
 
         var roots = await client.GetFromJsonAsync<List<RootFolderResponse>>("/api/v1/rootfolders", Json);
         if (roots!.Count == 0)
@@ -214,7 +214,7 @@ public sealed class MoviesEndpointsTests(BigarrApiFactory factory) : IClassFixtu
             roots = [(await created.Content.ReadFromJsonAsync<RootFolderResponse>(Json))!];
         }
 
-        return (any.Id, roots[0].Id);
+        return (hd.Id, roots[0].Id);
     }
 
     private static async Task<MovieResponse> AddAsync(HttpClient client, int tmdbId, int profileId, int rootId)

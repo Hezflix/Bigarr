@@ -35,8 +35,27 @@ public sealed class ConstraintsSpecification : IReleaseSpecification
             }
         }
 
+        foreach (var id in constraints.RequiredCustomFormatIds)
+        {
+            if (!candidate.CustomFormatIds.Contains(id))
+            {
+                return new Rejection($"Required custom format {FormatName(target, id)} not matched");
+            }
+        }
+
+        foreach (var id in constraints.ForbiddenCustomFormatIds)
+        {
+            if (candidate.CustomFormatIds.Contains(id))
+            {
+                return new Rejection($"Forbidden custom format {FormatName(target, id)} matched");
+            }
+        }
+
         return null;
     }
+
+    private static string FormatName(TargetContext target, int id) =>
+        target.CustomFormatNames.TryGetValue(id, out var name) ? name : $"#{id}";
 
     private static bool SafeIsMatch(string pattern, string input)
     {

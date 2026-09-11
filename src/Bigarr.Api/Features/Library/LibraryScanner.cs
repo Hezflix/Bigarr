@@ -42,8 +42,7 @@ public sealed partial class LibraryScanner(BigarrDbContext db, IMetadataProvider
             throw new DirectoryNotFoundException($"Root folder path '{root.Path}' is not accessible.");
         }
 
-        var anyProfile = await db.QualityProfiles.FirstOrDefaultAsync(p => p.Name == QualitySeeder.AnyProfileName, ct)
-                         ?? await db.QualityProfiles.OrderBy(p => p.Id).FirstAsync(ct);
+        var profiles = await ResolveProfilesAsync(ct);
 
         var scanStartedAt = time.GetUtcNow().UtcDateTime;
         var folders = Directory.EnumerateDirectories(root.Path)
@@ -62,7 +61,7 @@ public sealed partial class LibraryScanner(BigarrDbContext db, IMetadataProvider
 
             try
             {
-                await ScanFolderAsync(root, folder, anyProfile.Id, progress, ct);
+                await ScanFolderAsync(root, folder, profiles, progress, ct);
             }
             catch (OperationCanceledException)
             {
@@ -87,7 +86,25 @@ public sealed partial class LibraryScanner(BigarrDbContext db, IMetadataProvider
         progress.CurrentFolder = null;
     }
 
-    private async Task ScanFolderAsync(RootFolder root, DirectoryInfo folder, int anyProfileId, ScanProgress progress, CancellationToken ct)
+    /// <summary>The system profiles a discovered file is filed under: its resolution decides, nothing else is known at scan time.</summary>
+    private readonly record struct ScanProfiles(int Hd, int Uhd)
+    {
+        public int For(int resolution) => resolution >= QualitySeeder.UhdResolution ? Uhd : Hd;
+    }
+
+    private async Task<ScanProfiles> ResolveProfilesAsync(CancellationToken ct)
+    {
+        var profiles = await db.QualityProfiles.OrderBy(p => p.Id).Select(p => new { p.Id, p.Name }).ToListAsync(ct);
+        if (profiles.Count == 0)
+        {
+            throw new InvalidOperationException("No quality profile is seeded; the scan has nothing to file versions under.");
+        }
+
+        var hd = profiles.FirstOrDefault(p => p.Name == QualitySeeder.HdProfileName)?.Id ?? profiles[0].Id;
+        return new ScanProfiles(hd, profiles.FirstOrDefault(p => p.Name == QualitySeeder.UhdProfileName)?.Id ?? hd);
+    }
+
+    private async Task ScanFolderAsync(RootFolder root, DirectoryInfo folder, ScanProfiles profiles, ScanProgress progress, CancellationToken ct)
     {
         var files = EnumerateVideoFiles(folder).ToList();
         if (files.Count == 0)
@@ -155,7 +172,7 @@ public sealed partial class LibraryScanner(BigarrDbContext db, IMetadataProvider
                     Movie = movie,
                     Name = VersionNaming.Unique(baseName, movie.Versions.Select(v => v.Name)),
                     Mode = VersionMode.Managed,
-                    QualityProfileId = anyProfileId,
+                    QualityProfileId = profiles.For(quality.Quality.Resolution),
                     RootFolderId = root.Id,
                     FolderName = folder.Name,
                     IsDefault = movie.Versions.All(v => !v.IsDefault),

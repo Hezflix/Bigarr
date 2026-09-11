@@ -1,7 +1,9 @@
 using Bigarr.Api.Infrastructure;
+using Bigarr.Api.Infrastructure.Decision;
 using Bigarr.Api.Infrastructure.Indexers;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Decision;
+using Bigarr.Decision.CustomFormats;
 using Bigarr.Domain.Indexers;
 using Bigarr.Domain.Movies;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +20,7 @@ namespace Bigarr.Api.Features.Search;
 public sealed class RssSyncService(
     BigarrDbContext db,
     TargetContextFactory contexts,
+    CustomFormatScorer scorer,
     IndexerGateway gateway,
     RssFeedState state,
     IOptions<RssSyncOptions> options,
@@ -82,11 +85,12 @@ public sealed class RssSyncService(
             var movies = await contexts.MoviesWithVersions().ToListAsync(ct);
             var library = LibraryIndex.Build(movies);
             var targets = await contexts.BuildAsync(movies, ct);
+            var calculator = await scorer.CalculatorAsync(ct);
 
             // Oldest first so the newest ends up on top of the list.
             foreach (var (indexer, release) in fresh.OrderBy(f => f.Release.PublishDate))
             {
-                var entry = Judge(indexer, release, library, targets, now);
+                var entry = Judge(indexer, release, library, targets, calculator, now);
                 if (entry.Movie is not null)
                 {
                     matched++;
@@ -111,22 +115,23 @@ public sealed class RssSyncService(
         return new RssSyncResponse(indexers.Count, results.Sum(r => r.Releases.Count), fresh.Count, matched, wouldGrab, errors);
     }
 
-    private RssReleaseResponse Judge(Indexer indexer, ReleaseInfo release, LibraryIndex library, Dictionary<int, List<TargetContext>> targets, DateTime now)
+    private RssReleaseResponse Judge(Indexer indexer, ReleaseInfo release, LibraryIndex library, Dictionary<int, List<TargetContext>> targets, CustomFormatCalculator calculator, DateTime now)
     {
         var parsed = ReleaseMatcher.TryParse(release.Title);
         var (movie, reason) = ReleaseMatcher.FindMovie(parsed, release, library);
+        var formats = parsed is null ? [] : calculator.Match(CustomFormatScorer.ReleaseInput(parsed, release, movie?.Year, movie?.OriginalLanguage));
 
         var versions = new List<VersionDecisionResponse>();
         ReleaseDecision? attributed = null;
         if (movie is not null && parsed is not null)
         {
-            var candidate = new ReleaseCandidate(release, parsed, indexer.MinimumSeeders);
+            var candidate = new ReleaseCandidate(release, parsed, indexer.MinimumSeeders) { CustomFormatIds = formats.Select(f => f.Id).ToList() };
             var decisions = targets[movie.Id].Select(context => _evaluator.Evaluate(candidate, context)).ToList();
             attributed = VersionAttribution.Choose(decisions);
             versions = decisions.Select(d =>
             {
                 var version = (MovieVersion)d.Target.Target;
-                return new VersionDecisionResponse(version.Id, version.Name, d.Approved, d.Rejections.Select(r => new RejectionResponse(r.Reason, r.Type == RejectionType.Temporary)).ToList());
+                return new VersionDecisionResponse(version.Id, version.Name, d.Approved, d.Rejections.Select(r => new RejectionResponse(r.Reason, r.Type == RejectionType.Temporary)).ToList(), d.CustomFormatScore);
             }).ToList();
         }
 
@@ -153,6 +158,7 @@ public sealed class RssSyncService(
             string.IsNullOrWhiteSpace(parsed?.Edition) ? null : parsed!.Edition,
             string.IsNullOrWhiteSpace(parsed?.ReleaseGroup) ? null : parsed!.ReleaseGroup,
             parsed?.Languages?.Where(l => l.Id != 0).Select(l => l.Name).Where(n => n is not null).Cast<string>().ToList() ?? [],
+            formats.Select(f => f.Name).ToList(),
             parsed?.PrimaryMovieTitle,
             parsed is { Year: > 0 } ? parsed.Year : null,
             movie is null ? null : new RssMovieRef(movie.Id, movie.Title, movie.Year, movie.Images.FirstOrDefault(i => i.Type == ImageType.Poster)?.RemoteUrl),

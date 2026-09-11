@@ -48,18 +48,18 @@ public sealed class InteractiveSearchTests(BigarrApiFactory factory) : IClassFix
             Assert.Empty(result.IndexerErrors);
             Assert.Equal(17, result.Releases.Count);
 
-            // Best first: matched, approved, highest quality.
+            // Best first: matched, approved, highest quality the profile wants.
             var best = result.Releases[0];
             Assert.True(best.MatchesMovie);
-            Assert.Contains("2160p.UHD.BluRay.REMUX", best.Title);
-            Assert.Equal("Remux-2160p", best.Quality);
-            Assert.Equal(2160, best.Resolution);
-            Assert.Equal("FraMeSToR", best.ReleaseGroup);
+            Assert.Contains("1080p.BluRay.REMUX", best.Title);
+            Assert.Equal("Remux-1080p", best.Quality);
+            Assert.Equal(1080, best.Resolution);
+            Assert.Equal("EPSiLON", best.ReleaseGroup);
             Assert.Equal(1999, best.ParsedYear);
             Assert.Equal("The Matrix", best.ParsedTitle);
             Assert.Equal("Mock", best.Indexer);
             Assert.Equal(indexer.Id, best.IndexerId);
-            Assert.True(best.Size > 50L * 1024 * 1024 * 1024);
+            Assert.True(best.Size > 25L * 1024 * 1024 * 1024);
             Assert.NotNull(best.InfoHash);
             var verdict = Assert.Single(best.Versions);
             Assert.Equal(version.Id, verdict.VersionId);
@@ -73,6 +73,12 @@ public sealed class InteractiveSearchTests(BigarrApiFactory factory) : IClassFix
             Assert.True(order.Take(firstRejected).All(o => o.Approved));
             Assert.True(firstMismatch > firstRejected);
             Assert.True(order.Skip(firstMismatch).All(o => !o.MatchesMovie));
+
+            // 4K is out of the seeded 1080p profile: matched and judged, refused by name.
+            var uhd = result.Releases.Single(r => r.Title.Contains("2160p.UHD.BluRay.REMUX"));
+            Assert.True(uhd.MatchesMovie);
+            Assert.Contains(Assert.Single(uhd.Versions).Rejections,
+                r => r.Reason == $"Remux-2160p is not wanted in profile {QualitySeeder.HdProfileName}" && !r.Temporary);
 
             var repack = result.Releases.Single(r => r.Title.Contains("REPACK"));
             Assert.True(repack.IsRepack);
@@ -134,7 +140,7 @@ public sealed class InteractiveSearchTests(BigarrApiFactory factory) : IClassFix
             var all = (await client.GetFromJsonAsync<SearchResponse>($"/api/v1/search?movieId={movie.Id}", Json))!;
             var sparks = all.Releases.Single(r => r.Title == "Inception.2010.1080p.BluRay.x264-SPARKS");
             Assert.Equal(2, sparks.Versions.Count);
-            Assert.True(sparks.Versions.Single(v => v.VersionName == "any").Approved);
+            Assert.True(sparks.Versions.Single(v => v.VersionName == "1080p").Approved);
             var refused = sparks.Versions.Single(v => v.VersionId == oneShot.Id);
             Assert.False(refused.Approved);
             Assert.StartsWith("Edition must match", Assert.Single(refused.Rejections).Reason);
@@ -213,7 +219,7 @@ public sealed class InteractiveSearchTests(BigarrApiFactory factory) : IClassFix
     private static async Task<(int ProfileId, int RootId)> SetupAsync(HttpClient client)
     {
         var profiles = await client.GetFromJsonAsync<List<QualityProfileSummary>>("/api/v1/qualityprofiles", Json);
-        var any = profiles!.Single(p => p.Name == QualitySeeder.AnyProfileName);
+        var hd = profiles!.Single(p => p.Name == QualitySeeder.HdProfileName);
 
         var roots = await client.GetFromJsonAsync<List<RootFolderResponse>>("/api/v1/rootfolders", Json);
         if (roots!.Count == 0)
@@ -224,7 +230,7 @@ public sealed class InteractiveSearchTests(BigarrApiFactory factory) : IClassFix
             roots = [(await created.Content.ReadFromJsonAsync<RootFolderResponse>(Json))!];
         }
 
-        return (any.Id, roots[0].Id);
+        return (hd.Id, roots[0].Id);
     }
 
     private static async Task<MovieResponse> AddMovieAsync(HttpClient client, int tmdbId, int profileId, int rootId)

@@ -61,9 +61,10 @@ public sealed class LibraryScanTests(BigarrApiFactory factory) : IClassFixture<B
         var detail = (await client.GetFromJsonAsync<MovieResponse>($"/api/v1/movies/{matrix.Id}", Json))!;
 
         Assert.Equal(["1080p", "2160p"], detail.Versions.Select(v => v.Name));
+        // The scan files a version under the profile of the resolution it found.
+        Assert.Equal([QualitySeeder.HdProfileName, QualitySeeder.UhdProfileName], detail.Versions.Select(v => v.QualityProfile));
         Assert.All(detail.Versions, v =>
         {
-            Assert.Equal(QualitySeeder.AnyProfileName, v.QualityProfile);
             Assert.False(v.Monitored);
             Assert.Equal(VersionStatus.Available, v.Status);
             Assert.Equal("The Matrix (1999)", v.FolderName);
