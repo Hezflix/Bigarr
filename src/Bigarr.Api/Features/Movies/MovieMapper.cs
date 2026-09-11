@@ -1,3 +1,4 @@
+using Bigarr.Api.Infrastructure.Decision;
 using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Movies;
 
@@ -5,7 +6,7 @@ namespace Bigarr.Api.Features.Movies;
 
 public static class MovieMapper
 {
-    public static MovieResponse ToResponse(Movie movie, IReadOnlySet<int> activeTargets, DateOnly today) => new(
+    public static MovieResponse ToResponse(Movie movie, IReadOnlySet<int> activeTargets, DateOnly today, IReadOnlyDictionary<int, FileAssessment>? assessments = null) => new(
         movie.Id,
         movie.TmdbId,
         movie.ImdbId,
@@ -35,7 +36,7 @@ public static class MovieMapper
         movie.Versions
             .OrderByDescending(v => v.IsDefault)
             .ThenBy(v => v.Id)
-            .Select(v => ToVersion(v, activeTargets.Contains(v.Id), today))
+            .Select(v => ToVersion(v, activeTargets.Contains(v.Id), today, assessments is not null && assessments.TryGetValue(v.Id, out var a) ? a : null))
             .ToList());
 
     public static MovieSummary ToSummary(Movie movie, IReadOnlySet<int> activeTargets, DateOnly today) => new(
@@ -61,7 +62,7 @@ public static class MovieMapper
                 v.File?.Quality?.Name))
             .ToList());
 
-    public static VersionResponse ToVersion(MovieVersion version, bool hasActiveGrab, DateOnly today)
+    public static VersionResponse ToVersion(MovieVersion version, bool hasActiveGrab, DateOnly today, FileAssessment? assessment = null)
     {
         var folder = Path.Combine(version.RootFolder.Path, version.FolderName);
         return new VersionResponse(
@@ -81,7 +82,10 @@ public static class MovieMapper
             Availability.StatusOf(version, hasActiveGrab, today),
             Availability.IsAvailable(version.Movie, version.MinimumAvailability, today),
             version.File is null ? null : ToFile(version.File, folder),
-            version.CreatedAt);
+            version.CreatedAt,
+            assessment?.CustomFormats.ToList(),
+            assessment?.CustomFormatScore,
+            assessment?.CutoffMet);
     }
 
     public static MediaFileResponse ToFile(MediaFile file, string folder) => new(

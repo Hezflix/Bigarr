@@ -164,6 +164,11 @@ function ReleaseRow({ release }: { release: RssRelease }) {
               {t(`search.flags.${flag}`, { defaultValue: flag })}
             </Badge>
           ))}
+          {release.customFormats.map((format) => (
+            <Badge key={format} variant="outline" className="border-violet-600/30 bg-violet-500/10 text-violet-700 dark:border-violet-400/30 dark:text-violet-300">
+              {format}
+            </Badge>
+          ))}
           {details.length > 0 && <span className="text-xs text-muted-foreground">{details.join(' · ')}</span>}
         </span>
       </TableCell>
@@ -191,7 +196,9 @@ function ReleaseRow({ release }: { release: RssRelease }) {
           <ul className="flex flex-col gap-1">
             {release.versions.map((v) => (
               <li key={v.versionId} className="flex flex-wrap items-center gap-1">
-                <span className="text-xs font-medium">{v.versionName}</span>
+                <span className="text-xs font-medium">
+                  {v.versionName} <span className="font-normal text-muted-foreground">· {t('search.score', { score: v.customFormatScore })}</span>
+                </span>
                 {v.rejections.map((rej) => (
                   <Badge key={rej.reason} variant="outline" className={cn('whitespace-normal text-left', rej.temporary ? temporaryStyle : permanentStyle)}>
                     {rej.reason}

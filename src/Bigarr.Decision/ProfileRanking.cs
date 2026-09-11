@@ -26,6 +26,16 @@ public static class ProfileRanking
         return byGroup >= 0 ? byGroup : RankOf(profile, profile.Cutoff);
     }
 
+    /// <summary>Sum of the profile's scores for the custom formats matched. Formats the profile does not score count zero (§3.6).</summary>
+    public static int FormatScore(QualityProfile profile, IEnumerable<int> customFormatIds)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(customFormatIds);
+
+        var ids = customFormatIds as ISet<int> ?? customFormatIds.ToHashSet();
+        return ids.Count == 0 ? 0 : profile.FormatScores.Where(s => ids.Contains(s.CustomFormatId)).Sum(s => s.Score);
+    }
+
     public static bool CutoffMet(QualityProfile profile, int qualityId)
     {
         var rank = RankOf(profile, qualityId);

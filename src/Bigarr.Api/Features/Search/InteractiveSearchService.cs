@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using Bigarr.Api.Infrastructure;
+using Bigarr.Api.Infrastructure.Decision;
 using Bigarr.Api.Infrastructure.Indexers;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Decision;
+using Bigarr.Decision.CustomFormats;
 using Bigarr.Domain.Indexers;
 using Bigarr.Domain.Movies;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +16,7 @@ namespace Bigarr.Api.Features.Search;
 /// Interactive search (blueprint §5): every indexer in parallel, each release parsed, matched to the film, then judged by
 /// every version of the film so the user sees the reasons, not just the verdict. Grabbing arrives with the download client.
 /// </summary>
-public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFactory contexts, IndexerGateway gateway, TimeProvider time, ILogger<InteractiveSearchService> logger)
+public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFactory contexts, CustomFormatScorer scorer, IndexerGateway gateway, TimeProvider time, ILogger<InteractiveSearchService> logger)
 {
     private static readonly Dictionary<int, int> QualityWeights = ParserQuality.DefaultQualityDefinitions.ToDictionary(d => d.Quality.Id, d => d.Weight);
 
@@ -57,14 +59,17 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
             movie.Title, results.Sum(r => r.Releases.Count), indexers.Count, stopwatch.ElapsedMilliseconds);
 
         var targets = await contexts.BuildAsync(movie, versions, ct);
+        var calculator = await scorer.CalculatorAsync(ct);
         var minimumSeeders = indexers.ToDictionary(i => i.Id, i => i.MinimumSeeders);
 
+        // Ranking (blueprint §5): quality, then custom format score, then indexer priority, then seeders.
         var releases = results
             .SelectMany(r => r.Releases)
-            .Select(release => Evaluate(release, movie, targets, minimumSeeders.GetValueOrDefault(release.IndexerId)))
+            .Select(release => Evaluate(release, movie, targets, minimumSeeders.GetValueOrDefault(release.IndexerId), calculator))
             .OrderByDescending(r => r.MatchesMovie)
             .ThenByDescending(r => r.Versions.Any(v => v.Approved))
             .ThenByDescending(r => QualityWeights.GetValueOrDefault(r.QualityId))
+            .ThenByDescending(r => r.Versions.Count == 0 ? 0 : r.Versions.Max(v => v.CustomFormatScore))
             .ThenByDescending(r => r.RevisionVersion)
             .ThenBy(r => r.IndexerPriority)
             .ThenByDescending(r => r.Seeders ?? 0)
@@ -77,15 +82,16 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
         return Result<SearchResponse>.Ok(new SearchResponse(movie.Id, time.GetUtcNow().UtcDateTime, indexers.Count, releases, errors));
     }
 
-    private ReleaseResponse Evaluate(ReleaseInfo release, Movie movie, List<TargetContext> contexts, int minimumSeeders)
+    private ReleaseResponse Evaluate(ReleaseInfo release, Movie movie, List<TargetContext> contexts, int minimumSeeders, CustomFormatCalculator calculator)
     {
         var parsed = ReleaseMatcher.TryParse(release.Title);
         var mismatch = ReleaseMatcher.Match(parsed, release, movie);
+        var formats = parsed is null ? [] : calculator.Match(CustomFormatScorer.ReleaseInput(parsed, release, movie.Year, movie.OriginalLanguage));
 
         var versions = new List<VersionDecisionResponse>();
         if (mismatch is null && parsed is not null)
         {
-            var candidate = new ReleaseCandidate(release, parsed, minimumSeeders);
+            var candidate = new ReleaseCandidate(release, parsed, minimumSeeders) { CustomFormatIds = formats.Select(f => f.Id).ToList() };
             foreach (var context in contexts)
             {
                 var version = (MovieVersion)context.Target;
@@ -94,7 +100,8 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
                     version.Id,
                     version.Name,
                     decision.Approved,
-                    decision.Rejections.Select(r => new RejectionResponse(r.Reason, r.Type == RejectionType.Temporary)).ToList()));
+                    decision.Rejections.Select(r => new RejectionResponse(r.Reason, r.Type == RejectionType.Temporary)).ToList(),
+                    decision.CustomFormatScore));
             }
         }
 
@@ -125,6 +132,7 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
             string.IsNullOrWhiteSpace(parsed?.Edition) ? null : parsed!.Edition,
             string.IsNullOrWhiteSpace(parsed?.ReleaseGroup) ? null : parsed!.ReleaseGroup,
             parsed?.Languages?.Where(l => l.Id != 0).Select(l => l.Name).Where(n => n is not null).Cast<string>().ToList() ?? [], // Unknown is the parser's placeholder, not a language
+            formats.Select(f => f.Name).ToList(),
             parsed?.PrimaryMovieTitle,
             parsed is { Year: > 0 } ? parsed.Year : null,
             mismatch is null,

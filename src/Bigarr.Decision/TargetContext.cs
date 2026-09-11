@@ -4,7 +4,11 @@ using Bigarr.Domain.Quality;
 namespace Bigarr.Decision;
 
 /// <summary>The current file of a target, reduced to what the engine compares.</summary>
-public sealed record ExistingFile(int QualityId, int RevisionVersion, int RevisionReal, bool IsRepack);
+public sealed record ExistingFile(int QualityId, int RevisionVersion, int RevisionReal, bool IsRepack)
+{
+    /// <summary>Custom formats the file matches, evaluated at read time like a release's.</summary>
+    public IReadOnlyList<int> CustomFormatIds { get; init; } = [];
+}
 
 /// <summary>
 /// Everything the engine may know about a target. Assembled by the slice that owns the target type; the engine itself
@@ -26,6 +30,9 @@ public sealed record TargetContext(
 {
     /// <summary>Radarr's assumption when TMDB has no runtime yet.</summary>
     public const int DefaultRuntimeMinutes = 110;
+
+    /// <summary>Custom format names, for the reasons shown to the user.</summary>
+    public IReadOnlyDictionary<int, string> CustomFormatNames { get; init; } = new Dictionary<int, string>();
 
     public int EffectiveRuntimeMinutes => RuntimeMinutes is > 0 ? RuntimeMinutes.Value : DefaultRuntimeMinutes;
 }

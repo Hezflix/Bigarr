@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { EyeIcon, EyeOffIcon, PlusIcon, RefreshCwIcon, StarIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, movies, quality, rootFolders, type MinimumAvailability, type Movie, type Version, type VersionMode } from '@/api/client'
+import { ApiError, customFormats, movies, quality, rootFolders, type MinimumAvailability, type Movie, type Version, type VersionMode } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import { StatusBadge } from '@/components/StatusBadge'
 import { InteractiveSearch } from '@/features/search/InteractiveSearch'
@@ -274,6 +274,26 @@ function VersionsTable({ movie, onChanged }: { movie: Movie; onChanged: () => vo
                       <span className="block max-w-[22ch] truncate text-xs text-muted-foreground" title={v.file.path}>
                         {v.file.relativePath}
                       </span>
+                      <span className="mt-1 flex flex-wrap items-center gap-1">
+                        {v.cutoffMet !== null && (
+                          <Badge
+                            variant="outline"
+                            className={
+                              v.cutoffMet
+                                ? 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300'
+                                : 'border-amber-600/30 bg-amber-500/15 text-amber-700 dark:border-amber-400/30 dark:text-amber-300'
+                            }
+                          >
+                            {v.cutoffMet ? t('versions.cutoffMet') : t('versions.upgradable')}
+                          </Badge>
+                        )}
+                        {v.customFormats?.map((format) => (
+                          <Badge key={format} variant="outline" className="border-violet-600/30 bg-violet-500/10 text-violet-700 dark:border-violet-400/30 dark:text-violet-300">
+                            {format}
+                          </Badge>
+                        ))}
+                        {v.customFormatScore !== null && <span className="text-xs text-muted-foreground">{t('versions.score', { score: v.customFormatScore })}</span>}
+                      </span>
                     </>
                   ) : (
                     <span className="text-muted-foreground">{t('common.none')}</span>
@@ -377,6 +397,10 @@ function AddVersionDialog({ movie, onAdded }: { movie: Movie; onAdded: () => voi
   const [availability, setAvailability] = useState<MinimumAvailability>('released')
   const [edition, setEdition] = useState('')
   const [group, setGroup] = useState('')
+  const [required, setRequired] = useState<number[]>([])
+  const [forbidden, setForbidden] = useState<number[]>([])
+  const formats = useQuery({ queryKey: ['customFormats'], queryFn: customFormats.list, enabled: open })
+  const hasConstraints = edition.trim() || group.trim() || required.length > 0 || forbidden.length > 0
 
   const add = useMutation({
     mutationFn: () =>
@@ -387,16 +411,27 @@ function AddVersionDialog({ movie, onAdded }: { movie: Movie; onAdded: () => voi
         rootFolderId: rootId,
         monitored: true,
         minimumAvailability: availability,
-        constraints: edition.trim() || group.trim() ? { edition: edition.trim() || null, releaseGroup: group.trim() || null } : null,
+        constraints: hasConstraints
+          ? {
+              edition: edition.trim() || null,
+              releaseGroup: group.trim() || null,
+              requiredCustomFormatIds: required.length > 0 ? required : null,
+              forbiddenCustomFormatIds: forbidden.length > 0 ? forbidden : null,
+            }
+          : null,
       }),
     onSuccess: () => {
       setOpen(false)
       setName('')
       setEdition('')
       setGroup('')
+      setRequired([])
+      setForbidden([])
       onAdded()
     },
   })
+
+  const toggle = (list: number[], set: (v: number[]) => void, id: number) => set(list.includes(id) ? list.filter((x) => x !== id) : [...list, id])
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -499,6 +534,33 @@ function AddVersionDialog({ movie, onAdded }: { movie: Movie; onAdded: () => voi
               <Label htmlFor="version-group">{t('versions.releaseGroup')}</Label>
               <Input id="version-group" value={group} onChange={(e) => setGroup(e.target.value)} placeholder="FraMeSToR" />
             </div>
+
+            {formats.data && formats.data.length > 0 && (
+              <>
+                <fieldset className="grid grid-cols-1 gap-2">
+                  <legend className="text-sm font-medium">{t('versions.requiredFormats')}</legend>
+                  <div className="flex flex-wrap gap-x-4 gap-y-2" data-testid="required-formats">
+                    {formats.data.map((f) => (
+                      <label key={f.id} className="flex items-center gap-2 text-sm font-normal">
+                        <Checkbox checked={required.includes(f.id)} disabled={forbidden.includes(f.id)} onCheckedChange={() => toggle(required, setRequired, f.id)} />
+                        {f.name}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+                <fieldset className="grid grid-cols-1 gap-2">
+                  <legend className="text-sm font-medium">{t('versions.forbiddenFormats')}</legend>
+                  <div className="flex flex-wrap gap-x-4 gap-y-2" data-testid="forbidden-formats">
+                    {formats.data.map((f) => (
+                      <label key={f.id} className="flex items-center gap-2 text-sm font-normal">
+                        <Checkbox checked={forbidden.includes(f.id)} disabled={required.includes(f.id)} onCheckedChange={() => toggle(forbidden, setForbidden, f.id)} />
+                        {f.name}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              </>
+            )}
           </div>
 
           {add.error && (

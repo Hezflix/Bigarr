@@ -10,7 +10,9 @@ import { LoginPage } from './features/auth/LoginPage'
 import { LibraryPage } from './features/library/LibraryPage'
 import { AddMoviePage } from './features/movies/AddMoviePage'
 import { MovieDetailPage } from './features/movies/MovieDetailPage'
+import { CustomFormatsPage } from './features/settings/CustomFormatsPage'
 import { IndexersSettingsPage } from './features/settings/IndexersSettingsPage'
+import { QualitySettingsPage } from './features/settings/QualitySettingsPage'
 import { LibrarySettingsPage } from './features/settings/LibrarySettingsPage'
 import './i18n'
 import './index.css'
@@ -50,9 +52,11 @@ const movieRoute = createRoute({ getParentRoute: () => appRoute, path: '/movies/
 const releasesRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/releases', component: ReleasesPage })
 const librarySettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/library', component: LibrarySettingsPage })
 const indexersSettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/indexers', component: IndexersSettingsPage })
+const qualitySettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/quality', component: QualitySettingsPage })
+const customFormatsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/customformats', component: CustomFormatsPage })
 
 const router = createRouter({
-  routeTree: rootRoute.addChildren([loginRoute, appRoute.addChildren([libraryRoute, addRoute, movieRoute, releasesRoute, librarySettingsRoute, indexersSettingsRoute])]),
+  routeTree: rootRoute.addChildren([loginRoute, appRoute.addChildren([libraryRoute, addRoute, movieRoute, releasesRoute, librarySettingsRoute, indexersSettingsRoute, qualitySettingsRoute, customFormatsRoute])]),
 })
 
 declare module '@tanstack/react-router' {

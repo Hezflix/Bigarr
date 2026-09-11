@@ -14,5 +14,11 @@ public sealed class CustomFormat
 
     public required string SpecificationsJson { get; set; }
 
+    /// <summary>Identifier from the TRaSH guides when imported from there; a re-import updates the same row.</summary>
+    public string? TrashId { get; set; }
+
+    /// <summary>The guide's suggested scores by profile family, kept as JSON for display. Nothing is computed from it.</summary>
+    public string? TrashScoresJson { get; set; }
+
     public ICollection<ProfileFormatScore> Scores { get; set; } = [];
 }

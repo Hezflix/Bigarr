@@ -85,7 +85,12 @@ public sealed record VersionResponse(
     VersionStatus Status,
     bool IsAvailable,
     MediaFileResponse? File,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    /// <summary>Custom formats the file matches, judged at read time; null without a file.</summary>
+    List<string>? CustomFormats = null,
+    int? CustomFormatScore = null,
+    /// <summary>Quality at the profile cutoff and score at the cutoff format score: nothing more is wanted.</summary>
+    bool? CutoffMet = null);
 
 public sealed record MovieResponse(
     int Id,

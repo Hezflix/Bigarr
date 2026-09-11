@@ -9,6 +9,7 @@ public sealed class ReleaseEvaluator
     public static readonly IReadOnlyList<IReleaseSpecification> DefaultSpecifications =
     [
         new QualityAllowedSpecification(),
+        new MinimumFormatScoreSpecification(),
         new SizeSpecification(),
         new MinimumSeedersSpecification(),
         new ConstraintsSpecification(),
@@ -56,6 +57,6 @@ public sealed class ReleaseEvaluator
             }
         }
 
-        return new ReleaseDecision(target, rejections);
+        return new ReleaseDecision(target, rejections, ProfileRanking.FormatScore(target.Profile, candidate.CustomFormatIds));
     }
 }

@@ -1,3 +1,4 @@
+using Bigarr.Api.Infrastructure.Decision;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Decision;
 using Bigarr.Domain.Movies;
@@ -10,7 +11,7 @@ namespace Bigarr.Api.Features.Search;
 /// runtime, blocklist (a one-shot borrows the default version's, §3.5), active grab, availability, default flag.
 /// Movies must come with Versions → QualityProfile and File loaded.
 /// </summary>
-public sealed class TargetContextFactory(BigarrDbContext db, TimeProvider time)
+public sealed class TargetContextFactory(BigarrDbContext db, CustomFormatScorer scorer, TimeProvider time)
 {
     public async Task<List<TargetContext>> BuildAsync(Movie movie, IReadOnlyList<MovieVersion> versions, CancellationToken ct)
     {
@@ -26,6 +27,8 @@ public sealed class TargetContextFactory(BigarrDbContext db, TimeProvider time)
         var blocklist = (await db.Blocklist.AsNoTracking().ToListAsync(ct)).ToLookup(b => b.TargetId);
         var active = (await db.GrabTargets.AsNoTracking().Where(t => t.Active).Select(t => t.TargetId).ToListAsync(ct)).ToHashSet();
         var today = DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime);
+        var calculator = await scorer.CalculatorAsync(ct);
+        var formatNames = await scorer.NamesAsync(ct);
 
         var result = new Dictionary<int, List<TargetContext>>();
         foreach (var movie in movies)
@@ -35,16 +38,27 @@ public sealed class TargetContextFactory(BigarrDbContext db, TimeProvider time)
             foreach (var version in movie.Versions.OrderByDescending(v => v.IsDefault).ThenBy(v => v.Id))
             {
                 var blocklistOwner = version.Mode == VersionMode.OneShot && defaultVersionId is not null ? defaultVersionId.Value : version.Id;
+                ExistingFile? existing = null;
+                if (version.File is { } file)
+                {
+                    var matched = calculator.Match(CustomFormatScorer.FileInput(
+                        file.OriginalReleaseTitle, file.RelativePath, file.Size, file.IndexerFlags, file.Quality, file.Languages, file.Edition, file.ReleaseGroup, movie.Year, movie.OriginalLanguage));
+                    existing = new ExistingFile(file.QualityId, file.Revision.Version, file.Revision.Real, file.Revision.IsRepack) { CustomFormatIds = matched.Select(m => m.Id).ToList() };
+                }
+
                 contexts.Add(new TargetContext(
                     version,
                     version.QualityProfile,
                     definitions,
-                    version.File is null ? null : new ExistingFile(version.File.QualityId, version.File.Revision.Version, version.File.Revision.Real, version.File.Revision.IsRepack),
+                    existing,
                     movie.Runtime,
                     blocklist[blocklistOwner].ToList(),
                     active.Contains(version.Id),
                     Availability.IsAvailable(movie, version.MinimumAvailability, today),
-                    version.IsDefault));
+                    version.IsDefault)
+                {
+                    CustomFormatNames = formatNames,
+                });
             }
 
             result[movie.Id] = contexts;
@@ -56,7 +70,7 @@ public sealed class TargetContextFactory(BigarrDbContext db, TimeProvider time)
     /// <summary>The graph both search paths need.</summary>
     public IQueryable<Movie> MoviesWithVersions() =>
         db.Movies.AsNoTracking()
-            .Include(m => m.Versions).ThenInclude(v => v.QualityProfile)
-            .Include(m => m.Versions).ThenInclude(v => v.File)
+            .Include(m => m.Versions).ThenInclude(v => v.QualityProfile).ThenInclude(p => p.FormatScores)
+            .Include(m => m.Versions).ThenInclude(v => v.File!).ThenInclude(f => f.Quality)
             .AsSplitQuery();
 }

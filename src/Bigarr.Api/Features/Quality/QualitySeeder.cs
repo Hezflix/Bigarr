@@ -1,19 +1,30 @@
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Quality;
 using Microsoft.EntityFrameworkCore;
+using ParserDefinition = Bigarr.Parsing.Qualities.QualityDefinition;
+using ParserModifier = Bigarr.Parsing.Qualities.Modifier;
 using ParserQuality = Bigarr.Parsing.Qualities.Quality;
 
 namespace Bigarr.Api.Features.Quality;
 
 /// <summary>
-/// Seeds the quality definitions from the vendored parser (ids identical to Radarr, see VENDORED.md) and the
-/// system profile <c>Any</c> used by the library scan. Idempotent: never overwrites user edits.
+/// Seeds the quality definitions from the vendored parser (ids identical to Radarr, see VENDORED.md) and the two
+/// system profiles the library scan hands out: <c>1080p</c> and <c>4K</c>. Idempotent: never overwrites user edits.
 /// </summary>
 public sealed class QualitySeeder(BigarrDbContext db, ILogger<QualitySeeder> logger) : IStartupTask
 {
-    public const string AnyProfileName = "Any";
+    /// <summary>HD profile: 720p and 1080p, cutoff Bluray-1080p. Default of the add form and of everything the scan finds below 4K.</summary>
+    public const string HdProfileName = "1080p";
+
+    /// <summary>UHD profile: 2160p only — a 4K version never settles for a 1080p release, that is what the 1080p version is for.</summary>
+    public const string UhdProfileName = "4K";
+
+    /// <summary>The single catch-all profile seeded until 2026-09-10, renamed in place so existing versions keep their profile.</summary>
+    private const string LegacyProfileName = "Any";
 
     public const int FirstGroupId = 1000;
+
+    public const int UhdResolution = 2160;
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
@@ -38,10 +49,22 @@ public sealed class QualitySeeder(BigarrDbContext db, ILogger<QualitySeeder> log
             added++;
         }
 
-        if (!await db.QualityProfiles.AnyAsync(p => p.Name == AnyProfileName, cancellationToken))
+        var legacy = await db.QualityProfiles.FirstOrDefaultAsync(p => p.Name == LegacyProfileName && p.IsSystem, cancellationToken);
+        if (legacy is not null)
         {
-            db.QualityProfiles.Add(BuildAnyProfile(definitions));
-            logger.LogInformation("Seeded the system quality profile '{Profile}'", AnyProfileName);
+            var hd = BuildHdProfile(definitions);
+            legacy.Name = hd.Name;
+            legacy.Items = hd.Items;
+            legacy.Cutoff = hd.Cutoff;
+            await db.SaveChangesAsync(cancellationToken);
+            logger.LogInformation("Renamed the system quality profile '{Legacy}' to '{Profile}'", LegacyProfileName, hd.Name);
+        }
+
+        var known = await db.QualityProfiles.Select(p => p.Name).ToListAsync(cancellationToken);
+        foreach (var profile in new[] { BuildHdProfile(definitions), BuildUhdProfile(definitions) }.Where(p => !known.Contains(p.Name)))
+        {
+            db.QualityProfiles.Add(profile);
+            logger.LogInformation("Seeded the system quality profile '{Profile}'", profile.Name);
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -51,8 +74,18 @@ public sealed class QualitySeeder(BigarrDbContext db, ILogger<QualitySeeder> log
         }
     }
 
-    /// <summary>Every quality allowed, ordered like Radarr's defaults, WEB-DL/WEBRip pairs grouped, cutoff at Bluray-1080p.</summary>
-    public static QualityProfile BuildAnyProfile(IReadOnlyList<Bigarr.Parsing.Qualities.QualityDefinition> definitions)
+    public static QualityProfile BuildHdProfile(IReadOnlyList<ParserDefinition> definitions) =>
+        BuildProfile(definitions, HdProfileName, 720, 1080, ParserQuality.Bluray1080p.Id);
+
+    public static QualityProfile BuildUhdProfile(IReadOnlyList<ParserDefinition> definitions) =>
+        BuildProfile(definitions, UhdProfileName, UhdResolution, UhdResolution, ParserQuality.Bluray2160p.Id);
+
+    /// <summary>
+    /// Every quality, ordered like Radarr's defaults with the WEB-DL/WEBRip pairs grouped: the order IS the rank
+    /// (§3.6), so both profiles list everything and only the allowed flags differ. A file outside the profile keeps
+    /// a rank that way — which is what makes the cutoff of a scanned version computable.
+    /// </summary>
+    private static QualityProfile BuildProfile(IReadOnlyList<ParserDefinition> definitions, string name, int minResolution, int maxResolution, int cutoffQualityId)
     {
         var items = new List<QualityProfileItem>();
         var nextGroupId = FirstGroupId;
@@ -60,9 +93,11 @@ public sealed class QualitySeeder(BigarrDbContext db, ILogger<QualitySeeder> log
         foreach (var group in definitions.GroupBy(d => string.IsNullOrEmpty(d.GroupName) ? $"__{d.Quality.Id}" : d.GroupName))
         {
             var members = group.ToList();
+            var allowed = members.All(m => IsWanted(m, minResolution, maxResolution));
+
             if (members.Count == 1 && string.IsNullOrEmpty(members[0].GroupName))
             {
-                items.Add(new QualityProfileItem { QualityIds = [members[0].Quality.Id], Allowed = true });
+                items.Add(new QualityProfileItem { QualityIds = [members[0].Quality.Id], Allowed = allowed });
             }
             else
             {
@@ -71,19 +106,18 @@ public sealed class QualitySeeder(BigarrDbContext db, ILogger<QualitySeeder> log
                     GroupId = nextGroupId++,
                     GroupName = members[0].GroupName,
                     QualityIds = members.Select(m => m.Quality.Id).ToList(),
-                    Allowed = true,
+                    Allowed = allowed,
                 });
             }
         }
 
-        var bluray1080 = ParserQuality.Bluray1080p.Id;
-        var cutoffItem = items.First(i => i.QualityIds.Contains(bluray1080));
+        var cutoffItem = items.First(i => i.QualityIds.Contains(cutoffQualityId));
 
         return new QualityProfile
         {
-            Name = AnyProfileName,
+            Name = name,
             Items = items,
-            Cutoff = cutoffItem.GroupId ?? bluray1080,
+            Cutoff = cutoffItem.GroupId ?? cutoffQualityId,
             UpgradeAllowed = true,
             MinFormatScore = 0,
             CutoffFormatScore = 0,
@@ -92,4 +126,10 @@ public sealed class QualitySeeder(BigarrDbContext db, ILogger<QualitySeeder> log
             IsSystem = true,
         };
     }
+
+    /// <summary>Discs and raw HD captures are never grabbed automatically, whatever their resolution.</summary>
+    private static bool IsWanted(ParserDefinition definition, int minResolution, int maxResolution) =>
+        definition.Quality.Resolution >= minResolution
+        && definition.Quality.Resolution <= maxResolution
+        && definition.Quality.Modifier is not (ParserModifier.BRDISK or ParserModifier.RAWHD);
 }

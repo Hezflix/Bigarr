@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Persistence;
+using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Common;
 using Bigarr.Domain.History;
 using Bigarr.Domain.Metadata;
@@ -15,7 +16,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
     public IQueryable<Movie> WithGraph(bool tracking = false)
     {
         var query = db.Movies
-            .Include(m => m.Versions).ThenInclude(v => v.QualityProfile)
+            .Include(m => m.Versions).ThenInclude(v => v.QualityProfile).ThenInclude(p => p.FormatScores)
             .Include(m => m.Versions).ThenInclude(v => v.RootFolder)
             .Include(m => m.Versions).ThenInclude(v => v.File!).ThenInclude(f => f.Quality)
             .AsSplitQuery();
@@ -214,6 +215,12 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             return Failure.Invalid("Unknown root folder", $"No root folder with id {rootId}.");
         }
 
+        var constraints = MovieMapper.FromConstraints(request.Constraints);
+        if (await ValidateCustomFormatsAsync(constraints, ct) is { } invalidConstraints)
+        {
+            return invalidConstraints;
+        }
+
         var defaultVersion = movie.Versions.FirstOrDefault(v => v.IsDefault);
         var folderName = string.IsNullOrWhiteSpace(request.FolderName)
             ? defaultVersion?.FolderName ?? FolderNameBuilder.Build(movie.Title, movie.Year)
@@ -230,7 +237,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             IsDefault = defaultVersion is null && request.Mode == VersionMode.Managed,
             Monitored = request.Monitored,
             MinimumAvailability = request.MinimumAvailability,
-            Constraints = MovieMapper.FromConstraints(request.Constraints),
+            Constraints = constraints,
         };
 
         movie.Versions.Add(version);
@@ -300,11 +307,41 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
         }
         else if (request.Constraints is not null)
         {
-            version.Constraints = MovieMapper.FromConstraints(request.Constraints);
+            var constraints = MovieMapper.FromConstraints(request.Constraints);
+            if (await ValidateCustomFormatsAsync(constraints, ct) is { } invalidConstraints)
+            {
+                return invalidConstraints;
+            }
+
+            version.Constraints = constraints;
         }
 
         await db.SaveChangesAsync(ct);
         return Result<MovieVersion>.Ok(version);
+    }
+
+    /// <summary>Constraints may name custom formats (§3.3); they must exist and not contradict each other.</summary>
+    private async Task<Failure?> ValidateCustomFormatsAsync(AcquisitionConstraints? constraints, CancellationToken ct)
+    {
+        if (constraints is null)
+        {
+            return null;
+        }
+
+        if (constraints.RequiredCustomFormatIds.Intersect(constraints.ForbiddenCustomFormatIds).Any())
+        {
+            return Failure.Invalid("Contradictory constraints", "A custom format cannot be both required and forbidden.");
+        }
+
+        var ids = constraints.RequiredCustomFormatIds.Concat(constraints.ForbiddenCustomFormatIds).Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return null;
+        }
+
+        var known = await db.CustomFormats.Where(f => ids.Contains(f.Id)).Select(f => f.Id).ToListAsync(ct);
+        var unknown = ids.Except(known).ToList();
+        return unknown.Count == 0 ? null : Failure.Invalid("Unknown custom format", $"No custom format with id {string.Join(", ", unknown)}.");
     }
 
     public async Task<Result<MovieVersion>> PromoteAsync(int movieId, int versionId, CancellationToken ct)
