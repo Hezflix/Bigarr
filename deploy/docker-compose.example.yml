@@ -2,6 +2,8 @@
 #
 # Keep ONE /data mount shared with qBittorrent (downloads AND libraries below it):
 # hardlinks are impossible across mounts and imports would fall back to copies.
+# qBittorrent itself is configured in the UI (Settings → Download clients): host, port,
+# WebUI credentials and the category Bigarr owns. Use its internal Docker name as host.
 services:
   bigarr:
     image: ghcr.io/hezflix/bigarr:edge

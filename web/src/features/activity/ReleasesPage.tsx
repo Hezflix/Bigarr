@@ -122,7 +122,7 @@ export function ReleasesPage() {
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground">{t('search.grabLater')}</p>
+      <p className="text-xs text-muted-foreground">{t('rss.grabLater')}</p>
     </>
   )
 }

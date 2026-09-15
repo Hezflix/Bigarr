@@ -620,6 +620,161 @@ export const rss = {
   sync: () => post<RssSyncResult>('/api/v1/rss/sync'),
 }
 
+// ---- download clients ------------------------------------------------------
+
+export type DownloadClientImplementation = 'qBittorrent' | 'mock'
+
+export type DownloadClient = {
+  id: number
+  name: string
+  implementation: DownloadClientImplementation
+  enabled: boolean
+  host: string | null
+  port: number
+  useSsl: boolean
+  urlBase: string | null
+  username: string | null
+  password: string | null
+  category: string
+  addPaused: boolean
+  priority: number
+  protocol: 'torrent' | 'usenet'
+  createdAt: string
+}
+
+export type DownloadClientRequest = Omit<DownloadClient, 'id' | 'protocol' | 'createdAt'>
+
+export type DownloadClientTestResult = { version: string; apiVersion: string | null; category: string; categoryCreated: boolean }
+
+export const downloadClients = {
+  list: () => api<DownloadClient[]>('/api/v1/downloadclients'),
+  add: (body: DownloadClientRequest) => post<DownloadClient>('/api/v1/downloadclients', body),
+  update: (id: number, body: DownloadClientRequest) => put<DownloadClient>(`/api/v1/downloadclients/${id}`, body),
+  remove: (id: number) => del(`/api/v1/downloadclients/${id}`),
+  /** Tests an unsaved configuration: what the form calls. */
+  test: (body: DownloadClientRequest) => post<DownloadClientTestResult>('/api/v1/downloadclients/test', body),
+  testSaved: (id: number) => post<DownloadClientTestResult>(`/api/v1/downloadclients/${id}/test`),
+  /** The mock client is driven by hand, like a user would in qBittorrent. */
+  mock: {
+    complete: (downloadId: string) => post<void>(`/api/v1/downloadclients/mock/${encodeURIComponent(downloadId)}/complete`),
+    fail: (downloadId: string) => post<void>(`/api/v1/downloadclients/mock/${encodeURIComponent(downloadId)}/fail`),
+    remove: (downloadId: string) => del(`/api/v1/downloadclients/mock/${encodeURIComponent(downloadId)}`),
+  },
+}
+
+// ---- grab & queue ----------------------------------------------------------
+
+export type GrabState = 'grabbed' | 'downloading' | 'importPending' | 'importing' | 'imported' | 'importFailed' | 'downloadFailed' | 'removed' | 'ignored'
+
+export type DownloadItemStatus = 'queued' | 'downloading' | 'paused' | 'stalled' | 'completed' | 'failed' | 'unknown'
+
+export type StatusSeverity = 'info' | 'warning' | 'error'
+
+export type StatusMessage = { title: string; messages: string[]; severity: StatusSeverity }
+
+/** The release as the search returned it: the search keeps no state, so the client carries the links. */
+export type GrabRequest = {
+  versionId: number
+  indexerId: number
+  guid: string
+  title: string
+  downloadUrl: string | null
+  magnetUrl: string | null
+  infoHash: string | null
+  size: number
+  seeders: number | null
+  flags: string
+  protocol: 'torrent' | 'usenet'
+  indexer: string
+}
+
+export type GrabResult = { grabId: number; downloadId: string; downloadClientId: number; downloadClient: string; state: GrabState; grabbedAt: string }
+
+export type QueueItem = {
+  grabId: number | null
+  downloadId: string
+  title: string
+  quality: string | null
+  movieId: number | null
+  movieTitle: string | null
+  movieYear: number | null
+  versionId: number | null
+  versionName: string | null
+  state: GrabState | null
+  status: DownloadItemStatus
+  size: number
+  sizeLeft: number
+  /** 0 to 1. */
+  progress: number
+  downloadRate: number
+  etaSeconds: number | null
+  downloadClientId: number
+  downloadClient: string
+  indexerId: number | null
+  indexer: string | null
+  outputPath: string | null
+  statusMessages: StatusMessage[]
+  addedAt: string
+  /** False for a torrent found in our category that Bigarr never grabbed. */
+  tracked: boolean
+}
+
+export type QueueClientStatus = { downloadClientId: number; name: string; healthy: boolean; lastError: string | null; lastSuccessAt: string | null }
+
+export type Queue = {
+  lastPollAt: string | null
+  nextPollAt: string | null
+  pollSeconds: number
+  revision: number
+  items: QueueItem[]
+  clients: QueueClientStatus[]
+}
+
+export const queue = {
+  get: () => api<Queue>('/api/v1/queue'),
+  /** Polls the clients now. */
+  refresh: () => post<Queue>('/api/v1/queue/refresh'),
+  /** text/event-stream: the current snapshot first, then one event per poll (event name "queue"). */
+  eventsUrl: '/api/v1/queue/events',
+  remove: (grabId: number, options: { removeFromClient: boolean; deleteFiles: boolean; blocklist: boolean }) =>
+    del(`/api/v1/queue/${grabId}?removeFromClient=${options.removeFromClient}&deleteFiles=${options.deleteFiles}&blocklist=${options.blocklist}`),
+  removeUntracked: (clientId: number, downloadId: string, deleteFiles: boolean) =>
+    del(`/api/v1/queue/untracked/${clientId}/${encodeURIComponent(downloadId)}?deleteFiles=${deleteFiles}`),
+  grab: (body: GrabRequest) => post<GrabResult>('/api/v1/grab', body),
+}
+
+// ---- history ---------------------------------------------------------------
+
+export type HistoryEventType = 'grabbed' | 'downloadFailed' | 'imported' | 'upgraded' | 'importFailed' | 'fileDeleted' | 'renamed' | 'blocklisted' | 'defaultChanged'
+
+export type HistoryEvent = {
+  id: number
+  eventType: HistoryEventType
+  movieId: number | null
+  tmdbId: number | null
+  movieTitle: string | null
+  versionId: number | null
+  versionName: string | null
+  sourceTitle: string | null
+  indexerId: number | null
+  indexerName: string | null
+  mediaFileId: number | null
+  data: Record<string, string>
+  createdAt: string
+}
+
+export const history = {
+  list: (options: { movieId?: number; versionId?: number; eventType?: HistoryEventType; limit?: number } = {}) => {
+    const params = new URLSearchParams()
+    if (options.movieId) params.set('movieId', String(options.movieId))
+    if (options.versionId) params.set('versionId', String(options.versionId))
+    if (options.eventType) params.set('eventType', options.eventType)
+    if (options.limit) params.set('limit', String(options.limit))
+    const query = params.toString()
+    return api<HistoryEvent[]>(`/api/v1/history${query ? `?${query}` : ''}`)
+  },
+}
+
 // ---- helpers ---------------------------------------------------------------
 
 export function slugify(value: string): string {

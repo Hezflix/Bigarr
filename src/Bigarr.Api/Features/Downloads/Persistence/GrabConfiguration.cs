@@ -1,5 +1,6 @@
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Acquisition;
+using Bigarr.Domain.Downloads;
 using Bigarr.Domain.Indexers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -31,5 +32,6 @@ public sealed class GrabConfiguration : IEntityTypeConfiguration<Grab>
 
         // The indexer may be deleted after the grab; the snapshotted name keeps the row readable.
         builder.HasOne<Indexer>().WithMany().HasForeignKey(g => g.IndexerId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne<DownloadClient>().WithMany().HasForeignKey(g => g.DownloadClientId).OnDelete(DeleteBehavior.SetNull);
     }
 }

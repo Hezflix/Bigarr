@@ -1,6 +1,6 @@
 import { Link, Outlet, useMatchRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FilmIcon, FolderOpenIcon, LogOutIcon, PlusIcon, RadioTowerIcon, RssIcon, SlidersHorizontalIcon, TagsIcon } from 'lucide-react'
+import { FilmIcon, FolderOpenIcon, HardDriveDownloadIcon, ListOrderedIcon, LogOutIcon, PlusIcon, RadioTowerIcon, RssIcon, SlidersHorizontalIcon, TagsIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { auth, system } from '@/api/client'
 import { ThemeToggle } from '@/components/ThemeToggle'
@@ -26,7 +26,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 type NavItem = {
-  to: '/' | '/add' | '/activity/releases' | '/settings/library' | '/settings/indexers' | '/settings/quality' | '/settings/customformats'
+  to: '/' | '/add' | '/activity/queue' | '/activity/releases' | '/settings/library' | '/settings/indexers' | '/settings/downloadclients' | '/settings/quality' | '/settings/customformats'
   label: string
   icon: React.ComponentType<{ className?: string }>
   exact?: boolean
@@ -47,13 +47,17 @@ function useSections(): NavSection[] {
     },
     {
       title: t('nav.activity'),
-      items: [{ to: '/activity/releases', label: t('nav.releases'), icon: RssIcon }],
+      items: [
+        { to: '/activity/queue', label: t('nav.queue'), icon: ListOrderedIcon },
+        { to: '/activity/releases', label: t('nav.releases'), icon: RssIcon },
+      ],
     },
     {
       title: t('nav.settings'),
       items: [
         { to: '/settings/library', label: t('nav.settingsLibrary'), icon: FolderOpenIcon },
         { to: '/settings/indexers', label: t('nav.settingsIndexers'), icon: RadioTowerIcon },
+        { to: '/settings/downloadclients', label: t('nav.settingsDownloadClients'), icon: HardDriveDownloadIcon },
         { to: '/settings/quality', label: t('nav.settingsQuality'), icon: SlidersHorizontalIcon },
         { to: '/settings/customformats', label: t('nav.settingsCustomFormats'), icon: TagsIcon },
       ],
