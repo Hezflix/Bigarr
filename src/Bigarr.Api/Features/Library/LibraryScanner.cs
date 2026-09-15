@@ -17,10 +17,7 @@ namespace Bigarr.Api.Features.Library;
 /// </summary>
 public sealed partial class LibraryScanner(BigarrDbContext db, IMetadataProvider metadata, TimeProvider time, ILogger<LibraryScanner> logger)
 {
-    public static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".mkv", ".mp4", ".m4v", ".avi", ".mov", ".wmv", ".ts", ".m2ts", ".webm", ".mpg", ".mpeg", ".flv", ".ogm", ".divx", ".vob",
-    };
+    public static HashSet<string> VideoExtensions => VideoFiles.Extensions;
 
     private static readonly HashSet<string> ExtrasFolders = new(StringComparer.OrdinalIgnoreCase)
     {

@@ -3,7 +3,7 @@ using Bigarr.Domain.Movies;
 using Bigarr.Parsing;
 using Bigarr.Parsing.Model;
 
-namespace Bigarr.Api.Features.Search;
+namespace Bigarr.Api.Infrastructure.Matching;
 
 /// <summary>Is this release the film we searched for? Identifiers first, then titles and year (blueprint §5).</summary>
 public static class ReleaseMatcher

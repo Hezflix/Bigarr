@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Trash2Icon } from 'lucide-react'
+import { FolderInputIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, rootFolders, type RootFolder } from '@/api/client'
+import { ApiError, rootFolders, type RootFolder, type UnmappedFolder } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { ManualImportDialog } from '@/features/import/ManualImportDialog'
 import { formatBytes } from '@/i18n'
 
 export function LibrarySettingsPage() {
@@ -30,6 +31,7 @@ export function LibrarySettingsPage() {
   const unmapped = useQuery({ queryKey: ['unmapped'], queryFn: rootFolders.unmapped })
   const [path, setPath] = useState('')
   const [pendingRemove, setPendingRemove] = useState<RootFolder | null>(null)
+  const [importing, setImporting] = useState<UnmappedFolder | null>(null)
 
   const add = useMutation({
     mutationFn: () => rootFolders.add(path.trim()),
@@ -112,6 +114,7 @@ export function LibrarySettingsPage() {
       <section className="flex flex-col gap-3">
         <h2 className="text-xl font-semibold tracking-tight">{t('settings.unmappedFolders')}</h2>
         {unmapped.data?.length === 0 && <p className="text-sm text-muted-foreground">{t('settings.unmappedEmpty')}</p>}
+        {unmapped.data && unmapped.data.length > 0 && <p className="max-w-3xl text-xs text-muted-foreground">{t('settings.unmappedHint')}</p>}
         {unmapped.data && unmapped.data.length > 0 && (
           <div className="overflow-x-auto rounded-lg border">
             <Table data-testid="unmapped-table">
@@ -121,6 +124,7 @@ export function LibrarySettingsPage() {
                   <TableHead>{t('settings.files')}</TableHead>
                   <TableHead>{t('settings.reason')}</TableHead>
                   <TableHead>{t('settings.detail')}</TableHead>
+                  <TableHead className="text-right">{t('versions.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -130,6 +134,12 @@ export function LibrarySettingsPage() {
                     <TableCell>{u.fileCount}</TableCell>
                     <TableCell>{t(`unmappedReason.${u.reason}`)}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{u.detail}</TableCell>
+                    <TableCell className="text-right">
+                      <Button type="button" variant="outline" size="sm" onClick={() => setImporting(u)} disabled={u.fileCount === 0} data-testid="unmapped-import">
+                        <FolderInputIcon />
+                        {t('settings.importFolder')}
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -137,6 +147,8 @@ export function LibrarySettingsPage() {
           </div>
         )}
       </section>
+
+      {importing && <ManualImportDialog path={importing.path} title={importing.relativePath} onClose={() => setImporting(null)} />}
 
       <AlertDialog open={pendingRemove !== null} onOpenChange={(open) => !open && setPendingRemove(null)}>
         <AlertDialogContent>

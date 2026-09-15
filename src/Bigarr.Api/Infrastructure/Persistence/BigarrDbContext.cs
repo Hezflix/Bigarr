@@ -49,6 +49,8 @@ public sealed class BigarrDbContext(DbContextOptions<BigarrDbContext> options) :
 
     public DbSet<UnmappedFolder> UnmappedFolders => Set<UnmappedFolder>();
 
+    public DbSet<MediaManagementConfig> MediaManagement => Set<MediaManagementConfig>();
+
     public DbSet<Tag> Tags => Set<Tag>();
 
     public DbSet<User> Users => Set<User>();

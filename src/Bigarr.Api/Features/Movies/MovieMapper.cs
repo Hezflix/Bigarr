@@ -102,7 +102,8 @@ public static class MovieMapper
         file.ReleaseGroup,
         file.Languages,
         file.OriginalReleaseTitle,
-        file.MediaInfo is not null);
+        file.MediaInfo is not null,
+        file.MediaInfo);
 
     public static ConstraintsDto? ToConstraints(AcquisitionConstraints? constraints) =>
         constraints is null || constraints.IsEmpty

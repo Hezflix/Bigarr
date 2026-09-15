@@ -483,6 +483,39 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("IndexerTags", (string)null);
                 });
 
+            modelBuilder.Entity("Bigarr.Domain.Library.MediaManagementConfig", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("FileNameTemplate")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FolderNameTemplate")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RecycleBinPath")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RecycleBinRetentionDays")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("RenameFiles")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TransferMode")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("MediaManagement", (string)null);
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Library.RootFolder", b =>
                 {
                     b.Property<int>("Id")

@@ -1,3 +1,4 @@
+using Bigarr.Api.Features.Import;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Downloads;
 using Bigarr.Api.Infrastructure.Persistence;
@@ -13,9 +14,11 @@ namespace Bigarr.Api.Features.Downloads;
 /// <summary>
 /// One poll of the download clients (blueprint §5, "suivi"): every tracked grab moves along its state machine from
 /// what its client reports, a grab absent for N polls is <see cref="GrabState.Removed"/>, and the queue projection is
-/// rebuilt and published. Import itself is M5: <see cref="GrabState.ImportPending"/> is where a finished download waits.
+/// rebuilt and published. A finished download waits in <see cref="GrabState.ImportPending"/> until the import worker
+/// takes it (<see cref="ImportQueue"/>); a completed torrent of our category that Bigarr never grabbed is adopted so
+/// the import can match it by its title (blueprint §5).
 /// </summary>
-public sealed class QueuePoller(BigarrDbContext db, DownloadClientResolver resolver, QueueState state, IOptions<DownloadsOptions> options, TimeProvider time, ILogger<QueuePoller> logger)
+public sealed class QueuePoller(BigarrDbContext db, DownloadClientResolver resolver, QueueState state, ImportQueue imports, IOptions<DownloadsOptions> options, TimeProvider time, ILogger<QueuePoller> logger)
 {
     /// <summary>A grab the client does not list yet is given this long before absences count.</summary>
     public static readonly TimeSpan FreshGrabGrace = TimeSpan.FromSeconds(45);
@@ -54,6 +57,8 @@ public sealed class QueuePoller(BigarrDbContext db, DownloadClientResolver resol
             }
         }
 
+        await AdoptCompletedAsync(answered, clientsById: clients.ToDictionary(c => c.Id), now, ct);
+
         // Every grab still shown: active ones, plus failed ones whose torrent is still in the client.
         var grabs = await db.Grabs.Include(g => g.Targets)
             .Where(g => g.State == GrabState.Grabbed || g.State == GrabState.Downloading || g.State == GrabState.ImportPending
@@ -65,6 +70,7 @@ public sealed class QueuePoller(BigarrDbContext db, DownloadClientResolver resol
 
         var rows = new List<QueueItemResponse>();
         var matchedItems = new HashSet<(int ClientId, string DownloadId)>();
+        var readyToImport = new List<int>();
 
         foreach (var grab in grabs)
         {
@@ -95,6 +101,10 @@ public sealed class QueuePoller(BigarrDbContext db, DownloadClientResolver resol
                     state.Seen(grab.Id);
                     grab.LastSeenAt = now;
                     Advance(grab, item, version, now, messages);
+                    if (grab.State == GrabState.ImportPending && item.Status == DownloadItemStatus.Completed)
+                    {
+                        readyToImport.Add(grab.Id);
+                    }
                 }
                 else if (grab.IsActive)
                 {
@@ -147,7 +157,7 @@ public sealed class QueuePoller(BigarrDbContext db, DownloadClientResolver resol
                     null, item.DownloadId, item.Title, GrabService.QualityOf(item.Title), null, null, null, null, null, null,
                     item.Status, item.TotalSize, item.RemainingSize, item.Progress, item.DownloadRate, EtaSeconds(item),
                     client.Id, client.Name, null, null, item.OutputPath,
-                    [new StatusMessage { Title = "Not grabbed by Bigarr", Messages = ["This torrent was added to the category by hand. Import will match it by its title (M5)."], Severity = StatusSeverity.Info }],
+                    [new StatusMessage { Title = "Not grabbed by Bigarr", Messages = ["This torrent was added to the category by hand. Once complete, the import will match it to a movie by its title."], Severity = StatusSeverity.Info }],
                     item.AddedAt?.UtcDateTime ?? now, false));
             }
         }
@@ -157,8 +167,59 @@ public sealed class QueuePoller(BigarrDbContext db, DownloadClientResolver resol
             await db.SaveChangesAsync(ct);
         }
 
+        foreach (var grabId in readyToImport)
+        {
+            imports.TryEnqueue(grabId);
+        }
+
         var ordered = rows.OrderByDescending(r => r.Tracked).ThenByDescending(r => r.AddedAt).ToList();
         return state.Publish(new QueueResponse(now, now + settings.PollInterval, (int)settings.PollInterval.TotalSeconds, 0, ordered, state.ClientStatuses()));
+    }
+
+    /// <summary>
+    /// A completed torrent of our category without a grab row (added by hand, or from a wiped database) gets one, in
+    /// import pending: the import then matches it by its title, or fails visibly so the user can import it by hand.
+    /// </summary>
+    private async Task AdoptCompletedAsync(Dictionary<int, IReadOnlyList<DownloadItem>> answered, Dictionary<int, DownloadClient> clientsById, DateTime now, CancellationToken ct)
+    {
+        var completed = answered.SelectMany(a => a.Value.Where(i => i.Status == DownloadItemStatus.Completed).Select(i => (ClientId: a.Key, Item: i))).ToList();
+        if (completed.Count == 0)
+        {
+            return;
+        }
+
+        var known = (await db.Grabs.AsNoTracking().Where(g => g.DownloadId != null).Select(g => g.DownloadId!).ToListAsync(ct)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var adopted = new List<Grab>();
+        foreach (var (clientId, item) in completed.Where(c => !known.Contains(c.Item.DownloadId)))
+        {
+            var client = clientsById[clientId];
+            var grab = new Grab
+            {
+                DownloadClientId = client.Id,
+                DownloadClientName = client.Name,
+                DownloadId = item.DownloadId,
+                InfoHash = item.DownloadId,
+                ReleaseTitle = item.Title,
+                Size = item.TotalSize,
+                GrabbedAt = item.AddedAt?.UtcDateTime ?? now,
+                LastSeenAt = now,
+            };
+            grab.TransitionTo(GrabState.ImportPending);
+            grab.StatusMessages.Add(new StatusMessage { Title = "Added by hand", Messages = [$"Found complete in {client.Name} without a grab; the import matches it to a movie by its title."], Severity = StatusSeverity.Info });
+            db.Grabs.Add(grab);
+            adopted.Add(grab);
+            known.Add(item.DownloadId);
+        }
+
+        if (adopted.Count > 0)
+        {
+            await db.SaveChangesAsync(ct);
+            foreach (var grab in adopted)
+            {
+                logger.LogInformation("Adopted {Title} from {Client} for import", grab.ReleaseTitle, grab.DownloadClientName);
+                imports.TryEnqueue(grab.Id);
+            }
+        }
     }
 
     /// <summary>The state machine of §3.5 driven by what the client reports.</summary>
@@ -209,11 +270,6 @@ public sealed class QueuePoller(BigarrDbContext db, DownloadClientResolver resol
         else if (item.Message is not null && item.Status != DownloadItemStatus.Completed)
         {
             messages.Add(new StatusMessage { Title = item.Message, Severity = StatusSeverity.Info });
-        }
-
-        if (grab.State == GrabState.ImportPending)
-        {
-            messages.Add(new StatusMessage { Title = "Import arrives with M5", Messages = ["The download is complete; nothing moves it into the library yet."], Severity = StatusSeverity.Info });
         }
     }
 

@@ -1,12 +1,14 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { EyeIcon, EyeOffIcon, PlusIcon, RefreshCwIcon, StarIcon, Trash2Icon } from 'lucide-react'
+import { EyeIcon, EyeOffIcon, FileXIcon, PlusIcon, RefreshCwIcon, StarIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, customFormats, movies, quality, rootFolders, type MinimumAvailability, type Movie, type Version, type VersionMode } from '@/api/client'
+import { ApiError, customFormats, history, movies, quality, rootFolders, type MediaInfo, type MinimumAvailability, type Movie, type Version, type VersionMode } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import { StatusBadge } from '@/components/StatusBadge'
+import { HistoryTable } from '@/features/activity/HistoryTable'
+import { RenameDialog } from '@/features/movies/RenameDialog'
 import { InteractiveSearch } from '@/features/search/InteractiveSearch'
 import {
   AlertDialog,
@@ -39,9 +41,22 @@ export function MovieDetailPage() {
   const id = Number(movieId)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const movie = useQuery({ queryKey: ['movie', id], queryFn: () => movies.get(id) })
+  const movie = useQuery({
+    queryKey: ['movie', id],
+    queryFn: () => movies.get(id),
+    // Poll while a grab is in flight so the version's status (and the search verdicts once it clears, below) catch
+    // up on their own; otherwise a completed download only shows once something else happens to touch this page.
+    refetchInterval: (query) => (query.state.data?.versions.some((v) => v.status === 'downloading') ? 5_000 : false),
+  })
+  const wasDownloading = useRef(false)
+  useEffect(() => {
+    const downloading = movie.data?.versions.some((v) => v.status === 'downloading') ?? false
+    if (wasDownloading.current && !downloading) void queryClient.invalidateQueries({ queryKey: ['search', id] })
+    wasDownloading.current = downloading
+  }, [movie.data, id, queryClient])
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [exclude, setExclude] = useState(false)
+  const [deleteFiles, setDeleteFiles] = useState(false)
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['movie', id] })
@@ -54,7 +69,7 @@ export function MovieDetailPage() {
     onError: (e) => toast.error(e instanceof ApiError ? e.message : t('common.unexpectedError')),
   })
   const remove = useMutation({
-    mutationFn: (addImportExclusion: boolean) => movies.remove(id, addImportExclusion),
+    mutationFn: ({ addImportExclusion, files }: { addImportExclusion: boolean; files: boolean }) => movies.remove(id, addImportExclusion, files),
     onSuccess: async () => {
       setDeleteOpen(false)
       await queryClient.invalidateQueries({ queryKey: ['movies'] })
@@ -144,6 +159,7 @@ export function MovieDetailPage() {
               <RefreshCwIcon className={refresh.isPending ? 'animate-spin' : undefined} />
               {t('movie.refresh')}
             </Button>
+            <RenameDialog movie={m} onRenamed={invalidate} />
             <Button type="button" variant="destructive" onClick={() => setDeleteOpen(true)} disabled={remove.isPending}>
               <Trash2Icon />
               {t('movie.delete')}
@@ -158,18 +174,31 @@ export function MovieDetailPage() {
             <AlertDialogTitle>{t('movie.deleteTitle')}</AlertDialogTitle>
             <AlertDialogDescription>{t('movie.confirmDelete', { title: m.title })}</AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="flex items-center gap-2">
-            <Checkbox id="delete-exclude" checked={exclude} onCheckedChange={(checked) => setExclude(checked === true)} />
-            <Label htmlFor="delete-exclude" className="font-normal">
-              {t('movie.confirmExclude')}
-            </Label>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <Checkbox id="delete-exclude" checked={exclude} onCheckedChange={(checked) => setExclude(checked === true)} />
+              <Label htmlFor="delete-exclude" className="font-normal">
+                {t('movie.confirmExclude')}
+              </Label>
+            </div>
+            {m.versions.some((v) => v.file) && (
+              <div className="flex items-start gap-2">
+                <Checkbox id="delete-files" checked={deleteFiles} onCheckedChange={(checked) => setDeleteFiles(checked === true)} className="mt-0.5" data-testid="delete-files" />
+                <div className="grid gap-0.5">
+                  <Label htmlFor="delete-files" className="font-normal">
+                    {t('movie.deleteFiles')}
+                  </Label>
+                  <span className="text-xs text-muted-foreground">{t('movie.deleteFilesHint')}</span>
+                </div>
+              </div>
+            )}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault()
-                remove.mutate(exclude)
+                remove.mutate({ addImportExclusion: exclude, files: deleteFiles })
               }}
               disabled={remove.isPending}
             >
@@ -185,14 +214,49 @@ export function MovieDetailPage() {
       </div>
       <VersionsTable movie={m} onChanged={invalidate} />
       <InteractiveSearch movie={m} />
+      <MovieHistory movieId={m.id} />
     </>
   )
+}
+
+/** The journal of this film: why each file is there (blueprint §3.5). */
+function MovieHistory({ movieId }: { movieId: number }) {
+  const { t } = useTranslation()
+  const events = useQuery({ queryKey: ['history', movieId], queryFn: () => history.list({ movieId, limit: 100 }) })
+
+  return (
+    <section className="flex flex-col gap-3" data-testid="movie-history">
+      <h2 className="text-xl font-semibold tracking-tight">{t('movie.history')}</h2>
+      {events.data && events.data.length === 0 && <p className="text-sm text-muted-foreground">{t('history.empty')}</p>}
+      {events.data && events.data.length > 0 && <HistoryTable events={events.data} showMovie={false} />}
+    </section>
+  )
+}
+
+/** "x265 · DV HDR10 · TrueHD Atmos 7.1 · 3840×2160": what the probe read, when it ran. */
+function mediaInfoSummary(info: MediaInfo): string {
+  const audio = [info.audioCodec, info.audioChannels !== null ? info.audioChannels.toFixed(1) : null].filter(Boolean).join(' ')
+  return [info.videoCodec, info.videoDynamicRangeType, audio || null, info.width && info.height ? `${info.width}×${info.height}` : null].filter(Boolean).join(' · ')
 }
 
 function VersionsTable({ movie, onChanged }: { movie: Movie; onChanged: () => void }) {
   const { t } = useTranslation()
   const [pendingDelete, setPendingDelete] = useState<Version | null>(null)
+  const [pendingFileDelete, setPendingFileDelete] = useState<Version | null>(null)
   const fail = (e: unknown) => toast.error(e instanceof ApiError ? e.message : t('common.unexpectedError'))
+
+  const deleteFile = useMutation({
+    mutationFn: (v: Version) => movies.deleteFile(movie.id, v.id),
+    onSuccess: () => {
+      setPendingFileDelete(null)
+      toast.success(t('versions.fileDeleted'))
+      onChanged()
+    },
+    onError: (e) => {
+      setPendingFileDelete(null)
+      fail(e)
+    },
+  })
 
   const toggle = useMutation({
     mutationFn: (v: Version) => movies.updateVersion(movie.id, v.id, { monitored: !v.monitored }),
@@ -274,6 +338,9 @@ function VersionsTable({ movie, onChanged }: { movie: Movie; onChanged: () => vo
                       <span className="block max-w-[22ch] truncate text-xs text-muted-foreground" title={v.file.path}>
                         {v.file.relativePath}
                       </span>
+                      <span className="block text-xs text-muted-foreground" data-testid="media-info">
+                        {v.file.mediaInfo ? mediaInfoSummary(v.file.mediaInfo) : t('versions.mediaInfoMissing')}
+                      </span>
                       <span className="mt-1 flex flex-wrap items-center gap-1">
                         {v.cutoffMet !== null && (
                           <Badge
@@ -338,6 +405,17 @@ function VersionsTable({ movie, onChanged }: { movie: Movie; onChanged: () => vo
                       </Tooltip>
                     )}
 
+                    {v.file && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button type="button" variant="ghost" size="icon" onClick={() => setPendingFileDelete(v)} aria-label={t('versions.deleteFile')} data-testid="delete-file">
+                            <FileXIcon />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{t('versions.deleteFile')}</TooltipContent>
+                      </Tooltip>
+                    )}
+
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
@@ -360,6 +438,28 @@ function VersionsTable({ movie, onChanged }: { movie: Movie; onChanged: () => vo
           </TableBody>
         </Table>
       </div>
+
+      <AlertDialog open={pendingFileDelete !== null} onOpenChange={(open) => !open && setPendingFileDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('versions.deleteFileTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('versions.confirmDeleteFile', { name: pendingFileDelete?.name ?? '' })}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault()
+                if (pendingFileDelete) deleteFile.mutate(pendingFileDelete)
+              }}
+              disabled={deleteFile.isPending}
+              data-testid="delete-file-confirm"
+            >
+              {t('versions.deleteFile')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => !open && setPendingDelete(null)}>
         <AlertDialogContent>
