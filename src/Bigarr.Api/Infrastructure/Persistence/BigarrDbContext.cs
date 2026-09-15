@@ -1,5 +1,6 @@
 using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Auth;
+using Bigarr.Domain.Downloads;
 using Bigarr.Domain.History;
 using Bigarr.Domain.Indexers;
 using Bigarr.Domain.Library;
@@ -41,6 +42,8 @@ public sealed class BigarrDbContext(DbContextOptions<BigarrDbContext> options) :
     public DbSet<CustomFormat> CustomFormats => Set<CustomFormat>();
 
     public DbSet<Indexer> Indexers => Set<Indexer>();
+
+    public DbSet<DownloadClient> DownloadClients => Set<DownloadClient>();
 
     public DbSet<RootFolder> RootFolders => Set<RootFolder>();
 

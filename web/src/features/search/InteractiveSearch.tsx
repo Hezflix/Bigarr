@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
-import { ExternalLinkIcon, SearchIcon } from 'lucide-react'
+import { DownloadIcon, ExternalLinkIcon, SearchIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { ApiError, search, type Movie, type Rejection, type Release } from '@/api/client'
+import { toast } from 'sonner'
+import { ApiError, queue, search, type Movie, type Rejection, type Release } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -28,6 +29,7 @@ function verdictOf(release: Release, versionId: number): { approved: boolean; re
 /** Interactive search for one film: every indexer once, every release judged by the selected version (blueprint §5). */
 export function InteractiveSearch({ movie }: { movie: Movie }) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const [versionId, setVersionId] = useState<number>(movie.versions.find((v) => v.isDefault)?.id ?? movie.versions[0]?.id ?? 0)
   const [armed, setArmed] = useState(false)
   const query = useQuery({
@@ -44,6 +46,34 @@ export function InteractiveSearch({ movie }: { movie: Movie }) {
   }
 
   const selectedId = movie.versions.some((v) => v.id === versionId) ? versionId : (movie.versions[0]?.id ?? 0)
+  const selected = movie.versions.find((v) => v.id === selectedId)
+
+  // Grab: the release goes back as the search returned it (the search keeps no state), for the selected version.
+  const grab = useMutation({
+    mutationFn: (release: Release) =>
+      queue.grab({
+        versionId: selectedId,
+        indexerId: release.indexerId,
+        guid: release.guid,
+        title: release.title,
+        downloadUrl: release.downloadUrl,
+        magnetUrl: release.magnetUrl,
+        infoHash: release.infoHash,
+        size: release.size,
+        seeders: release.seeders,
+        flags: release.flags,
+        protocol: release.protocol,
+        indexer: release.indexer,
+      }),
+    onSuccess: async (result, release) => {
+      toast.success(t('search.grabbed', { title: release.title, client: result.downloadClient }))
+      await queryClient.invalidateQueries({ queryKey: ['movie', movie.id] })
+      await queryClient.invalidateQueries({ queryKey: ['movies'] })
+      await queryClient.invalidateQueries({ queryKey: ['queue'] })
+      await query.refetch()
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : t('search.grabFailed')),
+  })
   const releases = query.data
     ? [...query.data.releases].sort((a, b) => Number(verdictOf(b, selectedId).approved) - Number(verdictOf(a, selectedId).approved))
     : []
@@ -126,27 +156,49 @@ export function InteractiveSearch({ movie }: { movie: Movie }) {
                     <TableHead>{t('search.size')}</TableHead>
                     <TableHead>{t('search.peers')}</TableHead>
                     <TableHead>{t('search.verdict')}</TableHead>
+                    <TableHead className="text-right">{t('versions.actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {releases.map((release) => (
-                    <ReleaseRow key={`${release.indexerId}:${release.guid}`} release={release} versionId={selectedId} />
+                    <ReleaseRow
+                      key={`${release.indexerId}:${release.guid}`}
+                      release={release}
+                      versionId={selectedId}
+                      downloading={selected?.status === 'downloading'}
+                      grabbing={grab.isPending && grab.variables?.guid === release.guid}
+                      onGrab={() => grab.mutate(release)}
+                    />
                   ))}
                 </TableBody>
               </Table>
             </div>
           )}
 
-          <p className="text-xs text-muted-foreground">{t('search.grabLater')}</p>
+          <p className="text-xs text-muted-foreground">{t('search.grabHint')}</p>
         </>
       )}
     </section>
   )
 }
 
-function ReleaseRow({ release, versionId }: { release: Release; versionId: number }) {
+function ReleaseRow({
+  release,
+  versionId,
+  downloading,
+  grabbing,
+  onGrab,
+}: {
+  release: Release
+  versionId: number
+  /** The selected version already has an active download: a second grab would be refused. */
+  downloading: boolean
+  grabbing: boolean
+  onGrab: () => void
+}) {
   const { t } = useTranslation()
   const { approved, rejections, score } = verdictOf(release, versionId)
+  const grabbable = release.protocol === 'torrent' && (!!release.downloadUrl || !!release.magnetUrl || !!release.infoHash)
   const flags = release.flags === 'none' ? [] : release.flags.split(', ')
   const details = [
     release.edition,
@@ -211,6 +263,28 @@ function ReleaseRow({ release, versionId }: { release: Release; versionId: numbe
           </span>
         )}
         {score !== null && <span className="mt-1 block text-xs text-muted-foreground">{t('search.score', { score })}</span>}
+      </TableCell>
+      <TableCell className="align-top">
+        <div className="flex justify-end">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                <Button
+                  type="button"
+                  variant={approved ? 'default' : 'outline'}
+                  size="icon"
+                  onClick={onGrab}
+                  disabled={grabbing || downloading || !grabbable}
+                  aria-label={t('search.grab')}
+                  data-testid="grab"
+                >
+                  <DownloadIcon className={grabbing ? 'animate-pulse' : undefined} />
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{downloading ? t('search.grabBlocked') : !grabbable ? t('search.grabNoLink') : approved ? t('search.grab') : t('search.grabAnyway')}</TooltipContent>
+          </Tooltip>
+        </div>
       </TableCell>
     </TableRow>
   )

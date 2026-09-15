@@ -156,6 +156,8 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("DownloadClientId");
+
                     b.HasIndex("DownloadId");
 
                     b.HasIndex("IndexerId");
@@ -266,6 +268,67 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("Users", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Downloads.DownloadClient", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AddPaused")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Host")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Implementation")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Password")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Port")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UrlBase")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("UseSsl")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Username")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("DownloadClients", (string)null);
                 });
 
             modelBuilder.Entity("Bigarr.Domain.History.HistoryEvent", b =>
@@ -914,6 +977,11 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Bigarr.Domain.Acquisition.Grab", b =>
                 {
+                    b.HasOne("Bigarr.Domain.Downloads.DownloadClient", null)
+                        .WithMany()
+                        .HasForeignKey("DownloadClientId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Bigarr.Domain.Indexers.Indexer", null)
                         .WithMany()
                         .HasForeignKey("IndexerId")

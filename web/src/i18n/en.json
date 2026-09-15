@@ -14,7 +14,9 @@
     "activity": "Activity",
     "releases": "Releases",
     "settingsQuality": "Quality",
-    "settingsCustomFormats": "Custom formats"
+    "settingsCustomFormats": "Custom formats",
+    "queue": "Queue",
+    "settingsDownloadClients": "Download clients"
   },
   "theme": {
     "label": "Theme",
@@ -253,7 +255,6 @@
     "verdict": "Verdict",
     "approved": "Acceptable",
     "repack": "repack",
-    "grabLater": "Grabbing a release arrives with the download client (M4).",
     "flags": {
       "freeleech": "Freeleech",
       "halfleech": "Halfleech",
@@ -264,7 +265,14 @@
       "freeleech25": "Freeleech 25%",
       "nuked": "Nuked"
     },
-    "score": "Score {{score}}"
+    "score": "Score {{score}}",
+    "grabHint": "Grab sends the release to the download client for the selected version; a rejected release can still be grabbed on purpose.",
+    "grab": "Grab",
+    "grabAnyway": "Grab anyway (rejected for this version)",
+    "grabBlocked": "This version already has an active download",
+    "grabNoLink": "No download link",
+    "grabbed": "Grabbed “{{title}}” → {{client}}.",
+    "grabFailed": "The grab failed."
   },
   "rss": {
     "title": "Releases",
@@ -284,7 +292,8 @@
     "emptyMatched": "No release matched a film of the library yet.",
     "movie": "Movie",
     "noMatch": "Not in the library",
-    "wouldGrab": "Would grab for {{version}}"
+    "wouldGrab": "Would grab for {{version}}",
+    "grabLater": "The RSS loop only reports what it would grab; automatic grabbing arrives with M6. Grab by hand from a film’s interactive search."
   },
   "quality": {
     "title": "Quality",
@@ -415,6 +424,103 @@
       "max": "Max",
       "exceptLanguage": "Any language except this one",
       "gb": "GB"
+    }
+  },
+  "downloadClients": {
+    "title": "Download clients",
+    "hint": "Grabs are sent to the enabled client with the lowest priority number. Every torrent Bigarr adds carries the category below; the queue is what the client holds in that category. Downloads and libraries must share one mount for imports to hardlink.",
+    "add": "Add a client",
+    "new": "New download client",
+    "editTitle": "Edit {{name}}",
+    "edit": "Edit",
+    "save": "Save",
+    "delete": "Delete",
+    "deleteTitle": "Delete this download client?",
+    "confirmDelete": "Delete “{{name}}”? Its downloads stay in the client; Bigarr stops following them.",
+    "removeFailed": "The download client could not be deleted.",
+    "empty": "No download client yet. Add one to grab releases.",
+    "name": "Name",
+    "implementation": "Type",
+    "implementations": {
+      "qBittorrent": "qBittorrent",
+      "mock": "Mock (development)"
+    },
+    "mockHint": "Downloads complete on their own after a minute and a half, without any network. Meant to exercise the queue.",
+    "host": "Host",
+    "hostHint": "Host name or address of the WebUI, without scheme or port.",
+    "port": "Port",
+    "urlBase": "URL base",
+    "username": "Username",
+    "password": "Password",
+    "passwordHint": "Leave both empty when the WebUI has authentication disabled for this address.",
+    "useSsl": "Use HTTPS",
+    "category": "Category",
+    "categoryHint": "Created in qBittorrent if missing. Keep one category per Bigarr instance.",
+    "priority": "Priority",
+    "priorityHint": "1 is tried first when several clients are enabled.",
+    "enabledToggle": "Enabled",
+    "addPaused": "Add torrents stopped",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "state": "State",
+    "test": "Test",
+    "testing": "Testing…",
+    "testOk": "Connected to {{version}}; category “{{category}}” is there.",
+    "testOkCreated": "Connected to {{version}}; category “{{category}}” created.",
+    "testFailed": "The download client test failed."
+  },
+  "queue": {
+    "title": "Queue",
+    "live": "live",
+    "polling": "polling",
+    "liveHint": "Connected to the server stream: the table updates after every poll of the download clients.",
+    "pollingHint": "The stream is down; the table refreshes every 10 seconds instead.",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing…",
+    "refreshFailed": "The refresh failed.",
+    "schedule": "Download clients polled every {{seconds}} s",
+    "lastPoll": "last poll {{date}}",
+    "neverPolled": "no poll yet",
+    "count_one": "{{count}} download",
+    "count_other": "{{count}} downloads",
+    "empty": "Nothing in the queue.",
+    "noClients": "No download client is enabled. Add one in Settings → Download clients.",
+    "movie": "Movie",
+    "release": "Release",
+    "status": "Status",
+    "progress": "Progress",
+    "size": "Size",
+    "left": "{{size}} left",
+    "client": "Client",
+    "untracked": "Not grabbed by Bigarr",
+    "remove": "Remove",
+    "removeTitle": "Remove from the queue?",
+    "removeFailed": "The download could not be removed.",
+    "removeFromClient": "Also remove the torrent from the download client",
+    "removeFromClientHint": "Unchecked, the torrent keeps running in the client and Bigarr just stops following it.",
+    "deleteFiles": "Delete the downloaded files",
+    "deleteFilesHint": "What the client has written so far. Nothing in the library is touched.",
+    "blocklist": "Blocklist this release",
+    "blocklistHint": "The release is refused for this version from now on. Use it for a fake or a broken torrent, not for a slow one.",
+    "states": {
+      "grabbed": "Sent to the client",
+      "downloading": "Downloading",
+      "importPending": "Waiting for import",
+      "importing": "Importing",
+      "imported": "Imported",
+      "importFailed": "Import failed",
+      "downloadFailed": "Download failed",
+      "removed": "Removed",
+      "ignored": "Ignored"
+    },
+    "statuses": {
+      "queued": "Queued",
+      "downloading": "Downloading",
+      "paused": "Paused",
+      "stalled": "Stalled",
+      "completed": "Completed",
+      "failed": "Failed",
+      "unknown": "Unknown"
     }
   }
 }

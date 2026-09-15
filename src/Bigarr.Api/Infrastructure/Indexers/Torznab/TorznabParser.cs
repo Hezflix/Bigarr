@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Xml;
 using System.Xml.Linq;
+using Bigarr.Api.Infrastructure.Downloads.Torrents;
 using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Indexers;
 
@@ -272,8 +273,8 @@ public static class TorznabParser
     private static double? ParseDouble(string? value) =>
         double.TryParse(value?.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var result) ? result : null;
 
-    private static string? NormalizeHash(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();
+    /// <summary>40 hex characters, or null when the indexer sent something that is not a hash (see <see cref="InfoHashes"/>).</summary>
+    private static string? NormalizeHash(string? value) => InfoHashes.Normalize(value);
 
     /// <summary>Indexers send <c>tt0133093</c>, <c>0133093</c> or <c>133093</c>; the library stores <c>tt0133093</c>.</summary>
     public static string? NormalizeImdbId(string? value)

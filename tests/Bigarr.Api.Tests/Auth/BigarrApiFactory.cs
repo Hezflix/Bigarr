@@ -18,6 +18,8 @@ public sealed class BigarrApiFactory : WebApplicationFactory<Program>
         builder.UseEnvironment("Testing");
         builder.UseSetting("Bigarr:ConfigDirectory", _configDirectory);
         builder.UseSetting("Bigarr:InitialAdminPassword", AdminPassword);
+        // The queue is polled by hand in the tests (POST /api/v1/queue/refresh) so every step is deterministic.
+        builder.UseSetting("Bigarr:Downloads:Enabled", "false");
     }
 
     public HttpClient CreateClientWithCookies() =>

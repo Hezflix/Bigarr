@@ -5,12 +5,14 @@ import { Outlet, RouterProvider, createRootRoute, createRoute, createRouter, red
 import { ApiError, auth } from './api/client'
 import { AppShell } from './components/AppShell'
 import { ThemeProvider } from './components/theme'
+import { QueuePage } from './features/activity/QueuePage'
 import { ReleasesPage } from './features/activity/ReleasesPage'
 import { LoginPage } from './features/auth/LoginPage'
 import { LibraryPage } from './features/library/LibraryPage'
 import { AddMoviePage } from './features/movies/AddMoviePage'
 import { MovieDetailPage } from './features/movies/MovieDetailPage'
 import { CustomFormatsPage } from './features/settings/CustomFormatsPage'
+import { DownloadClientsPage } from './features/settings/DownloadClientsPage'
 import { IndexersSettingsPage } from './features/settings/IndexersSettingsPage'
 import { QualitySettingsPage } from './features/settings/QualitySettingsPage'
 import { LibrarySettingsPage } from './features/settings/LibrarySettingsPage'
@@ -49,14 +51,16 @@ const appRoute = createRoute({
 const libraryRoute = createRoute({ getParentRoute: () => appRoute, path: '/', component: LibraryPage })
 const addRoute = createRoute({ getParentRoute: () => appRoute, path: '/add', component: AddMoviePage })
 const movieRoute = createRoute({ getParentRoute: () => appRoute, path: '/movies/$movieId', component: MovieDetailPage })
+const queueRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/queue', component: QueuePage })
 const releasesRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/releases', component: ReleasesPage })
 const librarySettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/library', component: LibrarySettingsPage })
 const indexersSettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/indexers', component: IndexersSettingsPage })
 const qualitySettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/quality', component: QualitySettingsPage })
 const customFormatsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/customformats', component: CustomFormatsPage })
+const downloadClientsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/downloadclients', component: DownloadClientsPage })
 
 const router = createRouter({
-  routeTree: rootRoute.addChildren([loginRoute, appRoute.addChildren([libraryRoute, addRoute, movieRoute, releasesRoute, librarySettingsRoute, indexersSettingsRoute, qualitySettingsRoute, customFormatsRoute])]),
+  routeTree: rootRoute.addChildren([loginRoute, appRoute.addChildren([libraryRoute, addRoute, movieRoute, queueRoute, releasesRoute, librarySettingsRoute, indexersSettingsRoute, downloadClientsRoute, qualitySettingsRoute, customFormatsRoute])]),
 })
 
 declare module '@tanstack/react-router' {
