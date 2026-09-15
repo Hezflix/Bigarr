@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { cn } from 'cn'
-import { RefreshCwIcon, Trash2Icon, WifiIcon, WifiOffIcon } from 'lucide-react'
+import { FolderInputIcon, RefreshCwIcon, RotateCcwIcon, Trash2Icon, WifiIcon, WifiOffIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, queue as queueApi, type Queue, type QueueItem, type StatusMessage } from '@/api/client'
@@ -25,6 +25,7 @@ import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { ManualImportDialog } from '@/features/import/ManualImportDialog'
 import { formatBytes, formatDateTime } from '@/i18n'
 
 const statusStyles: Record<QueueItem['status'], string> = {
@@ -102,6 +103,16 @@ export function QueuePage() {
   const live = useQueueStream()
   const query = useQuery({ queryKey: ['queue'], queryFn: queueApi.get, refetchInterval: live ? false : 10_000 })
   const [pendingRemove, setPendingRemove] = useState<QueueItem | null>(null)
+  const [manualImportFor, setManualImportFor] = useState<QueueItem | null>(null)
+
+  const retry = useMutation({
+    mutationFn: (grabId: number) => queueApi.retryImport(grabId),
+    onSuccess: async () => {
+      toast.success(t('queue.importQueued'))
+      await queryClient.invalidateQueries({ queryKey: ['queue'] })
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : t('queue.retryImportFailed')),
+  })
 
   const refresh = useMutation({
     mutationFn: queueApi.refresh,
@@ -190,7 +201,13 @@ export function QueuePage() {
             </TableHeader>
             <TableBody>
               {q.items.map((item) => (
-                <QueueRow key={`${item.downloadClientId}:${item.downloadId}`} item={item} onRemove={() => setPendingRemove(item)} />
+                <QueueRow
+                  key={`${item.downloadClientId}:${item.downloadId}`}
+                  item={item}
+                  onRemove={() => setPendingRemove(item)}
+                  onRetryImport={() => item.grabId !== null && retry.mutate(item.grabId)}
+                  onManualImport={() => setManualImportFor(item)}
+                />
               ))}
             </TableBody>
           </Table>
@@ -198,14 +215,20 @@ export function QueuePage() {
       )}
 
       {pendingRemove && <RemoveDialog item={pendingRemove} onClose={() => setPendingRemove(null)} />}
+      {manualImportFor?.grabId != null && (
+        <ManualImportDialog grabId={manualImportFor.grabId} title={manualImportFor.title} onClose={() => setManualImportFor(null)} />
+      )}
     </>
   )
 }
 
-function QueueRow({ item, onRemove }: { item: QueueItem; onRemove: () => void }) {
+function QueueRow({ item, onRemove, onRetryImport, onManualImport }: { item: QueueItem; onRemove: () => void; onRetryImport: () => void; onManualImport: () => void }) {
   const { t } = useTranslation()
   const percent = Math.round(item.progress * 100)
   const done = item.status === 'completed'
+  // The import verdict is the row's state: shown once, in red, with its reason under it rather than as a second badge.
+  const failedImport = item.state === 'importFailed' ? item.statusMessages.find((m) => m.title === 'Import failed') : undefined
+  const messages = failedImport ? item.statusMessages.filter((m) => m !== failedImport) : item.statusMessages
 
   return (
     <TableRow data-testid={`queue-item-${item.downloadId}`} data-state={item.state ?? 'untracked'}>
@@ -233,10 +256,15 @@ function QueueRow({ item, onRemove }: { item: QueueItem; onRemove: () => void })
       </TableCell>
       <TableCell className="align-top">
         <span className="flex flex-col items-start gap-1">
-          <Badge variant="outline" className={statusStyles[item.status]}>
+          <Badge variant="outline" className={failedImport ? statusStyles.failed : statusStyles[item.status]}>
             {item.state ? t(`queue.states.${item.state}`) : t(`queue.statuses.${item.status}`)}
           </Badge>
-          {item.statusMessages.map((message) => (
+          {failedImport && (
+            <span className="max-w-[18rem] whitespace-normal text-xs text-red-700 dark:text-red-300" data-testid="queue-import-error">
+              {failedImport.messages.join(' ')}
+            </span>
+          )}
+          {messages.map((message) => (
             <Tooltip key={message.title}>
               <TooltipTrigger asChild>
                 <Badge variant="outline" className={cn('max-w-[14rem] cursor-default truncate', severityStyles[message.severity])}>
@@ -265,6 +293,26 @@ function QueueRow({ item, onRemove }: { item: QueueItem; onRemove: () => void })
       <TableCell className="align-top whitespace-nowrap">{item.downloadClient}</TableCell>
       <TableCell className="align-top">
         <div className="flex items-center justify-end gap-1">
+          {item.state === 'importFailed' && (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button type="button" variant="ghost" size="icon" onClick={onRetryImport} aria-label={t('queue.retryImport')} data-testid="queue-retry-import">
+                    <RotateCcwIcon />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('queue.retryImport')}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button type="button" variant="ghost" size="icon" onClick={onManualImport} aria-label={t('queue.manualImport')} data-testid="queue-manual-import">
+                    <FolderInputIcon />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('queue.manualImport')}</TooltipContent>
+              </Tooltip>
+            </>
+          )}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button type="button" variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={onRemove} aria-label={t('queue.remove')}>

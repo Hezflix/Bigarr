@@ -4,7 +4,7 @@ using Bigarr.Decision;
 using Bigarr.Domain.Movies;
 using Microsoft.EntityFrameworkCore;
 
-namespace Bigarr.Api.Features.Search;
+namespace Bigarr.Api.Infrastructure.Matching;
 
 /// <summary>
 /// Turns movie versions into what the decision engine may know (blueprint §3.10): profile, definitions, current file,

@@ -30,6 +30,10 @@ jobs:
         with:
           global-json-file: global.json
 
+      # ffprobe reads media info from imported files; the reader tests probe a clip rendered by ffmpeg.
+      - name: Install ffmpeg
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg
+
       - name: Restore
         run: dotnet restore
 

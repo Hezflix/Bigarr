@@ -18,7 +18,7 @@ using Bigarr.Domain.Movies;
 
 namespace Bigarr.Api.Tests.Downloads;
 
-/// <summary>The M4 acceptance loop on the mock client: grab → queue → complete → import pending; removed by hand → removed.</summary>
+/// <summary>The M4 acceptance loop on the mock client: grab → queue → downloading; removed by hand → removed. Completion and import live in the Import tests.</summary>
 public sealed class GrabAndQueueTests(BigarrApiFactory factory) : IClassFixture<BigarrApiFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
@@ -96,20 +96,11 @@ public sealed class GrabAndQueueTests(BigarrApiFactory factory) : IClassFixture<
             var snapshot = (await client.GetFromJsonAsync<QueueResponse>("/api/v1/queue", Json))!;
             Assert.Equal(queue.Revision, snapshot.Revision);
 
-            // The torrent finishes: import pending, nothing more happens until M5.
-            Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/v1/downloadclients/mock/{grab.DownloadId}/complete", null)).StatusCode);
-            queue = await RefreshAsync(client);
-            row = Assert.Single(queue.Items);
-            Assert.Equal(GrabState.ImportPending, row.State);
-            Assert.Equal(DownloadItemStatus.Completed, row.Status);
-            Assert.Equal(1, row.Progress);
-            Assert.Contains(row.StatusMessages, m => m.Title == "Import arrives with M5");
-
-            // Deleted by hand in the client: gone after N polls, the version is missing again, no blocklist.
+            // Deleted by hand in the client while downloading: gone after N polls, the version is missing again, no blocklist.
             Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/v1/downloadclients/mock/{grab.DownloadId}")).StatusCode);
             queue = await RefreshAsync(client);
             row = Assert.Single(queue.Items);
-            Assert.Equal(GrabState.ImportPending, row.State);
+            Assert.Equal(GrabState.Downloading, row.State);
             Assert.Contains(row.StatusMessages, m => m.Title == "Not in the download client" && m.Messages[0].Contains("(1/3)"));
             await RefreshAsync(client);
             queue = await RefreshAsync(client);

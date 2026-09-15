@@ -1,7 +1,7 @@
 using Bigarr.Domain.Movies;
 using Bigarr.Parsing;
 
-namespace Bigarr.Api.Features.Search;
+namespace Bigarr.Api.Infrastructure.Matching;
 
 /// <summary>The library keyed the way releases identify films: TMDB id, IMDb id, cleaned titles (own, original, alternative).</summary>
 public sealed class LibraryIndex

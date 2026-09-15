@@ -1,6 +1,7 @@
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Decision;
 using Bigarr.Api.Infrastructure.Indexers;
+using Bigarr.Api.Infrastructure.Matching;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Decision;
 using Bigarr.Decision.CustomFormats;

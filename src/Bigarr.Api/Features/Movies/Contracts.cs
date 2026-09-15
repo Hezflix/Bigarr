@@ -66,7 +66,8 @@ public sealed record MediaFileResponse(
     string? ReleaseGroup,
     List<string> Languages,
     string? OriginalReleaseTitle,
-    bool HasMediaInfo);
+    bool HasMediaInfo,
+    MediaInfo? MediaInfo);
 
 public sealed record VersionResponse(
     int Id,

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
-import { DownloadIcon, ExternalLinkIcon, SearchIcon } from 'lucide-react'
+import { CopyPlusIcon, DownloadIcon, ExternalLinkIcon, SearchIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, queue, search, type Movie, type Rejection, type Release } from '@/api/client'
@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { OneShotGrabDialog } from '@/features/search/OneShotGrabDialog'
 import { formatAge, formatBytes } from '@/i18n'
 
 const approvedStyle = 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300'
@@ -31,7 +32,11 @@ export function InteractiveSearch({ movie }: { movie: Movie }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [versionId, setVersionId] = useState<number>(movie.versions.find((v) => v.isDefault)?.id ?? movie.versions[0]?.id ?? 0)
-  const [armed, setArmed] = useState(false)
+  // A remount (e.g. navigating away and back) resets this component's state, but the query cache below is
+  // shared and outlives it: without this check "armed" would start false while stale results are still shown,
+  // and the first click after remount would only flip it instead of refetching (grabs/imports since then are missed).
+  const [armed, setArmed] = useState(() => queryClient.getQueryData(['search', movie.id]) !== undefined)
+  const [oneShotFor, setOneShotFor] = useState<Release | null>(null)
   const query = useQuery({
     queryKey: ['search', movie.id],
     queryFn: () => search.movie(movie.id),
@@ -146,9 +151,9 @@ export function InteractiveSearch({ movie }: { movie: Movie }) {
           {releases.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('search.noResults')}</p>
           ) : (
-            <div className="overflow-x-auto rounded-lg border">
+            <div className="max-h-[28rem] overflow-y-auto overflow-x-auto rounded-lg border">
               <Table data-testid="search-results">
-                <TableHeader>
+                <TableHeader className="sticky top-0 z-10 bg-background">
                   <TableRow>
                     <TableHead>{t('search.age')}</TableHead>
                     <TableHead>{t('search.release')}</TableHead>
@@ -168,6 +173,7 @@ export function InteractiveSearch({ movie }: { movie: Movie }) {
                       downloading={selected?.status === 'downloading'}
                       grabbing={grab.isPending && grab.variables?.guid === release.guid}
                       onGrab={() => grab.mutate(release)}
+                      onGrabOneShot={() => setOneShotFor(release)}
                     />
                   ))}
                 </TableBody>
@@ -178,6 +184,8 @@ export function InteractiveSearch({ movie }: { movie: Movie }) {
           <p className="text-xs text-muted-foreground">{t('search.grabHint')}</p>
         </>
       )}
+
+      {oneShotFor && selected && <OneShotGrabDialog movie={movie} release={oneShotFor} defaultProfileId={selected.qualityProfileId} onClose={() => setOneShotFor(null)} />}
     </section>
   )
 }
@@ -188,6 +196,7 @@ function ReleaseRow({
   downloading,
   grabbing,
   onGrab,
+  onGrabOneShot,
 }: {
   release: Release
   versionId: number
@@ -195,6 +204,8 @@ function ReleaseRow({
   downloading: boolean
   grabbing: boolean
   onGrab: () => void
+  /** Creates a one-shot version for this release and grabs it there (blueprint §3.3). */
+  onGrabOneShot: () => void
 }) {
   const { t } = useTranslation()
   const { approved, rejections, score } = verdictOf(release, versionId)
@@ -265,7 +276,17 @@ function ReleaseRow({
         {score !== null && <span className="mt-1 block text-xs text-muted-foreground">{t('search.score', { score })}</span>}
       </TableCell>
       <TableCell className="align-top">
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                <Button type="button" variant="ghost" size="icon" onClick={onGrabOneShot} disabled={!grabbable} aria-label={t('search.grabOneShot')} data-testid="grab-oneshot">
+                  <CopyPlusIcon />
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{t('search.grabOneShot')}</TooltipContent>
+          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <span>

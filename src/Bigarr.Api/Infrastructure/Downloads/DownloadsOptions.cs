@@ -18,5 +18,8 @@ public sealed class DownloadsOptions
 
     public bool Enabled { get; set; } = true;
 
+    /// <summary>Where the mock client writes the files of a completed torrent. Default: <c>mock-downloads</c> under the config directory.</summary>
+    public string? MockDownloadDirectory { get; set; }
+
     public TimeSpan PollInterval => TimeSpan.FromSeconds(Math.Max(MinimumPollSeconds, PollSeconds));
 }

@@ -1,17 +1,20 @@
 using System.Text.RegularExpressions;
 using Bigarr.Api.Infrastructure;
+using Bigarr.Api.Infrastructure.Files;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Common;
 using Bigarr.Domain.History;
+using Bigarr.Domain.Library;
 using Bigarr.Domain.Metadata;
 using Bigarr.Domain.Movies;
+using Bigarr.Domain.Naming;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bigarr.Api.Features.Movies;
 
 /// <summary>Application rules of the Movies slice: add, version, promote, delete, refresh. Shared with the compat layer later.</summary>
-public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider metadata, TimeProvider time, ILogger<MovieService> logger)
+public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider metadata, RecycleBin recycleBin, TimeProvider time, ILogger<MovieService> logger)
 {
     public IQueryable<Movie> WithGraph(bool tracking = false)
     {
@@ -156,7 +159,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             Mode = VersionMode.Managed,
             QualityProfile = profile,
             RootFolder = root,
-            FolderName = FolderNameBuilder.Build(found.Title, found.Year),
+            FolderName = await FolderNameAsync(found.Title, found.OriginalTitle, found.Year, found.TmdbId, found.ImdbId, versionName, ct),
             IsDefault = true,
             Monitored = request.Monitored,
             MinimumAvailability = request.MinimumAvailability,
@@ -223,7 +226,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
 
         var defaultVersion = movie.Versions.FirstOrDefault(v => v.IsDefault);
         var folderName = string.IsNullOrWhiteSpace(request.FolderName)
-            ? defaultVersion?.FolderName ?? FolderNameBuilder.Build(movie.Title, movie.Year)
+            ? defaultVersion?.FolderName ?? await FolderNameAsync(movie.Title, movie.OriginalTitle, movie.Year, movie.TmdbId, movie.ImdbId, name, ct)
             : FolderNameBuilder.Sanitize(request.FolderName);
 
         var version = new MovieVersion
@@ -378,13 +381,24 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
 
         if (deleteFiles && version.File is not null)
         {
-            return FilesDeletionNotAvailable();
+            var removal = await RemoveFileFromDiskAsync(movie, version, ct);
+            if (removal is not null)
+            {
+                return removal;
+            }
         }
 
         var siblings = movie.Versions.Where(v => v.Id != versionId).ToList();
+        var folder = Path.Combine(version.RootFolder.Path, version.FolderName);
+        var folderShared = siblings.Any(v => v.RootFolderId == version.RootFolderId && v.FolderName == version.FolderName);
         if (siblings.Count == 0)
         {
             await RemoveMovieAsync(movie, addImportExclusion, ct);
+            if (deleteFiles)
+            {
+                RecycleBin.DeleteIfEmpty(folder);
+            }
+
             return Result<bool>.Ok(true);
         }
 
@@ -408,9 +422,15 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
 
         db.MovieVersions.Remove(version);
         await db.SaveChangesAsync(ct);
+        if (deleteFiles && !folderShared)
+        {
+            RecycleBin.DeleteIfEmpty(folder);
+        }
+
         return Result<bool>.Ok(false);
     }
 
+    /// <summary>With <paramref name="deleteFiles"/>, every folder of the film goes to the recycle bin (extras included), like Radarr's "delete movie folder".</summary>
     public async Task<Result<bool>> DeleteMovieAsync(int movieId, bool deleteFiles, bool addImportExclusion, CancellationToken ct)
     {
         var movie = await WithGraph(tracking: true).FirstOrDefaultAsync(m => m.Id == movieId, ct);
@@ -419,13 +439,118 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             return Failure.NotFound("Movie");
         }
 
-        if (deleteFiles && movie.Versions.Any(v => v.File is not null))
+        if (deleteFiles)
         {
-            return FilesDeletionNotAvailable();
+            var config = await MediaManagementAsync(ct);
+            var now = time.GetUtcNow().UtcDateTime;
+            foreach (var version in movie.Versions.Where(v => v.File is not null))
+            {
+                db.History.Add(FileDeletedEvent(movie, version, Path.Combine(version.RootFolder.Path, version.FolderName, version.File!.RelativePath), null, now));
+            }
+
+            foreach (var group in movie.Versions.GroupBy(v => (v.RootFolderId, v.FolderName)))
+            {
+                var root = group.First().RootFolder;
+                var folder = Path.Combine(root.Path, group.Key.FolderName);
+                try
+                {
+                    recycleBin.RemoveDirectory(folder, config.RecycleBinPath, root.Path);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    logger.LogWarning(ex, "Could not delete folder {Folder}", folder);
+                    return new Failure(StatusCodes.Status500InternalServerError, "Could not delete the movie folder", $"{folder}: {ex.Message}");
+                }
+            }
         }
 
         await RemoveMovieAsync(movie, addImportExclusion, ct);
         return Result<bool>.Ok(true);
+    }
+
+    /// <summary>Drops the version's file (to the recycle bin when configured) and keeps the version: it is missing again.</summary>
+    public async Task<Result<MovieVersion>> DeleteFileAsync(int movieId, int versionId, CancellationToken ct)
+    {
+        var movie = await WithGraph(tracking: true).FirstOrDefaultAsync(m => m.Id == movieId, ct);
+        var version = movie?.Versions.FirstOrDefault(v => v.Id == versionId);
+        if (movie is null || version is null)
+        {
+            return Failure.NotFound("Version");
+        }
+
+        if (version.File is null)
+        {
+            return Failure.Conflict("No file", $"Version {version.Name} has no file.");
+        }
+
+        var removal = await RemoveFileFromDiskAsync(movie, version, ct);
+        if (removal is not null)
+        {
+            return removal;
+        }
+
+        db.MediaFiles.Remove(version.File);
+        version.File = null;
+        await db.SaveChangesAsync(ct);
+        return Result<MovieVersion>.Ok(version);
+    }
+
+    /// <summary>Moves the file to the recycle bin (or deletes it) and journals it. Null when it went fine.</summary>
+    private async Task<Failure?> RemoveFileFromDiskAsync(Movie movie, MovieVersion version, CancellationToken ct)
+    {
+        var config = await MediaManagementAsync(ct);
+        var path = Path.Combine(version.RootFolder.Path, version.FolderName, version.File!.RelativePath);
+        string? recycled;
+        try
+        {
+            recycled = recycleBin.RemoveFile(path, config.RecycleBinPath, version.RootFolder.Path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning(ex, "Could not delete file {Path}", path);
+            return new Failure(StatusCodes.Status500InternalServerError, "Could not delete the file", $"{path}: {ex.Message}");
+        }
+
+        db.History.Add(FileDeletedEvent(movie, version, path, recycled, time.GetUtcNow().UtcDateTime));
+        return null;
+    }
+
+    private static HistoryEvent FileDeletedEvent(Movie movie, MovieVersion version, string path, string? recycledTo, DateTime now)
+    {
+        var data = new Dictionary<string, string>
+        {
+            ["path"] = path,
+            ["quality"] = version.File?.Quality?.Name ?? string.Empty,
+            ["size"] = (version.File?.Size ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture),
+        };
+        if (recycledTo is not null)
+        {
+            data["recycledTo"] = recycledTo;
+        }
+
+        return new HistoryEvent
+        {
+            TargetId = version.Id,
+            MovieId = movie.Id,
+            TmdbId = movie.TmdbId,
+            MovieTitle = movie.Title,
+            VersionName = version.Name,
+            EventType = HistoryEventType.FileDeleted,
+            SourceTitle = version.File?.OriginalReleaseTitle,
+            Data = data,
+            CreatedAt = now,
+        };
+    }
+
+    private async Task<MediaManagementConfig> MediaManagementAsync(CancellationToken ct) =>
+        await db.MediaManagement.AsNoTracking().FirstOrDefaultAsync(c => c.Id == MediaManagementConfig.SingletonId, ct) ?? MediaManagementConfig.Default();
+
+    /// <summary>The folder template of the media management settings, on the film; the default builder when it yields nothing.</summary>
+    private async Task<string> FolderNameAsync(string title, string? originalTitle, int? year, int tmdbId, string? imdbId, string versionName, CancellationToken ct)
+    {
+        var template = (await MediaManagementAsync(ct)).FolderNameTemplate;
+        var name = NamingTemplate.Render(template, new NamingContext(title, originalTitle, year, tmdbId, imdbId, versionName));
+        return name.Length == 0 || name == "_" ? FolderNameBuilder.Build(title, year) : name;
     }
 
     public async Task<Result<Movie>> RefreshAsync(int movieId, CancellationToken ct)
@@ -459,10 +584,6 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
         await db.SaveChangesAsync(ct);
         return Result<Movie>.Ok(movie);
     }
-
-    private static Failure FilesDeletionNotAvailable() => Failure.Invalid(
-        "Deleting files is not available yet",
-        "Physical deletion goes through the recycle bin, which arrives with the import slice (M5). Delete without deleteFiles to keep the files on disk.");
 
     private async Task RemoveMovieAsync(Movie movie, bool addImportExclusion, CancellationToken ct)
     {

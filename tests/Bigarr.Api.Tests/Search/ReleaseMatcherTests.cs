@@ -1,4 +1,5 @@
 using Bigarr.Api.Features.Search;
+using Bigarr.Api.Infrastructure.Matching;
 using Bigarr.Domain.Indexers;
 using Bigarr.Domain.Movies;
 

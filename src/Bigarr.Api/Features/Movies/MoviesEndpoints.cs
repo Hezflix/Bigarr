@@ -22,6 +22,7 @@ public static class MoviesEndpoints
         group.MapPut("/{id:int}/versions/{versionId:int}", UpdateVersionAsync);
         group.MapDelete("/{id:int}/versions/{versionId:int}", DeleteVersionAsync);
         group.MapPost("/{id:int}/versions/{versionId:int}/promote", PromoteAsync);
+        group.MapDelete("/{id:int}/versions/{versionId:int}/file", DeleteFileAsync);
 
         return app;
     }
@@ -124,6 +125,18 @@ public static class MoviesEndpoints
         int id, int versionId, MovieService movies, CustomFormatScorer scorer, CancellationToken ct)
     {
         var result = await movies.PromoteAsync(id, versionId, ct);
+        if (!result.IsSuccess)
+        {
+            return result.Failure!.ToProblem();
+        }
+
+        return TypedResults.Ok(await LoadVersionAsync(id, versionId, movies, scorer, ct));
+    }
+
+    private static async Task<Results<Ok<VersionResponse>, ProblemHttpResult>> DeleteFileAsync(
+        int id, int versionId, MovieService movies, CustomFormatScorer scorer, CancellationToken ct)
+    {
+        var result = await movies.DeleteFileAsync(id, versionId, ct);
         if (!result.IsSuccess)
         {
             return result.Failure!.ToProblem();

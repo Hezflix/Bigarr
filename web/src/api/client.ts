@@ -83,6 +83,25 @@ export type Constraints = {
   releaseGroup: string | null
 }
 
+/** What ffprobe read from the file; null until the import or the backfill probed it. */
+export type MediaInfo = {
+  containerFormat: string | null
+  videoCodec: string | null
+  videoBitrate: number | null
+  videoBitDepth: number | null
+  videoDynamicRange: string | null
+  videoDynamicRangeType: string | null
+  width: number | null
+  height: number | null
+  scanType: string | null
+  audioCodec: string | null
+  audioBitrate: number | null
+  audioChannels: number | null
+  audioLanguages: string[]
+  subtitles: string[]
+  runTime: string | null
+}
+
 export type MediaFile = {
   id: number
   relativePath: string
@@ -98,6 +117,7 @@ export type MediaFile = {
   languages: string[]
   originalReleaseTitle: string | null
   hasMediaInfo: boolean
+  mediaInfo: MediaInfo | null
 }
 
 export type Version = {
@@ -225,7 +245,8 @@ export const movies = {
   get: (id: number) => api<Movie>(`/api/v1/movies/${id}`),
   lookup: (term: string) => api<MovieLookupResult[]>(`/api/v1/movies/lookup?term=${encodeURIComponent(term)}`),
   add: (body: AddMovieRequest) => post<Movie>('/api/v1/movies', body),
-  remove: (id: number, addImportExclusion: boolean) => del(`/api/v1/movies/${id}?addImportExclusion=${addImportExclusion}`),
+  remove: (id: number, addImportExclusion: boolean, deleteFiles = false) =>
+    del(`/api/v1/movies/${id}?addImportExclusion=${addImportExclusion}&deleteFiles=${deleteFiles}`),
   refresh: (id: number) => post<Movie>(`/api/v1/movies/${id}/refresh`),
   addVersion: (movieId: number, body: AddVersionRequest) => post<Version>(`/api/v1/movies/${movieId}/versions`, body),
   updateVersion: (movieId: number, versionId: number, body: UpdateVersionRequest) =>
@@ -233,6 +254,8 @@ export const movies = {
   deleteVersion: (movieId: number, versionId: number, promote?: number) =>
     del(`/api/v1/movies/${movieId}/versions/${versionId}${promote ? `?promote=${promote}` : ''}`),
   promote: (movieId: number, versionId: number) => post<Version>(`/api/v1/movies/${movieId}/versions/${versionId}/promote`),
+  /** Drops the version's file (to the recycle bin when configured); the version stays and is missing again. */
+  deleteFile: (movieId: number, versionId: number) => api<Version>(`/api/v1/movies/${movieId}/versions/${versionId}/file`, { method: 'DELETE' }),
 }
 
 // ---- quality ---------------------------------------------------------------
@@ -741,6 +764,118 @@ export const queue = {
   removeUntracked: (clientId: number, downloadId: string, deleteFiles: boolean) =>
     del(`/api/v1/queue/untracked/${clientId}/${encodeURIComponent(downloadId)}?deleteFiles=${deleteFiles}`),
   grab: (body: GrabRequest) => post<GrabResult>('/api/v1/grab', body),
+  /** A failed import goes back to pending and the worker tries again. */
+  retryImport: (grabId: number) => post<void>(`/api/v1/queue/${grabId}/import`),
+}
+
+// ---- media management ------------------------------------------------------
+
+export type TransferMode = 'hardlinkOrCopy' | 'copy' | 'move'
+
+export type NamingToken = { token: string; description: string; example: string; folder: boolean }
+
+export type MediaManagement = {
+  renameFiles: boolean
+  fileNameTemplate: string
+  folderNameTemplate: string
+  transferMode: TransferMode
+  recycleBinPath: string | null
+  recycleBinRetentionDays: number
+  /** ffprobe was found: imported files get media info, the backfill fills the older ones. */
+  mediaInfoAvailable: boolean
+  ffprobePath: string | null
+  fileNamePreview: string
+  folderNamePreview: string
+  tokens: NamingToken[]
+}
+
+export type MediaManagementRequest = Pick<MediaManagement, 'renameFiles' | 'fileNameTemplate' | 'folderNameTemplate' | 'transferMode' | 'recycleBinPath' | 'recycleBinRetentionDays'>
+
+export type NamingPreview = { fileName: string | null; fileErrors: string[]; folderName: string | null; folderErrors: string[] }
+
+export type BackfillResult = { mediaInfoAvailable: boolean; probed: number; remaining: number }
+
+export const mediaManagement = {
+  get: () => api<MediaManagement>('/api/v1/mediamanagement'),
+  update: (body: MediaManagementRequest) => put<MediaManagement>('/api/v1/mediamanagement', body),
+  /** A draft template rendered on the sample film, with the errors that would refuse it. */
+  preview: (fileNameTemplate: string | null, folderNameTemplate: string | null) =>
+    post<NamingPreview>('/api/v1/mediamanagement/naming/preview', { fileNameTemplate, folderNameTemplate }),
+  /** Probes a batch of files that have no media info yet. */
+  backfill: () => post<BackfillResult>('/api/v1/mediamanagement/backfill'),
+}
+
+// ---- manual import ---------------------------------------------------------
+
+export type ImportVersionOption = { versionId: number; versionName: string; isDefault: boolean; approved: boolean; rejections: string[] }
+
+export type ManualImportFile = {
+  path: string
+  relativePath: string
+  name: string
+  size: number
+  isSample: boolean
+  parsedTitle: string | null
+  parsedYear: number | null
+  qualityId: number
+  quality: string
+  revisionVersion: number
+  isRepack: boolean
+  edition: string | null
+  releaseGroup: string | null
+  languages: string[]
+  movieId: number | null
+  movieTitle: string | null
+  movieYear: number | null
+  /** Why no movie was found, when none was. */
+  matchReason: string | null
+  /** The version the import would pick on its own, when one accepts the file. */
+  versionId: number | null
+  versions: ImportVersionOption[]
+}
+
+export type ManualImport = {
+  path: string
+  grabId: number | null
+  releaseTitle: string | null
+  defaultTransferMode: TransferMode
+  files: ManualImportFile[]
+}
+
+export type ManualImportItem = { path: string; versionId: number; qualityId?: number | null; grabId?: number | null }
+
+export type ManualImportResult = {
+  path: string
+  versionId: number
+  imported: boolean
+  reason: string | null
+  mediaFileId: number | null
+  destinationPath: string | null
+  upgraded: boolean
+}
+
+export const manualImport = {
+  /** The video files of a path or of a queued download, with what Bigarr makes of them. */
+  list: (options: { path?: string; grabId?: number; movieId?: number }) => {
+    const params = new URLSearchParams()
+    if (options.path) params.set('path', options.path)
+    if (options.grabId) params.set('grabId', String(options.grabId))
+    if (options.movieId) params.set('movieId', String(options.movieId))
+    return api<ManualImport>(`/api/v1/manualimport?${params.toString()}`)
+  },
+  /** Forced: no upgrade check, a one-shot with a file is replaced too. */
+  import: (files: ManualImportItem[], transferMode?: TransferMode | null) => post<ManualImportResult[]>('/api/v1/manualimport', { files, transferMode: transferMode ?? null }),
+}
+
+// ---- rename ----------------------------------------------------------------
+
+export type RenamePreview = { versionId: number; versionName: string; mediaFileId: number; currentRelativePath: string; newRelativePath: string; changed: boolean }
+
+export type RenameResult = { mediaFileId: number; relativePath: string; renamed: boolean; error: string | null }
+
+export const rename = {
+  preview: (movieId: number) => api<RenamePreview[]>(`/api/v1/rename?movieId=${movieId}`),
+  apply: (movieId: number, mediaFileIds?: number[]) => post<RenameResult[]>('/api/v1/rename', { movieId, mediaFileIds: mediaFileIds ?? null }),
 }
 
 // ---- history ---------------------------------------------------------------

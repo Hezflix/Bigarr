@@ -16,7 +16,9 @@
     "settingsQuality": "Quality",
     "settingsCustomFormats": "Custom formats",
     "queue": "Queue",
-    "settingsDownloadClients": "Download clients"
+    "settingsDownloadClients": "Download clients",
+    "settingsMediaManagement": "Media management",
+    "history": "History"
   },
   "theme": {
     "label": "Theme",
@@ -37,7 +39,10 @@
     "cancel": "Cancel",
     "none": "—",
     "unexpectedError": "Unexpected error.",
-    "minutes": "{{count}} min"
+    "minutes": "{{count}} min",
+    "save": "Save",
+    "saving": "Saving…",
+    "close": "Close"
   },
   "library": {
     "title": "Library",
@@ -97,7 +102,11 @@
     "digital": "Digital {{date}}",
     "physical": "Physical {{date}}",
     "tmdbRating": "TMDB {{value}}",
-    "deleteTitle": "Delete this movie?"
+    "deleteTitle": "Delete this movie?",
+    "deleteFiles": "Also delete the files from disk",
+    "deleteFilesHint": "The movie folder goes to the recycle bin when one is configured in Settings → Media management, otherwise it is deleted for good.",
+    "history": "History",
+    "renameFiles": "Rename files"
   },
   "versions": {
     "title": "Versions",
@@ -136,7 +145,12 @@
     "upgradable": "Upgradable",
     "score": "score {{score}}",
     "requiredFormats": "Required custom formats",
-    "forbiddenFormats": "Forbidden custom formats"
+    "forbiddenFormats": "Forbidden custom formats",
+    "deleteFile": "Delete file",
+    "deleteFileTitle": "Delete this file?",
+    "confirmDeleteFile": "Delete the file of version “{{name}}”? It goes to the recycle bin when one is configured, and the version becomes missing again.",
+    "fileDeleted": "File deleted.",
+    "mediaInfoMissing": "not probed yet"
   },
   "settings": {
     "library": "Library",
@@ -168,7 +182,9 @@
     "scanVersions_other": "{{count}} versions",
     "scanUnmapped_one": "{{count}} unmapped",
     "scanUnmapped_other": "{{count}} unmapped",
-    "removeRootTitle": "Remove this root folder?"
+    "removeRootTitle": "Remove this root folder?",
+    "importFolder": "Import…",
+    "unmappedHint": "Import by hand moves the files into a movie already in the library; add the movie first if it is not there yet."
   },
   "unmappedReason": {
     "noVideoFiles": "No video files",
@@ -272,7 +288,8 @@
     "grabBlocked": "This version already has an active download",
     "grabNoLink": "No download link",
     "grabbed": "Grabbed “{{title}}” → {{client}}.",
-    "grabFailed": "The grab failed."
+    "grabFailed": "The grab failed.",
+    "grabOneShot": "Grab as a one-shot version"
   },
   "rss": {
     "title": "Releases",
@@ -521,6 +538,134 @@
       "completed": "Completed",
       "failed": "Failed",
       "unknown": "Unknown"
+    },
+    "retryImport": "Retry import",
+    "retryImportFailed": "The import could not be retried.",
+    "importQueued": "Import queued again.",
+    "manualImport": "Import by hand…",
+    "addedByHand": "Added by hand"
+  },
+  "rename": {
+    "title": "Rename files",
+    "hint": "Applies the current file name template of Settings → Media management to the files of this movie. Nothing else moves.",
+    "version": "Version",
+    "current": "Current name",
+    "new": "New name",
+    "unchanged": "already matches the template",
+    "empty": "This movie has no file.",
+    "apply": "Rename",
+    "applyCount_one": "Rename {{count}} file",
+    "applyCount_other": "Rename {{count}} files",
+    "renaming": "Renaming…",
+    "done_one": "{{count}} file renamed.",
+    "done_other": "{{count}} files renamed.",
+    "failed": "The rename failed.",
+    "nothing": "Every file already matches the template."
+  },
+  "history": {
+    "title": "History",
+    "date": "Date",
+    "event": "Event",
+    "movie": "Movie",
+    "version": "Version",
+    "source": "Release",
+    "details": "Details",
+    "empty": "Nothing happened yet.",
+    "loadError": "The history could not be loaded.",
+    "filter": "Event type",
+    "all": "All events",
+    "events": {
+      "grabbed": "Grabbed",
+      "downloadFailed": "Download failed",
+      "imported": "Imported",
+      "upgraded": "Upgraded",
+      "importFailed": "Import failed",
+      "fileDeleted": "File deleted",
+      "renamed": "Renamed",
+      "blocklisted": "Blocklisted",
+      "defaultChanged": "Default version changed"
     }
+  },
+  "manualImport": {
+    "title": "Manual import",
+    "titleFor": "Manual import — {{title}}",
+    "hint": "Pick the movie and the version for each file. The import is forced: no upgrade check, an existing file is replaced through the recycle bin.",
+    "path": "Path",
+    "pathPlaceholder": "/data/downloads/Movie.2020.1080p.BluRay.x264-GRP",
+    "load": "Load",
+    "loading": "Reading the folder…",
+    "loadFailed": "The path could not be read.",
+    "empty": "No video file found under this path.",
+    "file": "File",
+    "quality": "Quality",
+    "movie": "Movie",
+    "version": "Version",
+    "verdict": "Verdict",
+    "sample": "sample",
+    "noMovie": "No movie matched",
+    "noMovieHint": "Add the movie to the library first, then pick it here.",
+    "noVersion": "Pick a version",
+    "accepted": "Would be accepted",
+    "transferMode": "Transfer",
+    "useDefault": "Default ({{mode}})",
+    "import": "Import",
+    "importCount_one": "Import {{count}} file",
+    "importCount_other": "Import {{count}} files",
+    "importing": "Importing…",
+    "imported": "Imported → {{path}}",
+    "failed": "Failed: {{reason}}",
+    "importFailed": "The import request failed.",
+    "select": "Import this file"
+  },
+  "oneShot": {
+    "title": "Grab as a one-shot version",
+    "hint": "Creates a version that is grabbed once and never upgraded, next to the existing ones (a Director's Cut, a specific encode), then sends this release to the download client for it.",
+    "name": "Version name",
+    "nameHint": "A short slug: directors-cut, imax, remux-framestor…",
+    "profile": "Quality profile",
+    "edition": "Edition constraint (regex)",
+    "editionHint": "Prefilled from the release; only releases matching it count for this version later.",
+    "requireGroup": "Require release group {{group}}",
+    "create": "Create and grab",
+    "creating": "Creating…",
+    "done": "Version “{{name}}” created and “{{title}}” grabbed.",
+    "failed": "The one-shot grab failed.",
+    "rolledBack": "The version was removed again because the grab failed."
+  },
+  "mediaManagement": {
+    "title": "Media management",
+    "hint": "How finished downloads reach the library: file naming, transfer mode and the recycle bin that receives replaced or deleted files.",
+    "naming": "Naming",
+    "renameFiles": "Rename imported files",
+    "renameFilesHint": "Off: files keep the name they had in the download. Existing files can be renamed later from each movie page.",
+    "fileTemplate": "File name template",
+    "folderTemplate": "Folder name template",
+    "folderTemplateHint": "Applied when a version is created; the folder name is then frozen so files never move silently.",
+    "preview": "Preview",
+    "tokens": "Tokens",
+    "tokensHint": "Radarr syntax: anything between the braces around a token is printed only when the token has a value, so {(Release Year)} disappears without a year. Lower-case tokens print in lower case, {Movie.Title} joins words with dots. {Version} is the version name.",
+    "fileOnly": "file only",
+    "transfer": "Transfer",
+    "transferMode": "Transfer mode",
+    "transferModes": {
+      "hardlinkOrCopy": "Hardlink, copy when impossible",
+      "copy": "Copy",
+      "move": "Move"
+    },
+    "transferModeHint": "A hardlink puts the same bytes under two names: the torrent keeps seeding for free. It needs downloads and the library on one filesystem, at the same path for the client and for Bigarr. Move only makes sense once seeding is over.",
+    "recycleBin": "Recycle bin",
+    "recycleBinPath": "Recycle bin folder",
+    "recycleBinPathHint": "Replaced and deleted files land here, keeping their path relative to the root folder. Empty: they are deleted for good.",
+    "retention": "Retention (days)",
+    "retentionHint": "Files older than this are removed from the bin every hour. 0 keeps them until you empty it yourself.",
+    "mediaInfo": "Media info",
+    "mediaInfoAvailable": "ffprobe found at {{path}}: imported files get their codecs, channels, HDR and languages read from the stream.",
+    "mediaInfoMissing": "ffprobe was not found: files are imported without media info. Install ffmpeg (the Docker image ships it) or set Bigarr__Media__FfprobePath.",
+    "backfill": "Probe files without media info",
+    "backfilling": "Probing…",
+    "backfillDone_one": "{{count}} file probed, {{remaining}} left.",
+    "backfillDone_other": "{{count}} files probed, {{remaining}} left.",
+    "saved": "Media management saved.",
+    "saveFailed": "The settings could not be saved."
   }
 }
