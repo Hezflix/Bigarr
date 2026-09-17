@@ -1,4 +1,6 @@
 using Bigarr.Api.Features.Movies;
+using Bigarr.Api.Features.Search;
+using Bigarr.Api.Infrastructure.Events;
 using Bigarr.Api.Infrastructure.Files;
 using Bigarr.Api.Tests.Metadata;
 using Bigarr.Api.Tests.Persistence;
@@ -18,7 +20,7 @@ public sealed class MovieServiceLookupTests : IDisposable
     public async Task A_failing_provider_is_a_502_not_a_crash()
     {
         await using var db = _database.CreateContext();
-        var service = new MovieService(db, new ThrowingProvider(new HttpRequestException("connection reset")), new RecycleBin(TimeProvider.System, NullLogger<RecycleBin>.Instance), TimeProvider.System, NullLogger<MovieService>.Instance);
+        var service = new MovieService(db, new ThrowingProvider(new HttpRequestException("connection reset")), new RecycleBin(TimeProvider.System, NullLogger<RecycleBin>.Instance), new OutboxWriter(db, TimeProvider.System), new SearchQueue(), TimeProvider.System, NullLogger<MovieService>.Instance);
 
         var result = await service.LookupAsync("tmdb:603", CancellationToken.None);
 
@@ -30,7 +32,7 @@ public sealed class MovieServiceLookupTests : IDisposable
     public async Task A_provider_timeout_is_a_502_too()
     {
         await using var db = _database.CreateContext();
-        var service = new MovieService(db, new ThrowingProvider(new TaskCanceledException("timeout")), new RecycleBin(TimeProvider.System, NullLogger<RecycleBin>.Instance), TimeProvider.System, NullLogger<MovieService>.Instance);
+        var service = new MovieService(db, new ThrowingProvider(new TaskCanceledException("timeout")), new RecycleBin(TimeProvider.System, NullLogger<RecycleBin>.Instance), new OutboxWriter(db, TimeProvider.System), new SearchQueue(), TimeProvider.System, NullLogger<MovieService>.Instance);
 
         var result = await service.LookupAsync("matrix", CancellationToken.None);
 
@@ -43,7 +45,7 @@ public sealed class MovieServiceLookupTests : IDisposable
     {
         await using var db = _database.CreateContext();
         var provider = new RecordingProvider();
-        var service = new MovieService(db, provider, new RecycleBin(TimeProvider.System, NullLogger<RecycleBin>.Instance), new FixedTimeProvider(new DateTimeOffset(2026, 9, 9, 0, 0, 0, TimeSpan.Zero)), NullLogger<MovieService>.Instance);
+        var service = new MovieService(db, provider, new RecycleBin(TimeProvider.System, NullLogger<RecycleBin>.Instance), new OutboxWriter(db, TimeProvider.System), new SearchQueue(), new FixedTimeProvider(new DateTimeOffset(2026, 9, 9, 0, 0, 0, TimeSpan.Zero)), NullLogger<MovieService>.Instance);
 
         await service.LookupAsync("blade runner 2049", CancellationToken.None);
         await service.LookupAsync("blade runner 2012", CancellationToken.None);

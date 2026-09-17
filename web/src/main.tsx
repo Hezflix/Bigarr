@@ -5,6 +5,7 @@ import { Outlet, RouterProvider, createRootRoute, createRoute, createRouter, red
 import { ApiError, auth } from './api/client'
 import { AppShell } from './components/AppShell'
 import { ThemeProvider } from './components/theme'
+import { BlocklistPage } from './features/activity/BlocklistPage'
 import { HistoryPage } from './features/activity/HistoryPage'
 import { QueuePage } from './features/activity/QueuePage'
 import { ReleasesPage } from './features/activity/ReleasesPage'
@@ -18,6 +19,9 @@ import { IndexersSettingsPage } from './features/settings/IndexersSettingsPage'
 import { QualitySettingsPage } from './features/settings/QualitySettingsPage'
 import { LibrarySettingsPage } from './features/settings/LibrarySettingsPage'
 import { MediaManagementPage } from './features/settings/MediaManagementPage'
+import { NotificationsPage } from './features/settings/NotificationsPage'
+import { SystemPage } from './features/system/SystemPage'
+import { WantedPage } from './features/wanted/WantedPage'
 import './i18n'
 import './index.css'
 
@@ -56,15 +60,36 @@ const movieRoute = createRoute({ getParentRoute: () => appRoute, path: '/movies/
 const queueRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/queue', component: QueuePage })
 const releasesRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/releases', component: ReleasesPage })
 const historyRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/history', component: HistoryPage })
+const blocklistRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/blocklist', component: BlocklistPage })
+const wantedRoute = createRoute({ getParentRoute: () => appRoute, path: '/wanted', component: WantedPage })
+const systemRoute = createRoute({ getParentRoute: () => appRoute, path: '/system/status', component: SystemPage })
 const librarySettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/library', component: LibrarySettingsPage })
 const mediaManagementRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/mediamanagement', component: MediaManagementPage })
 const indexersSettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/indexers', component: IndexersSettingsPage })
 const qualitySettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/quality', component: QualitySettingsPage })
 const customFormatsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/customformats', component: CustomFormatsPage })
 const downloadClientsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/downloadclients', component: DownloadClientsPage })
+const notificationsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/notifications', component: NotificationsPage })
 
 const router = createRouter({
-  routeTree: rootRoute.addChildren([loginRoute, appRoute.addChildren([libraryRoute, addRoute, movieRoute, queueRoute, releasesRoute, historyRoute, librarySettingsRoute, mediaManagementRoute, indexersSettingsRoute, downloadClientsRoute, qualitySettingsRoute, customFormatsRoute])]),
+  routeTree: rootRoute.addChildren([loginRoute, appRoute.addChildren([
+      libraryRoute,
+      addRoute,
+      wantedRoute,
+      movieRoute,
+      queueRoute,
+      releasesRoute,
+      historyRoute,
+      blocklistRoute,
+      librarySettingsRoute,
+      mediaManagementRoute,
+      indexersSettingsRoute,
+      downloadClientsRoute,
+      notificationsRoute,
+      qualitySettingsRoute,
+      customFormatsRoute,
+      systemRoute,
+    ])]),
 })
 
 declare module '@tanstack/react-router' {

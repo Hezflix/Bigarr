@@ -1,3 +1,5 @@
+using Bigarr.Api.Features.Downloads;
+using Bigarr.Api.Features.Server.Tasks;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Decision;
 using Bigarr.Api.Infrastructure.Indexers;
@@ -15,22 +17,26 @@ namespace Bigarr.Api.Features.Search;
 
 /// <summary>
 /// The main loop (blueprint §5): one feed request per indexer, every new release parsed, matched to a film of the
-/// library and judged by each of its versions with the automatic rules, then attributed to one version. Grabbing the
-/// attributed version arrives with the download client (M4); until then the outcome is shown as "would grab".
+/// library and judged by each of its versions with the automatic rules, attributed to one version, and the best
+/// release of the pass for each version sent to a download client. This is what fills the library day to day.
 /// </summary>
 public sealed class RssSyncService(
     BigarrDbContext db,
     TargetContextFactory contexts,
     CustomFormatScorer scorer,
     IndexerGateway gateway,
+    GrabService grabs,
     RssFeedState state,
+    SchedulerState scheduler,
     IOptions<RssSyncOptions> options,
     TimeProvider time,
     ILogger<RssSyncService> logger)
 {
+    public const string GrabTrigger = "rss";
+
     private readonly ReleaseEvaluator _evaluator = ReleaseEvaluator.Automatic();
 
-    public RssStatusResponse Status() => state.Status(options.Value);
+    public RssStatusResponse Status() => state.Status(options.Value) with { NextRunAt = options.Value.Enabled ? scheduler.NextRunAt(RssSyncJob.JobName) : null };
 
     public async Task<Result<RssSyncResponse>> RunAsync(CancellationToken ct)
     {
@@ -81,6 +87,7 @@ public sealed class RssSyncService(
 
         var matched = 0;
         var wouldGrab = 0;
+        var grabbed = 0;
         if (fresh.Count > 0)
         {
             var movies = await contexts.MoviesWithVersions().ToListAsync(ct);
@@ -89,9 +96,10 @@ public sealed class RssSyncService(
             var calculator = await scorer.CalculatorAsync(ct);
 
             // Oldest first so the newest ends up on top of the list.
+            var judged = new List<(RssReleaseResponse Entry, ReleaseInfo Release, int Score)>();
             foreach (var (indexer, release) in fresh.OrderBy(f => f.Release.PublishDate))
             {
-                var entry = Judge(indexer, release, library, targets, calculator, now);
+                var (entry, score) = Judge(indexer, release, library, targets, calculator, now);
                 if (entry.Movie is not null)
                 {
                     matched++;
@@ -102,7 +110,45 @@ public sealed class RssSyncService(
                     wouldGrab++;
                 }
 
-                state.Add(entry);
+                judged.Add((entry, release, score));
+            }
+
+            // One grab per version and pass: the best of what the feed brought (blueprint §5 ranking).
+            var winners = new Dictionary<int, (RssReleaseResponse Entry, ReleaseInfo Release)>();
+            foreach (var group in judged.Where(j => j.Entry.AttributedVersionId is not null).GroupBy(j => j.Entry.AttributedVersionId!.Value))
+            {
+                var best = ReleaseRanking.Order(group, j => j.Entry.QualityId, j => j.Score, j => j.Entry.RevisionVersion, j => j.Release.IndexerPriority, j => j.Release.Seeders ?? 0).First();
+                winners[group.Key] = (best.Entry, best.Release);
+            }
+
+            var outcomes = new Dictionary<string, (int? GrabId, string? Error)>(StringComparer.Ordinal);
+            foreach (var (versionId, (entry, release)) in winners)
+            {
+                var grab = await grabs.GrabAsync(GrabRequest.From(release, versionId), GrabTrigger, ct);
+                if (grab.IsSuccess)
+                {
+                    grabbed++;
+                    outcomes[Key(entry)] = (grab.Value!.GrabId, null);
+                }
+                else
+                {
+                    var failure = grab.Failure!;
+                    logger.LogWarning("RSS: {Title} not grabbed for version {Version}: {Title2} {Detail}", entry.Title, versionId, failure.Title, failure.Detail);
+                    outcomes[Key(entry)] = (null, failure.Detail is null ? failure.Title : $"{failure.Title}: {failure.Detail}");
+                }
+            }
+
+            foreach (var (entry, _, _) in judged)
+            {
+                var stored = entry;
+                if (entry.AttributedVersionId is not null)
+                {
+                    stored = outcomes.TryGetValue(Key(entry), out var outcome)
+                        ? entry with { GrabId = outcome.GrabId, GrabError = outcome.Error }
+                        : entry with { GrabError = $"A better release of this pass was grabbed for {entry.AttributedVersionName}" };
+                }
+
+                state.Add(stored);
             }
         }
 
@@ -110,13 +156,15 @@ public sealed class RssSyncService(
             .Select(r => new IndexerErrorResponse(r.Indexer.Id, r.Indexer.Name, r.Error!.Kind, r.Error.Message))
             .ToList();
 
-        logger.LogInformation("RSS sync: {Indexers} indexer(s), {Fetched} release(s), {New} new, {Matched} matched, {WouldGrab} would be grabbed, {Errors} error(s)",
-            indexers.Count, results.Sum(r => r.Releases.Count), fresh.Count, matched, wouldGrab, errors.Count);
+        logger.LogInformation("RSS sync: {Indexers} indexer(s), {Fetched} release(s), {New} new, {Matched} matched, {WouldGrab} attributed, {Grabbed} grabbed, {Errors} error(s)",
+            indexers.Count, results.Sum(r => r.Releases.Count), fresh.Count, matched, wouldGrab, grabbed, errors.Count);
 
-        return new RssSyncResponse(indexers.Count, results.Sum(r => r.Releases.Count), fresh.Count, matched, wouldGrab, errors);
+        return new RssSyncResponse(indexers.Count, results.Sum(r => r.Releases.Count), fresh.Count, matched, wouldGrab, errors, grabbed);
     }
 
-    private RssReleaseResponse Judge(Indexer indexer, ReleaseInfo release, LibraryIndex library, Dictionary<int, List<TargetContext>> targets, CustomFormatCalculator calculator, DateTime now)
+    private static string Key(RssReleaseResponse entry) => $"{entry.IndexerId}:{entry.Guid}";
+
+    private (RssReleaseResponse Entry, int Score) Judge(Indexer indexer, ReleaseInfo release, LibraryIndex library, Dictionary<int, List<TargetContext>> targets, CustomFormatCalculator calculator, DateTime now)
     {
         var parsed = ReleaseMatcher.TryParse(release.Title);
         var (movie, reason) = ReleaseMatcher.FindMovie(parsed, release, library);
@@ -140,7 +188,7 @@ public sealed class RssSyncService(
         var revision = parsed?.Quality?.Revision;
         var attributedVersion = attributed is null ? null : (MovieVersion)attributed.Target.Target;
 
-        return new RssReleaseResponse(
+        return (new RssReleaseResponse(
             release.Guid,
             release.Title,
             release.IndexerId,
@@ -166,56 +214,36 @@ public sealed class RssSyncService(
             reason,
             versions,
             attributedVersion?.Id,
-            attributedVersion?.Name);
+            attributedVersion?.Name), attributed?.CustomFormatScore ?? 0);
     }
 }
 
-/// <summary>Runs the RSS pass on the configured interval, after a grace period at startup.</summary>
-public sealed class RssSyncRunner(IServiceScopeFactory scopeFactory, RssFeedState state, IOptions<RssSyncOptions> options, TimeProvider time, ILogger<RssSyncRunner> logger) : BackgroundService
+/// <summary>The RSS pass as a scheduled task (blueprint §3.7): interval and grace period from <see cref="RssSyncOptions"/>.</summary>
+public sealed class RssSyncJob(RssSyncService rss, IOptions<RssSyncOptions> options) : IScheduledJob
 {
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    public const string JobName = "rssSync";
+
+    public string Name => JobName;
+
+    public string DisplayName => "RSS sync";
+
+    public TimeSpan Interval => options.Value.Interval;
+
+    public bool Enabled => options.Value.Enabled;
+
+    public TimeSpan InitialDelay => TimeSpan.FromSeconds(Math.Max(0, options.Value.InitialDelaySeconds));
+
+    public async Task<string?> RunAsync(CancellationToken ct)
     {
-        var settings = options.Value;
-        if (!settings.Enabled)
+        var result = await rss.RunAsync(ct);
+        if (!result.IsSuccess)
         {
-            logger.LogInformation("RSS sync disabled (Bigarr:Rss:Enabled = false)");
-            return;
+            return result.Failure!.Title;
         }
 
-        var initialDelay = TimeSpan.FromSeconds(Math.Max(0, settings.InitialDelaySeconds));
-        state.NextRunAt = time.GetUtcNow().UtcDateTime + initialDelay;
-        logger.LogInformation("RSS sync every {Interval} minutes, first pass in {Delay} seconds", settings.Interval.TotalMinutes, initialDelay.TotalSeconds);
-
-        try
-        {
-            await Task.Delay(initialDelay, time, stoppingToken);
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                try
-                {
-                    await using var scope = scopeFactory.CreateAsyncScope();
-                    var result = await scope.ServiceProvider.GetRequiredService<RssSyncService>().RunAsync(stoppingToken);
-                    if (!result.IsSuccess)
-                    {
-                        logger.LogDebug("Scheduled RSS pass skipped: {Title}", result.Failure!.Title);
-                    }
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "RSS sync pass crashed");
-                }
-
-                state.NextRunAt = time.GetUtcNow().UtcDateTime + settings.Interval;
-                await Task.Delay(settings.Interval, time, stoppingToken);
-            }
-        }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-            // shutting down
-        }
+        var pass = result.Value!;
+        return pass.Indexers == 0
+            ? "No indexer has RSS enabled"
+            : $"{pass.Fetched} release(s) from {pass.Indexers} indexer(s), {pass.New} new, {pass.Matched} matched, {pass.Grabbed} grabbed" + (pass.IndexerErrors.Count > 0 ? $", {pass.IndexerErrors.Count} indexer error(s)" : string.Empty);
     }
 }

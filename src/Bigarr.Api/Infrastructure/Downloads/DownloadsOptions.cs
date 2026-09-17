@@ -21,5 +21,16 @@ public sealed class DownloadsOptions
     /// <summary>Where the mock client writes the files of a completed torrent. Default: <c>mock-downloads</c> under the config directory.</summary>
     public string? MockDownloadDirectory { get; set; }
 
+    /// <summary>A failed download is removed from its client (files included) once blocklisted, like Radarr's "remove failed".</summary>
+    public bool RemoveFailedDownloads { get; set; } = true;
+
+    /// <summary>A failed download queues an automatic search for a replacement (blueprint §5, failed handling).</summary>
+    public bool SearchAfterFailure { get; set; } = true;
+
+    /// <summary>A download stalled for this long is treated as failed. 0 leaves stalled torrents alone, as Radarr does.</summary>
+    public int StalledTimeoutMinutes { get; set; }
+
+    public TimeSpan? StalledTimeout => StalledTimeoutMinutes > 0 ? TimeSpan.FromMinutes(StalledTimeoutMinutes) : null;
+
     public TimeSpan PollInterval => TimeSpan.FromSeconds(Math.Max(MinimumPollSeconds, PollSeconds));
 }

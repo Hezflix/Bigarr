@@ -35,6 +35,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<bool>("Monitored")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("SearchAttempts")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Kind", "Monitored");
@@ -329,6 +332,34 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("DownloadClients", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Events.OutboxEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DispatchedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DispatchedAt");
+
+                    b.ToTable("OutboxEvents", (string)null);
                 });
 
             modelBuilder.Entity("Bigarr.Domain.History.HistoryEvent", b =>
@@ -783,6 +814,94 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("MovieVersionTags", (string)null);
                 });
 
+            modelBuilder.Entity("Bigarr.Domain.Notifications.NotificationEndpoint", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Events")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Secret")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("NotificationEndpoints", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Notifications.WebhookDelivery", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DeliveredAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("EndpointId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("EventId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastAttemptAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("LastStatusCode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("NextAttemptAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId");
+
+                    b.HasIndex("DeliveredAt", "NextAttemptAt");
+
+                    b.HasIndex("EndpointId", "CreatedAt");
+
+                    b.ToTable("WebhookDeliveries", (string)null);
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Quality.CustomFormat", b =>
                 {
                     b.Property<int>("Id")
@@ -922,6 +1041,37 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("QualityProfiles", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Scheduling.ScheduledJob", b =>
+                {
+                    b.Property<string>("Name")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("LastDurationMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastRunAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool?>("LastSucceeded")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LastSummary")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("NextRunAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Name");
+
+                    b.ToTable("ScheduledJobs", (string)null);
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Tags.Tag", b =>
@@ -1204,6 +1354,25 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Tag");
 
                     b.Navigation("Version");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Notifications.WebhookDelivery", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Notifications.NotificationEndpoint", "Endpoint")
+                        .WithMany()
+                        .HasForeignKey("EndpointId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Bigarr.Domain.Events.OutboxEvent", "Event")
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Endpoint");
+
+                    b.Navigation("Event");
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Quality.ProfileFormatScore", b =>

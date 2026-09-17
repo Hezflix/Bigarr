@@ -117,6 +117,7 @@ function AddForm({ movie, onCancel, onAdded }: { movie: MovieLookupResult; onCan
   const [rootId, setRootId] = useState<number | ''>('')
   const [versionName, setVersionName] = useState('')
   const [monitored, setMonitored] = useState(true)
+  const [searchOnAdd, setSearchOnAdd] = useState(true)
   const [availability, setAvailability] = useState<MinimumAvailability>('released')
 
   useEffect(() => {
@@ -138,6 +139,7 @@ function AddForm({ movie, onCancel, onAdded }: { movie: MovieLookupResult; onCan
         versionName: versionName.trim() || null,
         monitored,
         minimumAvailability: availability,
+        searchOnAdd: monitored && searchOnAdd,
       }),
     onSuccess: (created) => onAdded(created.id),
   })
@@ -237,11 +239,22 @@ function AddForm({ movie, onCancel, onAdded }: { movie: MovieLookupResult; onCan
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Checkbox id="add-monitored" checked={monitored} onCheckedChange={(checked) => setMonitored(checked === true)} />
-            <Label htmlFor="add-monitored" className="font-normal">
-              {t('addMovie.monitor')}
-            </Label>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <Checkbox id="add-monitored" checked={monitored} onCheckedChange={(checked) => setMonitored(checked === true)} />
+              <Label htmlFor="add-monitored" className="font-normal">
+                {t('addMovie.monitor')}
+              </Label>
+            </div>
+            <div className="flex items-start gap-2">
+              <Checkbox id="add-search" checked={monitored && searchOnAdd} disabled={!monitored} onCheckedChange={(checked) => setSearchOnAdd(checked === true)} className="mt-0.5" data-testid="add-search-on-add" />
+              <div className="grid gap-0.5">
+                <Label htmlFor="add-search" className="font-normal">
+                  {t('addMovie.searchOnAdd')}
+                </Label>
+                <span className="text-xs text-muted-foreground">{t('addMovie.searchOnAddHint')}</span>
+              </div>
+            </div>
           </div>
 
           {add.error && (

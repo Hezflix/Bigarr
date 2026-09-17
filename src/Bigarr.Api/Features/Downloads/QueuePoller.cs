@@ -1,9 +1,13 @@
+using Bigarr.Api.Features.Blocklist;
 using Bigarr.Api.Features.Import;
+using Bigarr.Api.Features.Search;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Downloads;
+using Bigarr.Api.Infrastructure.Events;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Downloads;
+using Bigarr.Domain.Events;
 using Bigarr.Domain.History;
 using Bigarr.Domain.Movies;
 using Microsoft.EntityFrameworkCore;
@@ -16,10 +20,23 @@ namespace Bigarr.Api.Features.Downloads;
 /// what its client reports, a grab absent for N polls is <see cref="GrabState.Removed"/>, and the queue projection is
 /// rebuilt and published. A finished download waits in <see cref="GrabState.ImportPending"/> until the import worker
 /// takes it (<see cref="ImportQueue"/>); a completed torrent of our category that Bigarr never grabbed is adopted so
-/// the import can match it by its title (blueprint §5).
+/// the import can match it by its title (blueprint §5). A download the client reports failed, or stalled past the
+/// threshold, is blocklisted, removed from the client and replaced by an automatic search (failed handling, §5).
 /// </summary>
-public sealed class QueuePoller(BigarrDbContext db, DownloadClientResolver resolver, QueueState state, ImportQueue imports, IOptions<DownloadsOptions> options, TimeProvider time, ILogger<QueuePoller> logger)
+public sealed class QueuePoller(
+    BigarrDbContext db,
+    DownloadClientResolver resolver,
+    QueueState state,
+    ImportQueue imports,
+    SearchQueue searches,
+    BlocklistService blocklist,
+    OutboxWriter outbox,
+    IOptions<DownloadsOptions> options,
+    TimeProvider time,
+    ILogger<QueuePoller> logger)
 {
+    public const string FailedMessageTitle = "Download failed";
+
     /// <summary>A grab the client does not list yet is given this long before absences count.</summary>
     public static readonly TimeSpan FreshGrabGrace = TimeSpan.FromSeconds(45);
 
@@ -65,12 +82,13 @@ public sealed class QueuePoller(BigarrDbContext db, DownloadClientResolver resol
                         || g.State == GrabState.Importing || g.State == GrabState.ImportFailed || g.State == GrabState.DownloadFailed)
             .ToListAsync(ct);
         var versionIds = grabs.SelectMany(g => g.Targets.Select(t => t.TargetId)).Distinct().ToList();
-        var versions = await db.MovieVersions.AsNoTracking().Include(v => v.Movie).Where(v => versionIds.Contains(v.Id)).ToDictionaryAsync(v => v.Id, ct);
+        var versions = await db.MovieVersions.AsNoTracking().Include(v => v.Movie).Include(v => v.QualityProfile).Where(v => versionIds.Contains(v.Id)).ToDictionaryAsync(v => v.Id, ct);
         var clientsById = clients.ToDictionary(c => c.Id);
 
         var rows = new List<QueueItemResponse>();
         var matchedItems = new HashSet<(int ClientId, string DownloadId)>();
         var readyToImport = new List<int>();
+        var searchAfterSave = new List<int>();
 
         foreach (var grab in grabs)
         {
@@ -100,8 +118,16 @@ public sealed class QueuePoller(BigarrDbContext db, DownloadClientResolver resol
                     matchedItems.Add((client.Id, item.DownloadId));
                     state.Seen(grab.Id);
                     grab.LastSeenAt = now;
-                    Advance(grab, item, version, now, messages);
-                    if (grab.State == GrabState.ImportPending && item.Status == DownloadItemStatus.Completed)
+                    var failure = Advance(grab, item, now, settings, messages);
+                    if (failure is not null)
+                    {
+                        var replace = await HandleFailureAsync(grab, client, version, failure, settings, messages, now, ct);
+                        if (replace is not null)
+                        {
+                            searchAfterSave.Add(replace.Value);
+                        }
+                    }
+                    else if (grab.State == GrabState.ImportPending && item.Status == DownloadItemStatus.Completed)
                     {
                         readyToImport.Add(grab.Id);
                     }
@@ -172,6 +198,12 @@ public sealed class QueuePoller(BigarrDbContext db, DownloadClientResolver resol
             imports.TryEnqueue(grabId);
         }
 
+        // Only once the failed state is committed: the search checks for an active grab on its own connection.
+        foreach (var versionId in searchAfterSave)
+        {
+            searches.TryEnqueue(versionId, SearchTrigger.FailedDownload);
+        }
+
         var ordered = rows.OrderByDescending(r => r.Tracked).ThenByDescending(r => r.AddedAt).ToList();
         return state.Publish(new QueueResponse(now, now + settings.PollInterval, (int)settings.PollInterval.TotalSeconds, 0, ordered, state.ClientStatuses()));
     }
@@ -222,8 +254,8 @@ public sealed class QueuePoller(BigarrDbContext db, DownloadClientResolver resol
         }
     }
 
-    /// <summary>The state machine of §3.5 driven by what the client reports.</summary>
-    private void Advance(Grab grab, DownloadItem item, MovieVersion? version, DateTime now, List<StatusMessage> messages)
+    /// <summary>The state machine of §3.5 driven by what the client reports. Returns the failure reason when the download just failed.</summary>
+    private string? Advance(Grab grab, DownloadItem item, DateTime now, DownloadsOptions settings, List<StatusMessage> messages)
     {
         switch (grab.State)
         {
@@ -235,33 +267,35 @@ public sealed class QueuePoller(BigarrDbContext db, DownloadClientResolver resol
                 break;
         }
 
-        if (item.Status == DownloadItemStatus.Failed && grab.State is GrabState.Grabbed or GrabState.Downloading)
+        if (item.Status != DownloadItemStatus.Stalled)
         {
-            var reason = item.Message ?? "The download client reports an error.";
-            grab.TransitionTo(GrabState.DownloadFailed);
-            grab.StatusMessages.Add(new StatusMessage { Title = "Download failed", Messages = [reason], Severity = StatusSeverity.Error });
-            messages.Add(new StatusMessage { Title = "Download failed", Messages = [reason], Severity = StatusSeverity.Error });
-            db.History.Add(new HistoryEvent
+            state.NotStalled(grab.Id);
+        }
+
+        if (grab.State is GrabState.Grabbed or GrabState.Downloading)
+        {
+            if (item.Status == DownloadItemStatus.Failed)
             {
-                TargetId = version?.Id,
-                MovieId = version?.MovieId,
-                TmdbId = version?.Movie.TmdbId,
-                MovieTitle = version?.Movie.Title,
-                VersionName = version?.Name,
-                EventType = HistoryEventType.DownloadFailed,
-                SourceTitle = grab.ReleaseTitle,
-                IndexerId = grab.IndexerId,
-                IndexerName = grab.IndexerName,
-                Data = new Dictionary<string, string> { ["reason"] = reason, ["downloadClient"] = grab.DownloadClientName ?? string.Empty, ["downloadId"] = grab.DownloadId ?? string.Empty },
-                CreatedAt = now,
-            });
-            logger.LogWarning("{Title} failed in {Client}: {Reason}", grab.ReleaseTitle, grab.DownloadClientName, reason);
-            return;
+                return item.Message ?? "The download client reports an error.";
+            }
+
+            if (item.Status == DownloadItemStatus.Stalled && settings.StalledTimeout is { } timeout && now - state.StalledSince(grab.Id, now) >= timeout)
+            {
+                return $"Stalled for more than {timeout.TotalMinutes:0} minutes.";
+            }
         }
 
         if (item.Status == DownloadItemStatus.Stalled)
         {
-            messages.Add(new StatusMessage { Title = "Stalled", Messages = [item.Message ?? "No peer is sending data."], Severity = StatusSeverity.Warning });
+            var since = state.StalledSince(grab.Id, now);
+            var detail = item.Message ?? "No peer is sending data.";
+            if (settings.StalledTimeout is { } timeout)
+            {
+                var left = timeout - (now - since);
+                detail += $" Treated as failed in {Math.Max(1, Math.Ceiling(left.TotalMinutes)):0} minute(s).";
+            }
+
+            messages.Add(new StatusMessage { Title = "Stalled", Messages = [detail], Severity = StatusSeverity.Warning });
         }
         else if (item.Status == DownloadItemStatus.Paused)
         {
@@ -271,6 +305,93 @@ public sealed class QueuePoller(BigarrDbContext db, DownloadClientResolver resol
         {
             messages.Add(new StatusMessage { Title = item.Message, Severity = StatusSeverity.Info });
         }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Failed handling (blueprint §5): the grab fails, the release is blocklisted for its version (the default one for a
+    /// one-shot), the torrent leaves the client, and the journal and the outbox get the event. Returns the version to
+    /// search for a replacement, which the caller queues after the save.
+    /// </summary>
+    private async Task<int?> HandleFailureAsync(Grab grab, DownloadClient client, MovieVersion? version, string reason, DownloadsOptions settings, List<StatusMessage> messages, DateTime now, CancellationToken ct)
+    {
+        grab.TransitionTo(GrabState.DownloadFailed);
+        state.Forget(grab.Id);
+        grab.StatusMessages.Add(new StatusMessage { Title = FailedMessageTitle, Messages = [reason], Severity = StatusSeverity.Error });
+        messages.Add(new StatusMessage { Title = FailedMessageTitle, Messages = [reason], Severity = StatusSeverity.Error });
+
+        var blocked = await blocklist.BlockAsync(grab, $"Download failed: {reason}", now, ct);
+        var followUp = new List<string>();
+        if (blocked.Count > 0)
+        {
+            followUp.Add("Release blocklisted.");
+        }
+
+        var removed = false;
+        if (settings.RemoveFailedDownloads && grab.DownloadId is not null)
+        {
+            try
+            {
+                await resolver.For(client).RemoveAsync(client, grab.DownloadId, deleteFiles: true, ct);
+                removed = true;
+                followUp.Add($"Removed from {client.Name}.");
+            }
+            catch (DownloadClientException ex)
+            {
+                logger.LogWarning("Could not remove the failed download {Title} from {Client}: {Message}", grab.ReleaseTitle, client.Name, ex.Message);
+                followUp.Add($"Could not remove it from {client.Name}: {ex.Message}");
+            }
+        }
+
+        var searching = settings.SearchAfterFailure && version is not null && version.Monitored;
+        if (searching)
+        {
+            followUp.Add("Searching for a replacement.");
+        }
+
+        if (followUp.Count > 0)
+        {
+            var note = new StatusMessage { Title = "Failed handling", Messages = followUp, Severity = StatusSeverity.Info };
+            grab.StatusMessages.Add(note);
+            messages.Add(note);
+        }
+
+        db.History.Add(new HistoryEvent
+        {
+            TargetId = version?.Id,
+            MovieId = version?.MovieId,
+            TmdbId = version?.Movie.TmdbId,
+            MovieTitle = version?.Movie.Title,
+            VersionName = version?.Name,
+            EventType = HistoryEventType.DownloadFailed,
+            SourceTitle = grab.ReleaseTitle,
+            IndexerId = grab.IndexerId,
+            IndexerName = grab.IndexerName,
+            Data = new Dictionary<string, string>
+            {
+                ["reason"] = reason,
+                ["downloadClient"] = grab.DownloadClientName ?? string.Empty,
+                ["downloadId"] = grab.DownloadId ?? string.Empty,
+                ["blocklisted"] = blocked.Count > 0 ? "true" : "false",
+                ["removedFromClient"] = removed ? "true" : "false",
+                ["searchQueued"] = searching ? "true" : "false",
+            },
+            CreatedAt = now,
+        });
+
+        outbox.Publish(new DownloadFailed(
+            version is null ? null : MovieRef.From(version.Movie),
+            version is null ? null : VersionRef.From(version),
+            new ReleaseRef(grab.ReleaseTitle, GrabService.QualityOf(grab.ReleaseTitle), grab.IndexerName, grab.Size, null, null, grab.InfoHash),
+            grab.Id,
+            reason,
+            blocked.Count > 0,
+            searching)
+        { OccurredAt = now });
+
+        logger.LogWarning("{Title} failed in {Client}: {Reason}. {FollowUp}", grab.ReleaseTitle, client.Name, reason, string.Join(" ", followUp));
+        return searching ? version!.Id : null;
     }
 
     private static QueueItemResponse Row(Grab grab, DownloadItem? item, MovieVersion? version, DownloadClient? client, List<StatusMessage> messages, DateTime now)

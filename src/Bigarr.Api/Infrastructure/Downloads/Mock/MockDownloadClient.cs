@@ -154,6 +154,18 @@ public sealed class MockDownloadClientState(TimeProvider time, IOptions<Download
         return true;
     }
 
+    /// <summary>Freezes the torrent where it is: no peers, no progress, the client reports it stalled.</summary>
+    public bool Stall(string hash)
+    {
+        if (!_torrents.TryGetValue(hash, out var torrent) || torrent.CompletedAt is not null)
+        {
+            return false;
+        }
+
+        torrent.StalledAt ??= time.GetUtcNow();
+        return true;
+    }
+
     public bool Fail(string hash, string message)
     {
         if (!_torrents.TryGetValue(hash, out var torrent))
@@ -167,7 +179,7 @@ public sealed class MockDownloadClientState(TimeProvider time, IOptions<Download
 
     public DownloadItem ToItem(MockTorrent torrent)
     {
-        var now = time.GetUtcNow();
+        var now = torrent.StalledAt ?? time.GetUtcNow();
         var progress = torrent.CompletedAt is not null
             ? 1
             : Math.Clamp((now - torrent.AddedAt).TotalSeconds / Math.Max(1, CompletionDelay.TotalSeconds), 0, 1);
@@ -180,6 +192,7 @@ public sealed class MockDownloadClientState(TimeProvider time, IOptions<Download
         var status = torrent.Error is not null ? DownloadItemStatus.Failed
             : progress >= 1 ? DownloadItemStatus.Completed
             : torrent.Paused ? DownloadItemStatus.Paused
+            : torrent.StalledAt is not null ? DownloadItemStatus.Stalled
             : DownloadItemStatus.Downloading;
         var rate = status == DownloadItemStatus.Downloading ? (long)(torrent.Size / Math.Max(1, CompletionDelay.TotalSeconds)) : 0;
         var eta = status == DownloadItemStatus.Downloading ? CompletionDelay * (1 - progress) : (TimeSpan?)null;
@@ -223,6 +236,8 @@ public sealed class MockDownloadClientState(TimeProvider time, IOptions<Download
         public string? Error { get; set; }
 
         public DateTimeOffset? CompletedAt { get; set; }
+
+        public DateTimeOffset? StalledAt { get; set; }
     }
 }
 

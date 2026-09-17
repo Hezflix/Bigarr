@@ -63,6 +63,8 @@ public static class DownloadsEndpoints
             Touch(state.Complete(downloadId), queue));
         mock.MapPost("/fail", Results<NoContent, NotFound> (string downloadId, string? message, MockDownloadClientState state, QueueState queue) =>
             Touch(state.Fail(downloadId, message ?? "Simulated failure."), queue));
+        mock.MapPost("/stall", Results<NoContent, NotFound> (string downloadId, MockDownloadClientState state, QueueState queue) =>
+            Touch(state.Stall(downloadId), queue));
         mock.MapDelete("/", Results<NoContent, NotFound> (string downloadId, MockDownloadClientState state, QueueState queue) =>
             Touch(state.Remove(downloadId), queue));
     }

@@ -16,6 +16,7 @@ public sealed class QueueState(IOptions<DownloadsOptions> options)
     private readonly ConcurrentDictionary<Guid, Channel<QueueResponse>> _subscribers = new();
     private readonly ConcurrentDictionary<int, int> _misses = new();
     private readonly ConcurrentDictionary<int, ClientHealth> _clients = new();
+    private readonly ConcurrentDictionary<int, DateTime> _stalledSince = new();
     private readonly Channel<bool> _refreshRequests = Channel.CreateBounded<bool>(new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropWrite });
     private long _revision;
 
@@ -33,7 +34,16 @@ public sealed class QueueState(IOptions<DownloadsOptions> options)
 
     public void Seen(int grabId) => _misses.TryRemove(grabId, out _);
 
-    public void Forget(int grabId) => _misses.TryRemove(grabId, out _);
+    public void Forget(int grabId)
+    {
+        _misses.TryRemove(grabId, out _);
+        _stalledSince.TryRemove(grabId, out _);
+    }
+
+    /// <summary>First poll that saw the grab stalled, this run of the process; the timer restarts after a restart on purpose.</summary>
+    public DateTime StalledSince(int grabId, DateTime now) => _stalledSince.GetOrAdd(grabId, now);
+
+    public void NotStalled(int grabId) => _stalledSince.TryRemove(grabId, out _);
 
     public void RecordClient(int clientId, string name, string? error, DateTime now)
     {

@@ -17,7 +17,11 @@ public abstract class AcquisitionTarget
 
     public bool Monitored { get; set; } = true;
 
+    /// <summary>Last automatic search, whatever triggered it. Drives the cutoff-unmet backoff with <see cref="SearchAttempts"/>.</summary>
     public DateTime? LastSearchAt { get; set; }
+
+    /// <summary>Automatic searches in a row that found nothing to grab; reset by a grab or an import. The backoff doubles with it (blueprint §5).</summary>
+    public int SearchAttempts { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

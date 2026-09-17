@@ -51,7 +51,11 @@ public sealed record RssReleaseResponse(
     List<VersionDecisionResponse> Versions,
     /// <summary>The single version the release would be grabbed for, when at least one accepts it (blueprint §3.3).</summary>
     int? AttributedVersionId,
-    string? AttributedVersionName);
+    string? AttributedVersionName,
+    /// <summary>Set when this pass sent the release to a download client.</summary>
+    int? GrabId = null,
+    /// <summary>Why the attributed release was not grabbed after all: another release of the pass was better, or the client refused it.</summary>
+    string? GrabError = null);
 
 public sealed record RssIndexerStatusResponse(int IndexerId, string Indexer, DateTime? LastRunAt, string? LastError, int LastFetched, int LastNew);
 
@@ -64,6 +68,7 @@ public sealed record RssStatusResponse(
     int Stored,
     int Matched,
     int WouldGrab,
-    List<RssIndexerStatusResponse> Indexers);
+    List<RssIndexerStatusResponse> Indexers,
+    int Grabbed = 0);
 
-public sealed record RssSyncResponse(int Indexers, int Fetched, int New, int Matched, int WouldGrab, List<IndexerErrorResponse> IndexerErrors);
+public sealed record RssSyncResponse(int Indexers, int Fetched, int New, int Matched, int WouldGrab, List<IndexerErrorResponse> IndexerErrors, int Grabbed = 0);

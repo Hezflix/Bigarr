@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { EyeIcon, EyeOffIcon, FileXIcon, PlusIcon, RefreshCwIcon, StarIcon, Trash2Icon } from 'lucide-react'
+import { EyeIcon, EyeOffIcon, FileXIcon, PlusIcon, RefreshCwIcon, SearchIcon, StarIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, customFormats, history, movies, quality, rootFolders, type MediaInfo, type MinimumAvailability, type Movie, type Version, type VersionMode } from '@/api/client'
+import { ApiError, customFormats, history, movies, quality, rootFolders, search, type MediaInfo, type MinimumAvailability, type Movie, type Version, type VersionMode } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import { StatusBadge } from '@/components/StatusBadge'
 import { HistoryTable } from '@/features/activity/HistoryTable'
 import { RenameDialog } from '@/features/movies/RenameDialog'
 import { InteractiveSearch } from '@/features/search/InteractiveSearch'
+import { toastSearchError, toastSearchResults } from '@/features/search/searchOutcome'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,6 +63,20 @@ export function MovieDetailPage() {
     void queryClient.invalidateQueries({ queryKey: ['movie', id] })
     void queryClient.invalidateQueries({ queryKey: ['movies'] })
   }
+  const afterSearch = () => {
+    invalidate()
+    void queryClient.invalidateQueries({ queryKey: ['history', id] })
+    void queryClient.invalidateQueries({ queryKey: ['queue'] })
+    void queryClient.invalidateQueries({ queryKey: ['search', id] })
+  }
+  const searchAll = useMutation({
+    mutationFn: () => search.automatic(id),
+    onSuccess: (results) => {
+      toastSearchResults(t, results)
+      afterSearch()
+    },
+    onError: (e) => toastSearchError(t, e),
+  })
 
   const refresh = useMutation({
     mutationFn: () => movies.refresh(id),
@@ -155,6 +170,10 @@ export function MovieDetailPage() {
           </div>
 
           <div className="mt-1 flex flex-wrap gap-2">
+            <Button type="button" onClick={() => searchAll.mutate()} disabled={searchAll.isPending || m.versions.length === 0} data-testid="search-all-versions">
+              <SearchIcon className={searchAll.isPending ? 'animate-pulse' : undefined} />
+              {searchAll.isPending ? t('search.searching') : t('movie.searchAll')}
+            </Button>
             <Button type="button" variant="outline" onClick={() => refresh.mutate()} disabled={refresh.isPending}>
               <RefreshCwIcon className={refresh.isPending ? 'animate-spin' : undefined} />
               {t('movie.refresh')}
@@ -212,7 +231,7 @@ export function MovieDetailPage() {
         <h2 className="text-xl font-semibold tracking-tight">{t('versions.title')}</h2>
         <AddVersionDialog movie={m} onAdded={invalidate} />
       </div>
-      <VersionsTable movie={m} onChanged={invalidate} />
+      <VersionsTable movie={m} onChanged={invalidate} onSearched={afterSearch} />
       <InteractiveSearch movie={m} />
       <MovieHistory movieId={m.id} />
     </>
@@ -239,11 +258,20 @@ function mediaInfoSummary(info: MediaInfo): string {
   return [info.videoCodec, info.videoDynamicRangeType, audio || null, info.width && info.height ? `${info.width}×${info.height}` : null].filter(Boolean).join(' · ')
 }
 
-function VersionsTable({ movie, onChanged }: { movie: Movie; onChanged: () => void }) {
+function VersionsTable({ movie, onChanged, onSearched }: { movie: Movie; onChanged: () => void; onSearched: () => void }) {
   const { t } = useTranslation()
   const [pendingDelete, setPendingDelete] = useState<Version | null>(null)
   const [pendingFileDelete, setPendingFileDelete] = useState<Version | null>(null)
   const fail = (e: unknown) => toast.error(e instanceof ApiError ? e.message : t('common.unexpectedError'))
+
+  const searchOne = useMutation({
+    mutationFn: (v: Version) => search.automatic(movie.id, v.id),
+    onSuccess: (results) => {
+      toastSearchResults(t, results)
+      onSearched()
+    },
+    onError: (e) => toastSearchError(t, e),
+  })
 
   const deleteFile = useMutation({
     mutationFn: (v: Version) => movies.deleteFile(movie.id, v.id),
@@ -377,6 +405,23 @@ function VersionsTable({ movie, onChanged }: { movie: Movie; onChanged: () => vo
                           type="button"
                           variant="ghost"
                           size="icon"
+                          onClick={() => searchOne.mutate(v)}
+                          disabled={searchOne.isPending || v.status === 'downloading'}
+                          aria-label={t('search.autoSearch')}
+                          data-testid={`search-version-${v.id}`}
+                        >
+                          <SearchIcon className={searchOne.isPending && searchOne.variables?.id === v.id ? 'animate-pulse' : undefined} />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{v.status === 'downloading' ? t('search.grabBlocked') : t('search.autoSearchHint')}</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
                           onClick={() => toggle.mutate(v)}
                           disabled={toggle.isPending}
                           aria-label={v.monitored ? t('versions.unmonitor') : t('versions.monitor')}
@@ -499,6 +544,7 @@ function AddVersionDialog({ movie, onAdded }: { movie: Movie; onAdded: () => voi
   const [group, setGroup] = useState('')
   const [required, setRequired] = useState<number[]>([])
   const [forbidden, setForbidden] = useState<number[]>([])
+  const [searchOnAdd, setSearchOnAdd] = useState(true)
   const formats = useQuery({ queryKey: ['customFormats'], queryFn: customFormats.list, enabled: open })
   const hasConstraints = edition.trim() || group.trim() || required.length > 0 || forbidden.length > 0
 
@@ -511,6 +557,7 @@ function AddVersionDialog({ movie, onAdded }: { movie: Movie; onAdded: () => voi
         rootFolderId: rootId,
         monitored: true,
         minimumAvailability: availability,
+        searchOnAdd,
         constraints: hasConstraints
           ? {
               edition: edition.trim() || null,
@@ -633,6 +680,13 @@ function AddVersionDialog({ movie, onAdded }: { movie: Movie; onAdded: () => voi
             <div className="grid grid-cols-1 gap-2">
               <Label htmlFor="version-group">{t('versions.releaseGroup')}</Label>
               <Input id="version-group" value={group} onChange={(e) => setGroup(e.target.value)} placeholder="FraMeSToR" />
+            </div>
+
+            <div className="flex items-center gap-2 sm:col-span-2">
+              <Checkbox id="version-search" checked={searchOnAdd} onCheckedChange={(checked) => setSearchOnAdd(checked === true)} data-testid="version-search-on-add" />
+              <Label htmlFor="version-search" className="font-normal">
+                {t('addMovie.searchOnAdd')}
+              </Label>
             </div>
 
             {formats.data && formats.data.length > 0 && (

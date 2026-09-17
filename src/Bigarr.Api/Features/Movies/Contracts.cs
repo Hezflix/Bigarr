@@ -22,7 +22,7 @@ public sealed record AddMovieRequest(
     string? VersionName = null,
     bool Monitored = true,
     MinimumAvailability MinimumAvailability = MinimumAvailability.Released,
-    /// <summary>Accepted for compatibility; searching arrives with M2.</summary>
+    /// <summary>Search the indexers right away, in the background (blueprint §5: "si monitored et disponibilité atteinte, recherche immédiate").</summary>
     bool SearchOnAdd = false);
 
 public sealed record ConstraintsDto(
@@ -41,7 +41,8 @@ public sealed record AddVersionRequest(
     string? FolderName = null,
     bool Monitored = true,
     MinimumAvailability MinimumAvailability = MinimumAvailability.Released,
-    ConstraintsDto? Constraints = null);
+    ConstraintsDto? Constraints = null,
+    bool SearchOnAdd = false);
 
 public sealed record UpdateVersionRequest(
     string? Name = null,

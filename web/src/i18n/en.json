@@ -18,7 +18,12 @@
     "queue": "Queue",
     "settingsDownloadClients": "Download clients",
     "settingsMediaManagement": "Media management",
-    "history": "History"
+    "history": "History",
+    "wanted": "Wanted",
+    "blocklist": "Blocklist",
+    "settingsNotifications": "Notifications",
+    "system": "System",
+    "systemStatus": "Status"
   },
   "theme": {
     "label": "Theme",
@@ -42,7 +47,10 @@
     "minutes": "{{count}} min",
     "save": "Save",
     "saving": "Saving…",
-    "close": "Close"
+    "close": "Close",
+    "previous": "Previous",
+    "next": "Next",
+    "page": "Page {{page}} of {{pages}}"
   },
   "library": {
     "title": "Library",
@@ -72,7 +80,9 @@
     "versionNameHint": "Lowercase slug, for example 1080p, 4k, directors-cut.",
     "minimumAvailability": "Minimum availability",
     "monitor": "Monitor this version",
-    "submit": "Add"
+    "submit": "Add",
+    "searchOnAdd": "Search right away",
+    "searchOnAddHint": "The indexers are queried in the background once the movie is added and the best release is grabbed."
   },
   "availability": {
     "announced": "Announced",
@@ -106,7 +116,8 @@
     "deleteFiles": "Also delete the files from disk",
     "deleteFilesHint": "The movie folder goes to the recycle bin when one is configured in Settings → Media management, otherwise it is deleted for good.",
     "history": "History",
-    "renameFiles": "Rename files"
+    "renameFiles": "Rename files",
+    "searchAll": "Search all versions"
   },
   "versions": {
     "title": "Versions",
@@ -289,7 +300,14 @@
     "grabNoLink": "No download link",
     "grabbed": "Grabbed “{{title}}” → {{client}}.",
     "grabFailed": "The grab failed.",
-    "grabOneShot": "Grab as a one-shot version"
+    "grabOneShot": "Grab as a one-shot version",
+    "autoSearch": "Search automatically",
+    "autoSearchHint": "Search the indexers and grab the best release for this version",
+    "autoGrabbed": "{{label}}: grabbed “{{title}}”.",
+    "autoNothing": "{{label}}: nothing to grab. {{detail}}",
+    "autoNoIndexer": "{{label}}: no indexer has automatic search enabled.",
+    "autoSkipped": "{{label}}: skipped. {{detail}}",
+    "autoFailed": "{{label}}: the grab failed. {{detail}}"
   },
   "rss": {
     "title": "Releases",
@@ -299,18 +317,19 @@
     "lastRun": "last pass {{date}}",
     "neverRan": "no pass yet",
     "nextRun": "next {{date}}",
-    "stored": "{{stored}} releases kept, {{matched}} matched, {{wouldGrab}} would be grabbed",
+    "stored": "{{stored}} releases kept, {{matched}} matched, {{attributed}} attributed, {{grabbed}} grabbed",
     "matchedOnly": "Matched only",
     "sync": "Sync now",
     "syncing": "Syncing…",
-    "synced": "RSS pass done: {{fetched}} releases, {{new}} new, {{matched}} matched, {{wouldGrab}} would be grabbed.",
+    "synced": "RSS pass done: {{fetched}} releases, {{new}} new, {{matched}} matched, {{grabbed}} grabbed.",
     "syncFailed": "The RSS pass failed.",
     "empty": "No releases seen yet.",
     "emptyMatched": "No release matched a film of the library yet.",
     "movie": "Movie",
     "noMatch": "Not in the library",
-    "wouldGrab": "Would grab for {{version}}",
-    "grabLater": "The RSS loop only reports what it would grab; automatic grabbing arrives with M6. Grab by hand from a film’s interactive search."
+    "grabbed": "Grabbed for {{version}}",
+    "attributed": "Attributed to {{version}}",
+    "grabHint": "Each pass sends the best attributed release of every version to a download client. A release attributed but not grabbed lost to a better one of the same pass, or was refused by the client."
   },
   "quality": {
     "title": "Quality",
@@ -667,5 +686,146 @@
     "backfillDone_other": "{{count}} files probed, {{remaining}} left.",
     "saved": "Media management saved.",
     "saveFailed": "The settings could not be saved."
+  },
+  "wanted": {
+    "title": "Wanted",
+    "hint": "Monitored versions without a file, and files below their profile cutoff. The cutoff-unmet task searches them on its own, waiting longer after each empty search; a search from here ignores that wait.",
+    "filter": "Filter",
+    "filters": {
+      "all": "All",
+      "missing": "Missing",
+      "cutoffUnmet": "Cutoff unmet"
+    },
+    "searchAll": "Search all",
+    "queued_one": "{{count}} search queued.",
+    "queued_other": "{{count}} searches queued.",
+    "empty": "Nothing is wanted: every monitored version has its file at the cutoff.",
+    "count_one": "{{count}} version wanted",
+    "count_other": "{{count}} versions wanted",
+    "movie": "Movie",
+    "version": "Version",
+    "kind": "Wanted for",
+    "current": "Current file",
+    "cutoff": "Cutoff",
+    "lastSearch": "Last search",
+    "nextSearch": "Next automatic search",
+    "nextSearchHint": "When the cutoff-unmet task may search this version again. The wait doubles after each empty search.",
+    "never": "never",
+    "due": "at the next pass",
+    "attempts_one": "{{count}} empty search",
+    "attempts_other": "{{count}} empty searches in a row"
+  },
+  "blocklist": {
+    "title": "Blocklist",
+    "hint": "Releases refused for a version: failed downloads land here on their own, removals from the queue when you ask. Dropping an entry lets the release be grabbed again.",
+    "empty": "Nothing is blocklisted.",
+    "movie": "Movie",
+    "movieGone": "Movie deleted",
+    "version": "Version",
+    "release": "Release",
+    "indexer": "Indexer",
+    "reason": "Reason",
+    "date": "Added",
+    "remove": "Remove from the blocklist",
+    "removeSelected": "Remove selected ({{count}})",
+    "removed_one": "{{count}} entry removed.",
+    "removed_other": "{{count}} entries removed.",
+    "removeFailed": "The entry could not be removed.",
+    "select": "Select",
+    "selectAll": "Select all"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "hint": "Webhooks: every event Bigarr publishes is POSTed as JSON to each endpoint that subscribes to it, signed with the secret when there is one, and retried until it lands, restarts included.",
+    "add": "Add a webhook",
+    "new": "New webhook",
+    "editTitle": "Edit {{name}}",
+    "name": "Name",
+    "url": "URL",
+    "secret": "Secret",
+    "secretHint": "Optional. When set, X-Bigarr-Signature carries an HMAC-SHA256 of the body so the receiver can check the origin.",
+    "secretKeepHint": "This endpoint is signed. Leave empty to remove the secret, or type a new one.",
+    "enabledToggle": "Enabled",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "signed": "Signed",
+    "events": "Events",
+    "eventsLegend": "Events to send",
+    "allEvents": "All events",
+    "allEventsHint": "Nothing checked: every event is sent.",
+    "someEventsHint_one": "{{count}} event type selected.",
+    "someEventsHint_other": "{{count}} event types selected.",
+    "state": "State",
+    "deliveries": "Deliveries",
+    "lastDelivered": "last delivered {{age}}",
+    "neverDelivered": "nothing delivered yet",
+    "pendingFailed": "{{pending}} pending, {{failed}} given up",
+    "showDeliveries": "Recent deliveries",
+    "deliveriesTitle": "Deliveries to {{name}}",
+    "noDeliveries": "No delivery yet.",
+    "event": "Event",
+    "attempts": "Attempts",
+    "lastAttempt": "Last attempt",
+    "nextAttempt": "Next attempt",
+    "states": {
+      "pending": "Pending",
+      "delivered": "Delivered",
+      "givenUp": "Given up"
+    },
+    "retry": "Send again",
+    "retried": "Delivery queued again.",
+    "test": "Test",
+    "testing": "Testing…",
+    "testOk": "The endpoint answered HTTP {{status}} in {{ms}} ms.",
+    "testFailed": "The endpoint did not accept the test event.",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteTitle": "Delete this webhook?",
+    "confirmDelete": "Delete “{{name}}”? Its pending deliveries are dropped.",
+    "removeFailed": "The webhook could not be deleted.",
+    "empty": "No webhook yet."
+  },
+  "system": {
+    "title": "System",
+    "about": "About this instance",
+    "version": "Version",
+    "runtime": "Runtime",
+    "os": "System",
+    "docker": "Docker",
+    "configDirectory": "Config directory",
+    "metadata": "Metadata",
+    "metadataProviders": {
+      "tmdb": "TMDB",
+      "fixtures": "Embedded fixtures (no TMDB key)"
+    },
+    "startedAt": "Started"
+  },
+  "health": {
+    "title": "Health",
+    "checked": "checked {{age}}",
+    "checkNow": "Check now",
+    "allGood": "All good: nothing stands in the way of the loop.",
+    "types": {
+      "error": "Error",
+      "warning": "Warning",
+      "notice": "Notice"
+    },
+    "badge_one": "{{count}} health issue",
+    "badge_other": "{{count}} health issues"
+  },
+  "tasks": {
+    "title": "Scheduled tasks",
+    "hint": "What runs on its own: the RSS pass, the search for missing and upgradable versions, the health check, the maintenance. Each can be run now.",
+    "task": "Task",
+    "interval": "Every",
+    "lastRun": "Last run",
+    "result": "Result",
+    "nextRun": "Next run",
+    "runNow": "Run now",
+    "running": "Running…",
+    "neverRan": "never",
+    "disabled": "disabled",
+    "ran": "{{name}}: {{summary}}",
+    "failed": "{{name}} failed: {{error}}"
   }
 }

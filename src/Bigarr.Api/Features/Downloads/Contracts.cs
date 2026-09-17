@@ -1,5 +1,6 @@
 using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Downloads;
+using Bigarr.Domain.Indexers;
 
 namespace Bigarr.Api.Features.Downloads;
 
@@ -54,7 +55,15 @@ public sealed record GrabRequest(
     IndexerFlags Flags = IndexerFlags.None,
     DownloadProtocol Protocol = DownloadProtocol.Torrent,
     /// <summary>Indexer name as displayed, kept when the indexer row is gone.</summary>
-    string? Indexer = null);
+    string? Indexer = null)
+{
+    /// <summary>What the automatic paths (RSS, searches) send: the release as the indexer returned it.</summary>
+    public static GrabRequest From(ReleaseInfo release, int versionId)
+    {
+        ArgumentNullException.ThrowIfNull(release);
+        return new GrabRequest(versionId, release.IndexerId, release.Guid, release.Title, release.DownloadUrl, release.MagnetUrl, release.InfoHash, release.Size, release.Seeders, release.Flags, release.Protocol, release.IndexerName);
+    }
+}
 
 public sealed record GrabResponse(int GrabId, string DownloadId, int DownloadClientId, string DownloadClient, GrabState State, DateTime GrabbedAt);
 

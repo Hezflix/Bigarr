@@ -19,8 +19,6 @@ namespace Bigarr.Api.Features.Search;
 /// </summary>
 public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFactory contexts, CustomFormatScorer scorer, IndexerGateway gateway, TimeProvider time, ILogger<InteractiveSearchService> logger)
 {
-    private static readonly Dictionary<int, int> QualityWeights = ParserQuality.DefaultQualityDefinitions.ToDictionary(d => d.Quality.Id, d => d.Weight);
-
     private readonly ReleaseEvaluator _evaluator = ReleaseEvaluator.Interactive();
 
     public async Task<Result<SearchResponse>> SearchAsync(int movieId, int? versionId, CancellationToken ct)
@@ -47,12 +45,7 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
             return Failure.Invalid("No indexer available", "No indexer has interactive search enabled. Add one in Settings → Indexers.");
         }
 
-        var criteria = new MovieSearchCriteria(
-            movie.Title,
-            movie.Year,
-            movie.ImdbId,
-            movie.TmdbId,
-            new[] { movie.OriginalTitle }.Concat(movie.AlternativeTitles.Select(a => a.Title)).Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t!).Distinct().ToList());
+        var criteria = CriteriaFor(movie);
 
         var stopwatch = Stopwatch.StartNew();
         var results = await IndexerQueries.RunAsync(indexers, (indexer, token) => gateway.SearchAsync(indexer, criteria, token), ct);
@@ -69,7 +62,7 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
             .Select(release => Evaluate(release, movie, targets, minimumSeeders.GetValueOrDefault(release.IndexerId), calculator))
             .OrderByDescending(r => r.MatchesMovie)
             .ThenByDescending(r => r.Versions.Any(v => v.Approved))
-            .ThenByDescending(r => QualityWeights.GetValueOrDefault(r.QualityId))
+            .ThenByDescending(r => ReleaseRanking.WeightOf(r.QualityId))
             .ThenByDescending(r => r.Versions.Count == 0 ? 0 : r.Versions.Max(v => v.CustomFormatScore))
             .ThenByDescending(r => r.RevisionVersion)
             .ThenBy(r => r.IndexerPriority)
@@ -81,6 +74,18 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
             .ToList();
 
         return Result<SearchResponse>.Ok(new SearchResponse(movie.Id, time.GetUtcNow().UtcDateTime, indexers.Count, releases, errors));
+    }
+
+    /// <summary>What the indexers are asked: title, year, ids and every alternative title the metadata knows.</summary>
+    public static MovieSearchCriteria CriteriaFor(Movie movie)
+    {
+        ArgumentNullException.ThrowIfNull(movie);
+        return new MovieSearchCriteria(
+            movie.Title,
+            movie.Year,
+            movie.ImdbId,
+            movie.TmdbId,
+            new[] { movie.OriginalTitle }.Concat(movie.AlternativeTitles.Select(a => a.Title)).Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t!).Distinct().ToList());
     }
 
     private ReleaseResponse Evaluate(ReleaseInfo release, Movie movie, List<TargetContext> contexts, int minimumSeeders, CustomFormatCalculator calculator)

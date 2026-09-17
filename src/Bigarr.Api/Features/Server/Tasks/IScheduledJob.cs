@@ -1,0 +1,32 @@
+namespace Bigarr.Api.Features.Server.Tasks;
+
+/// <summary>
+/// A recurring job (blueprint §3.7): the scheduler runs it on its interval and on demand, records the outcome, and
+/// shows it in the UI. Implementations are scoped services: a fresh scope per run.
+/// </summary>
+public interface IScheduledJob
+{
+    /// <summary>Stable camelCase id, the key of the <c>ScheduledJobs</c> row and of the API route.</summary>
+    string Name { get; }
+
+    string DisplayName { get; }
+
+    TimeSpan Interval { get; }
+
+    /// <summary>A disabled job never runs on its own; it can still be triggered by hand.</summary>
+    bool Enabled { get; }
+
+    /// <summary>Grace period after startup before the first run: a restart must not hammer the indexers.</summary>
+    TimeSpan InitialDelay { get; }
+
+    /// <summary>Does the work and returns one line about it ("15 releases, 2 grabbed"), or null.</summary>
+    Task<string?> RunAsync(CancellationToken ct);
+}
+
+/// <summary>Bound from <c>Bigarr:Scheduler</c>. Disabled in the tests, where jobs run through the API.</summary>
+public sealed class SchedulerOptions
+{
+    public const string Section = "Bigarr:Scheduler";
+
+    public bool Enabled { get; set; } = true;
+}
