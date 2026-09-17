@@ -3,6 +3,7 @@ using Bigarr.Api.Features.Downloads;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Decision;
 using Bigarr.Api.Infrastructure.Downloads;
+using Bigarr.Api.Infrastructure.Events;
 using Bigarr.Api.Infrastructure.Files;
 using Bigarr.Api.Infrastructure.Matching;
 using Bigarr.Api.Infrastructure.Media;
@@ -11,6 +12,7 @@ using Bigarr.Decision;
 using Bigarr.Decision.Specifications;
 using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Downloads;
+using Bigarr.Domain.Events;
 using Bigarr.Domain.History;
 using Bigarr.Domain.Indexers;
 using Bigarr.Domain.Library;
@@ -64,6 +66,7 @@ public sealed class ImportService(
     TargetContextFactory contexts,
     ImportQueue imports,
     QueueState queue,
+    OutboxWriter outbox,
     TimeProvider time,
     ILogger<ImportService> logger)
 {
@@ -445,7 +448,27 @@ public sealed class ImportService(
             CreatedAt = now,
         });
 
+        // A file in place means the version is no longer waiting: the search backoff starts over.
+        version.SearchAttempts = 0;
+
+        // Two saves in one transaction: the event carries the new file's id.
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await db.SaveChangesAsync(ct);
+        var releaseRef = plan.Grab is null ? null : new ReleaseRef(plan.ReleaseTitle, plan.Quality.Quality.Name, plan.Grab.IndexerName, plan.Grab.Size, releaseGroup, null, plan.Grab.InfoHash);
+        var fileRef = new FileRef(file.Id, destination, data["quality"], source.Length, matched.Select(m => m.Name).ToList(), ProfileRanking.FormatScore(version.QualityProfile, matched.Select(m => m.Id)));
+        var transferName = data["transfer"];
+        if (existing is null)
+        {
+            outbox.Publish(new FileImported(MovieRef.From(movie), VersionRef.From(version), fileRef, releaseRef, plan.Grab?.Id, plan.Force, transferName) { OccurredAt = now });
+        }
+        else
+        {
+            var previous = new FileRef(existing.Id, existingPath ?? string.Empty, data["previousQuality"], existing.Size);
+            outbox.Publish(new FileUpgraded(MovieRef.From(movie), VersionRef.From(version), fileRef, previous, releaseRef, plan.Grab?.Id, plan.Force, transferName) { OccurredAt = now });
+        }
+
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return new ImportOutcome(true, null, file, existing is not null, outcome, destination);
     }
 
@@ -473,6 +496,12 @@ public sealed class ImportService(
             Data = new Dictionary<string, string> { ["reason"] = reason, ["downloadClient"] = grab.DownloadClientName ?? string.Empty, ["downloadId"] = grab.DownloadId ?? string.Empty },
             CreatedAt = time.GetUtcNow().UtcDateTime,
         });
+        outbox.Publish(new ImportFailed(
+            version is null ? null : MovieRef.From(version.Movie),
+            version is null ? null : VersionRef.From(version),
+            new ReleaseRef(grab.ReleaseTitle, Downloads.GrabService.QualityOf(grab.ReleaseTitle), grab.IndexerName, grab.Size, null, null, grab.InfoHash),
+            grab.Id,
+            reason));
         await db.SaveChangesAsync(ct);
         logger.LogWarning("Import of {Title} failed: {Reason}", grab.ReleaseTitle, reason);
     }

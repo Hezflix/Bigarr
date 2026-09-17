@@ -1,11 +1,14 @@
 using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Auth;
 using Bigarr.Domain.Downloads;
+using Bigarr.Domain.Events;
 using Bigarr.Domain.History;
 using Bigarr.Domain.Indexers;
 using Bigarr.Domain.Library;
 using Bigarr.Domain.Movies;
+using Bigarr.Domain.Notifications;
 using Bigarr.Domain.Quality;
+using Bigarr.Domain.Scheduling;
 using Bigarr.Domain.Tags;
 using Microsoft.EntityFrameworkCore;
 
@@ -56,6 +59,14 @@ public sealed class BigarrDbContext(DbContextOptions<BigarrDbContext> options) :
     public DbSet<User> Users => Set<User>();
 
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
+
+    public DbSet<OutboxEvent> Outbox => Set<OutboxEvent>();
+
+    public DbSet<NotificationEndpoint> NotificationEndpoints => Set<NotificationEndpoint>();
+
+    public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
+
+    public DbSet<ScheduledJob> ScheduledJobs => Set<ScheduledJob>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -21,8 +21,6 @@ public sealed class RssFeedState
 
     public DateTime? LastRunAt { get; private set; }
 
-    public DateTime? NextRunAt { get; set; }
-
     /// <summary>Only one pass at a time, scheduled or manual.</summary>
     public bool TryBeginRun() => _run.Wait(0);
 
@@ -107,11 +105,12 @@ public sealed class RssFeedState
                 (int)options.Interval.TotalMinutes,
                 Running,
                 LastRunAt,
-                options.Enabled ? NextRunAt : null,
+                null, // the scheduler knows; RssSyncService fills it in
                 _releases.Count,
                 _releases.Count(r => r.Movie is not null),
                 _releases.Count(r => r.AttributedVersionId is not null),
-                _indexers.Values.OrderBy(i => i.Indexer).ToList());
+                _indexers.Values.OrderBy(i => i.Indexer).ToList(),
+                _releases.Count(r => r.GrabId is not null));
         }
     }
 }

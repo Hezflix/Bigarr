@@ -217,6 +217,8 @@ export type AddMovieRequest = {
   versionName?: string | null
   monitored?: boolean
   minimumAvailability?: MinimumAvailability
+  /** Search the indexers right away, in the background. */
+  searchOnAdd?: boolean
 }
 
 export type AddVersionRequest = {
@@ -228,6 +230,7 @@ export type AddVersionRequest = {
   monitored?: boolean
   minimumAvailability?: MinimumAvailability
   constraints?: Partial<Constraints> | null
+  searchOnAdd?: boolean
 }
 
 export type UpdateVersionRequest = {
@@ -575,9 +578,60 @@ export type SearchResult = {
   indexerErrors: { indexerId: number; indexer: string; kind: IndexerFailureKind; message: string }[]
 }
 
+export type AutomaticSearchOutcome = 'grabbed' | 'nothingFound' | 'noIndexer' | 'skipped' | 'failed'
+
+/** One version's outcome of an automatic search: the best approved release was grabbed, or here is why not. */
+export type AutomaticSearchResult = {
+  movieId: number
+  movieTitle: string
+  versionId: number
+  versionName: string
+  outcome: AutomaticSearchOutcome
+  releaseTitle: string | null
+  grabId: number | null
+  detail: string | null
+  releases: number
+  approved: number
+  indexerErrors: { indexerId: number; indexer: string; kind: IndexerFailureKind; message: string }[]
+}
+
 export const search = {
   movie: (movieId: number, versionId?: number) =>
     api<SearchResult>(`/api/v1/search?movieId=${movieId}${versionId ? `&versionId=${versionId}` : ''}`),
+  /** Automatic search on demand: every version of the film (or one), the best approved release grabbed. */
+  automatic: (movieId: number, versionId?: number) =>
+    post<AutomaticSearchResult[]>(`/api/v1/movies/${movieId}/search${versionId ? `?versionId=${versionId}` : ''}`),
+}
+
+// ---- wanted ----------------------------------------------------------------
+
+export type WantedFilter = 'missing' | 'cutoffUnmet'
+
+export type WantedItem = {
+  movieId: number
+  movieTitle: string
+  year: number | null
+  posterUrl: string | null
+  versionId: number
+  versionName: string
+  qualityProfile: string
+  kind: WantedFilter
+  currentQuality: string | null
+  currentScore: number | null
+  cutoffQuality: string
+  lastSearchAt: string | null
+  searchAttempts: number
+  /** When the cutoff-unmet job may search it again; null means at its next pass. */
+  nextSearchAt: string | null
+}
+
+export type WantedPage = { items: WantedItem[]; total: number; page: number; pageSize: number }
+
+export const wanted = {
+  list: (filter?: WantedFilter, page = 1, pageSize = 50) =>
+    api<WantedPage>(`/api/v1/wanted?page=${page}&pageSize=${pageSize}${filter ? `&filter=${filter}` : ''}`),
+  /** Queues a search for everything on the list, backoff ignored; runs in the background one version at a time. */
+  searchAll: (filter?: WantedFilter) => post<{ queued: number }>(`/api/v1/wanted/search${filter ? `?filter=${filter}` : ''}`),
 }
 
 // ---- rss -------------------------------------------------------------------
@@ -611,6 +665,10 @@ export type RssRelease = {
   versions: VersionDecision[]
   attributedVersionId: number | null
   attributedVersionName: string | null
+  /** Set when the pass sent the release to a download client. */
+  grabId: number | null
+  /** Why the attributed release was not grabbed after all. */
+  grabError: string | null
 }
 
 export type RssIndexerStatus = { indexerId: number; indexer: string; lastRunAt: string | null; lastError: string | null; lastFetched: number; lastNew: number }
@@ -625,6 +683,7 @@ export type RssStatus = {
   matched: number
   wouldGrab: number
   indexers: RssIndexerStatus[]
+  grabbed: number
 }
 
 export type RssSyncResult = {
@@ -634,6 +693,7 @@ export type RssSyncResult = {
   matched: number
   wouldGrab: number
   indexerErrors: { indexerId: number; indexer: string; kind: IndexerFailureKind; message: string }[]
+  grabbed: number
 }
 
 export const rss = {
@@ -681,6 +741,7 @@ export const downloadClients = {
   mock: {
     complete: (downloadId: string) => post<void>(`/api/v1/downloadclients/mock/${encodeURIComponent(downloadId)}/complete`),
     fail: (downloadId: string) => post<void>(`/api/v1/downloadclients/mock/${encodeURIComponent(downloadId)}/fail`),
+    stall: (downloadId: string) => post<void>(`/api/v1/downloadclients/mock/${encodeURIComponent(downloadId)}/stall`),
     remove: (downloadId: string) => del(`/api/v1/downloadclients/mock/${encodeURIComponent(downloadId)}`),
   },
 }
@@ -909,6 +970,140 @@ export const history = {
     return api<HistoryEvent[]>(`/api/v1/history${query ? `?${query}` : ''}`)
   },
 }
+
+// ---- blocklist -------------------------------------------------------------
+
+export type BlocklistEntry = {
+  id: number
+  versionId: number
+  versionName: string | null
+  movieId: number | null
+  movieTitle: string | null
+  movieYear: number | null
+  posterUrl: string | null
+  sourceTitle: string
+  quality: string | null
+  releaseGuid: string | null
+  infoHash: string | null
+  indexerId: number | null
+  indexerName: string | null
+  reason: string | null
+  createdAt: string
+}
+
+export type BlocklistPage = { items: BlocklistEntry[]; total: number; page: number; pageSize: number }
+
+export const blocklist = {
+  list: (options: { movieId?: number; page?: number; pageSize?: number } = {}) => {
+    const params = new URLSearchParams()
+    if (options.movieId) params.set('movieId', String(options.movieId))
+    params.set('page', String(options.page ?? 1))
+    params.set('pageSize', String(options.pageSize ?? 50))
+    return api<BlocklistPage>(`/api/v1/blocklist?${params.toString()}`)
+  },
+  remove: (id: number) => del(`/api/v1/blocklist/${id}`),
+  bulkDelete: (ids: number[]) => post<number>('/api/v1/blocklist/bulk-delete', { ids }),
+}
+
+// ---- notifications ---------------------------------------------------------
+
+export type NotificationEndpointRequest = {
+  name: string
+  url: string
+  secret?: string | null
+  enabled?: boolean
+  /** Event types to send; empty means every event. */
+  events?: string[]
+}
+
+export type NotificationEndpoint = {
+  id: number
+  name: string
+  url: string
+  hasSecret: boolean
+  enabled: boolean
+  events: string[]
+  pendingDeliveries: number
+  failedDeliveries: number
+  lastDeliveredAt: string | null
+  lastError: string | null
+  createdAt: string
+}
+
+export type NotificationEventType = { type: string; description: string }
+
+export type WebhookTestResult = { statusCode: number | null; elapsedMs: number }
+
+export type WebhookDeliveryState = 'pending' | 'delivered' | 'givenUp'
+
+export type WebhookDelivery = {
+  id: number
+  eventId: number
+  eventType: string
+  state: WebhookDeliveryState
+  attempts: number
+  nextAttemptAt: string | null
+  lastAttemptAt: string | null
+  deliveredAt: string | null
+  lastStatusCode: number | null
+  lastError: string | null
+  createdAt: string
+}
+
+export const notifications = {
+  list: () => api<NotificationEndpoint[]>('/api/v1/notifications'),
+  get: (id: number) => api<NotificationEndpoint>(`/api/v1/notifications/${id}`),
+  add: (body: NotificationEndpointRequest) => post<NotificationEndpoint>('/api/v1/notifications', body),
+  update: (id: number, body: NotificationEndpointRequest) => put<NotificationEndpoint>(`/api/v1/notifications/${id}`, body),
+  remove: (id: number) => del(`/api/v1/notifications/${id}`),
+  /** Sends a test event to an unsaved configuration: what the form calls. */
+  test: (body: NotificationEndpointRequest) => post<WebhookTestResult>('/api/v1/notifications/test', body),
+  testSaved: (id: number) => post<WebhookTestResult>(`/api/v1/notifications/${id}/test`),
+  deliveries: (id: number, limit = 50) => api<WebhookDelivery[]>(`/api/v1/notifications/${id}/deliveries?limit=${limit}`),
+  /** Makes a delivery due now, given up or not; the attempt counter starts over. */
+  retryDelivery: (deliveryId: number) => post<WebhookDelivery>(`/api/v1/notifications/deliveries/${deliveryId}/retry`),
+  eventTypes: () => api<NotificationEventType[]>('/api/v1/notifications/events'),
+}
+
+// ---- tasks & health --------------------------------------------------------
+
+export type ScheduledTask = {
+  name: string
+  displayName: string
+  intervalMinutes: number
+  enabled: boolean
+  running: boolean
+  lastRunAt: string | null
+  lastDurationMs: number | null
+  lastSucceeded: boolean | null
+  lastSummary: string | null
+  lastError: string | null
+  nextRunAt: string | null
+}
+
+export type TaskRunResult = { name: string; success: boolean; durationMs: number; summary: string | null; error: string | null; ranAt: string }
+
+export const tasks = {
+  list: () => api<ScheduledTask[]>('/api/v1/system/tasks'),
+  /** Runs the job now and waits for it. */
+  run: (name: string) => post<TaskRunResult>(`/api/v1/system/tasks/${encodeURIComponent(name)}/run`),
+}
+
+export type HealthIssueType = 'notice' | 'warning' | 'error'
+
+export type HealthIssue = { source: string; type: HealthIssueType; message: string }
+
+export type Health = { checkedAt: string | null; issues: HealthIssue[] }
+
+export const health = {
+  get: () => api<Health>('/api/v1/health'),
+  check: () => post<Health>('/api/v1/health/check'),
+}
+
+// ---- events ----------------------------------------------------------------
+
+/** text/event-stream of every dispatched event: the event name is the type, the data the JSON payload. */
+export const eventsUrl = '/api/v1/events'
 
 // ---- helpers ---------------------------------------------------------------
 

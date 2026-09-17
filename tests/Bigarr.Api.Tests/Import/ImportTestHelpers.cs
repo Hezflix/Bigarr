@@ -167,6 +167,28 @@ internal static class ImportTestHelpers
         return $"Queue: {string.Join(" | ", queue.Items.Select(i => $"{i.Title} {i.State} [{string.Join("; ", i.StatusMessages.Select(m => m.Title + ": " + string.Join(" ", m.Messages)))}]"))}. History: {string.Join(" | ", history.Select(h => $"{h.EventType} {h.SourceTitle} {string.Join(",", h.Data.Select(d => d.Key + "=" + d.Value))}"))}";
     }
 
+    /// <summary>Polls <paramref name="probe"/> until it returns a value; background workers run in the test host.</summary>
+    public static async Task<T> WaitUntilAsync<T>(Func<Task<T?>> probe, string what, TimeSpan? timeout = null)
+        where T : class
+    {
+        var deadline = DateTime.UtcNow + (timeout ?? ImportTimeout);
+        while (true)
+        {
+            var value = await probe();
+            if (value is not null)
+            {
+                return value;
+            }
+
+            if (DateTime.UtcNow > deadline)
+            {
+                throw new TimeoutException($"Timed out waiting for {what}.");
+            }
+
+            await Task.Delay(100);
+        }
+    }
+
     public static void TryDelete(string path)
     {
         try

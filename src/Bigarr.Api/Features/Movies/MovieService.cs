@@ -1,9 +1,12 @@
 using System.Text.RegularExpressions;
+using Bigarr.Api.Features.Search;
 using Bigarr.Api.Infrastructure;
+using Bigarr.Api.Infrastructure.Events;
 using Bigarr.Api.Infrastructure.Files;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Common;
+using Bigarr.Domain.Events;
 using Bigarr.Domain.History;
 using Bigarr.Domain.Library;
 using Bigarr.Domain.Metadata;
@@ -14,7 +17,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Bigarr.Api.Features.Movies;
 
 /// <summary>Application rules of the Movies slice: add, version, promote, delete, refresh. Shared with the compat layer later.</summary>
-public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider metadata, RecycleBin recycleBin, TimeProvider time, ILogger<MovieService> logger)
+public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider metadata, RecycleBin recycleBin, OutboxWriter outbox, SearchQueue searches, TimeProvider time, ILogger<MovieService> logger)
 {
     public IQueryable<Movie> WithGraph(bool tracking = false)
     {
@@ -169,18 +172,25 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
         await db.MovieExclusions.Where(e => e.TmdbId == request.TmdbId).ExecuteDeleteAsync(ct);
 
         db.Movies.Add(movie);
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         try
         {
             await db.SaveChangesAsync(ct);
         }
         catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("UNIQUE constraint failed: Movies.TmdbId", StringComparison.Ordinal) == true)
         {
+            await transaction.RollbackAsync(ct);
             return Failure.Conflict("Movie already in the library", $"TMDB {request.TmdbId} was added concurrently.");
         }
 
+        var created = movie.Versions.Single();
+        outbox.Publish(new MovieAdded(MovieRef.From(movie), VersionRef.From(created)));
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+
         if (request.SearchOnAdd)
         {
-            logger.LogDebug("searchOnAdd requested for movie {MovieId}: searching arrives with M2", movie.Id);
+            searches.TryEnqueue(created.Id, SearchTrigger.Added);
         }
 
         return Result<Movie>.Ok(movie);
@@ -244,7 +254,19 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
         };
 
         movie.Versions.Add(version);
-        await db.SaveChangesAsync(ct);
+        await using (var transaction = await db.Database.BeginTransactionAsync(ct))
+        {
+            await db.SaveChangesAsync(ct);
+            outbox.Publish(new VersionAdded(MovieRef.From(movie), VersionRef.From(version)));
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+        }
+
+        if (request.SearchOnAdd)
+        {
+            searches.TryEnqueue(version.Id, SearchTrigger.Added);
+        }
+
         return Result<MovieVersion>.Ok(version);
     }
 
@@ -393,6 +415,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
         var folderShared = siblings.Any(v => v.RootFolderId == version.RootFolderId && v.FolderName == version.FolderName);
         if (siblings.Count == 0)
         {
+            outbox.Publish(new MovieDeleted(MovieRef.From(movie), deleteFiles));
             await RemoveMovieAsync(movie, addImportExclusion, ct);
             if (deleteFiles)
             {
@@ -464,6 +487,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             }
         }
 
+        outbox.Publish(new MovieDeleted(MovieRef.From(movie), deleteFiles));
         await RemoveMovieAsync(movie, addImportExclusion, ct);
         return Result<bool>.Ok(true);
     }
@@ -512,6 +536,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
         }
 
         db.History.Add(FileDeletedEvent(movie, version, path, recycled, time.GetUtcNow().UtcDateTime));
+        outbox.Publish(new FileDeleted(MovieRef.From(movie), VersionRef.From(version), new FileRef(version.File!.Id, path, version.File.Quality?.Name, version.File.Size), recycled is null ? "deleted" : "recycled"));
         return null;
     }
 
@@ -623,6 +648,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
                 ["newVersionId"] = next.Id.ToString(),
             },
         });
+        outbox.Publish(new DefaultVersionChanged(MovieRef.From(movie), VersionRef.From(next), previous is null ? null : VersionRef.From(previous)));
         await db.SaveChangesAsync(ct);
 
         await transaction.CommitAsync(ct);

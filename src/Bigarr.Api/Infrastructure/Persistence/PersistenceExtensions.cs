@@ -1,3 +1,4 @@
+using Bigarr.Api.Infrastructure.Events;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,7 +16,8 @@ public static class PersistenceExtensions
             Pooling = true,
         }.ToString();
 
-        services.AddDbContext<BigarrDbContext>(o => o.UseSqlite(connectionString));
+        // The outbox interceptor wakes the dispatcher once a save carrying events has committed (blueprint §3.9).
+        services.AddDbContext<BigarrDbContext>((sp, o) => o.UseSqlite(connectionString).AddInterceptors(sp.GetRequiredService<OutboxInterceptor>()));
         services.AddHostedService<DatabaseInitializer>();
         return services;
     }

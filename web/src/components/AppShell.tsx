@@ -1,8 +1,27 @@
 import { Link, Outlet, useMatchRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FilmIcon, FolderCogIcon, FolderOpenIcon, HardDriveDownloadIcon, HistoryIcon, ListOrderedIcon, LogOutIcon, PlusIcon, RadioTowerIcon, RssIcon, SlidersHorizontalIcon, TagsIcon } from 'lucide-react'
+import { cn } from 'cn'
+import {
+  BanIcon,
+  FilmIcon,
+  FolderCogIcon,
+  FolderOpenIcon,
+  HardDriveDownloadIcon,
+  HeartPulseIcon,
+  HistoryIcon,
+  ListOrderedIcon,
+  ListTodoIcon,
+  LogOutIcon,
+  PlusIcon,
+  RadioTowerIcon,
+  RssIcon,
+  SlidersHorizontalIcon,
+  TagsIcon,
+  WebhookIcon,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { auth, system } from '@/api/client'
+import { auth, health, system } from '@/api/client'
+import { useServerEvents } from '@/hooks/useServerEvents'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -29,18 +48,24 @@ type NavItem = {
   to:
     | '/'
     | '/add'
+    | '/wanted'
     | '/activity/queue'
     | '/activity/releases'
     | '/activity/history'
+    | '/activity/blocklist'
     | '/settings/library'
     | '/settings/mediamanagement'
     | '/settings/indexers'
     | '/settings/downloadclients'
+    | '/settings/notifications'
     | '/settings/quality'
     | '/settings/customformats'
+    | '/system/status'
   label: string
   icon: React.ComponentType<{ className?: string }>
   exact?: boolean
+  /** The health badge sits on this entry. */
+  health?: boolean
 }
 
 type NavSection = { title: string; items: NavItem[] }
@@ -54,6 +79,7 @@ function useSections(): NavSection[] {
       items: [
         { to: '/', label: t('nav.library'), icon: FilmIcon, exact: true },
         { to: '/add', label: t('nav.addMovie'), icon: PlusIcon },
+        { to: '/wanted', label: t('nav.wanted'), icon: ListTodoIcon },
       ],
     },
     {
@@ -62,6 +88,7 @@ function useSections(): NavSection[] {
         { to: '/activity/queue', label: t('nav.queue'), icon: ListOrderedIcon },
         { to: '/activity/releases', label: t('nav.releases'), icon: RssIcon },
         { to: '/activity/history', label: t('nav.history'), icon: HistoryIcon },
+        { to: '/activity/blocklist', label: t('nav.blocklist'), icon: BanIcon },
       ],
     },
     {
@@ -71,15 +98,42 @@ function useSections(): NavSection[] {
         { to: '/settings/mediamanagement', label: t('nav.settingsMediaManagement'), icon: FolderCogIcon },
         { to: '/settings/indexers', label: t('nav.settingsIndexers'), icon: RadioTowerIcon },
         { to: '/settings/downloadclients', label: t('nav.settingsDownloadClients'), icon: HardDriveDownloadIcon },
+        { to: '/settings/notifications', label: t('nav.settingsNotifications'), icon: WebhookIcon },
         { to: '/settings/quality', label: t('nav.settingsQuality'), icon: SlidersHorizontalIcon },
         { to: '/settings/customformats', label: t('nav.settingsCustomFormats'), icon: TagsIcon },
       ],
     },
+    {
+      title: t('nav.system'),
+      items: [{ to: '/system/status', label: t('nav.systemStatus'), icon: HeartPulseIcon, health: true }],
+    },
   ]
+}
+
+/** Warnings and errors of the last health check, next to the System entry. Notices are not worth a badge. */
+function HealthBadge() {
+  const { t } = useTranslation()
+  const query = useQuery({ queryKey: ['health'], queryFn: health.get, refetchInterval: 60_000 })
+  const issues = query.data?.issues.filter((i) => i.type !== 'notice') ?? []
+  if (issues.length === 0) return null
+  const hasError = issues.some((i) => i.type === 'error')
+  return (
+    <span
+      className={cn(
+        'ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-medium tabular-nums group-data-[collapsible=icon]:hidden',
+        hasError ? 'bg-red-500/15 text-red-700 dark:text-red-300' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+      )}
+      aria-label={t('health.badge', { count: issues.length })}
+      data-testid="health-badge"
+    >
+      {issues.length}
+    </span>
+  )
 }
 
 export function AppShell() {
   const { t } = useTranslation()
+  useServerEvents()
 
   return (
     <SidebarProvider>
@@ -145,6 +199,7 @@ function AppSidebar() {
                         <Link to={item.to} onClick={() => setOpenMobile(false)}>
                           <item.icon />
                           <span>{item.label}</span>
+                          {item.health && <HealthBadge />}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
