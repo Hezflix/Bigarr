@@ -16,6 +16,9 @@ public sealed class DatabaseInitializer(
     {
         Directory.CreateDirectory(options.Value.ConfigDirectory);
 
+        // A restore staged by the previous run replaces the database before anything opens it (Features/Server/Backup).
+        Features.Server.Backup.BackupService.ApplyStagedRestore(options.Value.DatabasePath, logger);
+
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
 

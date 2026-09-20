@@ -13,6 +13,7 @@ import { LoginPage } from './features/auth/LoginPage'
 import { LibraryPage } from './features/library/LibraryPage'
 import { AddMoviePage } from './features/movies/AddMoviePage'
 import { MovieDetailPage } from './features/movies/MovieDetailPage'
+import { ConnectPage } from './features/settings/ConnectPage'
 import { CustomFormatsPage } from './features/settings/CustomFormatsPage'
 import { DownloadClientsPage } from './features/settings/DownloadClientsPage'
 import { IndexersSettingsPage } from './features/settings/IndexersSettingsPage'
@@ -70,6 +71,7 @@ const qualitySettingsRoute = createRoute({ getParentRoute: () => appRoute, path:
 const customFormatsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/customformats', component: CustomFormatsPage })
 const downloadClientsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/downloadclients', component: DownloadClientsPage })
 const notificationsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/notifications', component: NotificationsPage })
+const connectRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/connect', component: ConnectPage })
 
 const router = createRouter({
   routeTree: rootRoute.addChildren([loginRoute, appRoute.addChildren([
@@ -86,6 +88,7 @@ const router = createRouter({
       indexersSettingsRoute,
       downloadClientsRoute,
       notificationsRoute,
+      connectRoute,
       qualitySettingsRoute,
       customFormatsRoute,
       systemRoute,

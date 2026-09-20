@@ -4,6 +4,7 @@ import { FolderInputIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, rootFolders, type RootFolder, type UnmappedFolder } from '@/api/client'
+import { PathPicker } from '@/components/PathPicker'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -17,7 +18,6 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -92,11 +92,12 @@ export function LibrarySettingsPage() {
         </div>
 
         <form className="flex max-w-xl flex-wrap items-start gap-2" onSubmit={submit}>
-          <Input
-            className="min-w-56 flex-1"
+          <PathPicker
+            className="min-w-64 flex-1"
             value={path}
-            onChange={(e) => setPath(e.target.value)}
+            onChange={setPath}
             placeholder={t('settings.pathPlaceholder')}
+            testId="rootfolder-path"
           />
           <Button type="submit" disabled={add.isPending || !path.trim()}>
             {t('settings.addRootFolder')}

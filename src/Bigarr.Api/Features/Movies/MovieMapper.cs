@@ -85,7 +85,8 @@ public static class MovieMapper
             version.CreatedAt,
             assessment?.CustomFormats.ToList(),
             assessment?.CustomFormatScore,
-            assessment?.CutoffMet);
+            assessment?.CutoffMet,
+            version.Tags.Select(t => t.Id).OrderBy(id => id).ToList());
     }
 
     public static MediaFileResponse ToFile(MediaFile file, string folder) => new(

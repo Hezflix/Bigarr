@@ -69,6 +69,43 @@ export const system = {
   status: () => api<SystemStatus>('/api/v1/system/status'),
 }
 
+// ---- API keys (Connect) ----------------------------------------------------
+
+/** What a key sees through the Radarr-compatible API: `default`, `all` or `version:<slug>`. */
+export type ApiKey = {
+  id: number
+  name: string
+  keyPrefix: string
+  compatView: string
+  createdAt: string
+  lastUsedAt: string | null
+  revokedAt: string | null
+}
+
+/** The only response that carries the key itself. */
+export type ApiKeyCreated = ApiKey & { key: string }
+
+export const apiKeys = {
+  list: () => api<ApiKey[]>('/api/v1/apikeys'),
+  create: (name: string, compatView: string) => post<ApiKeyCreated>('/api/v1/apikeys', { name, compatView }),
+  revoke: (id: number) => del(`/api/v1/apikeys/${id}`),
+}
+
+// ---- backups ---------------------------------------------------------------
+
+export type Backup = { name: string; size: number; createdAt: string; type: 'manual' | 'scheduled' }
+
+export type RestoreResult = { name: string; restartRequested: boolean; message: string }
+
+export const backups = {
+  list: () => api<Backup[]>('/api/v1/system/backup'),
+  create: () => post<Backup>('/api/v1/system/backup'),
+  remove: (name: string) => del(`/api/v1/system/backup/${encodeURIComponent(name)}`),
+  /** Stages the database and restarts Bigarr; the page must expect the connection to drop. */
+  restore: (name: string) => post<RestoreResult>(`/api/v1/system/backup/${encodeURIComponent(name)}/restore`),
+  downloadUrl: (name: string) => `/api/v1/system/backup/${encodeURIComponent(name)}/download`,
+}
+
 // ---- movies ----------------------------------------------------------------
 
 export type VersionMode = 'managed' | 'oneShot'
@@ -453,6 +490,24 @@ export const rootFolders = {
   scan: (id: number) => post<ScanStatus>(`/api/v1/rootfolders/${id}/scan`),
   scanStatus: (id: number) => api<ScanStatus>(`/api/v1/rootfolders/${id}/scan`),
   unmapped: () => api<UnmappedFolder[]>('/api/v1/rootfolders/unmapped'),
+}
+
+// ---- filesystem ------------------------------------------------------------
+
+export type FileSystemItem = { name: string; path: string; size: number; lastModified: string | null }
+
+/** One folder as the path picker reads it. `path` is empty and `parent` null when the mount points come back. */
+export type FolderListing = {
+  path: string
+  parent: string | null
+  exists: boolean
+  directories: FileSystemItem[]
+  files: FileSystemItem[]
+}
+
+export const filesystem = {
+  /** A path that does not exist yet answers with its deepest existing ancestor, so a half-typed path still suggests. */
+  browse: (path: string, includeFiles = false) => api<FolderListing>(`/api/v1/filesystem?path=${encodeURIComponent(path)}&includeFiles=${includeFiles}`),
 }
 
 // ---- indexers --------------------------------------------------------------

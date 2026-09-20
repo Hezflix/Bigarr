@@ -18,7 +18,9 @@ public sealed record IndexerRequest(
     int MinimumSeeders = 1,
     double? SeedRatio = null,
     int? SeedTimeMinutes = null,
-    int RateLimitSeconds = 2);
+    int RateLimitSeconds = 2,
+    /// <summary>Set by the Prowlarr paths (read-only sync, or Prowlarr pushing through the compat API) so both recognise the row.</summary>
+    int? ProwlarrId = null);
 
 public sealed record IndexerStatusResponse(
     bool Healthy,

@@ -235,5 +235,9 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
         indexer.SeedRatio = request.SeedRatio;
         indexer.SeedTimeMinutes = request.SeedTimeMinutes;
         indexer.RateLimitSeconds = request.RateLimitSeconds;
+        if (request.ProwlarrId is not null)
+        {
+            indexer.ProwlarrId = request.ProwlarrId;
+        }
     }
 }

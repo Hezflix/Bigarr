@@ -23,7 +23,9 @@ public sealed record AddMovieRequest(
     bool Monitored = true,
     MinimumAvailability MinimumAvailability = MinimumAvailability.Released,
     /// <summary>Search the indexers right away, in the background (blueprint §5: "si monitored et disponibilité atteinte, recherche immédiate").</summary>
-    bool SearchOnAdd = false);
+    bool SearchOnAdd = false,
+    /// <summary>Tags of the default version (§3.3).</summary>
+    List<int>? TagIds = null);
 
 public sealed record ConstraintsDto(
     string? Edition,
@@ -42,7 +44,8 @@ public sealed record AddVersionRequest(
     bool Monitored = true,
     MinimumAvailability MinimumAvailability = MinimumAvailability.Released,
     ConstraintsDto? Constraints = null,
-    bool SearchOnAdd = false);
+    bool SearchOnAdd = false,
+    List<int>? TagIds = null);
 
 public sealed record UpdateVersionRequest(
     string? Name = null,
@@ -51,7 +54,9 @@ public sealed record UpdateVersionRequest(
     bool? Monitored = null,
     MinimumAvailability? MinimumAvailability = null,
     ConstraintsDto? Constraints = null,
-    bool ClearConstraints = false);
+    bool ClearConstraints = false,
+    /// <summary>The full list of tag ids; null leaves the tags untouched.</summary>
+    List<int>? TagIds = null);
 
 public sealed record MediaFileResponse(
     int Id,
@@ -92,7 +97,8 @@ public sealed record VersionResponse(
     List<string>? CustomFormats = null,
     int? CustomFormatScore = null,
     /// <summary>Quality at the profile cutoff and score at the cutoff format score: nothing more is wanted.</summary>
-    bool? CutoffMet = null);
+    bool? CutoffMet = null,
+    List<int>? Tags = null);
 
 public sealed record MovieResponse(
     int Id,
