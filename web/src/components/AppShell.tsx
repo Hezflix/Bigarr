@@ -12,6 +12,7 @@ import {
   ListOrderedIcon,
   ListTodoIcon,
   LogOutIcon,
+  PlugIcon,
   PlusIcon,
   RadioTowerIcon,
   RssIcon,
@@ -60,6 +61,7 @@ type NavItem = {
     | '/settings/notifications'
     | '/settings/quality'
     | '/settings/customformats'
+    | '/settings/connect'
     | '/system/status'
   label: string
   icon: React.ComponentType<{ className?: string }>
@@ -101,6 +103,7 @@ function useSections(): NavSection[] {
         { to: '/settings/notifications', label: t('nav.settingsNotifications'), icon: WebhookIcon },
         { to: '/settings/quality', label: t('nav.settingsQuality'), icon: SlidersHorizontalIcon },
         { to: '/settings/customformats', label: t('nav.settingsCustomFormats'), icon: TagsIcon },
+        { to: '/settings/connect', label: t('nav.settingsConnect'), icon: PlugIcon },
       ],
     },
     {

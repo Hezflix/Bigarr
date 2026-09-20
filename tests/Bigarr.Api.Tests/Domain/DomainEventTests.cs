@@ -16,7 +16,8 @@ public sealed class DomainEventTests
         [
             new MovieAdded(movie, version),
             new VersionAdded(movie, version),
-            new MovieDeleted(movie, false),
+            new MovieDeleted(movie, false, [version]),
+            new VersionDeleted(movie, version, false),
             new ReleaseGrabbed(movie, version, new ReleaseRef("The.Matrix.1999.1080p", "Bluray-1080p", "Mock", 1, null, 12, "abc"), 7, "qbt", "abc", "rss"),
             new FileImported(movie, version, new FileRef(3, "/x", "Bluray-1080p", 1), null, null, false, "Hardlinked"),
             new FileUpgraded(movie, version, new FileRef(3, "/x", "Bluray-1080p", 1), new FileRef(2, "/y", "WEBDL-1080p", 1), null, null, false, "Copied"),
@@ -39,7 +40,7 @@ public sealed class DomainEventTests
 
         Assert.Equal(DomainEventCatalog.All.Count, events.Select(e => e.Type).Distinct().Count());
 
-        using var grabbed = JsonDocument.Parse(EventJson.Serialize(events[3]));
+        using var grabbed = JsonDocument.Parse(EventJson.Serialize(events[4]));
         Assert.Equal("managed", grabbed.RootElement.GetProperty("version").GetProperty("mode").GetString());
         Assert.Equal("Bluray-1080p", grabbed.RootElement.GetProperty("release").GetProperty("quality").GetString());
     }

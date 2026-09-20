@@ -1,16 +1,28 @@
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
-import { HeartPulseIcon, PlayIcon, RefreshCwIcon } from 'lucide-react'
+import { ArchiveIcon, DownloadIcon, HeartPulseIcon, HistoryIcon, PlayIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, health, system, tasks, type HealthIssueType, type ScheduledTask } from '@/api/client'
+import { ApiError, backups, health, system, tasks, type Backup, type HealthIssueType, type ScheduledTask } from '@/api/client'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { formatAge, formatDateTime } from '@/i18n'
+import { formatAge, formatBytes, formatDateTime } from '@/i18n'
 
 export const healthStyles: Record<HealthIssueType, string> = {
   error: 'border-red-600/30 bg-red-500/10 text-red-700 dark:border-red-400/30 dark:text-red-300',
@@ -175,6 +187,8 @@ export function SystemPage() {
         </div>
       </section>
 
+      <BackupsSection />
+
       {status.data && (
         <Card data-testid="system-status">
           <CardHeader>
@@ -202,5 +216,168 @@ export function SystemPage() {
         </Card>
       )}
     </>
+  )
+}
+
+/** Backups (M7): a zip of the database, weekly and on demand; restoring stages the file and restarts Bigarr. */
+function BackupsSection() {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const list = useQuery({ queryKey: ['backups'], queryFn: backups.list })
+  const [pendingRestore, setPendingRestore] = useState<Backup | null>(null)
+  const [pendingRemove, setPendingRemove] = useState<Backup | null>(null)
+  const [restarting, setRestarting] = useState(false)
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['backups'] })
+
+  const create = useMutation({
+    mutationFn: backups.create,
+    onSuccess: async (backup) => {
+      toast.success(t('backups.created', { name: backup.name }))
+      await invalidate()
+      await queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : t('backups.createFailed')),
+  })
+  const restore = useMutation({
+    mutationFn: (name: string) => backups.restore(name),
+    onSuccess: () => {
+      setPendingRestore(null)
+      setRestarting(true)
+    },
+    onError: (e) => {
+      setPendingRestore(null)
+      toast.error(e instanceof ApiError ? e.message : t('backups.restoreFailed'))
+    },
+  })
+  const remove = useMutation({
+    mutationFn: (name: string) => backups.remove(name),
+    onSuccess: async () => {
+      setPendingRemove(null)
+      await invalidate()
+    },
+    onError: (e) => {
+      setPendingRemove(null)
+      toast.error(e instanceof ApiError ? e.message : t('backups.removeFailed'))
+    },
+  })
+
+  return (
+    <section className="flex flex-col gap-3" data-testid="backups">
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+          <ArchiveIcon className="size-5" />
+          {t('backups.title')}
+        </h2>
+        <Button type="button" variant="outline" size="sm" className="ml-auto" onClick={() => create.mutate()} disabled={create.isPending || restarting} data-testid="backup-now">
+          <ArchiveIcon className={create.isPending ? 'animate-pulse' : undefined} />
+          {t('backups.create')}
+        </Button>
+      </div>
+      <p className="max-w-3xl text-sm text-muted-foreground">{t('backups.hint')}</p>
+      {restarting && (
+        <Alert data-testid="restoring">
+          <AlertDescription>{t('backups.restoring')}</AlertDescription>
+        </Alert>
+      )}
+      <div className="overflow-x-auto rounded-lg border">
+        <Table data-testid="backups-table">
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('backups.name')}</TableHead>
+              <TableHead>{t('backups.type')}</TableHead>
+              <TableHead>{t('backups.size')}</TableHead>
+              <TableHead>{t('backups.createdAt')}</TableHead>
+              <TableHead className="text-right">{t('versions.actions')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {list.data?.map((backup) => (
+              <TableRow key={backup.name} data-testid={`backup-${backup.name}`}>
+                <TableCell className="font-mono text-xs break-all">{backup.name}</TableCell>
+                <TableCell>
+                  <Badge variant="outline">{t(`backups.types.${backup.type}`)}</Badge>
+                </TableCell>
+                <TableCell className="whitespace-nowrap tabular-nums">{formatBytes(backup.size)}</TableCell>
+                <TableCell className="whitespace-nowrap">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>{formatAge(backup.createdAt)}</span>
+                    </TooltipTrigger>
+                    <TooltipContent>{formatDateTime(backup.createdAt)}</TooltipContent>
+                  </Tooltip>
+                </TableCell>
+                <TableCell>
+                  <div className="flex justify-end gap-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button asChild variant="ghost" size="icon" aria-label={t('backups.download')}>
+                          <a href={backups.downloadUrl(backup.name)} download>
+                            <DownloadIcon />
+                          </a>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{t('backups.download')}</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button type="button" variant="ghost" size="icon" onClick={() => setPendingRestore(backup)} disabled={restarting} aria-label={t('backups.restore')}>
+                          <HistoryIcon />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{t('backups.restore')}</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button type="button" variant="ghost" size="icon" onClick={() => setPendingRemove(backup)} aria-label={t('backups.remove')}>
+                          <Trash2Icon />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{t('backups.remove')}</TooltipContent>
+                    </Tooltip>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+            {list.data?.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={5} className="text-muted-foreground">
+                  {t('backups.none')}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <AlertDialog open={pendingRestore !== null} onOpenChange={(open) => !open && setPendingRestore(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('backups.restoreTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{pendingRestore && t('backups.confirmRestore', { name: pendingRestore.name })}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => pendingRestore && restore.mutate(pendingRestore.name)} disabled={restore.isPending}>
+              {t('backups.restore')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={pendingRemove !== null} onOpenChange={(open) => !open && setPendingRemove(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('backups.removeTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{pendingRemove && t('backups.confirmRemove', { name: pendingRemove.name })}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => pendingRemove && remove.mutate(pendingRemove.name)} disabled={remove.isPending}>
+              {t('backups.remove')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </section>
   )
 }

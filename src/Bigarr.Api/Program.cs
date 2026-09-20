@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Bigarr.Api.Features.Auth;
 using Bigarr.Api.Features.Blocklist;
+using Bigarr.Api.Features.Compat.Radarr;
 using Bigarr.Api.Features.Downloads;
 using Bigarr.Api.Features.History;
 using Bigarr.Api.Features.Import;
@@ -12,8 +13,10 @@ using Bigarr.Api.Features.Notifications;
 using Bigarr.Api.Features.Quality;
 using Bigarr.Api.Features.Search;
 using Bigarr.Api.Features.Server;
+using Bigarr.Api.Features.Server.Backup;
 using Bigarr.Api.Features.Server.Health;
 using Bigarr.Api.Features.Server.Tasks;
+using Bigarr.Api.Features.Tags;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Auth;
 using Bigarr.Api.Infrastructure.Decision;
@@ -38,6 +41,9 @@ builder.Services.AddBigarrIndexers(builder.Configuration);
 builder.Services.AddBigarrDownloads(builder.Configuration);
 builder.Services.AddBigarrEvents(builder.Configuration);
 builder.Services.AddScoped<MovieService>();
+builder.Services.AddScoped<TagService>();
+builder.Services.AddScoped<HistoryService>();
+builder.Services.AddScoped<RootFolderService>();
 builder.Services.AddScoped<CustomFormatScorer>();
 builder.Services.AddScoped<QualityProfileService>();
 builder.Services.AddScoped<CustomFormatService>();
@@ -89,6 +95,12 @@ builder.Services.AddScoped<IScheduledJob, RssSyncJob>();
 builder.Services.AddScoped<IScheduledJob, CutoffUnmetSearchJob>();
 builder.Services.AddScoped<IScheduledJob, HealthCheckJob>();
 builder.Services.AddScoped<IScheduledJob, MediaMaintenanceJob>();
+builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(BackupOptions.Section));
+builder.Services.AddScoped<BackupService>();
+builder.Services.AddScoped<IScheduledJob, BackupJob>();
+
+// The Radarr-compatible surface (blueprint §7): /api/v3 behind API keys, /signalr/messages, /MediaCover.
+builder.Services.AddRadarrCompat();
 builder.Services.AddSingleton<HealthState>();
 builder.Services.AddScoped<HealthCheckService>();
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
@@ -107,6 +119,7 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseRouting();
 
+app.UseRadarrCompat();
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -117,6 +130,7 @@ app.MapSystem();
 app.MapMovies();
 app.MapQuality();
 app.MapRootFolders();
+app.MapFileSystem();
 app.MapIndexers();
 app.MapSearch();
 app.MapRss();
@@ -127,9 +141,12 @@ app.MapBlocklist();
 app.MapNotifications();
 app.MapTasks();
 app.MapHealth();
+app.MapBackups();
+app.MapTags();
+app.MapRadarrCompat();
 
 // The SPA is built into wwwroot by `bun run build`; anything that is not API falls back to index.html.
-app.MapFallbackToFile("{*path:regex(^(?!api/|health$|openapi/).*$)}", "index.html");
+app.MapFallbackToFile("{*path:regex(^(?!api/|health$|openapi/|signalr/|MediaCover/).*$)}", "index.html");
 
 app.Run();
 

@@ -23,7 +23,8 @@
     "blocklist": "Blocklist",
     "settingsNotifications": "Notifications",
     "system": "System",
-    "systemStatus": "Status"
+    "systemStatus": "Status",
+    "settingsConnect": "Connect"
   },
   "theme": {
     "label": "Theme",
@@ -196,6 +197,15 @@
     "removeRootTitle": "Remove this root folder?",
     "importFolder": "Import…",
     "unmappedHint": "Import by hand moves the files into a movie already in the library; add the movie first if it is not there yet."
+  },
+  "pathPicker": {
+    "browse": "Browse…",
+    "browseTitle": "Choose a folder",
+    "browseHint": "The folders below are the ones Bigarr can see, on the machine it runs on.",
+    "mounts": "Mount points",
+    "up": "Up one level",
+    "empty": "No sub-folder here.",
+    "select": "Use this folder"
   },
   "unmappedReason": {
     "noVideoFiles": "No video files",
@@ -815,7 +825,7 @@
   },
   "tasks": {
     "title": "Scheduled tasks",
-    "hint": "What runs on its own: the RSS pass, the search for missing and upgradable versions, the health check, the maintenance. Each can be run now.",
+    "hint": "What runs on its own: the RSS pass, the search for missing and upgradable versions, the health check, the maintenance, the weekly backup. Each can be run now.",
     "task": "Task",
     "interval": "Every",
     "lastRun": "Last run",
@@ -827,5 +837,77 @@
     "disabled": "disabled",
     "ran": "{{name}}: {{summary}}",
     "failed": "{{name}} failed: {{error}}"
+  },
+  "connect": {
+    "title": "Connect",
+    "hint": "Bigarr speaks Radarr v3 on /api/v3, so Seerr, Bazarr and Prowlarr plug in as if it were a Radarr. Each connected app gets its own key, and the key decides which version of each film it sees.",
+    "keys": "API keys",
+    "add": "New key",
+    "name": "Name",
+    "namePlaceholder": "seerr-4k, bazarr…",
+    "view": "View",
+    "viewDefault": "Default version of each film (a classic Radarr)",
+    "viewAll": "Every version, one line each (for Bazarr)",
+    "viewVersion": "One named version only (a Seerr entry for 4K)",
+    "versionName": "Version name",
+    "versionNamePlaceholder": "4k",
+    "versionNameHint": "A lowercase slug. Adding a film through this key creates a version of this name; films without it stay invisible to the key.",
+    "create": "Create key",
+    "created": "Key created. Copy it now: it is shown only once.",
+    "copy": "Copy",
+    "copied": "Copied to the clipboard.",
+    "copyFailed": "Could not copy; select the text and copy it by hand.",
+    "key": "Key",
+    "prefix": "Key",
+    "createdAt": "Created",
+    "lastUsed": "Last used",
+    "neverUsed": "never",
+    "revoked": "Revoked",
+    "revoke": "Revoke",
+    "revokeTitle": "Revoke this key?",
+    "confirmRevoke": "Revoke “{{name}}”? The app using it loses access immediately; the key cannot be restored.",
+    "noKeys": "No key yet. Create one per app you connect.",
+    "createFailed": "The key could not be created.",
+    "revokeFailed": "The key could not be revoked.",
+    "views": {
+      "default": "default",
+      "all": "all"
+    },
+    "viewVersionLabel": "version {{name}}",
+    "howTo": "How to connect",
+    "url": "Radarr URL to enter in the app",
+    "seerr": "Seerr",
+    "seerrHint": "One Seerr, two Radarr servers on this same URL: a standard server with a version:1080p key and a 4K server with a version:4k key. Each request creates or follows its own version of the film; both servers can share the root folder. Pick the matching quality profile on each.",
+    "bazarr": "Bazarr",
+    "bazarrHint": "A key with the all view: Bazarr lists every version as its own movie, subtitles each file, and follows changes live over SignalR at /signalr/messages.",
+    "prowlarr": "Prowlarr",
+    "prowlarrHint": "Add Bigarr as a Radarr application with a default key: Prowlarr pushes its torrent indexers here and keeps them in sync. Only one of Prowlarr push and the read-only Prowlarr sync should be on.",
+    "legacyHint": "Bigarr answers as Radarr {{version}}."
+  },
+  "backups": {
+    "title": "Backups",
+    "hint": "A zip of the database, taken every week and kept four weeks (Bigarr__Backup__IntervalDays, RetentionDays). Restoring stages the file and restarts Bigarr; in Docker the container comes back on the restored database.",
+    "create": "Back up now",
+    "created": "Backup {{name}} written.",
+    "createFailed": "The backup could not be written.",
+    "name": "Backup",
+    "size": "Size",
+    "createdAt": "Created",
+    "type": "Type",
+    "types": {
+      "manual": "manual",
+      "scheduled": "scheduled"
+    },
+    "download": "Download",
+    "restore": "Restore",
+    "remove": "Delete",
+    "none": "No backup yet.",
+    "restoreTitle": "Restore this backup?",
+    "confirmRestore": "Restore “{{name}}”? Everything added since it was taken is lost. Bigarr restarts right away with the restored database; the current one is kept next to it as bigarr.db.before-restore.",
+    "restoring": "Bigarr is restarting on the restored database. Reload this page in a few seconds.",
+    "restoreFailed": "The backup could not be restored.",
+    "removeTitle": "Delete this backup?",
+    "confirmRemove": "Delete “{{name}}”?",
+    "removeFailed": "The backup could not be deleted."
   }
 }

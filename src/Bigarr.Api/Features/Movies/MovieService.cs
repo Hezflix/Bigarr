@@ -12,6 +12,7 @@ using Bigarr.Domain.Library;
 using Bigarr.Domain.Metadata;
 using Bigarr.Domain.Movies;
 using Bigarr.Domain.Naming;
+using Bigarr.Domain.Tags;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bigarr.Api.Features.Movies;
@@ -25,6 +26,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             .Include(m => m.Versions).ThenInclude(v => v.QualityProfile).ThenInclude(p => p.FormatScores)
             .Include(m => m.Versions).ThenInclude(v => v.RootFolder)
             .Include(m => m.Versions).ThenInclude(v => v.File!).ThenInclude(f => f.Quality)
+            .Include(m => m.Versions).ThenInclude(v => v.Tags)
             .AsSplitQuery();
         return tracking ? query : query.AsNoTracking();
     }
@@ -138,6 +140,12 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             return Failure.Invalid("Invalid version name", "A version name is a lowercase slug: letters, digits and single dashes.");
         }
 
+        var tags = await ResolveTagsAsync(request.TagIds, ct);
+        if (!tags.IsSuccess)
+        {
+            return tags.Failure!;
+        }
+
         MovieMetadata? found;
         try
         {
@@ -166,6 +174,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             IsDefault = true,
             Monitored = request.Monitored,
             MinimumAvailability = request.MinimumAvailability,
+            Tags = tags.Value!,
         });
 
         // Adding a film is a deliberate act: it lifts a previous exclusion.
@@ -234,6 +243,12 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             return invalidConstraints;
         }
 
+        var tags = await ResolveTagsAsync(request.TagIds, ct);
+        if (!tags.IsSuccess)
+        {
+            return tags.Failure!;
+        }
+
         var defaultVersion = movie.Versions.FirstOrDefault(v => v.IsDefault);
         var folderName = string.IsNullOrWhiteSpace(request.FolderName)
             ? defaultVersion?.FolderName ?? await FolderNameAsync(movie.Title, movie.OriginalTitle, movie.Year, movie.TmdbId, movie.ImdbId, name, ct)
@@ -251,6 +266,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             Monitored = request.Monitored,
             MinimumAvailability = request.MinimumAvailability,
             Constraints = constraints,
+            Tags = tags.Value!,
         };
 
         movie.Versions.Add(version);
@@ -341,8 +357,36 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             version.Constraints = constraints;
         }
 
+        if (request.TagIds is not null)
+        {
+            var tags = await ResolveTagsAsync(request.TagIds, ct);
+            if (!tags.IsSuccess)
+            {
+                return tags.Failure!;
+            }
+
+            version.Tags.Clear();
+            foreach (var tag in tags.Value!)
+            {
+                version.Tags.Add(tag);
+            }
+        }
+
         await db.SaveChangesAsync(ct);
         return Result<MovieVersion>.Ok(version);
+    }
+
+    private async Task<Result<List<Tag>>> ResolveTagsAsync(List<int>? ids, CancellationToken ct)
+    {
+        var wanted = (ids ?? []).Distinct().ToList();
+        if (wanted.Count == 0)
+        {
+            return Result<List<Tag>>.Ok([]);
+        }
+
+        var tags = await db.Tags.Where(t => wanted.Contains(t.Id)).ToListAsync(ct);
+        var unknown = wanted.Except(tags.Select(t => t.Id)).ToList();
+        return unknown.Count == 0 ? Result<List<Tag>>.Ok(tags) : Failure.Invalid("Unknown tag", $"No tag with id {string.Join(", ", unknown)}.");
     }
 
     /// <summary>Constraints may name custom formats (§3.3); they must exist and not contradict each other.</summary>
@@ -415,7 +459,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
         var folderShared = siblings.Any(v => v.RootFolderId == version.RootFolderId && v.FolderName == version.FolderName);
         if (siblings.Count == 0)
         {
-            outbox.Publish(new MovieDeleted(MovieRef.From(movie), deleteFiles));
+            outbox.Publish(new MovieDeleted(MovieRef.From(movie), deleteFiles, [VersionRef.From(version)]));
             await RemoveMovieAsync(movie, addImportExclusion, ct);
             if (deleteFiles)
             {
@@ -443,6 +487,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             await SwitchDefaultAsync(movie, version, successor, ct);
         }
 
+        outbox.Publish(new VersionDeleted(MovieRef.From(movie), VersionRef.From(version), deleteFiles));
         db.MovieVersions.Remove(version);
         await db.SaveChangesAsync(ct);
         if (deleteFiles && !folderShared)
@@ -487,7 +532,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             }
         }
 
-        outbox.Publish(new MovieDeleted(MovieRef.From(movie), deleteFiles));
+        outbox.Publish(new MovieDeleted(MovieRef.From(movie), deleteFiles, movie.Versions.Select(VersionRef.From).ToList()));
         await RemoveMovieAsync(movie, addImportExclusion, ct);
         return Result<bool>.Ok(true);
     }

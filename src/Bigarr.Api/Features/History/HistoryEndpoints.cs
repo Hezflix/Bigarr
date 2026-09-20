@@ -1,8 +1,6 @@
 using Bigarr.Api.Infrastructure.Auth;
-using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.History;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
 
 namespace Bigarr.Api.Features.History;
 
@@ -33,7 +31,7 @@ public static class HistoryEndpoints
         var group = app.MapGroup("/api/v1/history").WithTags("History").RequireAuthorization(AuthPolicies.Api);
 
         // eventType is matched by name, case-insensitive: the front sends camelCase like the JSON it reads.
-        group.MapGet("/", async Task<Results<Ok<List<HistoryEventResponse>>, ValidationProblem>> (int? movieId, int? versionId, string? eventType, int? limit, BigarrDbContext db, CancellationToken ct) =>
+        group.MapGet("/", async Task<Results<Ok<List<HistoryEventResponse>>, ValidationProblem>> (int? movieId, int? versionId, string? eventType, int? limit, HistoryService history, CancellationToken ct) =>
         {
             HistoryEventType? type = null;
             if (!string.IsNullOrWhiteSpace(eventType))
@@ -46,28 +44,14 @@ public static class HistoryEndpoints
                 type = parsed;
             }
 
-            var query = db.History.AsNoTracking();
-            if (movieId is not null)
-            {
-                query = query.Where(h => h.MovieId == movieId);
-            }
-
-            if (versionId is not null)
-            {
-                query = query.Where(h => h.TargetId == versionId);
-            }
-
-            if (type is not null)
-            {
-                query = query.Where(h => h.EventType == type);
-            }
-
             var take = Math.Clamp(limit ?? DefaultLimit, 1, MaxLimit);
-            var events = await query.OrderByDescending(h => h.CreatedAt).ThenByDescending(h => h.Id).Take(take).ToListAsync(ct);
-            return TypedResults.Ok(events.Select(h => new HistoryEventResponse(
-                h.Id, h.EventType, h.MovieId, h.TmdbId, h.MovieTitle, h.TargetId, h.VersionName, h.SourceTitle, h.IndexerId, h.IndexerName, h.MediaFileId, h.Data, h.CreatedAt)).ToList());
+            var events = await history.ListAsync(new HistoryFilter(movieId, null, versionId, type is null ? null : [type.Value]), take, ct);
+            return TypedResults.Ok(events.Select(ToResponse).ToList());
         });
 
         return app;
     }
+
+    public static HistoryEventResponse ToResponse(HistoryEvent h) => new(
+        h.Id, h.EventType, h.MovieId, h.TmdbId, h.MovieTitle, h.TargetId, h.VersionName, h.SourceTitle, h.IndexerId, h.IndexerName, h.MediaFileId, h.Data, h.CreatedAt);
 }

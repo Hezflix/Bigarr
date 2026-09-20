@@ -43,7 +43,10 @@ public sealed record MovieAdded(MovieRef Movie, VersionRef Version) : DomainEven
 
 public sealed record VersionAdded(MovieRef Movie, VersionRef Version) : DomainEvent;
 
-public sealed record MovieDeleted(MovieRef Movie, bool DeletedFiles) : DomainEvent;
+/// <param name="Versions">Every version the film had, so a consumer that tracked them (the compat SignalR hub) can drop each one.</param>
+public sealed record MovieDeleted(MovieRef Movie, bool DeletedFiles, List<VersionRef>? Versions = null) : DomainEvent;
+
+public sealed record VersionDeleted(MovieRef Movie, VersionRef Version, bool DeletedFiles) : DomainEvent;
 
 public sealed record ReleaseGrabbed(MovieRef Movie, VersionRef Version, ReleaseRef Release, int GrabId, string DownloadClient, string DownloadId, string? Trigger) : DomainEvent;
 
@@ -81,6 +84,7 @@ public static class DomainEventCatalog
         (typeof(MovieAdded), "movieAdded", "A film was added to the library"),
         (typeof(VersionAdded), "versionAdded", "A version was added to a film"),
         (typeof(MovieDeleted), "movieDeleted", "A film was removed from the library"),
+        (typeof(VersionDeleted), "versionDeleted", "A version was removed from a film"),
         (typeof(ReleaseGrabbed), "grabbed", "A release was sent to a download client"),
         (typeof(FileImported), "imported", "A file landed in the library"),
         (typeof(FileUpgraded), "upgraded", "A file replaced a lower one"),

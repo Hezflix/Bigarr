@@ -11,9 +11,12 @@ public sealed class ApiKeyAuthenticationOptions : AuthenticationSchemeOptions
     public const string HeaderName = "X-Api-Key";
 
     public const string QueryName = "apikey";
+
+    /// <summary>What SignalR clients (Bazarr) put in the query string of <c>/signalr/messages</c>.</summary>
+    public const string AccessTokenQueryName = "access_token";
 }
 
-/// <summary>Seerr and Bazarr send the key in the query string, Prowlarr in the header: both are accepted (§7.1).</summary>
+/// <summary>Seerr and Bazarr send the key in the query string, Prowlarr in the header, SignalR clients as <c>access_token</c>: all are accepted (§7.1).</summary>
 public sealed class ApiKeyAuthenticationHandler(
     IOptionsMonitor<ApiKeyAuthenticationOptions> options,
     ILoggerFactory logger,
@@ -24,7 +27,8 @@ public sealed class ApiKeyAuthenticationHandler(
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var raw = Request.Headers[ApiKeyAuthenticationOptions.HeaderName].FirstOrDefault()
-                  ?? Request.Query[ApiKeyAuthenticationOptions.QueryName].FirstOrDefault();
+                  ?? Request.Query[ApiKeyAuthenticationOptions.QueryName].FirstOrDefault()
+                  ?? Request.Query[ApiKeyAuthenticationOptions.AccessTokenQueryName].FirstOrDefault();
 
         if (string.IsNullOrWhiteSpace(raw))
         {
