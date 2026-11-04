@@ -1160,6 +1160,122 @@ export const health = {
 /** text/event-stream of every dispatched event: the event name is the type, the data the JSON payload. */
 export const eventsUrl = '/api/v1/events'
 
+// ---- migration (import from Radarr) ----------------------------------------
+
+export type RadarrImportPreviewRequest = { url: string; apiKey: string }
+
+export type RadarrProfilePreview = { id: number; name: string; movies: number; suggestedProfileId: number | null }
+
+/** `reachable`: the Radarr path exists on this host as is, no path translation needed. */
+export type RadarrRootFolderPreview = { path: string; movies: number; suggestedRootFolderId: number | null; reachable: boolean }
+
+export type RadarrTagPreview = { id: number; label: string; movies: number }
+
+export type RadarrImportPreview = {
+  radarrVersion: string
+  movies: number
+  withFile: number
+  monitored: number
+  alreadyInLibrary: number
+  exclusions: number
+  historyRecords: number
+  customFormats: number
+  suggestedVersionName: string
+  profiles: RadarrProfilePreview[]
+  rootFolders: RadarrRootFolderPreview[]
+  tags: RadarrTagPreview[]
+}
+
+export type RadarrImportRequest = {
+  url: string
+  apiKey: string
+  versionName: string
+  /** Radarr quality profile id → Bigarr quality profile id. */
+  profileMap: Record<number, number>
+  /** Radarr root folder path → Bigarr root folder id. */
+  rootFolderMap: Record<string, number>
+  importTags: boolean
+  importExclusions: boolean
+  importHistory: boolean
+  importCustomFormats: boolean
+  keepMonitored: boolean
+  includeMoviesWithoutFile: boolean
+}
+
+export type RadarrImportState = 'idle' | 'queued' | 'running' | 'completed' | 'failed'
+
+/** `tmdbId` is null for a line about a custom format or a profile; `movieId` is set when the film is in Bigarr. */
+export type RadarrImportIssue = { title: string; tmdbId: number | null; reason: string; movieId: number | null }
+
+export type RadarrImportStatus = {
+  state: RadarrImportState
+  startedAt: string | null
+  finishedAt: string | null
+  total: number
+  processed: number
+  moviesAdded: number
+  versionsAdded: number
+  versionsUpdated: number
+  filesAdded: number
+  filesMissing: number
+  skipped: number
+  failed: number
+  tagsAdded: number
+  exclusionsAdded: number
+  historyAdded: number
+  customFormatsAdded: number
+  customFormatsUpdated: number
+  profilesScored: number
+  current: string | null
+  error: string | null
+  issues: RadarrImportIssue[]
+}
+
+export const migration = {
+  preview: (body: RadarrImportPreviewRequest) => post<RadarrImportPreview>('/api/v1/migration/radarr/preview', body),
+  /** Queues the import (202); 409 when one is already running. */
+  start: (body: RadarrImportRequest) => post<RadarrImportStatus>('/api/v1/migration/radarr/import', body),
+  status: () => api<RadarrImportStatus>('/api/v1/migration/radarr/status'),
+}
+
+// ---- media servers ----------------------------------------------------------
+
+export type MediaServerKind = 'plex' | 'jellyfin' | 'emby'
+
+export type PathMapping = { from: string; to: string }
+
+export type MediaServer = {
+  id: number
+  name: string
+  kind: MediaServerKind
+  url: string
+  token: string
+  enabled: boolean
+  pathMappings: PathMapping[]
+  lastRefreshAt: string | null
+  lastError: string | null
+  lastErrorAt: string | null
+  isFailing: boolean
+  createdAt: string
+}
+
+export type MediaServerRequest = { name: string; kind: MediaServerKind; url: string; token: string; enabled: boolean; pathMappings: PathMapping[] }
+
+export type MediaServerTestResult = { name: string | null; version: string | null; movieLibraries: number }
+
+export const mediaServers = {
+  list: () => api<MediaServer[]>('/api/v1/mediaservers'),
+  get: (id: number) => api<MediaServer>(`/api/v1/mediaservers/${id}`),
+  add: (body: MediaServerRequest) => post<MediaServer>('/api/v1/mediaservers', body),
+  update: (id: number, body: MediaServerRequest) => put<MediaServer>(`/api/v1/mediaservers/${id}`, body),
+  remove: (id: number) => del(`/api/v1/mediaservers/${id}`),
+  /** Tests an unsaved configuration: what the form calls. */
+  test: (body: MediaServerRequest) => post<MediaServerTestResult>('/api/v1/mediaservers/test', body),
+  testSaved: (id: number) => post<MediaServerTestResult>(`/api/v1/mediaservers/${id}/test`),
+  /** A full scan of the server's movie libraries, now. */
+  refresh: (id: number) => post<MediaServer>(`/api/v1/mediaservers/${id}/refresh`),
+}
+
 // ---- helpers ---------------------------------------------------------------
 
 export function slugify(value: string): string {

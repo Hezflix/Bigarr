@@ -26,12 +26,14 @@ public sealed record MovieRef(int Id, int TmdbId, string? ImdbId, string Title, 
     }
 }
 
-public sealed record VersionRef(int Id, string Name, VersionMode Mode, bool IsDefault, bool Monitored, string? QualityProfile)
+/// <param name="Folder">The version's folder on disk, when the root folder was loaded with it.</param>
+public sealed record VersionRef(int Id, string Name, VersionMode Mode, bool IsDefault, bool Monitored, string? QualityProfile, string? Folder = null)
 {
     public static VersionRef From(MovieVersion version)
     {
         ArgumentNullException.ThrowIfNull(version);
-        return new VersionRef(version.Id, version.Name, version.Mode, version.IsDefault, version.Monitored, version.QualityProfile?.Name);
+        var folder = version.RootFolder is null ? null : Path.Combine(version.RootFolder.Path, version.FolderName);
+        return new VersionRef(version.Id, version.Name, version.Mode, version.IsDefault, version.Monitored, version.QualityProfile?.Name, folder);
     }
 }
 

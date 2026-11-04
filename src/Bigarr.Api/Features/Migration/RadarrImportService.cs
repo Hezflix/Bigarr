@@ -1,0 +1,985 @@
+using Bigarr.Api.Features.Quality;
+using Bigarr.Api.Features.Tags;
+using Bigarr.Api.Infrastructure;
+using Bigarr.Api.Infrastructure.Events;
+using Bigarr.Api.Infrastructure.RadarrImport;
+using Bigarr.Api.Infrastructure.Persistence;
+using Bigarr.Decision.CustomFormats;
+using Bigarr.Domain.Acquisition;
+using Bigarr.Domain.Common;
+using Bigarr.Domain.Events;
+using Bigarr.Domain.History;
+using Bigarr.Domain.Library;
+using Bigarr.Domain.Metadata;
+using Bigarr.Domain.Movies;
+using Bigarr.Domain.Quality;
+using Bigarr.Domain.Tags;
+using Bigarr.Parsing;
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+
+namespace Bigarr.Api.Features.Migration;
+
+/// <summary>
+/// Moves a Radarr library into Bigarr (M8). Every Radarr movie becomes one version of the film, named after the Radarr
+/// it comes from (<c>1080p</c>, <c>4k</c>), with its monitored flag, profile, tags, availability and file; a second
+/// Radarr imported with another version name lands as a second version of the same films. Metadata comes from
+/// Radarr's own payload, so the import needs no TMDB round trip; the film is flagged for a refresh. Radarr's history of
+/// each imported film is copied into the journal, so the film page still says where its file came from. Custom formats
+/// come along, and each mapped profile takes the format scores of the Radarr profile mapped to it.
+/// </summary>
+public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr, IMetadataProvider metadata, OutboxWriter outbox, TimeProvider time, ILogger<RadarrImportService> logger)
+{
+    private static readonly char[] Separators = ['/', '\\'];
+
+    public async Task<Result<RadarrImportPreviewResponse>> PreviewAsync(RadarrImportPreviewRequest request, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (Connection(request.Url, request.ApiKey) is not { } connection)
+        {
+            return Failure.Invalid("Radarr URL and API key are required");
+        }
+
+        Snapshot snapshot;
+        try
+        {
+            snapshot = await LoadAsync(connection, withHistory: false, ct);
+            snapshot = snapshot with { HistoryCount = await radarr.HistoryCountAsync(connection, ct) };
+        }
+        catch (RadarrUnavailableException ex)
+        {
+            return new Failure(StatusCodes.Status502BadGateway, "Radarr did not answer", ex.Message);
+        }
+
+        var profiles = await db.QualityProfiles.AsNoTracking().Select(p => new { p.Id, p.Name }).ToListAsync(ct);
+        var roots = await db.RootFolders.AsNoTracking().ToListAsync(ct);
+        var known = (await db.Movies.AsNoTracking().Select(m => m.TmdbId).ToListAsync(ct)).ToHashSet();
+
+        var byProfile = snapshot.Movies.GroupBy(m => m.QualityProfileId).ToDictionary(g => g.Key, g => g.Count());
+        var profilePreviews = snapshot.Profiles
+            .Select(p => new RadarrProfilePreview(p.Id, p.Name, byProfile.GetValueOrDefault(p.Id), SuggestProfile(p.Name, profiles.Select(b => (b.Id, b.Name)))))
+            .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var rootPaths = snapshot.RootFolders.Select(r => NormalizePath(r.Path)).Concat(snapshot.Movies.Select(RootPathOf).OfType<string>()).Distinct(StringComparer.Ordinal).ToList();
+        var byRoot = snapshot.Movies.GroupBy(m => RootPathOf(m) ?? string.Empty).ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
+        var rootPreviews = rootPaths
+            .Select(path => new RadarrRootFolderPreview(
+                path,
+                byRoot.GetValueOrDefault(path),
+                roots.FirstOrDefault(r => string.Equals(NormalizePath(r.Path), path, StringComparison.Ordinal))?.Id,
+                Directory.Exists(path)))
+            .OrderBy(r => r.Path, StringComparer.Ordinal)
+            .ToList();
+
+        var byTag = snapshot.Movies.SelectMany(m => m.Tags ?? []).GroupBy(t => t).ToDictionary(g => g.Key, g => g.Count());
+        var tagPreviews = snapshot.Tags.Select(t => new RadarrTagPreview(t.Id, TagService.NormalizeLabel(t.Label), byTag.GetValueOrDefault(t.Id))).OrderBy(t => t.Label, StringComparer.OrdinalIgnoreCase).ToList();
+
+        var resolutions = snapshot.Movies.Select(m => m.MovieFile?.Quality?.Quality?.Resolution ?? 0).Where(r => r > 0).ToList();
+        var mostlyUhd = resolutions.Count > 0 && resolutions.Count(r => r >= QualitySeeder.UhdResolution) * 2 > resolutions.Count;
+        var suggestedName = mostlyUhd || snapshot.Profiles.All(p => LooksUhd(p.Name)) ? "4k" : "1080p";
+
+        return Result<RadarrImportPreviewResponse>.Ok(new RadarrImportPreviewResponse(
+            snapshot.Status.Version ?? "?",
+            snapshot.Movies.Count,
+            snapshot.Movies.Count(m => m.HasFile && m.MovieFile is not null),
+            snapshot.Movies.Count(m => m.Monitored),
+            snapshot.Movies.Count(m => known.Contains(m.TmdbId)),
+            snapshot.Exclusions.Count,
+            snapshot.HistoryCount,
+            snapshot.CustomFormats.GetArrayLength(),
+            suggestedName,
+            profilePreviews,
+            rootPreviews,
+            tagPreviews));
+    }
+
+    /// <summary>What must hold before an import is queued: a valid version name and mappings that point at things Bigarr has.</summary>
+    public async Task<Failure?> ValidateAsync(RadarrImportRequest request, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (Connection(request.Url, request.ApiKey) is null)
+        {
+            return Failure.Invalid("Radarr URL and API key are required");
+        }
+
+        if (!Slug.IsValid(request.VersionName?.Trim()))
+        {
+            return Failure.Invalid("Invalid version name", "A version name is a lowercase slug: letters, digits and single dashes.");
+        }
+
+        var profileIds = (request.ProfileMap ?? []).Values.Distinct().ToList();
+        var knownProfiles = await db.QualityProfiles.Where(p => profileIds.Contains(p.Id)).Select(p => p.Id).ToListAsync(ct);
+        if (profileIds.Except(knownProfiles).Any())
+        {
+            return Failure.Invalid("Unknown quality profile", $"No quality profile with id {string.Join(", ", profileIds.Except(knownProfiles))}.");
+        }
+
+        var rootIds = (request.RootFolderMap ?? []).Values.Distinct().ToList();
+        var knownRoots = await db.RootFolders.Where(r => rootIds.Contains(r.Id)).Select(r => r.Id).ToListAsync(ct);
+        if (rootIds.Except(knownRoots).Any())
+        {
+            return Failure.Invalid("Unknown root folder", $"No root folder with id {string.Join(", ", rootIds.Except(knownRoots))}.");
+        }
+
+        return null;
+    }
+
+    public async Task ImportAsync(RadarrImportProgress progress, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(progress);
+
+        var request = progress.Request;
+        var connection = Connection(request.Url, request.ApiKey) ?? throw new InvalidOperationException("Radarr URL and API key are required.");
+        var snapshot = await LoadAsync(connection, request.ImportHistory, ct);
+        var context = await ContextAsync(request, snapshot, progress, ct);
+
+        if (request.ImportCustomFormats)
+        {
+            progress.Current = "Custom formats";
+            await ImportCustomFormatsAsync(snapshot, request, progress, ct);
+        }
+
+        progress.Total = snapshot.Movies.Count;
+        foreach (var item in snapshot.Movies.OrderBy(m => m.SortTitle ?? m.Title, StringComparer.OrdinalIgnoreCase))
+        {
+            ct.ThrowIfCancellationRequested();
+            progress.Current = item.Title;
+            try
+            {
+                await ImportOneAsync(item, context, progress, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Import of {Title} (TMDB {TmdbId}) from Radarr failed", item.Title, item.TmdbId);
+                db.ChangeTracker.Clear();
+                progress.Failed();
+                progress.Issue(item.Title, item.TmdbId, ex.Message, await MovieIdAsync(item.TmdbId, ct));
+            }
+            finally
+            {
+                db.ChangeTracker.Clear();
+                progress.MovieDone();
+            }
+        }
+
+        if (request.ImportExclusions)
+        {
+            await ImportExclusionsAsync(snapshot, progress, ct);
+        }
+
+        progress.Current = null;
+    }
+
+    private async Task ImportOneAsync(RadarrMovie item, ImportContext context, RadarrImportProgress progress, CancellationToken ct)
+    {
+        if (!context.Profiles.TryGetValue(item.QualityProfileId, out var profileId))
+        {
+            var name = context.Snapshot.Profiles.FirstOrDefault(p => p.Id == item.QualityProfileId)?.Name ?? item.QualityProfileId.ToString();
+            await SkipAsync(progress, item, $"Quality profile '{name}' is not mapped.", ct);
+            return;
+        }
+
+        var radarrRoot = RootPathOf(item);
+        if (radarrRoot is null || !context.Roots.TryGetValue(radarrRoot, out var root))
+        {
+            await SkipAsync(progress, item, $"Root folder '{radarrRoot ?? "?"}' is not mapped.", ct);
+            return;
+        }
+
+        var file = item.HasFile ? item.MovieFile : null;
+        if (file is null && !context.Request.IncludeMoviesWithoutFile)
+        {
+            await SkipAsync(progress, item, "No file in Radarr.", ct);
+            return;
+        }
+
+        var now = time.GetUtcNow().UtcDateTime;
+        var monitored = context.Request.KeepMonitored && item.Monitored;
+        var availability = Availability(item.MinimumAvailability);
+        var tags = context.Request.ImportTags ? await TagsForAsync(item.Tags, context, ct) : [];
+        var folderName = LastSegment(item.Path) ?? FolderNameBuilder.Build(item.Title, item.Year > 0 ? item.Year : null);
+
+        var movie = await db.Movies
+            .Include(m => m.Versions).ThenInclude(v => v.Tags)
+            .Include(m => m.Versions).ThenInclude(v => v.File)
+            .FirstOrDefaultAsync(m => m.TmdbId == item.TmdbId, ct);
+
+        MovieVersion version;
+        var newMovie = false;
+        var newVersion = false;
+        if (movie is null)
+        {
+            var found = Metadata(item) ?? await FetchAsync(item.TmdbId, ct);
+            if (found is null)
+            {
+                progress.Failed();
+                progress.Issue(item.Title, item.TmdbId, "No metadata: Radarr's payload has no title and the metadata provider knows no such film.");
+                return;
+            }
+
+            movie = Movie.FromMetadata(found, root.Id);
+            movie.AddedAt = item.Added ?? now;
+            // Radarr's snapshot is good enough to start; a later refresh normalizes it against the provider.
+            movie.LastMetadataRefreshAt = null;
+            version = NewVersion(context.VersionName, profileId, root.Id, folderName, monitored, availability, tags, isDefault: true);
+            movie.Versions.Add(version);
+            db.Movies.Add(movie);
+            newMovie = true;
+        }
+        else if (movie.Versions.FirstOrDefault(v => v.Name == context.VersionName) is { } existing)
+        {
+            // The film already has this version (a previous import, or the library scan): Radarr's settings win, the folder stays.
+            version = existing;
+            version.Monitored = monitored;
+            version.QualityProfileId = profileId;
+            version.MinimumAvailability = availability;
+            if (context.Request.ImportTags)
+            {
+                version.Tags.Clear();
+                foreach (var tag in tags)
+                {
+                    version.Tags.Add(tag);
+                }
+            }
+        }
+        else
+        {
+            version = NewVersion(context.VersionName, profileId, root.Id, folderName, monitored, availability, tags, isDefault: movie.Versions.All(v => !v.IsDefault));
+            movie.Versions.Add(version);
+            newVersion = true;
+        }
+
+        // Reported once the film is saved, so the report can link to it.
+        var notes = new List<string>();
+        if (file is not null && version.File is null)
+        {
+            var relative = file.RelativePath ?? RelativeTo(file.Path, item.Path);
+            if (relative is null)
+            {
+                progress.FileMissing();
+                notes.Add("Radarr lists a file without a path.");
+            }
+            else
+            {
+                relative = relative.Replace('\\', '/').TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+                var full = Path.Combine(root.Path, version.FolderName, relative);
+                if (File.Exists(full))
+                {
+                    version.File = BuildFile(file, relative, full, context, now);
+                    progress.FileAdded();
+                }
+                else
+                {
+                    progress.FileMissing();
+                    notes.Add($"File not found: {full}");
+                }
+            }
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        // Importing a film is a deliberate act: it lifts a previous exclusion, like adding it by hand.
+        await db.MovieExclusions.Where(e => e.TmdbId == item.TmdbId).ExecuteDeleteAsync(ct);
+        await db.SaveChangesAsync(ct);
+
+        // Ids exist now: the history lines can point at the film, the version and the file.
+        var historyAdded = context.Request.ImportHistory ? await AddHistoryAsync(item, movie, version, context, ct) : 0;
+
+        var movieRef = MovieRef.From(movie);
+        var versionRef = VersionRef.From(version);
+        if (newMovie)
+        {
+            outbox.Publish(new MovieAdded(movieRef, versionRef));
+            progress.MovieAdded();
+            progress.VersionAdded();
+        }
+        else if (newVersion)
+        {
+            outbox.Publish(new VersionAdded(movieRef, versionRef));
+            progress.VersionAdded();
+        }
+        else
+        {
+            outbox.Publish(new VersionUpdated(movieRef, versionRef));
+            progress.VersionUpdated();
+        }
+
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        progress.HistoryAdded(historyAdded);
+        foreach (var note in notes)
+        {
+            progress.Issue(item.Title, item.TmdbId, note, movie.Id);
+        }
+    }
+
+    /// <summary>
+    /// Radarr's custom formats, then the scores of every mapped profile. A format is matched on its name and takes Radarr's
+    /// definition. When several Radarr profiles map to one Bigarr profile, the one holding the most films gives the scores.
+    /// </summary>
+    private async Task ImportCustomFormatsAsync(Snapshot snapshot, RadarrImportRequest request, RadarrImportProgress progress, CancellationToken ct)
+    {
+        var existing = await db.CustomFormats.ToListAsync(ct);
+        var byName = new Dictionary<string, CustomFormat>(StringComparer.OrdinalIgnoreCase);
+        foreach (var element in snapshot.CustomFormats.EnumerateArray())
+        {
+            CustomFormatDefinition definition;
+            try
+            {
+                definition = CustomFormatJson.Parse(element, 0);
+            }
+            catch (CustomFormatParseException ex)
+            {
+                progress.Issue(FormatName(element), null, $"Custom format not imported: {ex.Message}");
+                continue;
+            }
+
+            if (definition.Name.Length > CustomFormatService.MaxNameLength)
+            {
+                progress.Issue(definition.Name, null, $"Custom format not imported: the name is longer than {CustomFormatService.MaxNameLength} characters.");
+                continue;
+            }
+
+            var format = existing.FirstOrDefault(f => string.Equals(f.Name, definition.Name, StringComparison.OrdinalIgnoreCase));
+            if (format is null)
+            {
+                format = new CustomFormat { Name = definition.Name, SpecificationsJson = string.Empty };
+                db.CustomFormats.Add(format);
+                existing.Add(format);
+                progress.CustomFormatAdded();
+            }
+            else
+            {
+                progress.CustomFormatUpdated();
+            }
+
+            format.Name = definition.Name;
+            format.IncludeWhenRenaming = definition.IncludeWhenRenaming;
+            format.SpecificationsJson = CustomFormatJson.SerializeSpecifications(definition.Specifications);
+            byName[definition.Name] = format;
+        }
+
+        await db.SaveChangesAsync(ct);
+
+        var films = snapshot.Movies.GroupBy(m => m.QualityProfileId).ToDictionary(g => g.Key, g => g.Count());
+        foreach (var group in (request.ProfileMap ?? []).GroupBy(kv => kv.Value))
+        {
+            var sources = group
+                .Select(kv => snapshot.Profiles.FirstOrDefault(p => p.Id == kv.Key))
+                .OfType<RadarrProfile>()
+                .Where(p => p.FormatItems is not null)
+                .OrderByDescending(p => films.GetValueOrDefault(p.Id))
+                .ThenBy(p => p.Id)
+                .ToList();
+            if (sources.Count == 0 || await db.QualityProfiles.Include(p => p.FormatScores).FirstOrDefaultAsync(p => p.Id == group.Key, ct) is not { } profile)
+            {
+                continue;
+            }
+
+            var source = sources[0];
+            foreach (var item in source.FormatItems!)
+            {
+                if (item.Name is null || !byName.TryGetValue(item.Name, out var format))
+                {
+                    continue;
+                }
+
+                var entry = profile.FormatScores.FirstOrDefault(s => s.CustomFormatId == format.Id);
+                if (entry is not null)
+                {
+                    entry.Score = item.Score;
+                }
+                else if (item.Score != 0)
+                {
+                    profile.FormatScores.Add(new ProfileFormatScore { CustomFormatId = format.Id, Score = item.Score });
+                }
+            }
+
+            profile.MinFormatScore = source.MinFormatScore ?? profile.MinFormatScore;
+            profile.CutoffFormatScore = source.CutoffFormatScore ?? profile.CutoffFormatScore;
+            profile.MinUpgradeFormatScore = source.MinUpgradeFormatScore ?? profile.MinUpgradeFormatScore;
+            progress.ProfileScored();
+
+            var differing = sources.Skip(1).Where(other => ScoreKey(other) != ScoreKey(source)).Select(other => $"'{other.Name}'").ToList();
+            if (differing.Count > 0)
+            {
+                progress.Issue(profile.Name, null, $"Radarr profiles '{source.Name}' and {string.Join(", ", differing)} all map to '{profile.Name}' with different scores: '{source.Name}' holds the most films, its scores were kept.");
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+    }
+
+    /// <summary>A profile's non-zero scores and thresholds as one comparable string.</summary>
+    private static string ScoreKey(RadarrProfile profile) =>
+        string.Join(";", (profile.FormatItems ?? []).Where(i => i.Score != 0).OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase).Select(i => $"{i.Name}={i.Score}"))
+        + $"|{profile.MinFormatScore}|{profile.CutoffFormatScore}|{profile.MinUpgradeFormatScore}";
+
+    private static string FormatName(JsonElement element) =>
+        element.ValueKind == JsonValueKind.Object && element.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String ? name.GetString() ?? "?" : "?";
+
+    private async Task<int?> MovieIdAsync(int tmdbId, CancellationToken ct) =>
+        await db.Movies.AsNoTracking().Where(m => m.TmdbId == tmdbId).Select(m => (int?)m.Id).FirstOrDefaultAsync(ct);
+
+    /// <summary>
+    /// Radarr's lines about one film, as journal lines of the version it became. A line already copied by an earlier run
+    /// (same type, date and release) is not copied twice, so the import can be re-run.
+    /// </summary>
+    private async Task<int> AddHistoryAsync(RadarrMovie item, Movie movie, MovieVersion version, ImportContext context, CancellationToken ct)
+    {
+        var records = context.Snapshot.History[item.Id].OrderBy(r => r.Date).ThenBy(r => r.Id).ToList();
+        if (records.Count == 0)
+        {
+            return 0;
+        }
+
+        var known = (await db.History.AsNoTracking()
+                .Where(h => h.TargetId == version.Id)
+                .Select(h => new { h.EventType, h.CreatedAt, h.SourceTitle })
+                .ToListAsync(ct))
+            .Select(h => (h.EventType, h.CreatedAt.Ticks, h.SourceTitle ?? string.Empty))
+            .ToHashSet();
+
+        var fileId = item.HasFile && item.MovieFile is { } radarrFile ? radarrFile.Id.ToString(System.Globalization.CultureInfo.InvariantCulture) : null;
+        var added = 0;
+        foreach (var line in HistoryLines(records))
+        {
+            var sourceTitle = Truncate(line.Record.SourceTitle, 1024);
+            if (!known.Add((line.Type, line.Date.Ticks, sourceTitle ?? string.Empty)))
+            {
+                continue;
+            }
+
+            var indexerName = Truncate(line.Data.GetValueOrDefault("indexer"), 128);
+            var linksFile = line.Type is HistoryEventType.Imported or HistoryEventType.Upgraded && fileId is not null && version.File is not null && line.Record.Data?.Any(kv => string.Equals(kv.Key, "fileId", StringComparison.OrdinalIgnoreCase) && kv.Value == fileId) == true;
+            db.History.Add(new HistoryEvent
+            {
+                TargetId = version.Id,
+                MovieId = movie.Id,
+                TmdbId = movie.TmdbId,
+                MovieTitle = movie.Title,
+                VersionName = version.Name,
+                EventType = line.Type,
+                SourceTitle = sourceTitle,
+                IndexerId = indexerName is not null && context.Indexers.TryGetValue(indexerName, out var indexerId) ? indexerId : null,
+                IndexerName = indexerName,
+                MediaFileId = linksFile ? version.File!.Id : null,
+                Data = line.Data,
+                CreatedAt = line.Date,
+            });
+            added++;
+        }
+
+        return added;
+    }
+
+    /// <summary>A Radarr history line translated: its Bigarr type, UTC date and the data keys the history page reads.</summary>
+    public sealed record HistoryLine(RadarrHistoryItem Record, HistoryEventType Type, DateTime Date, Dictionary<string, string> Data);
+
+    /// <summary>
+    /// Radarr's lines of one film, oldest first, in Bigarr's terms. Radarr has no upgrade event: an import that follows an
+    /// earlier import, with no deletion in between other than the upgrade's own, becomes <see cref="HistoryEventType.Upgraded"/>.
+    /// Events Bigarr has no counterpart for (<c>downloadIgnored</c>, <c>unknown</c>) are left out.
+    /// </summary>
+    public static IEnumerable<HistoryLine> HistoryLines(IEnumerable<RadarrHistoryItem> records)
+    {
+        ArgumentNullException.ThrowIfNull(records);
+
+        string? currentQuality = null;
+        var hasFile = false;
+        foreach (var record in records)
+        {
+            if (HistoryType(record.EventType) is not { } type)
+            {
+                continue;
+            }
+
+            var raw = new Dictionary<string, string?>(record.Data ?? [], StringComparer.OrdinalIgnoreCase);
+            string? Raw(string key) => raw.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value) ? value.Trim() : null;
+
+            var data = new Dictionary<string, string>(StringComparer.Ordinal) { ["importedFrom"] = "radarr" };
+            void Put(string key, string? value)
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    data[key] = value.Trim();
+                }
+            }
+
+            var quality = record.Quality?.Quality?.Name;
+            Put("quality", quality is "Unknown" ? null : quality);
+            Put("indexer", Raw("indexer"));
+            switch (type)
+            {
+                case HistoryEventType.Grabbed:
+                    Put("downloadClient", Raw("downloadClientName") ?? Raw("downloadClient"));
+                    Put("downloadId", record.DownloadId);
+                    Put("size", Raw("size"));
+                    Put("releaseGuid", Raw("guid"));
+                    Put("releaseGroup", Raw("releaseGroup"));
+                    Put("protocol", Raw("protocol"));
+                    Put("indexerFlags", Raw("indexerFlags") is { } flags && flags != "0" ? flags : null);
+                    break;
+                case HistoryEventType.Imported:
+                    Put("path", Raw("importedPath"));
+                    Put("source", Raw("droppedPath"));
+                    Put("size", Raw("size"));
+                    Put("downloadClient", Raw("downloadClientName") ?? Raw("downloadClient"));
+                    Put("downloadId", record.DownloadId);
+                    if (hasFile)
+                    {
+                        type = HistoryEventType.Upgraded;
+                        Put("previousQuality", currentQuality);
+                    }
+
+                    hasFile = true;
+                    currentQuality = data.GetValueOrDefault("quality");
+                    break;
+                case HistoryEventType.DownloadFailed:
+                    Put("reason", Raw("message"));
+                    Put("downloadClient", Raw("downloadClientName") ?? Raw("downloadClient"));
+                    Put("downloadId", record.DownloadId);
+                    break;
+                case HistoryEventType.FileDeleted:
+                    Put("reason", Raw("reason"));
+                    Put("path", record.SourceTitle);
+                    Put("size", Raw("size"));
+                    if (!string.Equals(Raw("reason"), "upgrade", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hasFile = false;
+                        currentQuality = null;
+                    }
+
+                    break;
+                case HistoryEventType.Renamed:
+                    Put("from", Raw("sourcePath"));
+                    Put("to", Raw("path"));
+                    break;
+            }
+
+            if (record.CustomFormats is { Count: > 0 } formats)
+            {
+                Put("customFormats", string.Join(", ", formats.Select(f => f.Name).Where(n => !string.IsNullOrWhiteSpace(n))));
+            }
+
+            yield return new HistoryLine(record, type, Utc(record.Date), data);
+        }
+    }
+
+    public static HistoryEventType? HistoryType(string? radarrEventType) => radarrEventType?.ToLowerInvariant() switch
+    {
+        "grabbed" => HistoryEventType.Grabbed,
+        "downloadfolderimported" or "moviefolderimported" => HistoryEventType.Imported,
+        "downloadfailed" => HistoryEventType.DownloadFailed,
+        "moviefiledeleted" => HistoryEventType.FileDeleted,
+        "moviefilerenamed" => HistoryEventType.Renamed,
+        _ => null,
+    };
+
+    private static DateTime Utc(DateTime value) => value.Kind == DateTimeKind.Local ? value.ToUniversalTime() : DateTime.SpecifyKind(value, DateTimeKind.Utc);
+
+    private static string? Truncate(string? value, int max) => string.IsNullOrWhiteSpace(value) ? null : value.Length <= max ? value : value[..max];
+
+    private async Task ImportExclusionsAsync(Snapshot snapshot, RadarrImportProgress progress, CancellationToken ct)
+    {
+        if (snapshot.Exclusions.Count == 0)
+        {
+            return;
+        }
+
+        var imported = snapshot.Movies.Select(m => m.TmdbId).ToHashSet();
+        var candidates = snapshot.Exclusions.Where(e => e.TmdbId > 0 && !imported.Contains(e.TmdbId)).DistinctBy(e => e.TmdbId).ToList();
+        var ids = candidates.Select(e => e.TmdbId).ToList();
+        var inLibrary = (await db.Movies.Where(m => ids.Contains(m.TmdbId)).Select(m => m.TmdbId).ToListAsync(ct)).ToHashSet();
+        var excluded = (await db.MovieExclusions.Where(e => ids.Contains(e.TmdbId)).Select(e => e.TmdbId).ToListAsync(ct)).ToHashSet();
+        var now = time.GetUtcNow().UtcDateTime;
+        foreach (var exclusion in candidates.Where(e => !inLibrary.Contains(e.TmdbId) && !excluded.Contains(e.TmdbId)))
+        {
+            db.MovieExclusions.Add(new MovieExclusion { TmdbId = exclusion.TmdbId, Title = exclusion.MovieTitle ?? $"TMDB {exclusion.TmdbId}", Year = exclusion.MovieYear, CreatedAt = now });
+            progress.ExclusionAdded();
+        }
+
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+    }
+
+    private async Task<ImportContext> ContextAsync(RadarrImportRequest request, Snapshot snapshot, RadarrImportProgress progress, CancellationToken ct)
+    {
+        var versionName = request.VersionName.Trim();
+        var profileMap = request.ProfileMap ?? [];
+        var knownProfiles = (await db.QualityProfiles.AsNoTracking().Select(p => p.Id).ToListAsync(ct)).ToHashSet();
+        var profiles = profileMap.Where(kv => knownProfiles.Contains(kv.Value)).ToDictionary(kv => kv.Key, kv => kv.Value);
+
+        var rootRows = await db.RootFolders.AsNoTracking().ToListAsync(ct);
+        var roots = new Dictionary<string, RootFolder>(StringComparer.Ordinal);
+        foreach (var (radarrPath, rootId) in request.RootFolderMap ?? [])
+        {
+            if (rootRows.FirstOrDefault(r => r.Id == rootId) is { } root)
+            {
+                roots[NormalizePath(radarrPath)] = root;
+            }
+        }
+
+        var qualityIds = (await db.QualityDefinitions.AsNoTracking().Select(q => q.Id).ToListAsync(ct)).ToHashSet();
+
+        // Radarr names the indexer of a grab; the same indexer synced from Prowlarr carries the same name here.
+        var indexers = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var indexer in await db.Indexers.AsNoTracking().Select(i => new { i.Id, i.Name }).ToListAsync(ct))
+        {
+            indexers.TryAdd(indexer.Name, indexer.Id);
+        }
+
+        var tagMap = new Dictionary<int, int>();
+        if (request.ImportTags)
+        {
+            var used = snapshot.Movies.SelectMany(m => m.Tags ?? []).ToHashSet();
+            foreach (var radarrTag in snapshot.Tags.Where(t => used.Contains(t.Id)))
+            {
+                var label = TagService.NormalizeLabel(radarrTag.Label);
+                if (label.Length == 0 || label.Length > TagService.MaxLabelLength)
+                {
+                    continue;
+                }
+
+                var tag = await db.Tags.FirstOrDefaultAsync(t => t.Label == label, ct);
+                if (tag is null)
+                {
+                    tag = new Tag { Label = label };
+                    db.Tags.Add(tag);
+                    await db.SaveChangesAsync(ct);
+                    progress.TagAdded();
+                }
+
+                tagMap[radarrTag.Id] = tag.Id;
+            }
+
+            db.ChangeTracker.Clear();
+        }
+
+        return new ImportContext(request, snapshot, versionName, profiles, roots, tagMap, qualityIds, indexers);
+    }
+
+    private async Task<List<Tag>> TagsForAsync(List<int>? radarrTagIds, ImportContext context, CancellationToken ct)
+    {
+        var ids = (radarrTagIds ?? []).Select(id => context.Tags.TryGetValue(id, out var tagId) ? tagId : 0).Where(id => id > 0).Distinct().ToList();
+        return ids.Count == 0 ? [] : await db.Tags.Where(t => ids.Contains(t.Id)).ToListAsync(ct);
+    }
+
+    private async Task<Snapshot> LoadAsync(RadarrConnection connection, bool withHistory, CancellationToken ct)
+    {
+        var status = await radarr.StatusAsync(connection, ct);
+        var profiles = await radarr.ProfilesAsync(connection, ct);
+        var roots = await radarr.RootFoldersAsync(connection, ct);
+        var tags = await radarr.TagsAsync(connection, ct);
+        var movies = await radarr.MoviesAsync(connection, ct);
+        var exclusions = await radarr.ExclusionsAsync(connection, ct);
+        var customFormats = await radarr.CustomFormatsAsync(connection, ct);
+        var history = withHistory ? await radarr.HistoryAsync(connection, ct) : [];
+        return new Snapshot(status, profiles, roots, tags, movies.Where(m => m.TmdbId > 0 && !string.IsNullOrWhiteSpace(m.Title)).ToList(), exclusions, customFormats, history.ToLookup(h => h.MovieId), history.Count);
+    }
+
+    private async Task<MovieMetadata?> FetchAsync(int tmdbId, CancellationToken ct)
+    {
+        try
+        {
+            return await metadata.GetMovieAsync(tmdbId, ct);
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogWarning(ex, "Metadata provider failed for TMDB {TmdbId} during the Radarr import", tmdbId);
+            return null;
+        }
+    }
+
+    private static MovieVersion NewVersion(string name, int profileId, int rootFolderId, string folderName, bool monitored, MinimumAvailability availability, List<Tag> tags, bool isDefault) => new()
+    {
+        Name = name,
+        Mode = VersionMode.Managed,
+        QualityProfileId = profileId,
+        RootFolderId = rootFolderId,
+        FolderName = folderName,
+        IsDefault = isDefault,
+        Monitored = monitored,
+        MinimumAvailability = availability,
+        Tags = tags,
+    };
+
+    private static MediaFile BuildFile(RadarrMovieFile file, string relativePath, string fullPath, ImportContext context, DateTime now)
+    {
+        long size;
+        try
+        {
+            size = new FileInfo(fullPath).Length;
+        }
+        catch (IOException)
+        {
+            size = file.Size;
+        }
+
+        return new MediaFile
+        {
+            RelativePath = relativePath,
+            Size = size > 0 ? size : file.Size,
+            DateAdded = file.DateAdded ?? now,
+            QualityId = QualityIdOf(file, fullPath, context.QualityIds),
+            Revision = new Revision
+            {
+                Version = file.Quality?.Revision?.Version ?? 1,
+                Real = file.Quality?.Revision?.Real ?? 0,
+                IsRepack = file.Quality?.Revision?.IsRepack ?? false,
+            },
+            Edition = NullIfBlank(file.Edition),
+            ReleaseGroup = NullIfBlank(file.ReleaseGroup),
+            Languages = (file.Languages ?? []).Select(l => l.Name).Where(n => !string.IsNullOrWhiteSpace(n)).Cast<string>().Distinct().ToList(),
+            IndexerFlags = (IndexerFlags)file.IndexerFlags,
+            OriginalReleaseTitle = NullIfBlank(file.SceneName) ?? Path.GetFileNameWithoutExtension(file.OriginalFilePath ?? relativePath),
+        };
+    }
+
+    /// <summary>Radarr's quality ids are the vendored parser's; an id Bigarr does not know falls back to what the file name says.</summary>
+    private static int QualityIdOf(RadarrMovieFile file, string fullPath, HashSet<int> knownIds)
+    {
+        if (file.Quality?.Quality is { } quality && knownIds.Contains(quality.Id))
+        {
+            return quality.Id;
+        }
+
+        try
+        {
+            var parsed = Parser.ParseMoviePath(fullPath)?.Quality?.Quality;
+            if (parsed is not null && knownIds.Contains(parsed.Id))
+            {
+                return parsed.Id;
+            }
+        }
+        catch (Exception)
+        {
+            // an unparsable name is not an error
+        }
+
+        return knownIds.Contains(0) ? 0 : knownIds.Min();
+    }
+
+    /// <summary>Radarr's movie resource carries what Bigarr caches about a film; images point at TMDB like ours do.</summary>
+    public static MovieMetadata? Metadata(RadarrMovie item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        if (string.IsNullOrWhiteSpace(item.Title))
+        {
+            return null;
+        }
+
+        MovieRatings? ratings = null;
+        if (item.Ratings?.Tmdb is { Votes: > 0 } tmdb || item.Ratings?.Imdb is { Votes: > 0 })
+        {
+            ratings = new MovieRatings
+            {
+                Tmdb = item.Ratings.Tmdb is { Votes: > 0 } t ? new RatingValue(t.Value, t.Votes) : null,
+                Imdb = item.Ratings.Imdb is { Votes: > 0 } i ? new RatingValue(i.Value, i.Votes) : null,
+            };
+        }
+
+        var images = new List<MediaImage>();
+        foreach (var image in item.Images ?? [])
+        {
+            var url = image.RemoteUrl ?? (image.Url is { } u && u.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? u : null);
+            if (url is null)
+            {
+                continue;
+            }
+
+            if (string.Equals(image.CoverType, "poster", StringComparison.OrdinalIgnoreCase))
+            {
+                images.Add(new MediaImage(ImageType.Poster, url));
+            }
+            else if (string.Equals(image.CoverType, "fanart", StringComparison.OrdinalIgnoreCase))
+            {
+                images.Add(new MediaImage(ImageType.Fanart, url));
+            }
+        }
+
+        return new MovieMetadata
+        {
+            TmdbId = item.TmdbId,
+            ImdbId = NullIfBlank(item.ImdbId),
+            Title = item.Title.Trim(),
+            OriginalTitle = NullIfBlank(item.OriginalTitle),
+            Year = item.Year > 0 ? item.Year : null,
+            Runtime = item.Runtime > 0 ? item.Runtime : null,
+            Overview = NullIfBlank(item.Overview),
+            Certification = NullIfBlank(item.Certification),
+            OriginalLanguage = IsoCode(item.OriginalLanguage?.Name),
+            Genres = (item.Genres ?? []).Where(g => !string.IsNullOrWhiteSpace(g)).Distinct().ToList(),
+            Ratings = ratings,
+            AlternativeTitles = (item.AlternateTitles ?? [])
+                .Select(t => t.Title?.Trim())
+                .Where(t => !string.IsNullOrEmpty(t) && !string.Equals(t, item.Title.Trim(), StringComparison.Ordinal))
+                .Distinct(StringComparer.Ordinal)
+                .Select(t => new AlternativeTitle(t!, null))
+                .ToList(),
+            Status = Status(item.Status),
+            InCinemasDate = DateOf(item.InCinemas),
+            DigitalReleaseDate = DateOf(item.DigitalRelease),
+            PhysicalReleaseDate = DateOf(item.PhysicalRelease),
+            CollectionTmdbId = item.Collection is { TmdbId: > 0 } collection ? collection.TmdbId : null,
+            Images = images,
+        };
+    }
+
+    public static MovieStatus Status(string? value) => value?.ToLowerInvariant() switch
+    {
+        "tba" => MovieStatus.Tba,
+        "announced" => MovieStatus.Announced,
+        "incinemas" => MovieStatus.InCinemas,
+        "deleted" => MovieStatus.Deleted,
+        _ => MovieStatus.Released,
+    };
+
+    public static MinimumAvailability Availability(string? value) => value?.ToLowerInvariant() switch
+    {
+        "announced" or "tba" or "predb" => MinimumAvailability.Announced,
+        "incinemas" => MinimumAvailability.InCinemas,
+        _ => MinimumAvailability.Released,
+    };
+
+    /// <summary>Radarr names the language ("English"); Bigarr keeps TMDB's ISO 639-1 code.</summary>
+    public static string? IsoCode(string? languageName)
+    {
+        if (string.IsNullOrWhiteSpace(languageName))
+        {
+            return null;
+        }
+
+        try
+        {
+            return IsoLanguages.FindByName(languageName)?.TwoLetterCode;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The Bigarr profile a Radarr profile most likely maps to: same name, else the system profile its name hints at.</summary>
+    public static int? SuggestProfile(string radarrName, IEnumerable<(int Id, string Name)> profiles)
+    {
+        var list = profiles.ToList();
+        if (list.FirstOrDefault(p => string.Equals(p.Name, radarrName, StringComparison.OrdinalIgnoreCase)) is { Id: > 0 } same)
+        {
+            return same.Id;
+        }
+
+        if (LooksUhd(radarrName) && list.FirstOrDefault(p => p.Name == QualitySeeder.UhdProfileName) is { Id: > 0 } uhd)
+        {
+            return uhd.Id;
+        }
+
+        if (LooksHd(radarrName) && list.FirstOrDefault(p => p.Name == QualitySeeder.HdProfileName) is { Id: > 0 } hd)
+        {
+            return hd.Id;
+        }
+
+        return null;
+    }
+
+    private static bool LooksUhd(string name) =>
+        name.Contains("2160", StringComparison.OrdinalIgnoreCase) || name.Contains("4k", StringComparison.OrdinalIgnoreCase) || name.Contains("uhd", StringComparison.OrdinalIgnoreCase) || name.Contains("ultra", StringComparison.OrdinalIgnoreCase);
+
+    private static bool LooksHd(string name) =>
+        name.Contains("1080", StringComparison.OrdinalIgnoreCase) || name.Contains("720", StringComparison.OrdinalIgnoreCase) || name.Contains("hd", StringComparison.OrdinalIgnoreCase) || name.Contains("any", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The Radarr root a movie sits in, as Radarr reports it or as its path's parent; normalized for the mapping.</summary>
+    public static string? RootPathOf(RadarrMovie item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        if (!string.IsNullOrWhiteSpace(item.RootFolderPath))
+        {
+            return NormalizePath(item.RootFolderPath);
+        }
+
+        if (string.IsNullOrWhiteSpace(item.Path))
+        {
+            return null;
+        }
+
+        var path = item.Path.TrimEnd(Separators);
+        var cut = path.LastIndexOfAny(Separators);
+        return cut <= 0 ? null : NormalizePath(path[..cut]);
+    }
+
+    /// <summary>Trailing separators dropped; a Windows drive root keeps its backslash.</summary>
+    public static string NormalizePath(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        var trimmed = path.Trim();
+        var stripped = trimmed.TrimEnd(Separators);
+        return stripped.Length == 0 ? "/" : stripped.Length == 2 && stripped[1] == ':' ? stripped + '\\' : stripped;
+    }
+
+    public static string? LastSegment(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        var trimmed = path.TrimEnd(Separators);
+        var cut = trimmed.LastIndexOfAny(Separators);
+        var segment = cut < 0 ? trimmed : trimmed[(cut + 1)..];
+        return segment.Length == 0 ? null : segment;
+    }
+
+    /// <summary>The part of an absolute file path below the movie folder, when Radarr gave no relative path.</summary>
+    public static string? RelativeTo(string? filePath, string? folderPath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(folderPath))
+        {
+            var folder = folderPath.TrimEnd(Separators);
+            if (filePath.StartsWith(folder, StringComparison.OrdinalIgnoreCase) && filePath.Length > folder.Length && Separators.Contains(filePath[folder.Length]))
+            {
+                return filePath[(folder.Length + 1)..];
+            }
+        }
+
+        return LastSegment(filePath);
+    }
+
+    /// <summary>A skipped film may still be in Bigarr (a previous import, the scan): the report then links to it.</summary>
+    private async Task SkipAsync(RadarrImportProgress progress, RadarrMovie item, string reason, CancellationToken ct)
+    {
+        progress.Skipped();
+        progress.Issue(item.Title, item.TmdbId, reason, await MovieIdAsync(item.TmdbId, ct));
+    }
+
+    private static DateOnly? DateOf(DateTime? value) => value is { } d ? DateOnly.FromDateTime(d) : null;
+
+    private static string? NullIfBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static RadarrConnection? Connection(string? url, string? apiKey) =>
+        string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(apiKey) ? null : new RadarrConnection(url.Trim(), apiKey.Trim());
+
+    /// <param name="CustomFormats">Radarr's custom formats, a JSON array in Radarr's API shape.</param>
+    /// <param name="History">Radarr's history by Radarr movie id; empty when the import does not copy it.</param>
+    private sealed record Snapshot(RadarrSystemStatus Status, List<RadarrProfile> Profiles, List<RadarrRootFolder> RootFolders, List<RadarrTag> Tags, List<RadarrMovie> Movies, List<RadarrExclusion> Exclusions, JsonElement CustomFormats, ILookup<int, RadarrHistoryItem> History, int HistoryCount);
+
+    /// <param name="Profiles">Radarr profile id → Bigarr profile id.</param>
+    /// <param name="Roots">Normalized Radarr root path → Bigarr root folder.</param>
+    /// <param name="Tags">Radarr tag id → Bigarr tag id.</param>
+    /// <param name="Indexers">Bigarr indexer name → id, to link a grab to the indexer that still exists.</param>
+    private sealed record ImportContext(RadarrImportRequest Request, Snapshot Snapshot, string VersionName, Dictionary<int, int> Profiles, Dictionary<string, RootFolder> Roots, Dictionary<int, int> Tags, HashSet<int> QualityIds, Dictionary<string, int> Indexers);
+}

@@ -132,6 +132,15 @@ public sealed class HealthCheckService(
             issues.Add(new HealthIssue("metadata", HealthIssueType.Notice, "No TMDB API key: Bigarr runs on its embedded fixture catalogue of a dozen films. Set Bigarr__Tmdb__ApiKey."));
         }
 
+        var failingServers = await db.MediaServers.AsNoTracking()
+            .Where(s => s.Enabled && s.LastErrorAt != null && (s.LastRefreshAt == null || s.LastErrorAt > s.LastRefreshAt))
+            .Select(s => new { s.Name, s.Kind, s.LastError })
+            .ToListAsync(ct);
+        foreach (var server in failingServers)
+        {
+            issues.Add(new HealthIssue("mediaservers", HealthIssueType.Warning, $"{server.Kind} {server.Name} could not be refreshed: {server.LastError}"));
+        }
+
         var failingEndpoints = await db.WebhookDeliveries.AsNoTracking()
             .Where(d => d.DeliveredAt == null && (d.NextAttemptAt == null || d.Attempts >= 3))
             .GroupBy(d => d.Endpoint.Name)

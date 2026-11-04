@@ -5,6 +5,7 @@ using Bigarr.Domain.Events;
 using Bigarr.Domain.History;
 using Bigarr.Domain.Indexers;
 using Bigarr.Domain.Library;
+using Bigarr.Domain.MediaServers;
 using Bigarr.Domain.Movies;
 using Bigarr.Domain.Notifications;
 using Bigarr.Domain.Quality;
@@ -67,6 +68,8 @@ public sealed class BigarrDbContext(DbContextOptions<BigarrDbContext> options) :
     public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
 
     public DbSet<ScheduledJob> ScheduledJobs => Set<ScheduledJob>();
+
+    public DbSet<MediaServer> MediaServers => Set<MediaServer>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
