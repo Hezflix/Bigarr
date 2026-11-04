@@ -141,6 +141,7 @@ function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: Rad
   const [importTags, setImportTags] = useState(true)
   const [importExclusions, setImportExclusions] = useState(true)
   const [importHistory, setImportHistory] = useState(true)
+  const [importBlocklist, setImportBlocklist] = useState(true)
   const [importCustomFormats, setImportCustomFormats] = useState(true)
   const [keepMonitored, setKeepMonitored] = useState(true)
   const [includeWithoutFile, setIncludeWithoutFile] = useState(true)
@@ -165,6 +166,7 @@ function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: Rad
         importTags,
         importExclusions,
         importHistory,
+        importBlocklist,
         importCustomFormats,
         keepMonitored,
         includeMoviesWithoutFile: includeWithoutFile,
@@ -188,6 +190,7 @@ function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: Rad
           already: preview.alreadyInLibrary,
           exclusions: preview.exclusions,
           history: preview.historyRecords,
+          blocklist: preview.blocklist,
           customFormats: preview.customFormats,
         })}
       </p>
@@ -325,6 +328,7 @@ function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: Rad
           disabled={preview.customFormats === 0}
         />
         <Toggle id="radarr-import-history" label={t('importRadarr.importHistory')} checked={importHistory} onChange={setImportHistory} disabled={preview.historyRecords === 0} />
+        <Toggle id="radarr-import-blocklist" label={t('importRadarr.importBlocklist')} checked={importBlocklist} onChange={setImportBlocklist} disabled={preview.blocklist === 0} />
         <Toggle id="radarr-keep-monitored" label={t('importRadarr.keepMonitored')} checked={keepMonitored} onChange={setKeepMonitored} />
         <Toggle id="radarr-include-without-file" label={t('importRadarr.includeWithoutFile')} checked={includeWithoutFile} onChange={setIncludeWithoutFile} />
       </section>
@@ -358,6 +362,7 @@ function RunStep({ status, onAgain }: { status: RadarrImportStatus; onAgain: () 
     ['importRadarr.tagsAdded', status.tagsAdded],
     ['importRadarr.exclusionsAdded', status.exclusionsAdded],
     ['importRadarr.historyAdded', status.historyAdded],
+    ['importRadarr.blocklistAdded', status.blocklistAdded],
     ['importRadarr.customFormatsAdded', status.customFormatsAdded],
     ['importRadarr.customFormatsUpdated', status.customFormatsUpdated],
     ['importRadarr.profilesScored', status.profilesScored],

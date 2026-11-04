@@ -25,8 +25,9 @@ namespace Bigarr.Api.Features.Migration;
 /// it comes from (<c>1080p</c>, <c>4k</c>), with its monitored flag, profile, tags, availability and file; a second
 /// Radarr imported with another version name lands as a second version of the same films. Metadata comes from
 /// Radarr's own payload, so the import needs no TMDB round trip; the film is flagged for a refresh. Radarr's history of
-/// each imported film is copied into the journal, so the film page still says where its file came from. Custom formats
-/// come along, and each mapped profile takes the format scores of the Radarr profile mapped to it.
+/// each imported film is copied into the journal, so the film page still says where its file came from, and its blocklist
+/// onto the version, so a release Radarr rejected is not grabbed again. Custom formats come along, and each mapped
+/// profile takes the format scores of the Radarr profile mapped to it.
 /// </summary>
 public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr, IMetadataProvider metadata, OutboxWriter outbox, TimeProvider time, ILogger<RadarrImportService> logger)
 {
@@ -44,8 +45,8 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         Snapshot snapshot;
         try
         {
-            snapshot = await LoadAsync(connection, withHistory: false, ct);
-            snapshot = snapshot with { HistoryCount = await radarr.HistoryCountAsync(connection, ct) };
+            snapshot = await LoadAsync(connection, withHistory: false, withBlocklist: false, ct);
+            snapshot = snapshot with { HistoryCount = await radarr.HistoryCountAsync(connection, ct), BlocklistCount = await radarr.BlocklistCountAsync(connection, ct) };
         }
         catch (RadarrUnavailableException ex)
         {
@@ -88,6 +89,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
             snapshot.Movies.Count(m => known.Contains(m.TmdbId)),
             snapshot.Exclusions.Count,
             snapshot.HistoryCount,
+            snapshot.BlocklistCount,
             snapshot.CustomFormats.GetArrayLength(),
             suggestedName,
             profilePreviews,
@@ -133,7 +135,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
 
         var request = progress.Request;
         var connection = Connection(request.Url, request.ApiKey) ?? throw new InvalidOperationException("Radarr URL and API key are required.");
-        var snapshot = await LoadAsync(connection, request.ImportHistory, ct);
+        var snapshot = await LoadAsync(connection, request.ImportHistory, request.ImportBlocklist, ct);
         var context = await ContextAsync(request, snapshot, progress, ct);
 
         if (request.ImportCustomFormats)
@@ -290,6 +292,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
 
         // Ids exist now: the history lines can point at the film, the version and the file.
         var historyAdded = context.Request.ImportHistory ? await AddHistoryAsync(item, movie, version, context, ct) : 0;
+        var blocklistAdded = context.Request.ImportBlocklist ? await AddBlocklistAsync(item, movie, version, context, ct) : 0;
 
         var movieRef = MovieRef.From(movie);
         var versionRef = VersionRef.From(version);
@@ -313,6 +316,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         progress.HistoryAdded(historyAdded);
+        progress.BlocklistAdded(blocklistAdded);
         foreach (var note in notes)
         {
             progress.Issue(item.Title, item.TmdbId, note, movie.Id);
@@ -473,6 +477,49 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
                 MediaFileId = linksFile ? version.File!.Id : null,
                 Data = line.Data,
                 CreatedAt = line.Date,
+            });
+            added++;
+        }
+
+        return added;
+    }
+
+    /// <summary>
+    /// Radarr's blocklist of one film, as entries of the version it became (its film's default version for a one-shot,
+    /// like any blocklisting). Radarr gives no guid or info hash, so the entries match on the release title. A title the
+    /// version already blocklists is not added twice, so the import can be re-run. No journal line: the copied Radarr
+    /// history already says what happened.
+    /// </summary>
+    private async Task<int> AddBlocklistAsync(RadarrMovie item, Movie movie, MovieVersion version, ImportContext context, CancellationToken ct)
+    {
+        var records = context.Snapshot.Blocklist[item.Id].OrderBy(r => r.Date).ThenBy(r => r.Id).ToList();
+        if (records.Count == 0)
+        {
+            return 0;
+        }
+
+        var owner = version.Mode == VersionMode.OneShot ? movie.Versions.FirstOrDefault(v => v.IsDefault) ?? version : version;
+        var known = (await db.Blocklist.AsNoTracking().Where(b => b.TargetId == owner.Id).Select(b => b.SourceTitle).ToListAsync(ct))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var added = 0;
+        foreach (var record in records)
+        {
+            var sourceTitle = Truncate(record.SourceTitle, 1024);
+            if (sourceTitle is null || !known.Add(sourceTitle))
+            {
+                continue;
+            }
+
+            var indexerName = Truncate(record.Indexer, 128);
+            db.Blocklist.Add(new BlocklistEntry
+            {
+                TargetId = owner.Id,
+                SourceTitle = sourceTitle,
+                IndexerId = indexerName is not null && context.Indexers.TryGetValue(indexerName, out var indexerId) ? indexerId : null,
+                IndexerName = indexerName,
+                Reason = Truncate(record.Message, 1024),
+                CreatedAt = Utc(record.Date),
             });
             added++;
         }
@@ -672,7 +719,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         return ids.Count == 0 ? [] : await db.Tags.Where(t => ids.Contains(t.Id)).ToListAsync(ct);
     }
 
-    private async Task<Snapshot> LoadAsync(RadarrConnection connection, bool withHistory, CancellationToken ct)
+    private async Task<Snapshot> LoadAsync(RadarrConnection connection, bool withHistory, bool withBlocklist, CancellationToken ct)
     {
         var status = await radarr.StatusAsync(connection, ct);
         var profiles = await radarr.ProfilesAsync(connection, ct);
@@ -682,7 +729,8 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         var exclusions = await radarr.ExclusionsAsync(connection, ct);
         var customFormats = await radarr.CustomFormatsAsync(connection, ct);
         var history = withHistory ? await radarr.HistoryAsync(connection, ct) : [];
-        return new Snapshot(status, profiles, roots, tags, movies.Where(m => m.TmdbId > 0 && !string.IsNullOrWhiteSpace(m.Title)).ToList(), exclusions, customFormats, history.ToLookup(h => h.MovieId), history.Count);
+        var blocklist = withBlocklist ? await radarr.BlocklistAsync(connection, ct) : [];
+        return new Snapshot(status, profiles, roots, tags, movies.Where(m => m.TmdbId > 0 && !string.IsNullOrWhiteSpace(m.Title)).ToList(), exclusions, customFormats, history.ToLookup(h => h.MovieId), history.Count, blocklist.ToLookup(b => b.MovieId), blocklist.Count);
     }
 
     private async Task<MovieMetadata?> FetchAsync(int tmdbId, CancellationToken ct)
@@ -975,11 +1023,12 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
 
     /// <param name="CustomFormats">Radarr's custom formats, a JSON array in Radarr's API shape.</param>
     /// <param name="History">Radarr's history by Radarr movie id; empty when the import does not copy it.</param>
-    private sealed record Snapshot(RadarrSystemStatus Status, List<RadarrProfile> Profiles, List<RadarrRootFolder> RootFolders, List<RadarrTag> Tags, List<RadarrMovie> Movies, List<RadarrExclusion> Exclusions, JsonElement CustomFormats, ILookup<int, RadarrHistoryItem> History, int HistoryCount);
+    /// <param name="Blocklist">Radarr's blocklist by Radarr movie id; empty when the import does not copy it.</param>
+    private sealed record Snapshot(RadarrSystemStatus Status, List<RadarrProfile> Profiles, List<RadarrRootFolder> RootFolders, List<RadarrTag> Tags, List<RadarrMovie> Movies, List<RadarrExclusion> Exclusions, JsonElement CustomFormats, ILookup<int, RadarrHistoryItem> History, int HistoryCount, ILookup<int, RadarrBlocklistItem> Blocklist, int BlocklistCount);
 
     /// <param name="Profiles">Radarr profile id → Bigarr profile id.</param>
     /// <param name="Roots">Normalized Radarr root path → Bigarr root folder.</param>
     /// <param name="Tags">Radarr tag id → Bigarr tag id.</param>
-    /// <param name="Indexers">Bigarr indexer name → id, to link a grab to the indexer that still exists.</param>
+    /// <param name="Indexers">Bigarr indexer name → id, to link a grab or a blocklisted release to the indexer that still exists.</param>
     private sealed record ImportContext(RadarrImportRequest Request, Snapshot Snapshot, string VersionName, Dictionary<int, int> Profiles, Dictionary<string, RootFolder> Roots, Dictionary<int, int> Tags, HashSet<int> QualityIds, Dictionary<string, int> Indexers);
 }

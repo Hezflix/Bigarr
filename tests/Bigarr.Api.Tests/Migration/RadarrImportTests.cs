@@ -6,7 +6,9 @@ using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Tests.Auth;
 using Bigarr.Api.Tests.Compat;
 using Bigarr.Api.Tests.Hosting;
+using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.History;
+using Bigarr.Domain.Indexers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,7 +16,7 @@ namespace Bigarr.Api.Tests.Migration;
 
 /// <summary>
 /// Moving in from Radarr (M8): a standard Radarr becomes <c>1080p</c> versions with their files, flags, tags and
-/// exclusions, history, custom formats and profile scores; a 4K Radarr imported afterwards adds <c>4k</c> versions to the same films; a second pass updates instead
+/// exclusions, history, blocklist, custom formats and profile scores; a 4K Radarr imported afterwards adds <c>4k</c> versions to the same films; a second pass updates instead
 /// of duplicating. Radarr is played by a fake HTTP server; the library folder is a temp directory.
 /// </summary>
 public sealed class RadarrImportTests(BigarrApiFactory factory) : IClassFixture<BigarrApiFactory>
@@ -37,6 +39,17 @@ public sealed class RadarrImportTests(BigarrApiFactory factory) : IClassFixture<
         var pulpFolder = Directory.CreateDirectory(Path.Combine(hdRoot.Path, "Pulp Fiction (1994)")).FullName;
         await File.WriteAllBytesAsync(Path.Combine(pulpFolder, "Pulp.Fiction.1994.1080p.BluRay.x264-GRP.mkv"), new byte[2048]);
 
+        // An indexer Radarr names, synced here under the same name: imported blocklist entries link to it.
+        int oldSchoolId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+            var indexer = new Indexer { Name = "The Old School (Prowlarr)", Implementation = IndexerImplementation.Mock, EnableRss = false, EnableAutomaticSearch = false, EnableInteractiveSearch = false };
+            db.Indexers.Add(indexer);
+            await db.SaveChangesAsync();
+            oldSchoolId = indexer.Id;
+        }
+
         await using var radarr = await FakeHttpServer.StartAsync();
         radarr.Responder = r => Answer(r, "/radarr-movies", StandardMovies(heatMonitored: false));
 
@@ -50,6 +63,7 @@ public sealed class RadarrImportTests(BigarrApiFactory factory) : IClassFixture<
         Assert.Equal(0, preview.GetProperty("alreadyInLibrary").GetInt32());
         Assert.Equal(1, preview.GetProperty("exclusions").GetInt32());
         Assert.Equal(History().Length, preview.GetProperty("historyRecords").GetInt32());
+        Assert.Equal(Blocklist().Length, preview.GetProperty("blocklist").GetInt32());
         Assert.Equal(2, preview.GetProperty("customFormats").GetInt32());
         var profiles = preview.GetProperty("profiles").EnumerateArray().ToDictionary(p => p.GetProperty("name").GetString()!, p => p);
         Assert.Equal(hd, profiles["HD-1080p"].GetProperty("suggestedProfileId").GetInt32());
@@ -73,6 +87,7 @@ public sealed class RadarrImportTests(BigarrApiFactory factory) : IClassFixture<
         Assert.Equal(1, status.GetProperty("tagsAdded").GetInt32());
         Assert.Equal(1, status.GetProperty("exclusionsAdded").GetInt32());
         Assert.Equal(5, status.GetProperty("historyAdded").GetInt32());
+        Assert.Equal(3, status.GetProperty("blocklistAdded").GetInt32());
         Assert.Equal(2, status.GetProperty("customFormatsAdded").GetInt32());
         Assert.Equal(0, status.GetProperty("customFormatsUpdated").GetInt32());
         Assert.Equal(2, status.GetProperty("profilesScored").GetInt32());
@@ -144,6 +159,23 @@ public sealed class RadarrImportTests(BigarrApiFactory factory) : IClassFixture<
             var gumpFailed = await db.History.SingleAsync(h => h.TmdbId == ForrestGump);
             Assert.Equal(HistoryEventType.DownloadFailed, gumpFailed.EventType);
             Assert.Equal("Stalled", gumpFailed.Data["reason"]);
+
+            // Radarr's blocklist on the 1080p versions, title only; the same title twice is one entry, the gone film's is left out.
+            var pulpBlocklist = await BlocklistOfAsync(db, PulpFiction, "1080p");
+            Assert.Equal(["Pulp.Fiction.1994.1080p.WEB-DL.x264-FAKE", "Pulp.Fiction.1994.2160p.HDR.x265-BAD"], pulpBlocklist.Select(b => b.SourceTitle));
+            Assert.All(pulpBlocklist, b => Assert.Null(b.ReleaseGuid));
+            Assert.All(pulpBlocklist, b => Assert.Null(b.InfoHash));
+            Assert.Equal(oldSchoolId, pulpBlocklist[0].IndexerId);
+            Assert.Equal("The Old School (Prowlarr)", pulpBlocklist[0].IndexerName);
+            Assert.Equal("Manually blocklisted", pulpBlocklist[0].Reason);
+            Assert.Equal(new DateTime(2024, 1, 5, 8, 0, 0), pulpBlocklist[0].CreatedAt);
+            Assert.Null(pulpBlocklist[1].IndexerId);
+            Assert.Equal("Nyaa.si", pulpBlocklist[1].IndexerName);
+            var gumpBlocked = Assert.Single(await BlocklistOfAsync(db, ForrestGump, "1080p"));
+            Assert.Equal("Forrest.Gump.1994.1080p.WEB-DL.x264-GRP", gumpBlocked.SourceTitle);
+            Assert.Null(gumpBlocked.Reason);
+            Assert.Equal(3, await db.Blocklist.CountAsync());
+            Assert.False(await db.History.AnyAsync(h => h.EventType == HistoryEventType.Blocklisted));
         }
 
         // A 4K Radarr, imported as 4k: Pulp Fiction gains a second version, the 1080p stays the default.
@@ -160,6 +192,7 @@ public sealed class RadarrImportTests(BigarrApiFactory factory) : IClassFixture<
         Assert.Equal(0, status.GetProperty("customFormatsAdded").GetInt32());
         Assert.Equal(2, status.GetProperty("customFormatsUpdated").GetInt32());
         Assert.Equal(1, status.GetProperty("profilesScored").GetInt32());
+        Assert.Equal(0, status.GetProperty("blocklistAdded").GetInt32());
 
         movies = await MoviesAsync(session);
         var pulpVersions = movies[PulpFiction].GetProperty("versions").EnumerateArray().ToDictionary(v => v.GetProperty("name").GetString()!, v => v);
@@ -170,6 +203,14 @@ public sealed class RadarrImportTests(BigarrApiFactory factory) : IClassFixture<
         Assert.Equal("Bluray-2160p", pulpVersions["4k"].GetProperty("file").GetProperty("quality").GetString());
         Assert.Equal(uhdRoot.Id, pulpVersions["4k"].GetProperty("rootFolderId").GetInt32());
 
+        // The standard Radarr's entries belong to its films: the 4k version gets none of them.
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+            Assert.Empty(await BlocklistOfAsync(db, PulpFiction, "4k"));
+            Assert.Equal(2, (await BlocklistOfAsync(db, PulpFiction, "1080p")).Count);
+        }
+
         // The standard Radarr again, Heat monitored now: settings are updated, nothing is duplicated.
         radarr.Responder = r => Answer(r, "/radarr-movies", StandardMovies(heatMonitored: true));
         status = await ImportAsync(session, radarr.Url, "1080p", new Dictionary<string, int> { ["1"] = hd, ["2"] = uhd }, new Dictionary<string, int> { ["/radarr-movies"] = hdRoot.Id });
@@ -178,6 +219,7 @@ public sealed class RadarrImportTests(BigarrApiFactory factory) : IClassFixture<
         Assert.Equal(0, status.GetProperty("versionsAdded").GetInt32());
         Assert.Equal(3, status.GetProperty("versionsUpdated").GetInt32());
         Assert.Equal(0, status.GetProperty("historyAdded").GetInt32());
+        Assert.Equal(0, status.GetProperty("blocklistAdded").GetInt32());
 
         movies = await MoviesAsync(session);
         Assert.True(movies[Heat].GetProperty("versions").EnumerateArray().Single().GetProperty("monitored").GetBoolean());
@@ -237,6 +279,14 @@ public sealed class RadarrImportTests(BigarrApiFactory factory) : IClassFixture<
         return movies;
     }
 
+    /// <summary>The blocklist of one version of a film, oldest first.</summary>
+    private static Task<List<BlocklistEntry>> BlocklistOfAsync(BigarrDbContext db, int tmdbId, string versionName) =>
+        (from entry in db.Blocklist
+         join version in db.MovieVersions on entry.TargetId equals version.Id
+         where version.Movie.TmdbId == tmdbId && version.Name == versionName
+         orderby entry.CreatedAt
+         select entry).ToListAsync();
+
     private static async Task<RootFolderResponse> AddRootAsync(HttpClient session, string path)
     {
         var created = await session.PostAsJsonAsync("/api/v1/rootfolders", new AddRootFolderRequest(path));
@@ -270,6 +320,7 @@ public sealed class RadarrImportTests(BigarrApiFactory factory) : IClassFixture<
             "/api/v3/movie" => Json(movies),
             "/api/v3/exclusions" => Json(new object[] { new { id = 1, tmdbId = FightClub, movieTitle = "Fight Club", movieYear = 1999 } }),
             "/api/v3/history" => HistoryPage(request.Query),
+            "/api/v3/blocklist" => BlocklistPage(request.Query),
             _ => null,
         };
     }
@@ -302,6 +353,44 @@ public sealed class RadarrImportTests(BigarrApiFactory factory) : IClassFixture<
         HistoryItem(6, 2, "downloadFailed", "2024-03-02T00:00:00Z", "Forrest.Gump.1994.1080p.WEB-DL.x264-GRP", 3, "WEBDL-1080p", "FFF", new() { ["message"] = "Stalled", ["downloadClientName"] = "qBittorrent" }),
         HistoryItem(7, 42, "grabbed", "2024-03-03T00:00:00Z", "Gone.Film.2001.1080p", 7, "Bluray-1080p", "GGG", new() { ["indexer"] = "Nyaa.si" }),
     ];
+
+    /// <summary>Radarr's paged blocklist: <c>page</c> and <c>pageSize</c> from the query, records oldest first.</summary>
+    private static FakeHttpServer.Answer BlocklistPage(string query)
+    {
+        var parameters = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(query);
+        var page = int.Parse(parameters["page"].ToString(), System.Globalization.CultureInfo.InvariantCulture);
+        var pageSize = int.Parse(parameters["pageSize"].ToString(), System.Globalization.CultureInfo.InvariantCulture);
+        var all = Blocklist();
+        return Json(new { page, pageSize, totalRecords = all.Length, records = all.Skip((page - 1) * pageSize).Take(pageSize).ToArray() });
+    }
+
+    /// <summary>
+    /// Two Pulp Fiction (Radarr id 1) releases, the second listed again in other case; the Forrest Gump (id 2) release that
+    /// failed, without a message, from an indexer Bigarr does not have; a release of a film Radarr no longer has.
+    /// </summary>
+    private static object[] Blocklist() =>
+    [
+        BlocklistItem(1, 1, "Pulp.Fiction.1994.1080p.WEB-DL.x264-FAKE", "2024-01-05T08:00:00Z", "The Old School (Prowlarr)", "Manually blocklisted"),
+        BlocklistItem(2, 1, "Pulp.Fiction.1994.2160p.HDR.x265-BAD", "2024-01-06T08:00:00Z", "Nyaa.si", "Wrong resolution"),
+        BlocklistItem(3, 1, "pulp.fiction.1994.2160p.hdr.x265-bad", "2024-01-07T08:00:00Z", "Nyaa.si", "Wrong resolution"),
+        BlocklistItem(4, 2, "Forrest.Gump.1994.1080p.WEB-DL.x264-GRP", "2024-03-02T00:00:00Z", "Nyaa.si", " "),
+        BlocklistItem(5, 42, "Gone.Film.2001.1080p", "2024-03-03T00:00:00Z", "Nyaa.si", "Stalled"),
+    ];
+
+    /// <summary>A blocklist record in Radarr's shape: no release guid, no info hash.</summary>
+    private static object BlocklistItem(int id, int movieId, string sourceTitle, string date, string indexer, string message) => new
+    {
+        id,
+        movieId,
+        sourceTitle,
+        languages = new object[] { new { id = 1, name = "English" } },
+        quality = new { quality = new { id = 7, name = "Bluray-1080p" }, revision = new { version = 1, real = 0, isRepack = false } },
+        customFormats = Array.Empty<object>(),
+        date,
+        protocol = "torrent",
+        indexer,
+        message,
+    };
 
     private static object HistoryItem(int id, int movieId, string eventType, string date, string sourceTitle, int qualityId, string qualityName, string? downloadId, Dictionary<string, string> data) => new
     {
