@@ -1,4 +1,5 @@
 using Bigarr.Api.Infrastructure.Persistence;
+using Bigarr.Domain.Events;
 using Bigarr.Domain.Notifications;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -60,21 +61,29 @@ public sealed class OutboxDispatcher(IServiceScopeFactory scopeFactory, OutboxSi
             return 0;
         }
 
-        var endpoints = await db.NotificationEndpoints.AsNoTracking().Where(e => e.Enabled).ToListAsync(ct);
+        var endpoints = await db.NotificationEndpoints.AsNoTracking().Include(e => e.Tags).Where(e => e.Enabled).ToListAsync(ct);
+        var parsed = endpoints.Count == 0 ? [] : events.ToDictionary(e => e.Id, e => EventJson.Deserialize(e.Type, e.Payload));
+        var tags = await LiveTagsAsync(db, endpoints, parsed.Values, ct);
+        IEnumerable<int> TagsOf(VersionRef version) => version.Tags is { Count: > 0 } snapshot ? snapshot.Select(t => t.Id) : tags.GetValueOrDefault(version.Id) ?? [];
+
         var deliveries = 0;
         foreach (var outboxEvent in events)
         {
-            foreach (var endpoint in endpoints.Where(e => e.Subscribes(outboxEvent.Type)))
+            foreach (var endpoint in endpoints)
             {
-                db.WebhookDeliveries.Add(new WebhookDelivery
+                foreach (var versionId in WebhookRouting.Deliveries(endpoint, outboxEvent.Type, parsed.GetValueOrDefault(outboxEvent.Id), TagsOf))
                 {
-                    EventId = outboxEvent.Id,
-                    EndpointId = endpoint.Id,
-                    EventType = outboxEvent.Type,
-                    NextAttemptAt = now,
-                    CreatedAt = now,
-                });
-                deliveries++;
+                    db.WebhookDeliveries.Add(new WebhookDelivery
+                    {
+                        EventId = outboxEvent.Id,
+                        EndpointId = endpoint.Id,
+                        EventType = outboxEvent.Type,
+                        VersionId = versionId,
+                        NextAttemptAt = now,
+                        CreatedAt = now,
+                    });
+                    deliveries++;
+                }
             }
 
             outboxEvent.DispatchedAt = now;
@@ -95,5 +104,29 @@ public sealed class OutboxDispatcher(IServiceScopeFactory scopeFactory, OutboxSi
 
         logger.LogDebug("Dispatched {Events} event(s) into {Deliveries} webhook deliver(ies)", events.Count, deliveries);
         return events.Count;
+    }
+
+    /// <summary>
+    /// The snapshot's tags decide; a version whose snapshot has none may just not have had them loaded by the slice
+    /// that published, so its current tags are read, once per batch and only when an endpoint filters on tags.
+    /// </summary>
+    private static async Task<Dictionary<int, List<int>>> LiveTagsAsync(BigarrDbContext db, List<NotificationEndpoint> endpoints, IEnumerable<DomainEvent?> events, CancellationToken ct)
+    {
+        if (!endpoints.Any(e => e.Tags.Count > 0))
+        {
+            return [];
+        }
+
+        var ids = events.OfType<DomainEvent>().SelectMany(WebhookRouting.Subjects).Where(v => v.Tags is not { Count: > 0 }).Select(v => v.Id).Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var rows = await db.MovieVersions.AsNoTracking()
+            .Where(v => ids.Contains(v.Id))
+            .Select(v => new { v.Id, Tags = v.Tags.Select(t => t.Id).ToList() })
+            .ToListAsync(ct);
+        return rows.ToDictionary(r => r.Id, r => r.Tags);
     }
 }

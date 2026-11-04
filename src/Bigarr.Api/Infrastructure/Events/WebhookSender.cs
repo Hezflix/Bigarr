@@ -1,3 +1,4 @@
+using Bigarr.Api.Features.Notifications.Radarr;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Notifications;
 using Microsoft.EntityFrameworkCore;
@@ -99,7 +100,18 @@ public sealed class WebhookSender(IServiceScopeFactory scopeFactory, WebhookSign
                 continue;
             }
 
-            var result = await client.PostAsync(delivery.Endpoint, delivery.EventType, delivery.EventId, delivery.Event.Payload, delivery.Event.CreatedAt, delivery.Id.ToString(), ct);
+            var body = delivery.Endpoint.Format == WebhookFormat.Radarr
+                ? RadarrWebhook.Body(delivery.EventType, delivery.Event.Payload, delivery.VersionId, settings.ApplicationUrl)
+                : WebhookClient.Body(delivery.EventType, delivery.EventId, delivery.Event.Payload, delivery.Event.CreatedAt, settings.ApplicationUrl);
+            if (body is null)
+            {
+                // The endpoint switched to the Radarr format after the delivery was created, for an event Radarr has no word for.
+                delivery.NextAttemptAt = null;
+                delivery.LastError = "Radarr's webhook format has nothing for this event.";
+                continue;
+            }
+
+            var result = await client.SendAsync(delivery.Endpoint, delivery.EventType, body, delivery.Id.ToString(), ct);
             delivery.LastStatusCode = result.StatusCode;
             if (result.Success)
             {

@@ -4,7 +4,17 @@ import { cn } from 'cn'
 import { FlaskConicalIcon, ListIcon, PencilIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, notifications, type NotificationEndpoint, type NotificationEndpointRequest, type WebhookDeliveryState } from '@/api/client'
+import {
+  ApiError,
+  notifications,
+  slugify,
+  tags as tagsApi,
+  type NotificationEndpoint,
+  type NotificationEndpointRequest,
+  type NotificationEventType,
+  type WebhookDeliveryState,
+  type WebhookFormat,
+} from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -22,6 +32,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -35,17 +46,44 @@ const stateStyles: Record<WebhookDeliveryState, string> = {
   givenUp: 'border-red-600/30 bg-red-500/10 text-red-700 dark:border-red-400/30 dark:text-red-300',
 }
 
-type Form = { name: string; url: string; secret: string; enabled: boolean; events: string[] }
+type ViewKind = 'default' | 'all' | 'version'
 
-const emptyForm = (): Form => ({ name: '', url: '', secret: '', enabled: true, events: [] })
+type Form = { name: string; url: string; secret: string; enabled: boolean; events: string[]; tags: number[]; format: WebhookFormat; viewKind: ViewKind; versionName: string }
 
-const toForm = (endpoint: NotificationEndpoint): Form => ({ name: endpoint.name, url: endpoint.url, secret: '', enabled: endpoint.enabled, events: endpoint.events })
+const emptyForm = (): Form => ({ name: '', url: '', secret: '', enabled: true, events: [], tags: [], format: 'bigarr', viewKind: 'default', versionName: '' })
+
+/** `version:4k` → kind + name, the same reading as an API key's view. */
+function splitView(view: string): { kind: ViewKind; name: string } {
+  if (view === 'all') return { kind: 'all', name: '' }
+  if (view.startsWith('version:')) return { kind: 'version', name: view.slice('version:'.length) }
+  return { kind: 'default', name: '' }
+}
+
+const toForm = (endpoint: NotificationEndpoint): Form => {
+  const view = splitView(endpoint.view)
+  return {
+    name: endpoint.name,
+    url: endpoint.url,
+    secret: '',
+    enabled: endpoint.enabled,
+    events: endpoint.events,
+    tags: endpoint.tags,
+    format: endpoint.format,
+    viewKind: view.kind,
+    versionName: view.name,
+  }
+}
+
+/** Radarr's format only sends what Radarr has a word for. */
+const sentAs = (type: NotificationEventType, format: WebhookFormat) => format === 'bigarr' || type.radarrEventType !== null
 
 /** Outgoing webhooks (blueprint §3.7, §3.9): where events go, signed, retried until they land. */
 export function NotificationsPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const list = useQuery({ queryKey: ['notifications'], queryFn: notifications.list, refetchInterval: 30_000 })
+  const allTags = useQuery({ queryKey: ['tags'], queryFn: tagsApi.list, staleTime: 60_000 })
+  const tagLabel = (id: number) => allTags.data?.find((tag) => tag.id === id)?.label ?? `#${id}`
   const [editing, setEditing] = useState<NotificationEndpoint | 'new' | null>(null)
   const [deliveriesOf, setDeliveriesOf] = useState<NotificationEndpoint | null>(null)
   const [pendingRemove, setPendingRemove] = useState<NotificationEndpoint | null>(null)
@@ -107,6 +145,11 @@ export function NotificationsPage() {
                     <span className="block max-w-[32ch] truncate text-xs text-muted-foreground" title={endpoint.url}>
                       {endpoint.url}
                     </span>
+                    {endpoint.format === 'radarr' && (
+                      <Badge variant="outline" className="mt-1" data-testid={`notification-format-${endpoint.id}`}>
+                        {t('notifications.radarrBadge', { view: endpoint.view })}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="align-top">
                     {endpoint.events.length === 0 ? (
@@ -116,6 +159,16 @@ export function NotificationsPage() {
                         {endpoint.events.map((e) => (
                           <Badge key={e} variant="outline">
                             {e}
+                          </Badge>
+                        ))}
+                      </span>
+                    )}
+                    {endpoint.tags.length > 0 && (
+                      <span className="mt-1 flex max-w-[24rem] flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                        {t('notifications.onlyTagged')}
+                        {endpoint.tags.map((id) => (
+                          <Badge key={id} variant="secondary">
+                            {tagLabel(id)}
                           </Badge>
                         ))}
                       </span>
@@ -233,7 +286,9 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
   const { t } = useTranslation()
   const [form, setForm] = useState<Form>(endpoint ? toForm(endpoint) : emptyForm())
   const types = useQuery({ queryKey: ['notifications', 'events'], queryFn: notifications.eventTypes, staleTime: Infinity })
+  const allTags = useQuery({ queryKey: ['tags'], queryFn: tagsApi.list, staleTime: 60_000 })
   const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm((f) => ({ ...f, [key]: value }))
+  const view = form.viewKind === 'version' ? `version:${slugify(form.versionName)}` : form.viewKind
 
   // An empty secret on an edit keeps the endpoint unsigned: the API stores what it is sent, and the secret is never read back.
   const payload = (): NotificationEndpointRequest => ({
@@ -242,7 +297,21 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
     secret: form.secret || null,
     enabled: form.enabled,
     events: form.events,
+    tags: form.tags,
+    format: form.format,
+    view: form.format === 'radarr' ? view : 'default',
   })
+
+  // Switching to Radarr's format drops the events it cannot send, so the selection never says more than what goes out.
+  const setFormat = (format: WebhookFormat) =>
+    setForm((f) => ({
+      ...f,
+      format,
+      events: f.events.filter((e) => {
+        const type = types.data?.find((candidate) => candidate.type === e)
+        return type === undefined || sentAs(type, format)
+      }),
+    }))
 
   const save = useMutation({
     mutationFn: () => (endpoint ? notifications.update(endpoint.id, payload()) : notifications.add(payload())),
@@ -263,7 +332,9 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
   }
 
   const toggleEvent = (type: string) => set('events', form.events.includes(type) ? form.events.filter((e) => e !== type) : [...form.events, type])
-  const canSubmit = form.name.trim().length > 0 && /^https?:\/\//i.test(form.url.trim())
+  const toggleTag = (id: number) => set('tags', form.tags.includes(id) ? form.tags.filter((tag) => tag !== id) : [...form.tags, id])
+  const canSubmit =
+    form.name.trim().length > 0 && /^https?:\/\//i.test(form.url.trim()) && (form.format === 'bigarr' || form.viewKind !== 'version' || slugify(form.versionName).length > 0)
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -294,19 +365,85 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
               </Label>
             </div>
 
+            <div className="grid grid-cols-1 gap-2">
+              <Label htmlFor="nt-format">{t('notifications.format')}</Label>
+              <Select value={form.format} onValueChange={(value) => setFormat(value as WebhookFormat)}>
+                <SelectTrigger id="nt-format" className="w-full" data-testid="notification-format">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bigarr">{t('notifications.formatBigarr')}</SelectItem>
+                  <SelectItem value="radarr">{t('notifications.formatRadarr')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {form.format === 'radarr' && (
+              <div className="grid grid-cols-1 gap-2">
+                <Label htmlFor="nt-view">{t('notifications.view')}</Label>
+                <Select value={form.viewKind} onValueChange={(value) => set('viewKind', value as ViewKind)}>
+                  <SelectTrigger id="nt-view" className="w-full" data-testid="notification-view">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">{t('connect.viewDefault')}</SelectItem>
+                    <SelectItem value="all">{t('connect.viewAll')}</SelectItem>
+                    <SelectItem value="version">{t('notifications.viewVersion')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground sm:col-span-2">{form.format === 'radarr' ? t('notifications.formatRadarrHint') : t('notifications.formatBigarrHint')}</p>
+            {form.format === 'radarr' && form.viewKind === 'version' && (
+              <div className="grid grid-cols-1 gap-2 sm:col-span-2">
+                <Label htmlFor="nt-version">{t('connect.versionName')}</Label>
+                <Input id="nt-version" value={form.versionName} onChange={(e) => set('versionName', e.target.value)} placeholder={t('connect.versionNamePlaceholder')} />
+                <p className="text-xs text-muted-foreground">
+                  {t('notifications.viewVersionHint')} <code>{view}</code>
+                </p>
+              </div>
+            )}
+
             <fieldset className="grid grid-cols-1 gap-2 sm:col-span-2">
-              <legend className="text-sm font-medium">{t('notifications.eventsLegend')}</legend>
-              <p className="text-xs text-muted-foreground">{form.events.length === 0 ? t('notifications.allEventsHint') : t('notifications.someEventsHint', { count: form.events.length })}</p>
-              <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2" data-testid="notification-events">
-                {types.data?.map((type) => (
-                  <label key={type.type} className="flex items-start gap-2 text-sm font-normal">
-                    <Checkbox className="mt-0.5" checked={form.events.includes(type.type)} onCheckedChange={() => toggleEvent(type.type)} />
-                    <span>
-                      <span className="font-medium">{type.type}</span>
-                      <span className="block text-xs text-muted-foreground">{type.description}</span>
-                    </span>
+              <legend className="text-sm font-medium">{t('notifications.tagsLegend')}</legend>
+              <p className="text-xs text-muted-foreground">{form.tags.length === 0 ? t('notifications.allFilmsHint') : t('notifications.someTagsHint')}</p>
+              {allTags.data?.length === 0 && <p className="text-xs text-muted-foreground">{t('notifications.noTags')}</p>}
+              <div className="flex flex-wrap gap-x-4 gap-y-2" data-testid="notification-tags">
+                {allTags.data?.map((tag) => (
+                  <label key={tag.id} className="flex items-center gap-2 text-sm font-normal">
+                    <Checkbox checked={form.tags.includes(tag.id)} onCheckedChange={() => toggleTag(tag.id)} />
+                    {tag.label}
                   </label>
                 ))}
+              </div>
+            </fieldset>
+
+            <fieldset className="grid grid-cols-1 gap-2 sm:col-span-2">
+              <legend className="text-sm font-medium">{t('notifications.eventsLegend')}</legend>
+              <p className="text-xs text-muted-foreground">
+                {form.events.length === 0 ? t('notifications.allEventsHint') : t('notifications.someEventsHint', { count: form.events.length })}
+                {form.format === 'radarr' && <> {t('notifications.radarrEventsHint')}</>}
+              </p>
+              <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2" data-testid="notification-events">
+                {types.data?.map((type) => {
+                  const sent = sentAs(type, form.format)
+                  return (
+                    <label key={type.type} className={cn('flex items-start gap-2 text-sm font-normal', !sent && 'opacity-50')}>
+                      <Checkbox className="mt-0.5" checked={sent && form.events.includes(type.type)} disabled={!sent} onCheckedChange={() => toggleEvent(type.type)} />
+                      <span>
+                        <span className="font-medium">{type.type}</span>
+                        {form.format === 'radarr' && (
+                          <span className="ml-1 text-xs text-muted-foreground">
+                            {type.radarrEventType ? t('notifications.radarrAs', { type: type.radarrEventType }) : t('notifications.notInRadarr')}
+                          </span>
+                        )}
+                        <span className="block text-xs text-muted-foreground">
+                          {type.description}
+                          {type.ignoresTags && form.tags.length > 0 && <> · {t('notifications.ignoresTags')}</>}
+                        </span>
+                      </span>
+                    </label>
+                  )
+                })}
               </div>
             </fieldset>
           </div>

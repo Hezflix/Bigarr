@@ -1,0 +1,8 @@
+{
+  "level": "warning",
+  "message": "No indexer is enabled",
+  "type": "indexers",
+  "eventType": "Health",
+  "instanceName": "Bigarr",
+  "applicationUrl": "https://bigarr.example.org"
+}

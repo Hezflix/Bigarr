@@ -99,7 +99,7 @@ public sealed class RenameService(BigarrDbContext db, MediaManagementService set
                 CreatedAt = now,
             });
             results.Add(new RenameResultResponse(file.Id, target, true, null));
-            outbox.Publish(new FileRenamed(MovieRef.From(movie), VersionRef.From(version), new FileRef(file.Id, to, file.Quality?.Name, file.Size), from));
+            outbox.Publish(new FileRenamed(MovieRef.From(movie), VersionRef.From(version), FileRef.From(file, to), from));
             logger.LogInformation("Renamed {From} → {To}", previous, target);
         }
 
@@ -139,6 +139,7 @@ public sealed class RenameService(BigarrDbContext db, MediaManagementService set
         var query = db.Movies
             .Include(m => m.Versions).ThenInclude(v => v.RootFolder)
             .Include(m => m.Versions).ThenInclude(v => v.File!).ThenInclude(f => f.Quality)
+            .Include(m => m.Versions).ThenInclude(v => v.Tags)
             .AsSplitQuery();
         return (tracking ? query : query.AsNoTracking()).FirstOrDefaultAsync(m => m.Id == movieId, ct);
     }

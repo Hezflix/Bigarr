@@ -1,4 +1,5 @@
 using Bigarr.Api.Infrastructure;
+using Bigarr.Api.Infrastructure.Decision;
 using Bigarr.Api.Infrastructure.Events;
 using Bigarr.Api.Infrastructure.Downloads;
 using Bigarr.Api.Infrastructure.Persistence;
@@ -17,7 +18,7 @@ namespace Bigarr.Api.Features.Downloads;
 /// <see cref="GrabTarget"/>) and the journal entry in one transaction. Interactive: the user decided, the engine's
 /// verdict is not re-checked here; only "one active download per target" is.
 /// </summary>
-public sealed class GrabService(BigarrDbContext db, DownloadClientResolver resolver, QueueState queue, OutboxWriter outbox, TimeProvider time, ILogger<GrabService> logger)
+public sealed class GrabService(BigarrDbContext db, DownloadClientResolver resolver, QueueState queue, OutboxWriter outbox, CustomFormatScorer scorer, TimeProvider time, ILogger<GrabService> logger)
 {
     /// <summary>The user picked the release in the interactive search.</summary>
     public const string InteractiveTrigger = "interactive";
@@ -33,7 +34,14 @@ public sealed class GrabService(BigarrDbContext db, DownloadClientResolver resol
             return invalid;
         }
 
-        var version = await db.MovieVersions.Include(v => v.Movie).Include(v => v.QualityProfile).FirstOrDefaultAsync(v => v.Id == request.VersionId, ct);
+        // Folder, tags, file and format scores feed the event's snapshot.
+        var version = await db.MovieVersions
+            .Include(v => v.Movie)
+            .Include(v => v.QualityProfile).ThenInclude(p => p.FormatScores)
+            .Include(v => v.RootFolder)
+            .Include(v => v.Tags)
+            .Include(v => v.File)
+            .FirstOrDefaultAsync(v => v.Id == request.VersionId, ct);
         if (version is null)
         {
             return Failure.NotFound("Version");
@@ -128,11 +136,12 @@ public sealed class GrabService(BigarrDbContext db, DownloadClientResolver resol
         outbox.Publish(new ReleaseGrabbed(
             MovieRef.From(version.Movie),
             VersionRef.From(version),
-            new ReleaseRef(request.Title, QualityOf(request.Title), grab.IndexerName, request.Size, null, request.Seeders, downloadId),
+            EventSnapshots.Release(request.Title, grab.IndexerName, request.Size, request.Flags, version.Movie, version.QualityProfile, await scorer.CalculatorAsync(ct), request.Seeders, downloadId),
             grab.Id,
             chosen.Name,
             downloadId,
-            trigger)
+            trigger,
+            chosen.Implementation.ToString())
         { OccurredAt = now });
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
