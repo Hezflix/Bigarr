@@ -18,6 +18,7 @@ public sealed class RadarrImportProgress(RadarrImportRequest request)
     private int _tagsAdded;
     private int _exclusionsAdded;
     private int _historyAdded;
+    private int _blocklistAdded;
     private int _customFormatsAdded;
     private int _customFormatsUpdated;
     private int _profilesScored;
@@ -60,6 +61,8 @@ public sealed class RadarrImportProgress(RadarrImportRequest request)
 
     public void HistoryAdded(int count) => Interlocked.Add(ref _historyAdded, count);
 
+    public void BlocklistAdded(int count) => Interlocked.Add(ref _blocklistAdded, count);
+
     public void CustomFormatAdded() => Interlocked.Increment(ref _customFormatsAdded);
 
     public void CustomFormatUpdated() => Interlocked.Increment(ref _customFormatsUpdated);
@@ -88,9 +91,9 @@ public sealed class RadarrImportProgress(RadarrImportRequest request)
 
         return new RadarrImportStatusResponse(
             State, StartedAt, FinishedAt, Total, _processed, _moviesAdded, _versionsAdded, _versionsUpdated, _filesAdded, _filesMissing,
-            _skipped, _failed, _tagsAdded, _exclusionsAdded, _historyAdded, _customFormatsAdded, _customFormatsUpdated, _profilesScored, Current, Error, issues);
+            _skipped, _failed, _tagsAdded, _exclusionsAdded, _historyAdded, _blocklistAdded, _customFormatsAdded, _customFormatsUpdated, _profilesScored, Current, Error, issues);
     }
 
     public static RadarrImportStatusResponse Idle { get; } =
-        new(RadarrImportState.Idle, null, null, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, null, null, []);
+        new(RadarrImportState.Idle, null, null, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, null, null, []);
 }

@@ -12,6 +12,8 @@ public sealed record RadarrImportPreviewResponse(
     int Exclusions,
     /// <summary>Lines in Radarr's history; the import copies those of the films it brings in.</summary>
     int HistoryRecords,
+    /// <summary>Releases in Radarr's blocklist; the import copies those of the films it brings in.</summary>
+    int Blocklist,
     int CustomFormats,
     /// <summary>The version name the import proposes: <c>4k</c> when the files are mostly 2160p, <c>1080p</c> otherwise.</summary>
     string SuggestedVersionName,
@@ -39,6 +41,8 @@ public sealed record RadarrImportRequest(
     bool ImportExclusions = true,
     /// <summary>Copy Radarr's history (grabs, imports, failures, deletions, renames) of every imported film into Bigarr's.</summary>
     bool ImportHistory = true,
+    /// <summary>Copy Radarr's blocklist of every imported film onto the version it becomes, so rejected releases stay rejected.</summary>
+    bool ImportBlocklist = true,
     /// <summary>
     /// Copy Radarr's custom formats (Radarr's definition wins over a Bigarr format of the same name) and give each mapped
     /// Bigarr profile the format scores and score thresholds of the Radarr profile mapped to it.
@@ -78,6 +82,7 @@ public sealed record RadarrImportStatusResponse(
     int TagsAdded,
     int ExclusionsAdded,
     int HistoryAdded,
+    int BlocklistAdded,
     int CustomFormatsAdded,
     int CustomFormatsUpdated,
     int ProfilesScored,

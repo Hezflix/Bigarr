@@ -1179,6 +1179,7 @@ export type RadarrImportPreview = {
   alreadyInLibrary: number
   exclusions: number
   historyRecords: number
+  blocklist: number
   customFormats: number
   suggestedVersionName: string
   profiles: RadarrProfilePreview[]
@@ -1197,6 +1198,7 @@ export type RadarrImportRequest = {
   importTags: boolean
   importExclusions: boolean
   importHistory: boolean
+  importBlocklist: boolean
   importCustomFormats: boolean
   keepMonitored: boolean
   includeMoviesWithoutFile: boolean
@@ -1223,6 +1225,7 @@ export type RadarrImportStatus = {
   tagsAdded: number
   exclusionsAdded: number
   historyAdded: number
+  blocklistAdded: number
   customFormatsAdded: number
   customFormatsUpdated: number
   profilesScored: number

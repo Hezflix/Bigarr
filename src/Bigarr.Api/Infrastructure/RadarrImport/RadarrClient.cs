@@ -114,6 +114,11 @@ public sealed record RadarrHistoryItem(
 
 public sealed record RadarrHistoryPage(int Page, int PageSize, int TotalRecords, List<RadarrHistoryItem>? Records);
 
+/// <summary>A release Radarr blocklisted. Radarr's resource carries no release guid and no info hash: only the title identifies it.</summary>
+public sealed record RadarrBlocklistItem(int Id, int MovieId, string? SourceTitle, DateTime Date, string? Indexer, string? Message);
+
+public sealed record RadarrBlocklistPage(int Page, int PageSize, int TotalRecords, List<RadarrBlocklistItem>? Records);
+
 /// <summary>Raised when Radarr cannot be reached or refuses the key; the message is meant for the screen.</summary>
 public sealed class RadarrUnavailableException(string message, Exception? inner = null) : Exception(message, inner);
 
@@ -124,8 +129,12 @@ public sealed class RadarrClient(IHttpClientFactory httpClientFactory)
 
     public const int HistoryPageSize = 500;
 
+    public const int BlocklistPageSize = 500;
+
     /// <summary>A bound on the pages read, so a Radarr that keeps answering full pages cannot hold the import forever.</summary>
     private const int MaxHistoryPages = 2000;
+
+    private const int MaxBlocklistPages = 2000;
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
@@ -205,6 +214,46 @@ public sealed class RadarrClient(IHttpClientFactory httpClientFactory)
             var records = result.Records ?? [];
             all.AddRange(records);
             if (records.Count < HistoryPageSize || all.Count >= result.TotalRecords)
+            {
+                break;
+            }
+        }
+
+        return all;
+    }
+
+    /// <summary>How many releases Radarr's blocklist holds; 0 when the route is missing.</summary>
+    public async Task<int> BlocklistCountAsync(RadarrConnection connection, CancellationToken ct)
+    {
+        try
+        {
+            return (await GetAsync<RadarrBlocklistPage>(connection, "/blocklist?page=1&pageSize=1", ct)).TotalRecords;
+        }
+        catch (RadarrUnavailableException ex) when (ex.Message.Contains("404", StringComparison.Ordinal))
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>Radarr's whole blocklist, oldest first, read page by page; an empty list when the route is missing.</summary>
+    public async Task<List<RadarrBlocklistItem>> BlocklistAsync(RadarrConnection connection, CancellationToken ct)
+    {
+        var all = new List<RadarrBlocklistItem>();
+        for (var page = 1; page <= MaxBlocklistPages; page++)
+        {
+            RadarrBlocklistPage result;
+            try
+            {
+                result = await GetAsync<RadarrBlocklistPage>(connection, $"/blocklist?page={page}&pageSize={BlocklistPageSize}&sortKey=date&sortDirection=ascending", ct);
+            }
+            catch (RadarrUnavailableException ex) when (page == 1 && ex.Message.Contains("404", StringComparison.Ordinal))
+            {
+                return [];
+            }
+
+            var records = result.Records ?? [];
+            all.AddRange(records);
+            if (records.Count < BlocklistPageSize || all.Count >= result.TotalRecords)
             {
                 break;
             }
