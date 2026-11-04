@@ -11,6 +11,8 @@ public sealed record MediaManagementResponse(
     TransferMode TransferMode,
     string? RecycleBinPath,
     int RecycleBinRetentionDays,
+    bool ImportExtraFiles,
+    string ExtraFileExtensions,
     /// <summary>ffprobe was found: imported files get media info, the backfill fills the older ones.</summary>
     bool MediaInfoAvailable,
     string? FfprobePath,
@@ -24,7 +26,11 @@ public sealed record MediaManagementRequest(
     string FolderNameTemplate,
     TransferMode TransferMode,
     string? RecycleBinPath,
-    int RecycleBinRetentionDays);
+    int RecycleBinRetentionDays,
+    /// <summary>Null leaves the setting as it is.</summary>
+    bool? ImportExtraFiles = null,
+    /// <summary>Comma list (<c>srt,ass</c>); null leaves it as it is, empty imports no extra.</summary>
+    string? ExtraFileExtensions = null);
 
 public sealed record NamingPreviewRequest(string? FileNameTemplate, string? FolderNameTemplate);
 
@@ -72,7 +78,10 @@ public sealed record ManualImportRequest(List<ManualImportItemRequest> Files, Tr
 
 public sealed record ManualImportResultResponse(string Path, int VersionId, bool Imported, string? Reason, int? MediaFileId, string? DestinationPath, bool Upgraded);
 
-public sealed record RenamePreviewResponse(int VersionId, string VersionName, int MediaFileId, string CurrentRelativePath, string NewRelativePath, bool Changed);
+public sealed record ExtraRenamePreviewResponse(int ExtraFileId, string CurrentRelativePath, string NewRelativePath);
+
+/// <summary><see cref="Extras"/> follow the file: renamed with it when it changes.</summary>
+public sealed record RenamePreviewResponse(int VersionId, string VersionName, int MediaFileId, string CurrentRelativePath, string NewRelativePath, bool Changed, List<ExtraRenamePreviewResponse> Extras);
 
 public sealed record RenameRequest(int MovieId, List<int>? MediaFileIds = null);
 

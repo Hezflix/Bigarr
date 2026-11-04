@@ -26,6 +26,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             .Include(m => m.Versions).ThenInclude(v => v.QualityProfile).ThenInclude(p => p.FormatScores)
             .Include(m => m.Versions).ThenInclude(v => v.RootFolder)
             .Include(m => m.Versions).ThenInclude(v => v.File!).ThenInclude(f => f.Quality)
+            .Include(m => m.Versions).ThenInclude(v => v.File!).ThenInclude(f => f.Extras)
             .Include(m => m.Versions).ThenInclude(v => v.Tags)
             .AsSplitQuery();
         return tracking ? query : query.AsNoTracking();
@@ -584,6 +585,20 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
         {
             logger.LogWarning(ex, "Could not delete file {Path}", path);
             return new Failure(StatusCodes.Status500InternalServerError, "Could not delete the file", $"{path}: {ex.Message}");
+        }
+
+        // The extras imported with it leave with it. Anything else in the folder (Bazarr's subtitles) is not Bigarr's to delete.
+        foreach (var extra in version.File!.Extras)
+        {
+            var extraPath = Path.Combine(version.RootFolder.Path, version.FolderName, extra.RelativePath);
+            try
+            {
+                recycleBin.RemoveFile(extraPath, config.RecycleBinPath, version.RootFolder.Path);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                logger.LogWarning("Could not delete extra file {Path}: {Message}", extraPath, ex.Message);
+            }
         }
 
         db.History.Add(FileDeletedEvent(movie, version, path, recycled, time.GetUtcNow().UtcDateTime));

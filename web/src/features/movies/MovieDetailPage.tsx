@@ -4,7 +4,8 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { EyeIcon, EyeOffIcon, FileXIcon, PlusIcon, RefreshCwIcon, SearchIcon, StarIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, customFormats, history, movies, quality, rootFolders, search, type MediaInfo, type MinimumAvailability, type Movie, type Version, type VersionMode } from '@/api/client'
+import type { TFunction } from 'i18next'
+import { ApiError, customFormats, history, movies, quality, rootFolders, search, type ExtraFile, type MediaInfo, type MinimumAvailability, type Movie, type Version, type VersionMode } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import { StatusBadge } from '@/components/StatusBadge'
 import { HistoryTable } from '@/features/activity/HistoryTable'
@@ -32,7 +33,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { formatBytes, formatDate } from '@/i18n'
+import { formatBytes, formatDate, formatLanguage } from '@/i18n'
 
 const availabilities: MinimumAvailability[] = ['announced', 'inCinemas', 'released']
 
@@ -258,6 +259,19 @@ function mediaInfoSummary(info: MediaInfo): string {
   return [info.videoCodec, info.videoDynamicRangeType, audio || null, info.width && info.height ? `${info.width}×${info.height}` : null].filter(Boolean).join(' · ')
 }
 
+/** "English · subtitle · forced": what the extra's name said when it was imported. */
+function extraSummary(extra: ExtraFile, t: TFunction): string {
+  if (extra.kind === 'other') return t('versions.extraOther')
+  return [
+    extra.language ? formatLanguage(extra.language) : t('versions.extraUnknownLanguage'),
+    t('versions.extraSubtitle'),
+    extra.forced ? t('versions.extraForced') : null,
+    extra.hearingImpaired ? t('versions.extraSdh') : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
 function VersionsTable({ movie, onChanged, onSearched }: { movie: Movie; onChanged: () => void; onSearched: () => void }) {
   const { t } = useTranslation()
   const [pendingDelete, setPendingDelete] = useState<Version | null>(null)
@@ -369,6 +383,18 @@ function VersionsTable({ movie, onChanged, onSearched }: { movie: Movie; onChang
                       <span className="block text-xs text-muted-foreground" data-testid="media-info">
                         {v.file.mediaInfo ? mediaInfoSummary(v.file.mediaInfo) : t('versions.mediaInfoMissing')}
                       </span>
+                      {v.file.extras.length > 0 && (
+                        <ul className="mt-1 grid gap-0.5 text-xs text-muted-foreground" aria-label={t('versions.extras', { count: v.file.extras.length })} data-testid="extra-files">
+                          {v.file.extras.map((extra) => (
+                            <li key={extra.id}>
+                              <span className="block max-w-[22ch] truncate" title={extra.path}>
+                                {extra.relativePath}
+                              </span>
+                              <span className="block">{extraSummary(extra, t)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                       <span className="mt-1 flex flex-wrap items-center gap-1">
                         {v.cutoffMet !== null && (
                           <Badge

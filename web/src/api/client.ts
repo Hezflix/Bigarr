@@ -155,6 +155,23 @@ export type MediaFile = {
   originalReleaseTitle: string | null
   hasMediaInfo: boolean
   mediaInfo: MediaInfo | null
+  /** Side files imported with it. Files written by others (Bazarr) are not listed. */
+  extras: ExtraFile[]
+}
+
+export type ExtraFileKind = 'subtitle' | 'other'
+
+export type ExtraFile = {
+  id: number
+  relativePath: string
+  path: string
+  extension: string
+  kind: ExtraFileKind
+  /** ISO 639-1 code, null when the name did not say. */
+  language: string | null
+  forced: boolean
+  hearingImpaired: boolean
+  dateAdded: string
 }
 
 export type Version = {
@@ -897,6 +914,9 @@ export type MediaManagement = {
   transferMode: TransferMode
   recycleBinPath: string | null
   recycleBinRetentionDays: number
+  importExtraFiles: boolean
+  /** Comma list without dots: `srt,ass`. */
+  extraFileExtensions: string
   /** ffprobe was found: imported files get media info, the backfill fills the older ones. */
   mediaInfoAvailable: boolean
   ffprobePath: string | null
@@ -905,7 +925,10 @@ export type MediaManagement = {
   tokens: NamingToken[]
 }
 
-export type MediaManagementRequest = Pick<MediaManagement, 'renameFiles' | 'fileNameTemplate' | 'folderNameTemplate' | 'transferMode' | 'recycleBinPath' | 'recycleBinRetentionDays'>
+export type MediaManagementRequest = Pick<
+  MediaManagement,
+  'renameFiles' | 'fileNameTemplate' | 'folderNameTemplate' | 'transferMode' | 'recycleBinPath' | 'recycleBinRetentionDays' | 'importExtraFiles' | 'extraFileExtensions'
+>
 
 export type NamingPreview = { fileName: string | null; fileErrors: string[]; folderName: string | null; folderErrors: string[] }
 
@@ -985,7 +1008,18 @@ export const manualImport = {
 
 // ---- rename ----------------------------------------------------------------
 
-export type RenamePreview = { versionId: number; versionName: string; mediaFileId: number; currentRelativePath: string; newRelativePath: string; changed: boolean }
+export type ExtraRenamePreview = { extraFileId: number; currentRelativePath: string; newRelativePath: string }
+
+/** `extras` follow the file: renamed with it when it changes. */
+export type RenamePreview = {
+  versionId: number
+  versionName: string
+  mediaFileId: number
+  currentRelativePath: string
+  newRelativePath: string
+  changed: boolean
+  extras: ExtraRenamePreview[]
+}
 
 export type RenameResult = { mediaFileId: number; relativePath: string; renamed: boolean; error: string | null }
 

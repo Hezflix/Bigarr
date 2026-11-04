@@ -25,6 +25,8 @@ public sealed class MediaManagementConfig
 
     public const string DefaultFolderNameTemplate = "{Movie Title} {(Release Year)}";
 
+    public const string DefaultExtraFileExtensions = "srt,ass,ssa,sub,idx,sup,vtt";
+
     public int Id { get; set; } = SingletonId;
 
     /// <summary>Off: imported files keep the name they had in the download.</summary>
@@ -42,6 +44,12 @@ public sealed class MediaManagementConfig
 
     /// <summary>Days a file stays in the recycle bin. 0 keeps everything until emptied by hand.</summary>
     public int RecycleBinRetentionDays { get; set; } = 7;
+
+    /// <summary>Radarr's "Import Extra Files": side files of the release whose extension is listed come along with the movie.</summary>
+    public bool ImportExtraFiles { get; set; } = true;
+
+    /// <summary>Comma list without dots, lower case: <c>srt,ass</c>.</summary>
+    public string ExtraFileExtensions { get; set; } = DefaultExtraFileExtensions;
 
     public static MediaManagementConfig Default() => new();
 }

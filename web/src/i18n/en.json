@@ -164,7 +164,14 @@
     "deleteFileTitle": "Delete this file?",
     "confirmDeleteFile": "Delete the file of version “{{name}}”? It goes to the recycle bin when one is configured, and the version becomes missing again.",
     "fileDeleted": "File deleted.",
-    "mediaInfoMissing": "not probed yet"
+    "mediaInfoMissing": "not probed yet",
+    "extras_one": "{{count}} extra file",
+    "extras_other": "{{count}} extra files",
+    "extraSubtitle": "subtitle",
+    "extraOther": "extra",
+    "extraForced": "forced",
+    "extraSdh": "SDH",
+    "extraUnknownLanguage": "language unknown"
   },
   "settings": {
     "library": "Library",
@@ -578,7 +585,7 @@
   },
   "rename": {
     "title": "Rename files",
-    "hint": "Applies the current file name template of Settings → Media management to the files of this movie. Nothing else moves.",
+    "hint": "Applies the current file name template of Settings → Media management to the files of this movie and to the extra files imported with them. Nothing else moves.",
     "version": "Version",
     "current": "Current name",
     "new": "New name",
@@ -689,6 +696,11 @@
     "recycleBinPathHint": "Replaced and deleted files land here, keeping their path relative to the root folder. Empty: they are deleted for good.",
     "retention": "Retention (days)",
     "retentionHint": "Files older than this are removed from the bin every hour. 0 keeps them until you empty it yourself.",
+    "extraFiles": "Extra files",
+    "importExtraFiles": "Import extra files",
+    "importExtraFilesHint": "Subtitles and other side files of the release come along with the movie, with the same transfer, named after the movie file with their language. They follow its renames and leave with it on an upgrade or a deletion. Files Bigarr did not import, such as Bazarr's subtitles, are never renamed nor deleted.",
+    "extraFileExtensions": "Extra file extensions",
+    "extraFileExtensionsHint": "Comma separated, without dots: srt,ass,ssa,sub,idx,sup,vtt. Video extensions are refused.",
     "mediaInfo": "Media info",
     "mediaInfoAvailable": "ffprobe found at {{path}}: imported files get their codecs, channels, HDR and languages read from the stream.",
     "mediaInfoMissing": "ffprobe was not found: files are imported without media info. Install ffmpeg (the Docker image ships it) or set Bigarr__Media__FfprobePath.",
