@@ -637,28 +637,39 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             return Failure.NotFound("Movie");
         }
 
-        MovieMetadata? found;
         try
         {
-            found = await metadata.GetMovieAsync(movie.TmdbId, ct);
+            await ApplyLatestMetadataAsync(movie, ct);
         }
         catch (HttpRequestException ex)
         {
             return new Failure(StatusCodes.Status502BadGateway, "Metadata provider unavailable", ex.Message);
         }
 
+        await db.SaveChangesAsync(ct);
+        return Result<Movie>.Ok(movie);
+    }
+
+    /// <summary>
+    /// Asks the provider again and applies the answer, shared by the refresh endpoint and the scheduled refresh. Metadata
+    /// only: versions, monitoring, files and folders stay as they are, and a new title or year renames nothing (Radarr
+    /// does not either). A film the provider no longer knows is flagged deleted. Provider failures propagate; the caller saves.
+    /// </summary>
+    public async Task ApplyLatestMetadataAsync(Movie movie, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(movie);
+
+        var found = await metadata.GetMovieAsync(movie.TmdbId, ct);
         if (found is null)
         {
             movie.TmdbStatus = MovieStatus.Deleted;
-            movie.LastMetadataRefreshAt = time.GetUtcNow().UtcDateTime;
         }
         else
         {
             movie.ApplyMetadata(found);
         }
 
-        await db.SaveChangesAsync(ct);
-        return Result<Movie>.Ok(movie);
+        movie.LastMetadataRefreshAt = time.GetUtcNow().UtcDateTime;
     }
 
     private async Task RemoveMovieAsync(Movie movie, bool addImportExclusion, CancellationToken ct)
