@@ -1,4 +1,5 @@
 using Bigarr.Domain.Library;
+using Bigarr.Domain.Movies;
 
 namespace Bigarr.Api.Features.Import;
 
@@ -63,7 +64,12 @@ public sealed record ManualImportFileResponse(
     string? MatchReason,
     /// <summary>The version the import would pick on its own, when one accepts the file.</summary>
     int? VersionId,
-    List<ImportVersionOption> Versions);
+    List<ImportVersionOption> Versions,
+    /// <summary>Side files that would come along (extra files setting); empty when the setting is off.</summary>
+    List<ManualImportExtraResponse> Extras);
+
+/// <summary>A side file the manual import would bring with its video, and what its name says.</summary>
+public sealed record ManualImportExtraResponse(string Path, string RelativePath, string Extension, ExtraFileKind Kind, string? Language, bool Forced, bool HearingImpaired);
 
 public sealed record ManualImportResponse(
     string Path,
@@ -72,7 +78,8 @@ public sealed record ManualImportResponse(
     TransferMode DefaultTransferMode,
     List<ManualImportFileResponse> Files);
 
-public sealed record ManualImportItemRequest(string Path, int VersionId, int? QualityId = null, int? GrabId = null);
+/// <param name="ExtraPaths">The side files to bring, as listed; null lets the import find them like an automatic one, empty brings none.</param>
+public sealed record ManualImportItemRequest(string Path, int VersionId, int? QualityId = null, int? GrabId = null, List<string>? ExtraPaths = null);
 
 public sealed record ManualImportRequest(List<ManualImportItemRequest> Files, TransferMode? TransferMode = null);
 

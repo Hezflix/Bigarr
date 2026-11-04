@@ -49,7 +49,9 @@ public sealed record ImportPlan(
     bool Force,
     TransferMode Mode,
     /// <summary>What the download client reported (folder or file), for the extra files. Null: judged from the video's folder.</summary>
-    string? ReleasePath = null);
+    string? ReleasePath = null,
+    /// <summary>The extra files picked in the manual import, exactly; null finds them per the media management settings.</summary>
+    IReadOnlyList<string>? ExtraPaths = null);
 
 /// <summary>
 /// Completed download handling (blueprint §5): find the video in what the client wrote, attach it to its version (the grab
@@ -339,7 +341,7 @@ public sealed class ImportService(
         }
 
         // Listed before the movie moves: a move would empty the release folder.
-        var extraCandidates = config.ImportExtraFiles ? FindExtras(plan, config, source.FullName, folder) : [];
+        var extraCandidates = FindExtras(plan, config, source.FullName, folder);
 
         var now = time.GetUtcNow().UtcDateTime;
         string? recycled = null;
@@ -577,14 +579,18 @@ public sealed class ImportService(
             .AsSplitQuery()
             .FirstOrDefaultAsync(v => v.Id == versionId, ct);
 
-    /// <summary>The release's side files, minus what already sits in the version's folder: not ours to move (Bazarr's subtitles, another version's extras).</summary>
+    /// <summary>
+    /// The release's side files (the user's pick in a manual import, else what the settings find), minus what already
+    /// sits in the version's folder: not ours to move (Bazarr's subtitles, another version's extras).
+    /// </summary>
     private List<ExtraCandidate> FindExtras(ImportPlan plan, MediaManagementConfig config, string video, string folder)
     {
         try
         {
-            return ExtraFiles.Find(video, plan.ReleasePath, ExtraFiles.ParseExtensions(config.ExtraFileExtensions))
-                .Where(c => !IsUnder(c.Source.FullName, folder))
-                .ToList();
+            var candidates = plan.ExtraPaths is not null
+                ? ExtraFiles.Chosen(video, plan.ExtraPaths)
+                : config.ImportExtraFiles ? ExtraFiles.Find(video, plan.ReleasePath, ExtraFiles.ParseExtensions(config.ExtraFileExtensions)) : [];
+            return candidates.Where(c => !IsUnder(c.Source.FullName, folder)).ToList();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

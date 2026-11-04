@@ -111,6 +111,23 @@ public static partial class ExtraFiles
             .ToList();
     }
 
+    /// <summary>The side files picked in the manual import, described like found ones. Missing files and videos are dropped.</summary>
+    public static List<ExtraCandidate> Chosen(string video, IEnumerable<string> paths)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(video);
+        ArgumentNullException.ThrowIfNull(paths);
+
+        var baseName = Path.GetFileNameWithoutExtension(video);
+        return paths
+            .Where(p => !string.IsNullOrWhiteSpace(p) && Path.IsPathRooted(p))
+            .Select(p => new FileInfo(Path.GetFullPath(p)))
+            .Where(f => f.Exists && !VideoFiles.IsVideo(f.Name))
+            .DistinctBy(f => f.FullName, PathComparer)
+            .OrderBy(f => f.FullName, StringComparer.Ordinal)
+            .Select(f => new ExtraCandidate(f, Describe(f.FullName, baseName)))
+            .ToList();
+    }
+
     /// <summary>
     /// What the name says, read like Radarr does: <c>.en</c>, <c>.eng</c>, <c>English</c>, <c>2_English</c>, then
     /// <c>.forced</c> / <c>.sdh</c> tags. A subtitle named exactly like its video says nothing: a title such as "It" is no language.
@@ -132,8 +149,15 @@ public static partial class ExtraFiles
         }
 
         var language = LanguageParser.ParseSubtitleLanguage(path);
-        var code = language.Id > 0 ? IsoLanguages.Get(language)?.TwoLetterCode : null;
         var tags = LanguageParser.ParseLanguageTags(path);
+        if (language.Id <= 0 && TrailingTagsRegex().Match(Path.GetFileNameWithoutExtension(path)) is { Success: true } trailing)
+        {
+            // "3_English.sdh", "English (SDH)": Radarr's parser takes "sdh" for the code; read the name again without the tags.
+            language = LanguageParser.ParseSubtitleLanguage(trailing.Groups["name"].Value + extension);
+            tags = trailing.Groups["tag"].Captures.Select(c => c.Value.ToLowerInvariant()).ToList();
+        }
+
+        var code = language.Id > 0 ? IsoLanguages.Get(language)?.TwoLetterCode : null;
         return new ExtraFileName(
             group,
             extension,
@@ -212,4 +236,7 @@ public static partial class ExtraFiles
 
     [GeneratedRegex("^[a-z0-9]{1,16}$", RegexOptions.CultureInvariant)]
     private static partial Regex ExtensionRegex();
+
+    [GeneratedRegex(@"^(?<name>.+?)(?:[-_. ]+\(?(?<tag>forced|foreign|default|cc|psdh|sdh)\)?)+$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex TrailingTagsRegex();
 }

@@ -971,7 +971,11 @@ export type ManualImportFile = {
   /** The version the import would pick on its own, when one accepts the file. */
   versionId: number | null
   versions: ImportVersionOption[]
+  /** Side files that would come along (extra files setting); empty when the setting is off. */
+  extras: ManualImportExtra[]
 }
+
+export type ManualImportExtra = Pick<ExtraFile, 'path' | 'relativePath' | 'extension' | 'kind' | 'language' | 'forced' | 'hearingImpaired'>
 
 export type ManualImport = {
   path: string
@@ -981,7 +985,8 @@ export type ManualImport = {
   files: ManualImportFile[]
 }
 
-export type ManualImportItem = { path: string; versionId: number; qualityId?: number | null; grabId?: number | null }
+/** `extraPaths`: the side files to bring, as listed; omitted lets the import find them, empty brings none. */
+export type ManualImportItem = { path: string; versionId: number; qualityId?: number | null; grabId?: number | null; extraPaths?: string[] | null }
 
 export type ManualImportResult = {
   path: string

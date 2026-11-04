@@ -33,6 +33,10 @@ public sealed class ExtraFilesTests(BigarrApiFactory factory) : IClassFixture<Bi
     [InlineData("Subs/2_English.srt", "en", false, false)]
     [InlineData("Movie.fr.forced.srt", "fr", true, false)]
     [InlineData("Movie.en.sdh.srt", "en", false, true)]
+    [InlineData("Subs/3_English.sdh.srt", "en", false, true)]
+    [InlineData("Subs/4_French_forced.srt", "fr", true, false)]
+    [InlineData("English (SDH).srt", "en", false, true)]
+    [InlineData("Movie.forced.srt", null, true, false)]
     [InlineData("Movie.srt", null, false, false)]
     [InlineData("Movie.2010.1080p.BluRay.x264-SPARKS.srt", null, false, false)]
     public void A_subtitle_name_says_its_language_and_flags(string name, string? language, bool forced, bool sdh)
@@ -258,6 +262,51 @@ public sealed class ExtraFilesTests(BigarrApiFactory factory) : IClassFixture<Bi
     }
 
     [Fact]
+    public async Task The_manual_import_lists_the_extras_and_brings_only_the_ones_kept()
+    {
+        var client = await ClientAsync(factory);
+        var (hd, _) = await ProfilesAsync(client);
+        var root = await AddRootAsync(client, Path.Combine(_root, "picked"));
+        await ConfigureAsync(client, _bin);
+
+        var movie = await AddMovieAsync(client, 335984, hd, root.Id); // Blade Runner 2049
+        var version = movie.Versions.Single();
+        try
+        {
+            var release = Directory.CreateDirectory(Path.Combine(_downloads, "Blade.Runner.2049.2017.1080p.BluRay.x264-GRP")).FullName;
+            var video = Touch(release, "Blade.Runner.2049.2017.1080p.BluRay.x264-GRP.mkv", 64 * 1024);
+            Touch(release, "Blade.Runner.2049.2017.1080p.BluRay.x264-GRP.fr.srt");
+            Touch(release, Path.Combine("Subs", "2_English.srt"));
+            Touch(release, Path.Combine("Subs", "3_English.sdh.srt"));
+            Touch(release, Path.Combine("Sample", "sample.srt"));
+            Touch(release, "Blade.Runner.2049.2017.1080p.BluRay.x264-GRP.nfo");
+
+            var listing = (await client.GetFromJsonAsync<ManualImportResponse>($"/api/v1/manualimport?path={Uri.EscapeDataString(release)}", Json))!;
+            var row = Assert.Single(listing.Files);
+            Assert.Equal(
+                ["Blade.Runner.2049.2017.1080p.BluRay.x264-GRP.fr.srt", Path.Combine("Subs", "2_English.srt"), Path.Combine("Subs", "3_English.sdh.srt")],
+                row.Extras.Select(e => e.RelativePath));
+            Assert.Equal(["fr", "en", "en"], row.Extras.Select(e => e.Language));
+            Assert.True(row.Extras[2].HearingImpaired);
+
+            // The user drops the plain English subtitle and keeps the other two.
+            var kept = new List<string> { row.Extras[0].Path, row.Extras[2].Path };
+            var response = await client.PostAsJsonAsync("/api/v1/manualimport", new ManualImportRequest([new ManualImportItemRequest(row.Path, version.Id, ExtraPaths: kept)]), Json);
+            Assert.True(Assert.Single((await response.Content.ReadFromJsonAsync<List<ManualImportResultResponse>>(Json))!).Imported);
+
+            var file = (await GetMovieAsync(client, movie.Id)).Versions.Single().File!;
+            Assert.Equal(
+                ["Blade Runner 2049 (2017) [Bluray-1080p].en.sdh.srt", "Blade Runner 2049 (2017) [Bluray-1080p].fr.srt"],
+                file.Extras.Select(e => e.RelativePath));
+            Assert.True(File.Exists(Path.Combine(release, "Subs", "2_English.srt")), "a dropped extra stays where it was");
+        }
+        finally
+        {
+            await client.DeleteAsync($"/api/v1/movies/{movie.Id}");
+        }
+    }
+
+    [Fact]
     public async Task The_setting_off_imports_no_extra_and_the_list_is_validated()
     {
         var client = await ClientAsync(factory);
@@ -278,6 +327,8 @@ public sealed class ExtraFilesTests(BigarrApiFactory factory) : IClassFixture<Bi
             var release = Directory.CreateDirectory(Path.Combine(_downloads, "Interstellar.2014.1080p.BluRay.x264-SPARKS")).FullName;
             var video = Touch(release, "Interstellar.2014.1080p.BluRay.x264-SPARKS.mkv", 64 * 1024);
             Touch(release, "Interstellar.2014.1080p.BluRay.x264-SPARKS.en.srt");
+            var listing = (await client.GetFromJsonAsync<ManualImportResponse>($"/api/v1/manualimport?path={Uri.EscapeDataString(release)}", Json))!;
+            Assert.Empty(Assert.Single(listing.Files).Extras);
 
             var response = await client.PostAsJsonAsync("/api/v1/manualimport", new ManualImportRequest([new ManualImportItemRequest(video, version.Id)]), Json);
             Assert.True(Assert.Single((await response.Content.ReadFromJsonAsync<List<ManualImportResultResponse>>(Json))!).Imported);
