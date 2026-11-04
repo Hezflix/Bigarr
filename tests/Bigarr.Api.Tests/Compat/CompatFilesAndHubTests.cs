@@ -166,6 +166,14 @@ public sealed class CompatFilesAndHubTests(BigarrApiFactory factory) : IClassFix
         Assert.Equal(["view:1080p:version", "view:all", "view:default"], imported.Select(m => m.Group.Replace("view:version:1080p", "view:1080p:version")).Order());
         Assert.All(imported, m => Assert.Equal("updated", ((ResourceChange)m.Message.Body).Action));
 
+        var updated = Route(new VersionUpdated(movie, hd));
+        Assert.Equal(3, updated.Count);
+        Assert.All(updated, m => Assert.Equal("updated", ((ResourceChange)m.Message.Body).Action));
+
+        var renamed = Route(new FileRenamed(movie, fourK, new FileRef(4, "/y2", "Remux-2160p", 1), "/y"));
+        Assert.Equal(["view:all", "view:version:4k"], renamed.Select(m => m.Group).Order());
+        Assert.All(renamed, m => Assert.Equal("updated", ((ResourceChange)m.Message.Body).Action));
+
         var upgraded4k = Route(new FileUpgraded(movie, fourK, new FileRef(4, "/y", "Remux-2160p", 1), new FileRef(3, "/x", "Bluray-2160p", 1), null, null, false, "Copied"));
         Assert.DoesNotContain(upgraded4k, m => m.Group == "view:default");
         Assert.Contains(upgraded4k, m => m.Group == "view:version:4k");

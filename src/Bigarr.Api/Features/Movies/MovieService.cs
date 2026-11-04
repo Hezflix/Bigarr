@@ -372,7 +372,13 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             }
         }
 
-        await db.SaveChangesAsync(ct);
+        // A no-op PUT (Seerr re-sends the whole resource) publishes nothing: consumers only hear about actual changes.
+        if (db.ChangeTracker.HasChanges())
+        {
+            outbox.Publish(new VersionUpdated(MovieRef.From(movie), VersionRef.From(version)));
+            await db.SaveChangesAsync(ct);
+        }
+
         return Result<MovieVersion>.Ok(version);
     }
 

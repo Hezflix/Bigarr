@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FolderInputIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -191,11 +191,14 @@ function RootFolderRow({ root, onRequestRemove }: { root: RootFolder; onRequestR
 
   const s = status.data
   const busy = s?.state === 'running' || s?.state === 'queued'
-  if (s?.state === 'completed' && status.dataUpdatedAt && Date.now() - status.dataUpdatedAt < 1500) {
+  const scanState = s?.state
+  // A scan that just finished changed the library: refresh what shows it, once, after the render.
+  useEffect(() => {
+    if (scanState !== 'completed') return
     void queryClient.invalidateQueries({ queryKey: ['movies'] })
     void queryClient.invalidateQueries({ queryKey: ['rootFolders'] })
     void queryClient.invalidateQueries({ queryKey: ['unmapped'] })
-  }
+  }, [scanState, queryClient])
 
   const progress = busy && s && s.foldersTotal > 0 ? Math.round((s.foldersProcessed / s.foldersTotal) * 100) : 0
 

@@ -879,7 +879,7 @@
     "seerr": "Seerr",
     "seerrHint": "One Seerr, two Radarr servers on this same URL: a standard server with a version:1080p key and a 4K server with a version:4k key. Each request creates or follows its own version of the film; both servers can share the root folder. Pick the matching quality profile on each.",
     "bazarr": "Bazarr",
-    "bazarrHint": "A key with the all view: Bazarr lists every version as its own movie, subtitles each file, and follows changes live over SignalR at /signalr/messages.",
+    "bazarrHint": "One Bazarr per version, like the usual Bazarr + Bazarr 4K pair: a version:1080p key on the first, a version:4k key on the second. Bazarr keeps one line per TMDB id, so a key with the all view would make it skip the second version of a film. Each instance follows its files live over SignalR at /signalr/messages.",
     "prowlarr": "Prowlarr",
     "prowlarrHint": "Add Bigarr as a Radarr application with a default key: Prowlarr pushes its torrent indexers here and keeps them in sync. Only one of Prowlarr push and the read-only Prowlarr sync should be on.",
     "legacyHint": "Bigarr answers as Radarr {{version}}."

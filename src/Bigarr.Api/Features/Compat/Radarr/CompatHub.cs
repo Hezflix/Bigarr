@@ -98,6 +98,8 @@ public sealed class CompatHubBroadcaster(EventStream stream, IHubContext<CompatH
         {
             MovieAdded e => Change("created", e.Movie, e.Version),
             VersionAdded e => Change("created", e.Movie, e.Version),
+            VersionUpdated e => Change("updated", e.Movie, e.Version),
+            FileRenamed e => Change("updated", e.Movie, e.Version),
             FileImported e => Change("updated", e.Movie, e.Version),
             FileUpgraded e => Change("updated", e.Movie, e.Version),
             FileDeleted e => Change("updated", e.Movie, e.Version),

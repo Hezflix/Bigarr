@@ -16,6 +16,7 @@ public sealed class DomainEventTests
         [
             new MovieAdded(movie, version),
             new VersionAdded(movie, version),
+            new VersionUpdated(movie, version),
             new MovieDeleted(movie, false, [version]),
             new VersionDeleted(movie, version, false),
             new ReleaseGrabbed(movie, version, new ReleaseRef("The.Matrix.1999.1080p", "Bluray-1080p", "Mock", 1, null, 12, "abc"), 7, "qbt", "abc", "rss"),
@@ -24,6 +25,7 @@ public sealed class DomainEventTests
             new DownloadFailed(movie, version, new ReleaseRef("t", null, null, 0), 7, "Disk full", true, true),
             new ImportFailed(movie, version, new ReleaseRef("t", null, null, 0), 7, "No video"),
             new FileDeleted(movie, version, new FileRef(3, "/x", null, 1), "deleted"),
+            new FileRenamed(movie, version, new FileRef(3, "/x2", null, 1), "/x"),
             new DefaultVersionChanged(movie, version, null),
             new HealthIssueRaised("indexers", HealthIssueType.Warning, "No indexer"),
             new HealthIssueResolved("indexers", "No indexer"),
@@ -40,7 +42,7 @@ public sealed class DomainEventTests
 
         Assert.Equal(DomainEventCatalog.All.Count, events.Select(e => e.Type).Distinct().Count());
 
-        using var grabbed = JsonDocument.Parse(EventJson.Serialize(events[4]));
+        using var grabbed = JsonDocument.Parse(EventJson.Serialize(events.OfType<ReleaseGrabbed>().Single()));
         Assert.Equal("managed", grabbed.RootElement.GetProperty("version").GetProperty("mode").GetString());
         Assert.Equal("Bluray-1080p", grabbed.RootElement.GetProperty("release").GetProperty("quality").GetString());
     }
