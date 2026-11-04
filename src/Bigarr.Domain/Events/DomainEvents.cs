@@ -43,6 +43,9 @@ public sealed record MovieAdded(MovieRef Movie, VersionRef Version) : DomainEven
 
 public sealed record VersionAdded(MovieRef Movie, VersionRef Version) : DomainEvent;
 
+/// <summary>Monitoring, profile, availability, mode, name, constraints or tags of a version changed; its file is untouched.</summary>
+public sealed record VersionUpdated(MovieRef Movie, VersionRef Version) : DomainEvent;
+
 /// <param name="Versions">Every version the film had, so a consumer that tracked them (the compat SignalR hub) can drop each one.</param>
 public sealed record MovieDeleted(MovieRef Movie, bool DeletedFiles, List<VersionRef>? Versions = null) : DomainEvent;
 
@@ -59,6 +62,9 @@ public sealed record DownloadFailed(MovieRef? Movie, VersionRef? Version, Releas
 public sealed record ImportFailed(MovieRef? Movie, VersionRef? Version, ReleaseRef Release, int GrabId, string Reason) : DomainEvent;
 
 public sealed record FileDeleted(MovieRef Movie, VersionRef Version, FileRef File, string Reason) : DomainEvent;
+
+/// <summary>A file was moved to the current naming template; <paramref name="File"/> carries the new path.</summary>
+public sealed record FileRenamed(MovieRef Movie, VersionRef Version, FileRef File, string PreviousPath) : DomainEvent;
 
 public sealed record DefaultVersionChanged(MovieRef Movie, VersionRef NewDefault, VersionRef? PreviousDefault) : DomainEvent;
 
@@ -83,6 +89,7 @@ public static class DomainEventCatalog
     [
         (typeof(MovieAdded), "movieAdded", "A film was added to the library"),
         (typeof(VersionAdded), "versionAdded", "A version was added to a film"),
+        (typeof(VersionUpdated), "versionUpdated", "A version's settings changed"),
         (typeof(MovieDeleted), "movieDeleted", "A film was removed from the library"),
         (typeof(VersionDeleted), "versionDeleted", "A version was removed from a film"),
         (typeof(ReleaseGrabbed), "grabbed", "A release was sent to a download client"),
@@ -91,6 +98,7 @@ public static class DomainEventCatalog
         (typeof(DownloadFailed), "downloadFailed", "A download failed and was blocklisted"),
         (typeof(ImportFailed), "importFailed", "A completed download could not be imported"),
         (typeof(FileDeleted), "fileDeleted", "A file was deleted"),
+        (typeof(FileRenamed), "fileRenamed", "A file was renamed"),
         (typeof(DefaultVersionChanged), "defaultVersionChanged", "The default version of a film changed"),
         (typeof(HealthIssueRaised), "healthIssue", "A health check raised an issue"),
         (typeof(HealthIssueResolved), "healthRestored", "A health issue went away"),

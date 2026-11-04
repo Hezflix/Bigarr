@@ -23,7 +23,7 @@ public static class RadarrMapper
             Title = movie.Title,
             OriginalTitle = movie.OriginalTitle,
             OriginalLanguage = OriginalLanguage(movie.OriginalLanguage),
-            AlternateTitles = movie.AlternativeTitles.Select((t, i) => new RadarrAlternateTitle(i + 1, "tmdb", movie.Id, t.Title)).ToList(),
+            AlternateTitles = movie.AlternativeTitles.Select((t, i) => new RadarrAlternateTitle(i + 1, "tmdb", version.Id, t.Title)).ToList(),
             SortTitle = movie.SortTitle,
             SizeOnDisk = version.File?.Size ?? 0,
             Status = Camel(Availability.EffectiveStatus(movie, today).ToString()),

@@ -6,6 +6,7 @@ import { eventsUrl } from '@/api/client'
 const eventTypes = [
   'movieAdded',
   'versionAdded',
+  'versionUpdated',
   'movieDeleted',
   'grabbed',
   'imported',
@@ -13,6 +14,7 @@ const eventTypes = [
   'downloadFailed',
   'importFailed',
   'fileDeleted',
+  'fileRenamed',
   'defaultVersionChanged',
   'healthIssue',
   'healthRestored',
@@ -26,6 +28,7 @@ type Payload = { movie?: { id: number } | null }
 const invalidations: Record<ServerEventType, string[][]> = {
   movieAdded: [['movies'], ['wanted']],
   versionAdded: [['movies'], ['wanted']],
+  versionUpdated: [['movies'], ['wanted']],
   movieDeleted: [['movies'], ['wanted']],
   grabbed: [['queue'], ['history'], ['movies'], ['wanted']],
   downloadFailed: [['queue'], ['history'], ['movies'], ['wanted'], ['blocklist']],
@@ -33,6 +36,7 @@ const invalidations: Record<ServerEventType, string[][]> = {
   imported: [['movies'], ['history'], ['wanted'], ['queue']],
   upgraded: [['movies'], ['history'], ['wanted'], ['queue']],
   fileDeleted: [['movies'], ['history'], ['wanted']],
+  fileRenamed: [['movies'], ['history']],
   defaultVersionChanged: [['movies'], ['history']],
   healthIssue: [['health']],
   healthRestored: [['health']],

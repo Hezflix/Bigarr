@@ -28,12 +28,22 @@ using Bigarr.Api.Infrastructure.Matching;
 using Bigarr.Api.Infrastructure.Media;
 using Bigarr.Api.Infrastructure.Metadata;
 using Bigarr.Api.Infrastructure.Persistence;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<BigarrOptions>(builder.Configuration.GetSection(BigarrOptions.Section));
 builder.Services.AddBigarrPersistence(builder.Configuration);
 builder.Services.AddBigarrAuthentication();
+// Behind a reverse proxy (Traefik, nginx, oauth2-proxy) the scheme and the client address arrive in X-Forwarded-*.
+// In that setup the proxy is the only thing that can reach Bigarr, so its headers are trusted from any address:
+// the session cookie is then marked Secure on https and failed logins log the real client.
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
+    o.KnownIPNetworks.Clear();
+    o.KnownProxies.Clear();
+});
 builder.Services.AddScoped<IStartupTask, AdminSeeder>();
 builder.Services.AddScoped<IStartupTask, QualitySeeder>();
 builder.Services.AddBigarrMetadata(builder.Configuration);
@@ -110,6 +120,7 @@ builder.Services.AddProblemDetails();
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 

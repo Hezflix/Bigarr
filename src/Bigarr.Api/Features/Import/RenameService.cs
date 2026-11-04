@@ -1,6 +1,8 @@
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Decision;
+using Bigarr.Api.Infrastructure.Events;
 using Bigarr.Api.Infrastructure.Persistence;
+using Bigarr.Domain.Events;
 using Bigarr.Domain.History;
 using Bigarr.Domain.Movies;
 using Bigarr.Domain.Naming;
@@ -9,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Bigarr.Api.Features.Import;
 
 /// <summary>Renames a film's files to the current template: preview first, then the move, journaled as <see cref="HistoryEventType.Renamed"/>.</summary>
-public sealed class RenameService(BigarrDbContext db, MediaManagementService settings, CustomFormatScorer scorer, TimeProvider time, ILogger<RenameService> logger)
+public sealed class RenameService(BigarrDbContext db, MediaManagementService settings, CustomFormatScorer scorer, OutboxWriter outbox, TimeProvider time, ILogger<RenameService> logger)
 {
     public async Task<Result<List<RenamePreviewResponse>>> PreviewAsync(int movieId, CancellationToken ct)
     {
@@ -97,6 +99,7 @@ public sealed class RenameService(BigarrDbContext db, MediaManagementService set
                 CreatedAt = now,
             });
             results.Add(new RenameResultResponse(file.Id, target, true, null));
+            outbox.Publish(new FileRenamed(MovieRef.From(movie), VersionRef.From(version), new FileRef(file.Id, to, file.Quality?.Name, file.Size), from));
             logger.LogInformation("Renamed {From} → {To}", previous, target);
         }
 
