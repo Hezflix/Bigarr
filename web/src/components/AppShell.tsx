@@ -9,9 +9,11 @@ import {
   HardDriveDownloadIcon,
   HeartPulseIcon,
   HistoryIcon,
+  ImportIcon,
   ListOrderedIcon,
   ListTodoIcon,
   LogOutIcon,
+  MonitorPlayIcon,
   PlugIcon,
   PlusIcon,
   RadioTowerIcon,
@@ -62,6 +64,8 @@ type NavItem = {
     | '/settings/quality'
     | '/settings/customformats'
     | '/settings/connect'
+    | '/settings/mediaservers'
+    | '/settings/import-radarr'
     | '/system/status'
   label: string
   icon: React.ComponentType<{ className?: string }>
@@ -103,7 +107,9 @@ function useSections(): NavSection[] {
         { to: '/settings/notifications', label: t('nav.settingsNotifications'), icon: WebhookIcon },
         { to: '/settings/quality', label: t('nav.settingsQuality'), icon: SlidersHorizontalIcon },
         { to: '/settings/customformats', label: t('nav.settingsCustomFormats'), icon: TagsIcon },
+        { to: '/settings/mediaservers', label: t('nav.settingsMediaServers'), icon: MonitorPlayIcon },
         { to: '/settings/connect', label: t('nav.settingsConnect'), icon: PlugIcon },
+        { to: '/settings/import-radarr', label: t('nav.settingsImportRadarr'), icon: ImportIcon },
       ],
     },
     {

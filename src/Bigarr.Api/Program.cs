@@ -8,6 +8,8 @@ using Bigarr.Api.Features.History;
 using Bigarr.Api.Features.Import;
 using Bigarr.Api.Features.Indexers;
 using Bigarr.Api.Features.Library;
+using Bigarr.Api.Features.MediaServers;
+using Bigarr.Api.Features.Migration;
 using Bigarr.Api.Features.Movies;
 using Bigarr.Api.Features.Notifications;
 using Bigarr.Api.Features.Quality;
@@ -25,6 +27,8 @@ using Bigarr.Api.Infrastructure.Events;
 using Bigarr.Api.Infrastructure.Files;
 using Bigarr.Api.Infrastructure.Indexers;
 using Bigarr.Api.Infrastructure.Matching;
+using Bigarr.Api.Infrastructure.MediaServers;
+using Bigarr.Api.Infrastructure.RadarrImport;
 using Bigarr.Api.Infrastructure.Media;
 using Bigarr.Api.Infrastructure.Metadata;
 using Bigarr.Api.Infrastructure.Persistence;
@@ -111,6 +115,17 @@ builder.Services.AddScoped<IScheduledJob, BackupJob>();
 
 // The Radarr-compatible surface (blueprint §7): /api/v3 behind API keys, /signalr/messages, /MediaCover.
 builder.Services.AddRadarrCompat();
+
+// Moving in from Radarr (M8): one background import at a time, reading Radarr's v3 API.
+builder.Services.AddHttpClient(RadarrClient.HttpClientName, http => http.Timeout = TimeSpan.FromSeconds(120));
+builder.Services.AddSingleton<RadarrClient>();
+builder.Services.AddScoped<RadarrImportService>();
+builder.Services.AddSingleton<RadarrImportRunner>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<RadarrImportRunner>());
+
+// Media servers (M8): Plex, Jellyfin and Emby hear about changed folders from the outbox.
+builder.Services.AddBigarrMediaServers();
+builder.Services.AddScoped<MediaServerService>();
 builder.Services.AddSingleton<HealthState>();
 builder.Services.AddScoped<HealthCheckService>();
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
@@ -154,6 +169,8 @@ app.MapTasks();
 app.MapHealth();
 app.MapBackups();
 app.MapTags();
+app.MapMigration();
+app.MapMediaServers();
 app.MapRadarrCompat();
 
 // The SPA is built into wwwroot by `bun run build`; anything that is not API falls back to index.html.

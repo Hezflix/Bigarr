@@ -56,6 +56,8 @@ const customFormatsRoute = createRoute({ getParentRoute: () => appRoute, path: '
 const downloadClientsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/downloadclients', component: lazyRouteComponent(() => import('./features/settings/DownloadClientsPage'), 'DownloadClientsPage') })
 const notificationsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/notifications', component: lazyRouteComponent(() => import('./features/settings/NotificationsPage'), 'NotificationsPage') })
 const connectRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/connect', component: lazyRouteComponent(() => import('./features/settings/ConnectPage'), 'ConnectPage') })
+const mediaServersRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/mediaservers', component: lazyRouteComponent(() => import('./features/settings/MediaServersPage'), 'MediaServersPage') })
+const importRadarrRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/import-radarr', component: lazyRouteComponent(() => import('./features/settings/ImportRadarrPage'), 'ImportRadarrPage') })
 
 const router = createRouter({
   routeTree: rootRoute.addChildren([loginRoute, appRoute.addChildren([
@@ -73,6 +75,8 @@ const router = createRouter({
       downloadClientsRoute,
       notificationsRoute,
       connectRoute,
+      mediaServersRoute,
+      importRadarrRoute,
       qualitySettingsRoute,
       customFormatsRoute,
       systemRoute,
