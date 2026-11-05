@@ -69,8 +69,33 @@
     "clearFilters": "Clear filters",
     "searchPlaceholder": "Filter by title or year…",
     "select": "Select",
-    "cutoffUnmet": "cutoff unmet",
-    "unmonitored": "unmonitored",
+    "legend": {
+      "default": "Default version",
+      "available": {
+        "label": "Available",
+        "hint": "has a file, no upgrade wanted"
+      },
+      "cutoffUnmet": {
+        "label": "Cutoff unmet",
+        "hint": "has a file below the profile's cutoff, an upgrade is wanted"
+      },
+      "missing": {
+        "label": "Missing",
+        "hint": "out per its minimum availability, no file yet"
+      },
+      "downloading": {
+        "label": "Downloading",
+        "hint": "a release is downloading"
+      },
+      "pending": {
+        "label": "Pending",
+        "hint": "not out yet per its minimum availability"
+      },
+      "unmonitored": {
+        "label": "Unmonitored",
+        "hint": "dashed and faded, no automatic search or upgrade"
+      }
+    },
     "modes": {
       "posters": "Posters",
       "table": "Table"
