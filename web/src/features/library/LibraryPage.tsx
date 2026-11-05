@@ -13,6 +13,7 @@ import { BulkToolbar } from './BulkToolbar'
 import { LibraryControls, SavedViewsBar } from './LibraryControls'
 import {
   activeFilterCount,
+  firstDirection,
   matchesFilter,
   matchesSearch,
   presets,
@@ -85,7 +86,8 @@ export function LibraryPage() {
       savedViews: [...current.savedViews, { id: `v${Date.now().toString(36)}`, name, filter: current.filter, sort: current.sort, direction: current.direction, mode: current.mode }],
     }))
   const deleteView = (id: string) => update((current) => ({ savedViews: current.savedViews.filter((v) => v.id !== id) }))
-  const onSort = (key: SortKey) => update((current) => (current.sort === key ? { direction: current.direction === 'asc' ? 'desc' : 'asc' } : { sort: key, direction: 'asc' }))
+  const onSort = (key: SortKey) =>
+    update((current) => (current.sort === key ? { direction: current.direction === 'asc' ? 'desc' : 'asc' } : { sort: key, direction: firstDirection(key) }))
   const onReport = (r: BulkReport) => toastBulk(t, r, setReport)
 
   // `?view=table&preset=missing-4k` opens the page on that layout and view, then leaves the URL clean.

@@ -19,6 +19,11 @@ export const sortKeys = ['title', 'year', 'added', 'size', 'quality', 'rating'] 
 export type SortKey = (typeof sortKeys)[number]
 export type SortDirection = 'asc' | 'desc'
 
+/** Direction of the first click on a column header: A to Z and oldest year first, but the biggest, newest, best first. */
+export function firstDirection(key: SortKey): SortDirection {
+  return key === 'title' || key === 'year' ? 'asc' : 'desc'
+}
+
 export const cardFields = ['title', 'year', 'versions', 'quality', 'size', 'rating'] as const
 export type CardField = (typeof cardFields)[number]
 

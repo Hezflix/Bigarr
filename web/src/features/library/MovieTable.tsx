@@ -2,7 +2,7 @@ import { useRef, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import { cn } from 'cn'
-import { ArrowDownIcon, ArrowUpIcon } from 'lucide-react'
+import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { MovieSummary } from '@/api/client'
 import { Poster } from '@/components/Poster'
@@ -63,12 +63,31 @@ export function MovieTable({ movies, columns, density, lookups, sort, direction,
 
   const header = (key: TableColumn | 'title', label: string) => {
     const sortKey = sortable[key]
-    if (!sortKey) return <span key={key}>{label}</span>
+    if (!sortKey) {
+      return (
+        <span key={key} role="columnheader" className="truncate">
+          {label}
+        </span>
+      )
+    }
+    const active = sort === sortKey
+    // The sorted column shows its direction; the others show a faint hint on hover that they sort too.
+    const Arrow = !active ? ArrowUpDownIcon : direction === 'asc' ? ArrowUpIcon : ArrowDownIcon
     return (
-      <button key={key} type="button" className="flex items-center gap-1 text-left hover:text-foreground" onClick={() => onSort(sortKey)}>
-        {label}
-        {sort === sortKey && (direction === 'asc' ? <ArrowUpIcon className="size-3" /> : <ArrowDownIcon className="size-3" />)}
-      </button>
+      <span key={key} role="columnheader" aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'} className="min-w-0">
+        <button
+          type="button"
+          className={cn(
+            'group/sort -mx-1.5 flex max-w-[calc(100%+0.75rem)] items-center gap-1 rounded-md px-1.5 py-1 text-left outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/50',
+            active && 'text-foreground',
+          )}
+          onClick={() => onSort(sortKey)}
+          data-testid={`sort-${sortKey}`}
+        >
+          <span className="truncate">{label}</span>
+          <Arrow className={cn('size-3 shrink-0', !active && 'opacity-0 group-hover/sort:opacity-50 group-focus-visible/sort:opacity-50')} aria-hidden="true" />
+        </button>
+      </span>
     )
   }
 
@@ -77,7 +96,7 @@ export function MovieTable({ movies, columns, density, lookups, sort, direction,
       <div ref={contentRef} className="min-w-fit">
         <div
           role="row"
-          className={cn('grid items-center gap-3 border-b bg-muted px-3 py-2 text-xs font-medium text-muted-foreground', !overflows && 'sticky top-0 z-10 rounded-t-xl')}
+          className={cn('grid items-center gap-3 border-b bg-muted px-3 py-1 text-xs font-medium text-muted-foreground', !overflows && 'sticky top-0 z-10 rounded-t-xl')}
           style={{ gridTemplateColumns: template }}
         >
           {selection.selecting && <span />}
