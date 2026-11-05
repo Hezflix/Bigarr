@@ -94,7 +94,7 @@ public sealed class MovieSummaryQuery(BigarrDbContext db, CustomFormatScorer sco
                         v.RootFolderId,
                         v.TagIds.Order().ToList(),
                         v.File?.Size,
-                        v.File is null ? null : CutoffMet(row, v.File, profiles[v.QualityProfileId], qualities.GetValueOrDefault(v.File.QualityId), calculator!)))
+                        v.File is null || v.Mode != VersionMode.Managed ? null : CutoffMet(row, v.File, profiles[v.QualityProfileId], qualities.GetValueOrDefault(v.File.QualityId), calculator!)))
                     .ToList(),
                 row.AddedAt,
                 row.Ratings?.Tmdb?.Value,
@@ -105,6 +105,7 @@ public sealed class MovieSummaryQuery(BigarrDbContext db, CustomFormatScorer sco
     /// <summary>
     /// The movie page's verdict (<see cref="CustomFormatScorer.Assess"/>). A profile that scores no custom format
     /// gives every file 0, so the file name is only parsed when a score can change the answer.
+    /// Only managed versions get a verdict: a one-shot version is never upgraded (<see cref="MovieMapper.CutoffMet"/>).
     /// </summary>
     private static bool CutoffMet(MovieRow movie, FileRow file, QualityProfile profile, QualityDefinition? quality, CustomFormatCalculator calculator)
     {

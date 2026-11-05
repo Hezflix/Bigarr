@@ -62,9 +62,16 @@ public static class MovieMapper
             version.CreatedAt,
             assessment?.CustomFormats.ToList(),
             assessment?.CustomFormatScore,
-            assessment?.CutoffMet,
+            CutoffMet(version, assessment),
             version.Tags.Select(t => t.Id).OrderBy(id => id).ToList());
     }
+
+    /// <summary>
+    /// A one-shot version is grabbed once and never upgraded, so "below the cutoff" would promise an upgrade that
+    /// never comes: like the wanted list, only managed versions get a verdict.
+    /// </summary>
+    public static bool? CutoffMet(MovieVersion version, FileAssessment? assessment) =>
+        version.Mode == VersionMode.Managed ? assessment?.CutoffMet : null;
 
     public static MediaFileResponse ToFile(MediaFile file, string folder) => new(
         file.Id,

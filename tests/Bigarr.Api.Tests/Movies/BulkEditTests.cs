@@ -193,6 +193,34 @@ public sealed class BulkEditTests(BigarrApiFactory factory) : IClassFixture<Biga
         Assert.Equal("4k", (await GetMovieAsync(client, summary.Id)).Versions.Single(v => v.IsDefault).Name);
     }
 
+    [Fact]
+    public async Task A_one_shot_version_gets_no_cutoff_verdict_since_it_is_never_upgraded()
+    {
+        var client = await ClientAsync(factory);
+        var (hd, _) = await ProfilesAsync(client);
+        var video = Path.Combine(_library, "Mission Impossible (1996)", "Mission.Impossible.1996.720p.BluRay.x264-GRP.mkv");
+        Directory.CreateDirectory(Path.GetDirectoryName(video)!);
+        await File.WriteAllBytesAsync(video, new byte[64 * 1024]);
+        var root = await AddRootAsync(client, _library);
+        await ScanAsync(client, root.Id);
+
+        var movie = (await client.GetFromJsonAsync<List<MovieSummary>>("/api/v1/movies", Json))!.Single(m => m.TmdbId == 954);
+        var version = Assert.Single(movie.Versions);
+        async Task<(bool? List, bool? Page)> VerdictsAsync() => (
+            (await client.GetFromJsonAsync<List<MovieSummary>>("/api/v1/movies", Json))!.Single(m => m.Id == movie.Id).Versions.Single(v => v.Id == version.Id).CutoffMet,
+            (await GetMovieAsync(client, movie.Id)).Versions.Single(v => v.Id == version.Id).CutoffMet);
+
+        Assert.Equal("Bluray-720p", version.Quality);
+        Assert.Equal((false, false), await VerdictsAsync());
+
+        // The default version must stay managed: hand the default over before turning this one into a one-shot.
+        var spare = await AddVersionAsync(client, movie.Id, new AddVersionRequest("spare", VersionMode.Managed, hd));
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsync($"/api/v1/movies/{movie.Id}/versions/{spare.Id}/promote", null)).StatusCode);
+        var update = await client.PutAsJsonAsync($"/api/v1/movies/{movie.Id}/versions/{version.Id}", new UpdateVersionRequest(Mode: VersionMode.OneShot), Json);
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        Assert.Equal((null, null), await VerdictsAsync());
+    }
+
     private async Task<int> RootAsync(HttpClient client)
     {
         var roots = (await client.GetFromJsonAsync<List<RootFolderResponse>>("/api/v1/rootfolders", Json))!;
