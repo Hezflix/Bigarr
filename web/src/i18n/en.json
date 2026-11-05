@@ -450,7 +450,7 @@
   },
   "indexers": {
     "title": "Indexers",
-    "hint": "Torznab indexers are the ones Prowlarr or Jackett expose: point one at a Prowlarr indexer with its API key. The mock indexer fabricates releases for any film and is meant for development.",
+    "hint": "Indexers added by hand speak Torznab, as Jackett's do. The mock indexer fabricates releases for any film and is meant for development.",
     "add": "Add an indexer",
     "new": "New indexer",
     "editTitle": "Edit {{name}}",
@@ -498,15 +498,10 @@
     "testOk": "Indexer reachable: {{categories}} categories, {{releases}} recent releases, id search: {{ids}}.",
     "textSearchOnly": "none (text search only)",
     "testFailed": "The indexer test failed.",
-    "prowlarrTitle": "Prowlarr · {{host}}",
-    "prowlarrManaged": "Imported from Prowlarr: name, URL, key, priority and enabled state are refreshed on every sync. Categories, seeders, rate limit and seed criteria are yours.",
-    "prowlarrSync": "Sync now",
-    "prowlarrSyncing": "Syncing…",
-    "prowlarrSynced": "Prowlarr sync done: {{added}} added, {{updated}} updated, {{removed}} removed, {{skipped}} skipped.",
-    "prowlarrSyncFailed": "The Prowlarr sync failed.",
-    "prowlarrLastSync": "Last sync {{date}}: {{total}} indexers seen, {{skipped}} skipped (usenet).",
-    "prowlarrLastFailed": "Last attempt {{date}} failed.",
-    "prowlarrNeverSynced": "Not synced yet."
+    "prowlarrHint": "Prowlarr's indexers come from Prowlarr, as in Radarr: add Bigarr there as a Radarr application (Settings → Apps → + → Radarr) and it adds, updates and removes them here on every sync.",
+    "prowlarrHowTo": "URL and key to give it",
+    "prowlarrBadge": "Prowlarr",
+    "prowlarrManaged": "Managed by Prowlarr: every sync rewrites its name, URL, key, categories, priority, seeders, seed criteria and RSS and search switches, and deleting it in Prowlarr removes it here. Change those in Prowlarr; the rate limit is yours."
   },
   "search": {
     "title": "Interactive search",
@@ -1141,7 +1136,7 @@
     "bazarr": "Bazarr",
     "bazarrHint": "One Bazarr per version, like the usual Bazarr + Bazarr 4K pair: a version:1080p key on the first, a version:4k key on the second. Bazarr keeps one line per TMDB id, so a key with the all view would make it skip the second version of a film. Each instance follows its files live over SignalR at /signalr/messages.",
     "prowlarr": "Prowlarr",
-    "prowlarrHint": "Add Bigarr as a Radarr application with a default key: Prowlarr pushes its torrent indexers here and keeps them in sync. Only one of Prowlarr push and the read-only Prowlarr sync should be on.",
+    "prowlarrHint": "In Prowlarr, Settings → Apps → + → Radarr: Prowlarr Server is Prowlarr's URL as Bigarr reaches it, Radarr Server is the URL above, API Key a key with the default view, sync level Full Sync. Prowlarr then pushes its torrent indexers here and keeps them in sync.",
     "legacyHint": "Bigarr answers as Radarr {{version}}."
   },
   "backups": {

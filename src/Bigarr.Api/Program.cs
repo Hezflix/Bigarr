@@ -51,7 +51,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
 builder.Services.AddScoped<IStartupTask, AdminSeeder>();
 builder.Services.AddScoped<IStartupTask, QualitySeeder>();
 builder.Services.AddBigarrMetadata(builder.Configuration);
-builder.Services.AddBigarrIndexers(builder.Configuration);
+builder.Services.AddBigarrIndexers();
 builder.Services.AddBigarrDownloads(builder.Configuration);
 builder.Services.AddBigarrEvents(builder.Configuration);
 builder.Services.AddScoped<MovieService>();
@@ -66,9 +66,6 @@ builder.Services.AddScoped<CustomFormatService>();
 builder.Services.AddScoped<LibraryScanner>();
 builder.Services.AddSingleton<LibraryScanRunner>();
 builder.Services.AddScoped<IndexerService>();
-builder.Services.AddScoped<ProwlarrSyncService>();
-builder.Services.AddSingleton<ProwlarrSyncState>();
-builder.Services.AddHostedService<ProwlarrStartupSync>();
 builder.Services.AddScoped<TargetContextFactory>();
 builder.Services.AddScoped<InteractiveSearchService>();
 builder.Services.Configure<RssSyncOptions>(builder.Configuration.GetSection(RssSyncOptions.Section));

@@ -8,9 +8,10 @@ using Microsoft.AspNetCore.Http.HttpResults;
 namespace Bigarr.Api.Features.Compat.Radarr;
 
 /// <summary>
-/// <c>/indexer</c> (§7.4): what Prowlarr calls to push its indexers into an application. It reads the schema, posts one
-/// Torznab indexer per tracker pointing at its own per-indexer endpoint, and recognises them again by <c>apiKey</c> and
-/// the <c>/{id}/</c> in <c>baseUrl</c>. Usenet indexers are refused: Bigarr has no usenet client.
+/// <c>/indexer</c> (§7.4): what Prowlarr calls to push its indexers into an application, as it does into Radarr.
+/// It reads the schema, posts one Torznab indexer per tracker pointing at its own per-indexer endpoint, and on each sync
+/// adopts the rows whose <c>baseUrl</c> starts with its URL or whose <c>apiKey</c> is its key, its indexer id being the
+/// <c>/{id}/</c> at the end of <c>baseUrl</c>. Usenet indexers are refused: Bigarr has no usenet client.
 /// </summary>
 public static partial class IndexersEndpoints
 {
@@ -34,6 +35,7 @@ public static partial class IndexersEndpoints
                 return invalid!;
             }
 
+            // An indexer Prowlarr already has here (same ProwlarrId) is updated and returned: Prowlarr maps onto its id.
             var result = await indexers.AddAsync(request, ct);
             return result.IsSuccess ? RadarrCompat.Created(ToResource(result.Value!)) : RadarrCompat.BadRequest("Name", result.Failure!.Detail ?? result.Failure.Title);
         });
@@ -55,10 +57,12 @@ public static partial class IndexersEndpoints
             return result.Failure!.StatusCode == StatusCodes.Status404NotFound ? TypedResults.NotFound() : RadarrCompat.BadRequest("Name", result.Failure.Detail ?? result.Failure.Title);
         });
 
-        group.MapDelete("/indexer/{id:int}", async Task<Results<Ok, NotFound>> (int id, IndexerService indexers, CancellationToken ct) =>
+        // Radarr answers 200 for an id it does not have, and Prowlarr only drops its mapping on success: an indexer deleted
+        // here first must not leave Prowlarr failing on it at every sync.
+        group.MapDelete("/indexer/{id:int}", async Task<Ok> (int id, IndexerService indexers, CancellationToken ct) =>
         {
-            var result = await indexers.DeleteAsync(id, ct);
-            return result.IsSuccess ? TypedResults.Ok() : TypedResults.NotFound();
+            await indexers.DeleteAsync(id, ct);
+            return TypedResults.Ok();
         });
 
         // Prowlarr's application test: a Newznab indexer pointing at its aggregate endpoint. Only the caps request has
@@ -203,7 +207,6 @@ public static partial class IndexersEndpoints
             Math.Max(0, minimumSeeders),
             seedRatio is { } r && r > 0 ? r : null,
             seedTime is { } t && t > 0 ? t : null,
-            RateLimitSeconds: 2,
             ProwlarrId: prowlarrId);
     }
 

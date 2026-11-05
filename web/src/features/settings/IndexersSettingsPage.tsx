@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { cn } from 'cn'
-import { FlaskConicalIcon, PencilIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
+import { FlaskConicalIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, indexers, prowlarr, type Indexer, type IndexerImplementation, type IndexerRequest, type IndexerTestResult } from '@/api/client'
+import { ApiError, indexers, type Indexer, type IndexerImplementation, type IndexerRequest, type IndexerTestResult } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -26,7 +27,6 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { formatDate } from '@/i18n'
 
 const DEFAULT_CATEGORIES = [2000, 2010, 2020, 2030, 2040, 2045, 2050, 2060, 2070, 2080]
 
@@ -124,7 +124,12 @@ export function IndexersSettingsPage() {
       </div>
       <p className="max-w-3xl text-sm text-muted-foreground">{t('indexers.hint')}</p>
 
-      <ProwlarrCard onSynced={() => void invalidate()} />
+      <p className="max-w-3xl rounded-lg border px-4 py-3 text-sm text-muted-foreground" data-testid="prowlarr-hint">
+        {t('indexers.prowlarrHint')}{' '}
+        <Link to="/settings/connect" className="underline underline-offset-4 hover:text-foreground">
+          {t('indexers.prowlarrHowTo')}
+        </Link>
+      </p>
 
       <div className="overflow-x-auto rounded-lg border">
         <Table data-testid="indexers-table">
@@ -147,7 +152,7 @@ export function IndexersSettingsPage() {
                     {indexer.prowlarrId !== null && (
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Badge variant="secondary">Prowlarr</Badge>
+                          <Badge variant="secondary">{t('indexers.prowlarrBadge')}</Badge>
                         </TooltipTrigger>
                         <TooltipContent>{t('indexers.prowlarrManaged')}</TooltipContent>
                       </Tooltip>
@@ -256,51 +261,6 @@ export function IndexersSettingsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </>
-  )
-}
-
-function ProwlarrCard({ onSynced }: { onSynced: () => void }) {
-  const { t } = useTranslation()
-  const queryClient = useQueryClient()
-  const status = useQuery({ queryKey: ['prowlarr'], queryFn: prowlarr.status })
-  const sync = useMutation({
-    mutationFn: prowlarr.sync,
-    onSuccess: async (result) => {
-      toast.success(t('indexers.prowlarrSynced', { added: result.added, updated: result.updated, removed: result.removed, skipped: result.skipped }))
-      await queryClient.invalidateQueries({ queryKey: ['prowlarr'] })
-      onSynced()
-    },
-    onError: async (e) => {
-      toast.error(e instanceof ApiError ? e.message : t('indexers.prowlarrSyncFailed'))
-      await queryClient.invalidateQueries({ queryKey: ['prowlarr'] })
-    },
-  })
-
-  const s = status.data
-  if (!s?.configured) return null
-
-  return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border px-4 py-3" data-testid="prowlarr-card">
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="text-sm font-medium">{t('indexers.prowlarrTitle', { host: s.host ?? '' })}</span>
-        <span className="text-xs text-muted-foreground">
-          {s.lastSyncAt
-            ? s.lastError
-              ? t('indexers.prowlarrLastFailed', { date: formatDate(s.lastSyncAt) })
-              : t('indexers.prowlarrLastSync', {
-                  date: formatDate(s.lastSyncAt),
-                  total: s.lastResult?.total ?? 0,
-                  skipped: s.lastResult?.skipped ?? 0,
-                })
-            : t('indexers.prowlarrNeverSynced')}
-        </span>
-        {s.lastError && <span className="text-xs text-destructive">{s.lastError}</span>}
-      </div>
-      <Button type="button" variant="outline" size="sm" onClick={() => sync.mutate()} disabled={sync.isPending} data-testid="prowlarr-sync">
-        <RefreshCwIcon className={sync.isPending ? 'animate-spin' : undefined} />
-        {sync.isPending ? t('indexers.prowlarrSyncing') : t('indexers.prowlarrSync')}
-      </Button>
-    </div>
   )
 }
 

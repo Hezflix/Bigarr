@@ -31,6 +31,15 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
             return invalid;
         }
 
+        // One row per Prowlarr indexer. Prowlarr adding one that is already here (a row of the former read-only sync, or
+        // a mapping it lost) takes that row over: its id becomes Prowlarr's mapping and the settings Prowlarr does not send stay.
+        if (request.ProwlarrId is { } prowlarrId
+            && await db.Indexers.Where(i => i.ProwlarrId == prowlarrId).Select(i => (int?)i.Id).FirstOrDefaultAsync(ct) is { } linked)
+        {
+            logger.LogInformation("Prowlarr indexer {ProwlarrId} is already indexer {Id}: updating it instead of adding another", prowlarrId, linked);
+            return await UpdateAsync(linked, request, ct);
+        }
+
         if (await db.Indexers.AnyAsync(i => i.Name == request.Name.Trim(), ct))
         {
             return Failure.Conflict("Indexer name already used", $"An indexer named '{request.Name.Trim()}' exists.");
@@ -61,6 +70,11 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
         if (await db.Indexers.AnyAsync(i => i.Id != id && i.Name == request.Name.Trim(), ct))
         {
             return Failure.Conflict("Indexer name already used", $"An indexer named '{request.Name.Trim()}' exists.");
+        }
+
+        if (request.ProwlarrId is { } prowlarrId && await db.Indexers.AnyAsync(i => i.Id != id && i.ProwlarrId == prowlarrId, ct))
+        {
+            return Failure.Conflict("Prowlarr indexer already linked", $"Another indexer is linked to Prowlarr indexer {prowlarrId}.");
         }
 
         indexer.Name = request.Name.Trim();
@@ -234,7 +248,7 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
         indexer.MinimumSeeders = request.MinimumSeeders;
         indexer.SeedRatio = request.SeedRatio;
         indexer.SeedTimeMinutes = request.SeedTimeMinutes;
-        indexer.RateLimitSeconds = request.RateLimitSeconds;
+        indexer.RateLimitSeconds = request.RateLimitSeconds ?? indexer.RateLimitSeconds;
         if (request.ProwlarrId is not null)
         {
             indexer.ProwlarrId = request.ProwlarrId;

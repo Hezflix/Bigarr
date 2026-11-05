@@ -157,7 +157,7 @@ public sealed partial class TorznabClient(IHttpClientFactory httpClientFactory, 
         try
         {
             using var response = await http.GetAsync(url, cancellationToken);
-            Prowlarr.HttpFailures.ThrowIfFailed(response, "the indexer");
+            HttpFailures.ThrowIfFailed(response, "the indexer");
             return await response.Content.ReadAsStringAsync(cancellationToken);
         }
         catch (HttpRequestException ex)

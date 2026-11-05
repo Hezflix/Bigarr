@@ -49,7 +49,7 @@ public sealed class Indexer
 
     public ICollection<Tag> Tags { get; set; } = [];
 
-    /// <summary>Set when the row was imported from Prowlarr; name, URL, key, priority and enabled state then follow Prowlarr.</summary>
+    /// <summary>Id of the Prowlarr indexer behind this row, read from the <c>/{id}/</c> of the URL Prowlarr pushes; Prowlarr then owns the row.</summary>
     public int? ProwlarrId { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
