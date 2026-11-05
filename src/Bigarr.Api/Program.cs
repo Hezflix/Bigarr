@@ -109,6 +109,8 @@ builder.Services.AddScoped<IScheduledJob, RssSyncJob>();
 builder.Services.AddScoped<IScheduledJob, CutoffUnmetSearchJob>();
 builder.Services.AddScoped<IScheduledJob, HealthCheckJob>();
 builder.Services.AddScoped<IScheduledJob, MediaMaintenanceJob>();
+builder.Services.Configure<MetadataRefreshOptions>(builder.Configuration.GetSection(MetadataRefreshOptions.Section));
+builder.Services.AddScoped<IScheduledJob, MetadataRefreshJob>();
 builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(BackupOptions.Section));
 builder.Services.AddScoped<BackupService>();
 builder.Services.AddScoped<IScheduledJob, BackupJob>();

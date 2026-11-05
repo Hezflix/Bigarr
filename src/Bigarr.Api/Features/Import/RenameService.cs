@@ -25,8 +25,14 @@ public sealed class RenameService(BigarrDbContext db, MediaManagementService set
         var rows = new List<RenamePreviewResponse>();
         foreach (var version in movie.Versions.Where(v => v.File is not null).OrderByDescending(v => v.IsDefault).ThenBy(v => v.Id))
         {
+            var file = version.File!;
             var target = await TargetNameAsync(movie, version, config.FileNameTemplate, ct);
-            rows.Add(new RenamePreviewResponse(version.Id, version.Name, version.File!.Id, version.File.RelativePath, target, !string.Equals(target, version.File.RelativePath, StringComparison.Ordinal)));
+            var changed = !string.Equals(target, file.RelativePath, StringComparison.Ordinal);
+            var folder = Path.Combine(version.RootFolder.Path, version.FolderName);
+            var extras = changed
+                ? Extras(file).Zip(ExtraTargets(file, folder, target), (extra, to) => new ExtraRenamePreviewResponse(extra.Id, extra.RelativePath, to)).ToList()
+                : Extras(file).Select(extra => new ExtraRenamePreviewResponse(extra.Id, extra.RelativePath, extra.RelativePath)).ToList();
+            rows.Add(new RenamePreviewResponse(version.Id, version.Name, file.Id, file.RelativePath, target, changed, extras));
         }
 
         return Result<List<RenamePreviewResponse>>.Ok(rows);
@@ -59,6 +65,7 @@ public sealed class RenameService(BigarrDbContext db, MediaManagementService set
             var folder = Path.Combine(version.RootFolder.Path, version.FolderName);
             var from = Path.Combine(folder, file.RelativePath);
             var to = Path.Combine(folder, target);
+            var extraTargets = ExtraTargets(file, folder, target);
             try
             {
                 if (!File.Exists(from))
@@ -85,6 +92,13 @@ public sealed class RenameService(BigarrDbContext db, MediaManagementService set
 
             var previous = file.RelativePath;
             file.RelativePath = target;
+            var extrasRenamed = RenameExtras(file, folder, extraTargets);
+            var data = new Dictionary<string, string> { ["from"] = from, ["to"] = to };
+            if (extrasRenamed > 0)
+            {
+                data["extras"] = extrasRenamed.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+
             db.History.Add(new HistoryEvent
             {
                 TargetId = version.Id,
@@ -95,7 +109,7 @@ public sealed class RenameService(BigarrDbContext db, MediaManagementService set
                 EventType = HistoryEventType.Renamed,
                 SourceTitle = file.OriginalReleaseTitle,
                 MediaFile = file,
-                Data = new Dictionary<string, string> { ["from"] = from, ["to"] = to },
+                Data = data,
                 CreatedAt = now,
             });
             results.Add(new RenameResultResponse(file.Id, target, true, null));
@@ -134,11 +148,71 @@ public sealed class RenameService(BigarrDbContext db, MediaManagementService set
         return NamingTemplate.Render(template, context) + Path.GetExtension(file.RelativePath).ToLowerInvariant();
     }
 
+    /// <summary>Extras in a stable order, so their numbering does not depend on the database's mood.</summary>
+    private static IEnumerable<ExtraFile> Extras(MediaFile file) => file.Extras.OrderBy(e => e.RelativePath, StringComparer.Ordinal);
+
+    /// <summary>
+    /// Where the file's extras go when it becomes <paramref name="target"/>: its new name with their suffixes, numbered
+    /// around files already there. Their own current paths do not count as taken.
+    /// </summary>
+    private static List<string> ExtraTargets(MediaFile file, string folder, string target)
+    {
+        var extras = Extras(file).ToList();
+        if (extras.Count == 0)
+        {
+            return [];
+        }
+
+        var own = extras.Select(e => Path.GetFullPath(Path.Combine(folder, e.RelativePath))).ToHashSet(OperatingSystem.IsLinux() ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase);
+        var destination = Path.GetFullPath(Path.Combine(folder, target));
+        return ExtraFiles.Destinations(extras.Select(ExtraFileName.Of).ToList(), Path.GetDirectoryName(destination)!, Path.GetFileNameWithoutExtension(destination), p => File.Exists(p) && !own.Contains(Path.GetFullPath(p)))
+            .Select(p => Path.GetRelativePath(Path.GetFullPath(folder), p))
+            .ToList();
+    }
+
+    /// <summary>Moves the extras to <paramref name="targets"/> once their movie file moved. One that cannot move keeps its name, with a warning.</summary>
+    private int RenameExtras(MediaFile file, string folder, List<string> targets)
+    {
+        var renamed = 0;
+        foreach (var (extra, target) in Extras(file).ToList().Zip(targets))
+        {
+            if (string.Equals(extra.RelativePath, target, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var from = Path.Combine(folder, extra.RelativePath);
+            var to = Path.Combine(folder, target);
+            try
+            {
+                if (!File.Exists(from) || File.Exists(to))
+                {
+                    logger.LogWarning("Extra file {From} not renamed: {Reason}", from, File.Exists(from) ? $"{to} already exists" : "missing on disk");
+                    continue;
+                }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(to)!);
+                File.Move(from, to);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                logger.LogWarning(ex, "Rename of extra file {From} failed", from);
+                continue;
+            }
+
+            extra.RelativePath = target;
+            renamed++;
+        }
+
+        return renamed;
+    }
+
     private Task<Movie?> LoadAsync(int movieId, bool tracking, CancellationToken ct)
     {
         var query = db.Movies
             .Include(m => m.Versions).ThenInclude(v => v.RootFolder)
             .Include(m => m.Versions).ThenInclude(v => v.File!).ThenInclude(f => f.Quality)
+            .Include(m => m.Versions).ThenInclude(v => v.File!).ThenInclude(f => f.Extras)
             .Include(m => m.Versions).ThenInclude(v => v.Tags)
             .AsSplitQuery();
         return (tracking ? query : query.AsNoTracking()).FirstOrDefaultAsync(m => m.Id == movieId, ct);

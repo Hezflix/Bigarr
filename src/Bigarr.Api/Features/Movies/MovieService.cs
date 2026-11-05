@@ -26,6 +26,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             .Include(m => m.Versions).ThenInclude(v => v.QualityProfile).ThenInclude(p => p.FormatScores)
             .Include(m => m.Versions).ThenInclude(v => v.RootFolder)
             .Include(m => m.Versions).ThenInclude(v => v.File!).ThenInclude(f => f.Quality)
+            .Include(m => m.Versions).ThenInclude(v => v.File!).ThenInclude(f => f.Extras)
             .Include(m => m.Versions).ThenInclude(v => v.Tags)
             .AsSplitQuery();
         return tracking ? query : query.AsNoTracking();
@@ -586,6 +587,20 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             return new Failure(StatusCodes.Status500InternalServerError, "Could not delete the file", $"{path}: {ex.Message}");
         }
 
+        // The extras imported with it leave with it. Anything else in the folder (Bazarr's subtitles) is not Bigarr's to delete.
+        foreach (var extra in version.File!.Extras)
+        {
+            var extraPath = Path.Combine(version.RootFolder.Path, version.FolderName, extra.RelativePath);
+            try
+            {
+                recycleBin.RemoveFile(extraPath, config.RecycleBinPath, version.RootFolder.Path);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                logger.LogWarning("Could not delete extra file {Path}: {Message}", extraPath, ex.Message);
+            }
+        }
+
         db.History.Add(FileDeletedEvent(movie, version, path, recycled, time.GetUtcNow().UtcDateTime));
         outbox.Publish(new FileDeleted(MovieRef.From(movie), VersionRef.From(version), FileRef.From(version.File!, path) with { RecycleBinPath = recycled }, recycled is null ? "deleted" : "recycled"));
         return null;
@@ -637,28 +652,39 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             return Failure.NotFound("Movie");
         }
 
-        MovieMetadata? found;
         try
         {
-            found = await metadata.GetMovieAsync(movie.TmdbId, ct);
+            await ApplyLatestMetadataAsync(movie, ct);
         }
         catch (HttpRequestException ex)
         {
             return new Failure(StatusCodes.Status502BadGateway, "Metadata provider unavailable", ex.Message);
         }
 
+        await db.SaveChangesAsync(ct);
+        return Result<Movie>.Ok(movie);
+    }
+
+    /// <summary>
+    /// Asks the provider again and applies the answer, shared by the refresh endpoint and the scheduled refresh. Metadata
+    /// only: versions, monitoring, files and folders stay as they are, and a new title or year renames nothing (Radarr
+    /// does not either). A film the provider no longer knows is flagged deleted. Provider failures propagate; the caller saves.
+    /// </summary>
+    public async Task ApplyLatestMetadataAsync(Movie movie, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(movie);
+
+        var found = await metadata.GetMovieAsync(movie.TmdbId, ct);
         if (found is null)
         {
             movie.TmdbStatus = MovieStatus.Deleted;
-            movie.LastMetadataRefreshAt = time.GetUtcNow().UtcDateTime;
         }
         else
         {
             movie.ApplyMetadata(found);
         }
 
-        await db.SaveChangesAsync(ct);
-        return Result<Movie>.Ok(movie);
+        movie.LastMetadataRefreshAt = time.GetUtcNow().UtcDateTime;
     }
 
     private async Task RemoveMovieAsync(Movie movie, bool addImportExclusion, CancellationToken ct)

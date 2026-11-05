@@ -1,5 +1,6 @@
 using Bigarr.Api.Features.Downloads;
 using Bigarr.Api.Features.Import;
+using Bigarr.Api.Features.Movies;
 using Bigarr.Api.Features.Search;
 using Bigarr.Api.Features.Server.Tasks;
 using Bigarr.Api.Infrastructure.Indexers;
@@ -130,6 +131,12 @@ public sealed class HealthCheckService(
         if (metadata.Name == "fixtures")
         {
             issues.Add(new HealthIssue("metadata", HealthIssueType.Notice, "No TMDB API key: Bigarr runs on its embedded fixture catalogue of a dozen films. Set Bigarr__Tmdb__ApiKey."));
+        }
+
+        // Kept until a run goes through: the scheduler's table remembers the failure across restarts.
+        if (scheduler.TryGet(MetadataRefreshJob.JobName, out var refresh) && refresh.LastSucceeded == false)
+        {
+            issues.Add(new HealthIssue("metadataRefresh", HealthIssueType.Warning, $"The metadata refresh did not finish: {refresh.LastError}"));
         }
 
         var failingServers = await db.MediaServers.AsNoTracking()

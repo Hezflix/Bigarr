@@ -34,6 +34,15 @@ export function formatBytes(bytes: number | null | undefined): string {
   return `${new Intl.NumberFormat(i18n.language, { maximumFractionDigits: unit >= 3 ? 2 : 0 }).format(value)} ${units[unit]}`
 }
 
+/** "en" → "English" in the UI language; the code itself when the browser does not know it. */
+export function formatLanguage(code: string): string {
+  try {
+    return new Intl.DisplayNames([i18n.language], { type: 'language' }).of(code) ?? code
+  } catch {
+    return code
+  }
+}
+
 /** "3d", "5h", "2y": the age column of a release list. */
 export function formatAge(iso: string | null | undefined, now: number = Date.now()): string {
   if (!iso) return ''

@@ -38,4 +38,7 @@ public sealed class MediaFile
     public string? OriginalReleaseTitle { get; set; }
 
     public MediaInfo? MediaInfo { get; set; }
+
+    /// <summary>Side files imported with it: they follow its renames and leave with it.</summary>
+    public List<ExtraFile> Extras { get; set; } = [];
 }

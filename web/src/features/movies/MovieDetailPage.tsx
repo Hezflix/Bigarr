@@ -8,6 +8,7 @@ import { ApiError, customFormats, history, movies, quality, rootFolders, search,
 import { Poster } from '@/components/Poster'
 import { StatusBadge } from '@/components/StatusBadge'
 import { HistoryTable } from '@/features/activity/HistoryTable'
+import { extraSummary } from '@/features/import/extraFiles'
 import { RenameDialog } from '@/features/movies/RenameDialog'
 import { InteractiveSearch } from '@/features/search/InteractiveSearch'
 import { toastSearchError, toastSearchResults } from '@/features/search/searchOutcome'
@@ -369,6 +370,18 @@ function VersionsTable({ movie, onChanged, onSearched }: { movie: Movie; onChang
                       <span className="block text-xs text-muted-foreground" data-testid="media-info">
                         {v.file.mediaInfo ? mediaInfoSummary(v.file.mediaInfo) : t('versions.mediaInfoMissing')}
                       </span>
+                      {v.file.extras.length > 0 && (
+                        <ul className="mt-1 grid gap-0.5 text-xs text-muted-foreground" aria-label={t('versions.extras', { count: v.file.extras.length })} data-testid="extra-files">
+                          {v.file.extras.map((extra) => (
+                            <li key={extra.id}>
+                              <span className="block max-w-[22ch] truncate" title={extra.path}>
+                                {extra.relativePath}
+                              </span>
+                              <span className="block">{extraSummary(extra, t)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                       <span className="mt-1 flex flex-wrap items-center gap-1">
                         {v.cutoffMet !== null && (
                           <Badge

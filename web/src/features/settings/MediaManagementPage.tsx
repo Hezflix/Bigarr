@@ -26,7 +26,7 @@ function useDebounced<T>(value: T, delay: number): T {
   return debounced
 }
 
-/** Settings → Media management (blueprint §3.7): naming templates, transfer mode, recycle bin, media info. */
+/** Settings → Media management (blueprint §3.7): naming templates, transfer mode, extra files, recycle bin, media info. */
 export function MediaManagementPage() {
   const { t } = useTranslation()
   const query = useQuery({ queryKey: ['mediaManagement'], queryFn: mediaManagement.get })
@@ -62,6 +62,8 @@ function toRequest(config: MediaManagement): MediaManagementRequest {
     transferMode: config.transferMode,
     recycleBinPath: config.recycleBinPath,
     recycleBinRetentionDays: config.recycleBinRetentionDays,
+    importExtraFiles: config.importExtraFiles,
+    extraFileExtensions: config.extraFileExtensions,
   }
 }
 
@@ -184,6 +186,38 @@ function MediaManagementForm({ initial }: { initial: MediaManagement }) {
             </SelectContent>
           </Select>
           <span className="text-xs text-muted-foreground">{t('mediaManagement.transferModeHint')}</span>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="text-xl font-semibold tracking-tight">{t('mediaManagement.extraFiles')}</h2>
+        <div className="flex items-start gap-2">
+          <Checkbox
+            id="mm-extras"
+            checked={form.importExtraFiles}
+            onCheckedChange={(v) => setForm({ ...form, importExtraFiles: v === true })}
+            className="mt-0.5"
+            data-testid="mm-import-extras"
+          />
+          <div className="grid gap-0.5">
+            <Label htmlFor="mm-extras" className="font-normal">
+              {t('mediaManagement.importExtraFiles')}
+            </Label>
+            <span className="max-w-3xl text-xs text-muted-foreground">{t('mediaManagement.importExtraFilesHint')}</span>
+          </div>
+        </div>
+        <div className="grid max-w-md gap-2">
+          <Label htmlFor="mm-extra-extensions">{t('mediaManagement.extraFileExtensions')}</Label>
+          <Input
+            id="mm-extra-extensions"
+            value={form.extraFileExtensions}
+            onChange={(e) => setForm({ ...form, extraFileExtensions: e.target.value })}
+            disabled={!form.importExtraFiles}
+            className="font-mono text-xs"
+            spellCheck={false}
+            data-testid="mm-extra-extensions"
+          />
+          <span className="text-xs text-muted-foreground">{t('mediaManagement.extraFileExtensionsHint')}</span>
         </div>
       </section>
 

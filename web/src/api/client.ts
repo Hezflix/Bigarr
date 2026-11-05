@@ -155,6 +155,23 @@ export type MediaFile = {
   originalReleaseTitle: string | null
   hasMediaInfo: boolean
   mediaInfo: MediaInfo | null
+  /** Side files imported with it. Files written by others (Bazarr) are not listed. */
+  extras: ExtraFile[]
+}
+
+export type ExtraFileKind = 'subtitle' | 'other'
+
+export type ExtraFile = {
+  id: number
+  relativePath: string
+  path: string
+  extension: string
+  kind: ExtraFileKind
+  /** ISO 639-1 code, null when the name did not say. */
+  language: string | null
+  forced: boolean
+  hearingImpaired: boolean
+  dateAdded: string
 }
 
 export type Version = {
@@ -897,6 +914,9 @@ export type MediaManagement = {
   transferMode: TransferMode
   recycleBinPath: string | null
   recycleBinRetentionDays: number
+  importExtraFiles: boolean
+  /** Comma list without dots: `srt,ass`. */
+  extraFileExtensions: string
   /** ffprobe was found: imported files get media info, the backfill fills the older ones. */
   mediaInfoAvailable: boolean
   ffprobePath: string | null
@@ -905,7 +925,10 @@ export type MediaManagement = {
   tokens: NamingToken[]
 }
 
-export type MediaManagementRequest = Pick<MediaManagement, 'renameFiles' | 'fileNameTemplate' | 'folderNameTemplate' | 'transferMode' | 'recycleBinPath' | 'recycleBinRetentionDays'>
+export type MediaManagementRequest = Pick<
+  MediaManagement,
+  'renameFiles' | 'fileNameTemplate' | 'folderNameTemplate' | 'transferMode' | 'recycleBinPath' | 'recycleBinRetentionDays' | 'importExtraFiles' | 'extraFileExtensions'
+>
 
 export type NamingPreview = { fileName: string | null; fileErrors: string[]; folderName: string | null; folderErrors: string[] }
 
@@ -948,7 +971,11 @@ export type ManualImportFile = {
   /** The version the import would pick on its own, when one accepts the file. */
   versionId: number | null
   versions: ImportVersionOption[]
+  /** Side files that would come along (extra files setting); empty when the setting is off. */
+  extras: ManualImportExtra[]
 }
+
+export type ManualImportExtra = Pick<ExtraFile, 'path' | 'relativePath' | 'extension' | 'kind' | 'language' | 'forced' | 'hearingImpaired'>
 
 export type ManualImport = {
   path: string
@@ -958,7 +985,8 @@ export type ManualImport = {
   files: ManualImportFile[]
 }
 
-export type ManualImportItem = { path: string; versionId: number; qualityId?: number | null; grabId?: number | null }
+/** `extraPaths`: the side files to bring, as listed; omitted lets the import find them, empty brings none. */
+export type ManualImportItem = { path: string; versionId: number; qualityId?: number | null; grabId?: number | null; extraPaths?: string[] | null }
 
 export type ManualImportResult = {
   path: string
@@ -985,7 +1013,18 @@ export const manualImport = {
 
 // ---- rename ----------------------------------------------------------------
 
-export type RenamePreview = { versionId: number; versionName: string; mediaFileId: number; currentRelativePath: string; newRelativePath: string; changed: boolean }
+export type ExtraRenamePreview = { extraFileId: number; currentRelativePath: string; newRelativePath: string }
+
+/** `extras` follow the file: renamed with it when it changes. */
+export type RenamePreview = {
+  versionId: number
+  versionName: string
+  mediaFileId: number
+  currentRelativePath: string
+  newRelativePath: string
+  changed: boolean
+  extras: ExtraRenamePreview[]
+}
 
 export type RenameResult = { mediaFileId: number; relativePath: string; renamed: boolean; error: string | null }
 
