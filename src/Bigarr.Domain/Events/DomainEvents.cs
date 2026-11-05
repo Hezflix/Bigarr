@@ -20,6 +20,7 @@ public abstract record DomainEvent
 
 /// <param name="Images">Poster and fanart as TMDB serves them.</param>
 /// <param name="OriginalLanguage">ISO 639-1 code as TMDB gives it (<c>en</c>).</param>
+/// <param name="Ratings">TMDB's and IMDb's scores, when the metadata has them.</param>
 public sealed record MovieRef(
     int Id,
     int TmdbId,
@@ -32,7 +33,8 @@ public sealed record MovieRef(
     DateOnly? InCinemas = null,
     DateOnly? PhysicalRelease = null,
     DateOnly? DigitalRelease = null,
-    string? OriginalLanguage = null)
+    string? OriginalLanguage = null,
+    RatingsRef? Ratings = null)
 {
     public static MovieRef From(Movie movie)
     {
@@ -49,11 +51,14 @@ public sealed record MovieRef(
             movie.InCinemasDate,
             movie.PhysicalReleaseDate,
             movie.DigitalReleaseDate,
-            movie.OriginalLanguage);
+            movie.OriginalLanguage,
+            movie.Ratings is { } ratings && (ratings.Tmdb is not null || ratings.Imdb is not null) ? new RatingsRef(ratings.Tmdb, ratings.Imdb) : null);
     }
 }
 
 public sealed record ImageRef(ImageType CoverType, string RemoteUrl);
+
+public sealed record RatingsRef(RatingValue? Tmdb, RatingValue? Imdb);
 
 public sealed record TagRef(int Id, string Label);
 

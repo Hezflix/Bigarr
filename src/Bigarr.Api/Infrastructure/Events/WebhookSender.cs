@@ -1,3 +1,4 @@
+using Bigarr.Api.Features.Notifications.Discord;
 using Bigarr.Api.Features.Notifications.Radarr;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Notifications;
@@ -9,12 +10,16 @@ namespace Bigarr.Api.Infrastructure.Events;
 /// <summary>
 /// Sends due <see cref="WebhookDelivery"/> rows and writes the outcome back on the row (blueprint §3.9). A failure
 /// schedules the next attempt with an escalating delay; after <see cref="NotificationsOptions.MaxAttempts"/> the
-/// delivery is given up until a manual retry. On startup every pending delivery is due at once: whatever was
-/// waiting when the process stopped is replayed.
+/// delivery is given up until a manual retry. A 429 is no failure: the delivery, and every other one due for the same
+/// endpoint, waits what the receiver asked (Discord's <c>Retry-After</c>), without spending an attempt. On startup
+/// every pending delivery is due at once: whatever was waiting when the process stopped is replayed.
 /// </summary>
 public sealed class WebhookSender(IServiceScopeFactory scopeFactory, WebhookSignal signal, IOptions<NotificationsOptions> options, TimeProvider time, ILogger<WebhookSender> logger) : BackgroundService
 {
     public const int BatchSize = 50;
+
+    /// <summary>When the earliest rate limit of the last pass ends: the sender looks again then rather than at the next sweep.</summary>
+    private DateTime? _rateLimitedUntil;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -46,13 +51,26 @@ public sealed class WebhookSender(IServiceScopeFactory scopeFactory, WebhookSign
                     logger.LogError(ex, "Webhook sending crashed");
                 }
 
-                await signal.WaitAsync(TimeSpan.FromSeconds(Math.Max(1, settings.SweepSeconds)), time, stoppingToken);
+                await signal.WaitAsync(NextLook(settings), time, stoppingToken);
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // shutting down
         }
+    }
+
+    private TimeSpan NextLook(NotificationsOptions settings)
+    {
+        var sweep = TimeSpan.FromSeconds(Math.Max(1, settings.SweepSeconds));
+        if (_rateLimitedUntil is not { } until)
+        {
+            return sweep;
+        }
+
+        _rateLimitedUntil = null;
+        var left = until - time.GetUtcNow().UtcDateTime;
+        return left < TimeSpan.FromSeconds(1) ? TimeSpan.FromSeconds(1) : left < sweep ? left : sweep;
     }
 
     /// <summary>A restart makes every pending delivery due now: the wait was a wall-clock delay, and the process was down anyway.</summary>
@@ -86,9 +104,17 @@ public sealed class WebhookSender(IServiceScopeFactory scopeFactory, WebhookSign
             .Take(BatchSize)
             .ToListAsync(ct);
 
+        var rateLimited = new Dictionary<int, DateTime>();
         foreach (var delivery in due)
         {
             ct.ThrowIfCancellationRequested();
+            if (rateLimited.TryGetValue(delivery.EndpointId, out var until))
+            {
+                // The endpoint asked to wait: sending the rest now would only be refused again.
+                delivery.NextAttemptAt = until;
+                continue;
+            }
+
             var attemptAt = time.GetUtcNow().UtcDateTime;
             delivery.Attempts++;
             delivery.LastAttemptAt = attemptAt;
@@ -100,14 +126,19 @@ public sealed class WebhookSender(IServiceScopeFactory scopeFactory, WebhookSign
                 continue;
             }
 
-            var body = delivery.Endpoint.Format == WebhookFormat.Radarr
-                ? RadarrWebhook.Body(delivery.EventType, delivery.Event.Payload, delivery.VersionId, settings.ApplicationUrl)
-                : WebhookClient.Body(delivery.EventType, delivery.EventId, delivery.Event.Payload, delivery.Event.CreatedAt, settings.ApplicationUrl);
+            var body = delivery.Endpoint.Format switch
+            {
+                WebhookFormat.Radarr => RadarrWebhook.Body(delivery.EventType, delivery.Event.Payload, delivery.VersionId, settings.ApplicationUrl),
+                WebhookFormat.Discord => DiscordWebhook.Body(delivery.EventType, delivery.Event.Payload, delivery.Endpoint.Discord),
+                _ => WebhookClient.Body(delivery.EventType, delivery.EventId, delivery.Event.Payload, delivery.Event.CreatedAt, settings.ApplicationUrl),
+            };
             if (body is null)
             {
-                // The endpoint switched to the Radarr format after the delivery was created, for an event Radarr has no word for.
+                // The endpoint switched format after the delivery was created, to one that has nothing for this event.
                 delivery.NextAttemptAt = null;
-                delivery.LastError = "Radarr's webhook format has nothing for this event.";
+                delivery.LastError = delivery.Endpoint.Format == WebhookFormat.Discord
+                    ? "The Discord format posts nothing for this event."
+                    : "Radarr's webhook format has nothing for this event.";
                 continue;
             }
 
@@ -123,6 +154,18 @@ public sealed class WebhookSender(IServiceScopeFactory scopeFactory, WebhookSign
             }
 
             delivery.LastError = result.Error;
+            if (result.RetryAfter is { } wait)
+            {
+                // Rate limited: the attempt is given back, the delay is the receiver's, never longer than the escalation's longest.
+                var longest = settings.RetryDelay(int.MaxValue);
+                delivery.Attempts--;
+                delivery.NextAttemptAt = attemptAt + (wait < TimeSpan.FromSeconds(1) ? TimeSpan.FromSeconds(1) : wait > longest ? longest : wait);
+                rateLimited[delivery.EndpointId] = delivery.NextAttemptAt.Value;
+                _rateLimitedUntil = _rateLimitedUntil is { } earliest && earliest < delivery.NextAttemptAt ? earliest : delivery.NextAttemptAt;
+                logger.LogInformation("Webhook {Endpoint} is rate limited on {EventType} #{EventId}: {Error}. Next try at {Next:u}", delivery.Endpoint.Name, delivery.EventType, delivery.EventId, result.Error, delivery.NextAttemptAt);
+                continue;
+            }
+
             if (delivery.Attempts >= Math.Max(1, settings.MaxAttempts))
             {
                 delivery.NextAttemptAt = null;

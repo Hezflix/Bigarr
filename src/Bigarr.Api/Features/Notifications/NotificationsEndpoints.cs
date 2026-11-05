@@ -18,7 +18,7 @@ public static class NotificationsEndpoints
 
         group.MapGet("/events", Ok<List<NotificationEventTypeResponse>> () =>
             TypedResults.Ok(DomainEventCatalog.All
-                .Select(e => new NotificationEventTypeResponse(e.Type, e.Description, WebhookRouting.RadarrEventType(e.Type), WebhookRouting.IgnoresTags(e.Type)))
+                .Select(e => new NotificationEventTypeResponse(e.Type, e.Description, WebhookRouting.RadarrEventType(e.Type), WebhookRouting.IgnoresTags(e.Type), WebhookRouting.SentToDiscord(e.Type)))
                 .ToList()));
 
         group.MapGet("/{id:int}", async Task<Results<Ok<NotificationEndpointResponse>, NotFound>> (int id, NotificationService notifications, CancellationToken ct) =>

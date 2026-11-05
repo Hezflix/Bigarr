@@ -7,7 +7,10 @@ using Bigarr.Domain.Tags;
 
 namespace Bigarr.Api.Tests.Notifications;
 
-/// <summary>Which deliveries an event makes: tags like Radarr's connections, and in the Radarr format the view and the events Radarr knows.</summary>
+/// <summary>
+/// Which deliveries an event makes: tags like Radarr's connections, in the Radarr format the view and the events Radarr
+/// knows, in the Discord format the events worth a message.
+/// </summary>
 public sealed class WebhookRoutingTests
 {
     private static readonly Tag Kids = new() { Id = 1, Label = "kids" };
@@ -139,5 +142,44 @@ public sealed class WebhookRoutingTests
     {
         Assert.Empty(Route(Endpoint(WebhookFormat.Radarr, CompatView.All), new ImportFailed(null, null, Release, 1, "No film matches")));
         Assert.Equal([41], Route(Endpoint(WebhookFormat.Radarr), new ImportFailed(Movie, Hd, Release, 1, "No video file")));
+    }
+
+    [Theory]
+    [InlineData("versionAdded")]
+    [InlineData("versionUpdated")]
+    [InlineData("versionDeleted")]
+    [InlineData("defaultVersionChanged")]
+    public void The_Discord_format_leaves_version_bookkeeping_out_of_the_channel(string type)
+    {
+        DomainEvent domainEvent = type switch
+        {
+            "versionAdded" => new VersionAdded(Movie, Hd),
+            "versionUpdated" => new VersionUpdated(Movie, Hd),
+            "versionDeleted" => new VersionDeleted(Movie, Hd, false),
+            _ => new DefaultVersionChanged(Movie, Hd, Uhd),
+        };
+
+        Assert.False(WebhookRouting.SentToDiscord(type));
+        Assert.Empty(Route(Endpoint(WebhookFormat.Discord), domainEvent));
+    }
+
+    [Fact]
+    public void The_Discord_format_is_one_message_per_event_filtered_like_the_Bigarr_format()
+    {
+        var deleted = new MovieDeleted(Movie, true, [Hd, Uhd]);
+        var failed = new DownloadFailed(Movie, Hd, Release, 1, "Stalled", true, false);
+        var unmatched = new ImportFailed(null, null, Release, 1, "No film matches");
+
+        Assert.Equal([null], Route(Endpoint(WebhookFormat.Discord), deleted));
+        Assert.Equal([null], Route(Endpoint(WebhookFormat.Discord, tags: [Kids]), deleted));
+        Assert.Empty(Route(Endpoint(WebhookFormat.Discord, tags: [Alice]), deleted));
+        Assert.Equal([null], Route(Endpoint(WebhookFormat.Discord), failed));
+        Assert.Equal([null], Route(Endpoint(WebhookFormat.Discord), unmatched));
+        Assert.Empty(Route(Endpoint(WebhookFormat.Discord, tags: [Kids]), unmatched));
+        Assert.Equal([null], Route(Endpoint(WebhookFormat.Discord, tags: [Alice]), new HealthIssueRaised("indexers", HealthIssueType.Error, "No indexer")));
+
+        var subscribed = Endpoint(WebhookFormat.Discord);
+        subscribed.Events = ["imported"];
+        Assert.Empty(Route(subscribed, new ReleaseGrabbed(Movie, Hd, Release, 1, "qbt", "abc", "rss")));
     }
 }

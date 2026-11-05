@@ -1178,8 +1178,66 @@ export const blocklist = {
 
 // ---- notifications ---------------------------------------------------------
 
-/** `bigarr`: Bigarr's own body for every event. `radarr`: Radarr's webhook payloads, for tools written for Radarr. */
-export type WebhookFormat = 'bigarr' | 'radarr'
+/**
+ * `bigarr`: Bigarr's own body for every event. `radarr`: Radarr's webhook payloads, for tools written for Radarr.
+ * `discord`: embeds for a Discord channel webhook, laid out like Radarr's Discord connection.
+ */
+export type WebhookFormat = 'bigarr' | 'radarr' | 'discord'
+
+export const discordGrabFields = [
+  'overview',
+  'rating',
+  'genres',
+  'version',
+  'quality',
+  'group',
+  'size',
+  'links',
+  'release',
+  'poster',
+  'fanart',
+  'indexer',
+  'customFormats',
+  'customFormatScore',
+  'tags',
+] as const
+export const discordImportFields = [
+  'overview',
+  'rating',
+  'genres',
+  'version',
+  'quality',
+  'codecs',
+  'group',
+  'size',
+  'languages',
+  'subtitles',
+  'links',
+  'release',
+  'poster',
+  'fanart',
+  'tags',
+  'customFormats',
+  'customFormatScore',
+] as const
+export const discordManualInteractionFields = ['overview', 'rating', 'genres', 'version', 'quality', 'group', 'size', 'links', 'downloadTitle', 'poster', 'fanart', 'tags'] as const
+
+export type DiscordGrabField = (typeof discordGrabFields)[number]
+export type DiscordImportField = (typeof discordImportFields)[number]
+export type DiscordManualInteractionField = (typeof discordManualInteractionFields)[number]
+
+/** Radarr's Discord settings. A missing field list takes Radarr's defaults; an empty one sends no field. */
+export type DiscordSettings = {
+  username?: string | null
+  avatar?: string | null
+  author?: string | null
+  /** Grabs and failed downloads. */
+  grabFields?: DiscordGrabField[] | null
+  /** Imports and upgrades; poster and fanart also apply to added and deleted films. */
+  importFields?: DiscordImportField[] | null
+  /** Import failures (Radarr's "manual interaction required"). */
+  manualInteractionFields?: DiscordManualInteractionField[] | null
+}
 
 export type NotificationEndpointRequest = {
   name: string
@@ -1193,6 +1251,8 @@ export type NotificationEndpointRequest = {
   format?: WebhookFormat
   /** Radarr format only: `default`, `all` or `version:<name>`, like an API key's view. */
   view?: string
+  /** Discord format only. */
+  discord?: DiscordSettings | null
 }
 
 export type NotificationEndpoint = {
@@ -1205,6 +1265,7 @@ export type NotificationEndpoint = {
   tags: number[]
   format: WebhookFormat
   view: string
+  discord: DiscordSettings | null
   pendingDeliveries: number
   failedDeliveries: number
   lastDeliveredAt: string | null
@@ -1219,6 +1280,8 @@ export type NotificationEventType = {
   radarrEventType: string | null
   /** About no film (health, test): sent whatever the tags. */
   ignoresTags: boolean
+  /** Whether the Discord format posts a message for it. */
+  sentToDiscord: boolean
 }
 
 export type WebhookTestResult = { statusCode: number | null; elapsedMs: number }

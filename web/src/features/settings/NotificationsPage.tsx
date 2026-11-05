@@ -6,9 +6,15 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   ApiError,
+  discordGrabFields,
+  discordImportFields,
+  discordManualInteractionFields,
   notifications,
   slugify,
   tags as tagsApi,
+  type DiscordGrabField,
+  type DiscordImportField,
+  type DiscordManualInteractionField,
   type NotificationEndpoint,
   type NotificationEndpointRequest,
   type NotificationEventType,
@@ -48,9 +54,56 @@ const stateStyles: Record<WebhookDeliveryState, string> = {
 
 type ViewKind = 'default' | 'all' | 'version'
 
-type Form = { name: string; url: string; secret: string; enabled: boolean; events: string[]; tags: number[]; format: WebhookFormat; viewKind: ViewKind; versionName: string }
+type DiscordForm = {
+  username: string
+  avatar: string
+  author: string
+  grabFields: DiscordGrabField[]
+  importFields: DiscordImportField[]
+  manualInteractionFields: DiscordManualInteractionField[]
+}
 
-const emptyForm = (): Form => ({ name: '', url: '', secret: '', enabled: true, events: [], tags: [], format: 'bigarr', viewKind: 'default', versionName: '' })
+type Form = {
+  name: string
+  url: string
+  secret: string
+  enabled: boolean
+  events: string[]
+  tags: number[]
+  format: WebhookFormat
+  viewKind: ViewKind
+  versionName: string
+  discord: DiscordForm
+}
+
+/** Radarr's defaults: every field, but no custom formats on imports. */
+const defaultDiscord = (): DiscordForm => ({
+  username: '',
+  avatar: '',
+  author: '',
+  grabFields: [...discordGrabFields],
+  importFields: discordImportFields.filter((f) => f !== 'customFormats' && f !== 'customFormatScore'),
+  manualInteractionFields: [...discordManualInteractionFields],
+})
+
+const emptyForm = (): Form => ({
+  name: '',
+  url: '',
+  secret: '',
+  enabled: true,
+  events: [],
+  tags: [],
+  format: 'bigarr',
+  viewKind: 'default',
+  versionName: '',
+  discord: defaultDiscord(),
+})
+
+/** What Discord's "Copy Webhook URL" gives, Slack- and GitHub-compatible suffixes included. */
+const discordWebhookUrl = /^https?:\/\/(?:(?:ptb|canary)\.)?discord(?:app)?\.com\/api\/(?:v\d+\/)?webhooks\//i
+
+/** A Discord webhook's token is a secret: the list shows its id only. */
+const displayUrl = (endpoint: NotificationEndpoint) => (endpoint.format === 'discord' ? endpoint.url.replace(/(\/webhooks\/\d+\/)[^/?#]+/, '$1••••') : endpoint.url)
 
 /** `version:4k` → kind + name, the same reading as an API key's view. */
 function splitView(view: string): { kind: ViewKind; name: string } {
@@ -71,11 +124,22 @@ const toForm = (endpoint: NotificationEndpoint): Form => {
     format: endpoint.format,
     viewKind: view.kind,
     versionName: view.name,
+    discord: endpoint.discord
+      ? {
+          username: endpoint.discord.username ?? '',
+          avatar: endpoint.discord.avatar ?? '',
+          author: endpoint.discord.author ?? '',
+          grabFields: endpoint.discord.grabFields ?? defaultDiscord().grabFields,
+          importFields: endpoint.discord.importFields ?? defaultDiscord().importFields,
+          manualInteractionFields: endpoint.discord.manualInteractionFields ?? defaultDiscord().manualInteractionFields,
+        }
+      : defaultDiscord(),
   }
 }
 
-/** Radarr's format only sends what Radarr has a word for. */
-const sentAs = (type: NotificationEventType, format: WebhookFormat) => format === 'bigarr' || type.radarrEventType !== null
+/** Radarr's format only sends what Radarr has a word for; Discord's what is worth a message. */
+const sentAs = (type: NotificationEventType, format: WebhookFormat) =>
+  format === 'bigarr' || (format === 'radarr' ? type.radarrEventType !== null : type.sentToDiscord)
 
 /** Outgoing webhooks (blueprint §3.7, §3.9): where events go, signed, retried until they land. */
 export function NotificationsPage() {
@@ -142,12 +206,17 @@ export function NotificationsPage() {
                 <TableRow key={endpoint.id} data-testid={`notification-${endpoint.id}`}>
                   <TableCell className="align-top">
                     <span className="font-medium">{endpoint.name}</span>
-                    <span className="block max-w-[32ch] truncate text-xs text-muted-foreground" title={endpoint.url}>
-                      {endpoint.url}
+                    <span className="block max-w-[32ch] truncate text-xs text-muted-foreground" title={displayUrl(endpoint)}>
+                      {displayUrl(endpoint)}
                     </span>
                     {endpoint.format === 'radarr' && (
                       <Badge variant="outline" className="mt-1" data-testid={`notification-format-${endpoint.id}`}>
                         {t('notifications.radarrBadge', { view: endpoint.view })}
+                      </Badge>
+                    )}
+                    {endpoint.format === 'discord' && (
+                      <Badge variant="outline" className="mt-1" data-testid={`notification-format-${endpoint.id}`}>
+                        {t('notifications.discordBadge')}
                       </Badge>
                     )}
                   </TableCell>
@@ -288,21 +357,34 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
   const types = useQuery({ queryKey: ['notifications', 'events'], queryFn: notifications.eventTypes, staleTime: Infinity })
   const allTags = useQuery({ queryKey: ['tags'], queryFn: tagsApi.list, staleTime: 60_000 })
   const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm((f) => ({ ...f, [key]: value }))
+  const setDiscord = <K extends keyof DiscordForm>(key: K, value: DiscordForm[K]) => setForm((f) => ({ ...f, discord: { ...f.discord, [key]: value } }))
   const view = form.viewKind === 'version' ? `version:${slugify(form.versionName)}` : form.viewKind
+  const discord = form.format === 'discord'
 
   // An empty secret on an edit keeps the endpoint unsigned: the API stores what it is sent, and the secret is never read back.
+  // Discord has nothing to check a signature with.
   const payload = (): NotificationEndpointRequest => ({
     name: form.name.trim(),
     url: form.url.trim(),
-    secret: form.secret || null,
+    secret: discord ? null : form.secret || null,
     enabled: form.enabled,
     events: form.events,
     tags: form.tags,
     format: form.format,
     view: form.format === 'radarr' ? view : 'default',
+    discord: discord
+      ? {
+          username: form.discord.username.trim() || null,
+          avatar: form.discord.avatar.trim() || null,
+          author: form.discord.author.trim() || null,
+          grabFields: form.discord.grabFields,
+          importFields: form.discord.importFields,
+          manualInteractionFields: form.discord.manualInteractionFields,
+        }
+      : null,
   })
 
-  // Switching to Radarr's format drops the events it cannot send, so the selection never says more than what goes out.
+  // Switching to Radarr's or Discord's format drops the events it cannot send, so the selection never says more than what goes out.
   const setFormat = (format: WebhookFormat) =>
     setForm((f) => ({
       ...f,
@@ -332,13 +414,15 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
   }
 
   const toggleEvent = (type: string) => set('events', form.events.includes(type) ? form.events.filter((e) => e !== type) : [...form.events, type])
+  const toggle = <T extends string>(list: T[], value: T, order: readonly T[]) => (list.includes(value) ? list.filter((v) => v !== value) : order.filter((v) => v === value || list.includes(v)))
+  const pastedDiscordUrl = !discord && discordWebhookUrl.test(form.url.trim())
   const toggleTag = (id: number) => set('tags', form.tags.includes(id) ? form.tags.filter((tag) => tag !== id) : [...form.tags, id])
   const canSubmit =
     form.name.trim().length > 0 && /^https?:\/\//i.test(form.url.trim()) && (form.format === 'bigarr' || form.viewKind !== 'version' || slugify(form.versionName).length > 0)
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <form onSubmit={submit} data-testid="notification-form">
           <DialogHeader>
             <DialogTitle>{endpoint ? t('notifications.editTitle', { name: endpoint.name }) : t('notifications.new')}</DialogTitle>
@@ -351,13 +435,31 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
             </div>
             <div className="grid grid-cols-1 gap-2">
               <Label htmlFor="nt-url">{t('notifications.url')}</Label>
-              <Input id="nt-url" value={form.url} onChange={(e) => set('url', e.target.value)} placeholder="https://example.org/hooks/bigarr" />
+              <Input
+                id="nt-url"
+                value={form.url}
+                onChange={(e) => set('url', e.target.value)}
+                placeholder={discord ? 'https://discord.com/api/webhooks/…' : 'https://example.org/hooks/bigarr'}
+                autoComplete="off"
+              />
             </div>
-            <div className="grid grid-cols-1 gap-2 sm:col-span-2">
-              <Label htmlFor="nt-secret">{t('notifications.secret')}</Label>
-              <Input id="nt-secret" type="password" value={form.secret} onChange={(e) => set('secret', e.target.value)} autoComplete="new-password" />
-              <p className="text-xs text-muted-foreground">{endpoint?.hasSecret ? t('notifications.secretKeepHint') : t('notifications.secretHint')}</p>
-            </div>
+            {pastedDiscordUrl && (
+              <Alert className="sm:col-span-2" data-testid="notification-discord-url">
+                <AlertDescription className="flex flex-wrap items-center gap-2">
+                  <span>{t('notifications.discordUrlDetected')}</span>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setFormat('discord')}>
+                    {t('notifications.useDiscordFormat')}
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+            {!discord && (
+              <div className="grid grid-cols-1 gap-2 sm:col-span-2">
+                <Label htmlFor="nt-secret">{t('notifications.secret')}</Label>
+                <Input id="nt-secret" type="password" value={form.secret} onChange={(e) => set('secret', e.target.value)} autoComplete="new-password" />
+                <p className="text-xs text-muted-foreground">{endpoint?.hasSecret ? t('notifications.secretKeepHint') : t('notifications.secretHint')}</p>
+              </div>
+            )}
             <div className="flex items-center gap-2 sm:col-span-2">
               <Checkbox id="nt-enabled" checked={form.enabled} onCheckedChange={(v) => set('enabled', v === true)} />
               <Label htmlFor="nt-enabled" className="font-normal">
@@ -374,6 +476,7 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
                 <SelectContent>
                   <SelectItem value="bigarr">{t('notifications.formatBigarr')}</SelectItem>
                   <SelectItem value="radarr">{t('notifications.formatRadarr')}</SelectItem>
+                  <SelectItem value="discord">{t('notifications.formatDiscord')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -392,7 +495,9 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
                 </Select>
               </div>
             )}
-            <p className="text-xs text-muted-foreground sm:col-span-2">{form.format === 'radarr' ? t('notifications.formatRadarrHint') : t('notifications.formatBigarrHint')}</p>
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              {form.format === 'radarr' ? t('notifications.formatRadarrHint') : discord ? t('notifications.formatDiscordHint') : t('notifications.formatBigarrHint')}
+            </p>
             {form.format === 'radarr' && form.viewKind === 'version' && (
               <div className="grid grid-cols-1 gap-2 sm:col-span-2">
                 <Label htmlFor="nt-version">{t('connect.versionName')}</Label>
@@ -401,6 +506,48 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
                   {t('notifications.viewVersionHint')} <code>{view}</code>
                 </p>
               </div>
+            )}
+
+            {discord && (
+              <>
+                <div className="grid grid-cols-1 gap-2">
+                  <Label htmlFor="nt-discord-username">{t('notifications.discordUsername')}</Label>
+                  <Input id="nt-discord-username" value={form.discord.username} onChange={(e) => setDiscord('username', e.target.value)} placeholder="Bigarr" />
+                  <p className="text-xs text-muted-foreground">{t('notifications.discordUsernameHint')}</p>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  <Label htmlFor="nt-discord-author">{t('notifications.discordAuthor')}</Label>
+                  <Input id="nt-discord-author" value={form.discord.author} onChange={(e) => setDiscord('author', e.target.value)} placeholder="Bigarr" />
+                  <p className="text-xs text-muted-foreground">{t('notifications.discordAuthorHint')}</p>
+                </div>
+                <div className="grid grid-cols-1 gap-2 sm:col-span-2">
+                  <Label htmlFor="nt-discord-avatar">{t('notifications.discordAvatar')}</Label>
+                  <Input id="nt-discord-avatar" value={form.discord.avatar} onChange={(e) => setDiscord('avatar', e.target.value)} placeholder="https://example.org/avatar.png" />
+                  <p className="text-xs text-muted-foreground">{t('notifications.discordAvatarHint')}</p>
+                </div>
+                <details className="sm:col-span-2" data-testid="notification-discord-fields">
+                  <summary className="cursor-pointer text-sm font-medium">{t('notifications.discordFields')}</summary>
+                  <p className="mt-2 text-xs text-muted-foreground">{t('notifications.discordFieldsHint')}</p>
+                  <DiscordFieldSet
+                    legend={t('notifications.discordGrabFields')}
+                    options={discordGrabFields}
+                    chosen={form.discord.grabFields}
+                    onToggle={(field) => setDiscord('grabFields', toggle(form.discord.grabFields, field, discordGrabFields))}
+                  />
+                  <DiscordFieldSet
+                    legend={t('notifications.discordImportFields')}
+                    options={discordImportFields}
+                    chosen={form.discord.importFields}
+                    onToggle={(field) => setDiscord('importFields', toggle(form.discord.importFields, field, discordImportFields))}
+                  />
+                  <DiscordFieldSet
+                    legend={t('notifications.discordManualInteractionFields')}
+                    options={discordManualInteractionFields}
+                    chosen={form.discord.manualInteractionFields}
+                    onToggle={(field) => setDiscord('manualInteractionFields', toggle(form.discord.manualInteractionFields, field, discordManualInteractionFields))}
+                  />
+                </details>
+              </>
             )}
 
             <fieldset className="grid grid-cols-1 gap-2 sm:col-span-2">
@@ -422,6 +569,7 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
               <p className="text-xs text-muted-foreground">
                 {form.events.length === 0 ? t('notifications.allEventsHint') : t('notifications.someEventsHint', { count: form.events.length })}
                 {form.format === 'radarr' && <> {t('notifications.radarrEventsHint')}</>}
+                {discord && <> {t('notifications.discordEventsHint')}</>}
               </p>
               <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2" data-testid="notification-events">
                 {types.data?.map((type) => {
@@ -436,6 +584,7 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
                             {type.radarrEventType ? t('notifications.radarrAs', { type: type.radarrEventType }) : t('notifications.notInRadarr')}
                           </span>
                         )}
+                        {discord && !type.sentToDiscord && <span className="ml-1 text-xs text-muted-foreground">{t('notifications.notInDiscord')}</span>}
                         <span className="block text-xs text-muted-foreground">
                           {type.description}
                           {type.ignoresTags && form.tags.length > 0 && <> · {t('notifications.ignoresTags')}</>}
@@ -471,6 +620,24 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** One kind of Discord message and the fields it carries, in the order Discord shows them. */
+function DiscordFieldSet<T extends DiscordGrabField | DiscordImportField | DiscordManualInteractionField>({ legend, options, chosen, onToggle }: { legend: string; options: readonly T[]; chosen: T[]; onToggle: (field: T) => void }) {
+  const { t } = useTranslation()
+  return (
+    <fieldset className="mt-3 grid grid-cols-1 gap-2">
+      <legend className="text-sm">{legend}</legend>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+        {options.map((field) => (
+          <label key={field} className="flex items-center gap-2 text-sm font-normal">
+            <Checkbox checked={chosen.includes(field)} onCheckedChange={() => onToggle(field)} />
+            {t(`notifications.discordField.${field}`)}
+          </label>
+        ))}
+      </div>
+    </fieldset>
   )
 }
 

@@ -14,7 +14,9 @@ public sealed record NotificationEndpointRequest(
     List<int>? Tags = null,
     WebhookFormat Format = WebhookFormat.Bigarr,
     /// <summary>For the Radarr format, which versions are Radarr movies: <c>default</c>, <c>all</c> or <c>version:&lt;name&gt;</c>.</summary>
-    string? View = null);
+    string? View = null,
+    /// <summary>For the Discord format: name, avatar, author and fields; Radarr's defaults for whatever is left out.</summary>
+    DiscordSettings? Discord = null);
 
 public sealed record NotificationEndpointResponse(
     int Id,
@@ -26,6 +28,7 @@ public sealed record NotificationEndpointResponse(
     List<int> Tags,
     WebhookFormat Format,
     string View,
+    DiscordSettings? Discord,
     int PendingDeliveries,
     int FailedDeliveries,
     DateTime? LastDeliveredAt,
@@ -34,7 +37,8 @@ public sealed record NotificationEndpointResponse(
 
 /// <param name="RadarrEventType">What the Radarr format sends it as; null when that format does not send it.</param>
 /// <param name="IgnoresTags">About no film: sent whatever the endpoint's tags.</param>
-public sealed record NotificationEventTypeResponse(string Type, string Description, string? RadarrEventType, bool IgnoresTags);
+/// <param name="SentToDiscord">Whether the Discord format posts a message for it.</param>
+public sealed record NotificationEventTypeResponse(string Type, string Description, string? RadarrEventType, bool IgnoresTags, bool SentToDiscord);
 
 public sealed record WebhookTestResponse(int? StatusCode, int ElapsedMs);
 
