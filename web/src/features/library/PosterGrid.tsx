@@ -71,48 +71,40 @@ export function PosterGrid({ movies, posterSize, density, fields, ...selection }
   )
 }
 
+/** Laid over the whole card: a link to the film, or the selection toggle in selection mode. */
+const cardControl = 'absolute inset-0 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
+
 function MovieCard({ movie, density, posterSize, fields, selecting, selected, onToggle }: Selection & { movie: MovieSummary; density: Density; posterSize: PosterSize; fields: CardField[] }) {
   const isSelected = selected.has(movie.id)
-  const card = (
-    <Card
-      className={cn(
-        'relative h-full gap-0 overflow-hidden p-0 transition-colors group-hover:border-ring/40 group-hover:bg-accent/40',
-        isSelected && 'border-primary ring-2 ring-primary/60',
-      )}
-    >
-      <Poster url={movie.posterUrl} title={movie.title} size="grid" className="rounded-none" />
-      {selecting && (
-        <SelectionMark checked={isSelected} className={cn('absolute top-2 left-2 size-5', !isSelected && 'bg-background/90')} />
-      )}
-      {fields.length > 0 && <CardInfo movie={movie} density={density} posterSize={posterSize} fields={fields} />}
-    </Card>
-  )
-
-  if (selecting) {
-    return (
-      <button
-        type="button"
-        aria-pressed={isSelected}
-        data-testid="movie-card"
-        data-movie-id={movie.id}
-        onClick={(event) => onToggle(movie.id, event.shiftKey)}
-        className="group rounded-xl text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      >
-        {card}
-      </button>
-    )
-  }
-
+  // Only the control over the card changes with selection mode. Wrapping the card in a <button> instead of an <a>
+  // would remount it, and every poster <img> with it: each one repainted, visibly, at every toggle.
   return (
-    <Link
-      to="/movies/$movieId"
-      params={{ movieId: String(movie.id) }}
-      data-testid="movie-card"
-      data-movie-id={movie.id}
-      className="group rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-    >
-      {card}
-    </Link>
+    <div className="group relative" data-testid="movie-card" data-movie-id={movie.id}>
+      <Card
+        className={cn(
+          'relative h-full gap-0 overflow-hidden p-0 transition-colors group-hover:border-ring/40 group-hover:bg-accent/40',
+          isSelected && 'border-primary ring-2 ring-primary/60',
+        )}
+      >
+        <Poster url={movie.posterUrl} title={movie.title} size="grid" className="rounded-none" />
+        {selecting && (
+          <SelectionMark checked={isSelected} className={cn('absolute top-2 left-2 size-5', !isSelected && 'bg-background/90')} />
+        )}
+        {fields.length > 0 && <CardInfo movie={movie} density={density} posterSize={posterSize} fields={fields} />}
+      </Card>
+      {selecting ? (
+        <button
+          type="button"
+          aria-pressed={isSelected}
+          aria-label={movie.title}
+          title={movie.title}
+          onClick={(event) => onToggle(movie.id, event.shiftKey)}
+          className={cardControl}
+        />
+      ) : (
+        <Link to="/movies/$movieId" params={{ movieId: String(movie.id) }} aria-label={movie.title} title={movie.title} className={cardControl} />
+      )}
+    </div>
   )
 }
 
@@ -130,7 +122,7 @@ function CardInfo({ movie, density, posterSize, fields }: { movie: MovieSummary;
   return (
     <CardContent className={cn('flex flex-col gap-1', density === 'compact' ? 'px-2 py-1.5' : 'px-3 py-2.5')}>
       {show('title') && (
-        <span className={cn('leading-snug font-medium', posterSize === 'small' || density === 'compact' ? 'line-clamp-1 text-xs' : 'line-clamp-2 text-sm')} title={movie.title}>
+        <span className={cn('leading-snug font-medium', posterSize === 'small' || density === 'compact' ? 'line-clamp-1 text-xs' : 'line-clamp-2 text-sm')}>
           {movie.title}
         </span>
       )}
