@@ -151,7 +151,14 @@ public sealed record VersionSummary(
     bool Monitored,
     int QualityProfileId,
     VersionStatus Status,
-    string? Quality);
+    string? Quality,
+    MinimumAvailability MinimumAvailability,
+    int RootFolderId,
+    List<int> Tags,
+    /// <summary>Bytes; null without a file.</summary>
+    long? Size,
+    /// <summary>Judged now like on the movie page; null without a file.</summary>
+    bool? CutoffMet);
 
 public sealed record MovieSummary(
     int Id,
@@ -162,4 +169,60 @@ public sealed record MovieSummary(
     string? PosterUrl,
     MovieStatus EffectiveStatus,
     bool Monitored,
-    List<VersionSummary> Versions);
+    List<VersionSummary> Versions,
+    DateTime AddedAt,
+    double? TmdbRating,
+    double? ImdbRating);
+
+public enum TagsMode
+{
+    Add = 1,
+    Remove = 2,
+    Replace = 3,
+}
+
+/// <param name="Versions">Which version of each film: <c>default</c> (when absent), <c>all</c> or <c>version:&lt;name&gt;</c>.</param>
+public sealed record BulkUpdateRequest(
+    List<int> MovieIds,
+    string? Versions = null,
+    bool? Monitored = null,
+    int? QualityProfileId = null,
+    MinimumAvailability? MinimumAvailability = null,
+    List<int>? TagIds = null,
+    /// <summary>How <see cref="TagIds"/> combine with the version's tags; adds when absent.</summary>
+    TagsMode? ApplyTags = null);
+
+public sealed record BulkSearchRequest(List<int> MovieIds, string? Versions = null);
+
+public sealed record BulkDeleteRequest(
+    List<int> MovieIds,
+    /// <summary><c>all</c> deletes whole films.</summary>
+    string? Versions = null,
+    bool DeleteFiles = false,
+    /// <summary>Only for the films that go away entirely.</summary>
+    bool AddImportExclusion = false,
+    /// <summary>Answers what would happen and changes nothing: the confirmation reads it.</summary>
+    bool DryRun = false);
+
+public enum BulkOutcome
+{
+    Updated = 1,
+    Unchanged = 2,
+    Queued = 3,
+    AlreadyQueued = 4,
+    MovieDeleted = 5,
+    VersionsDeleted = 6,
+    Skipped = 7,
+    Failed = 8,
+}
+
+/// <param name="Versions">Names of the versions acted on.</param>
+/// <param name="Detail">Why the film was skipped or failed.</param>
+/// <param name="Files">Files removed with the versions (delete with files).</param>
+/// <param name="Promoted">The version that became the default because the default one was deleted.</param>
+public sealed record BulkMovieResult(int MovieId, string Title, BulkOutcome Outcome, List<string> Versions, string? Detail = null, int Files = 0, string? Promoted = null);
+
+public sealed record BulkResponse(List<BulkMovieResult> Results);
+
+/// <param name="RecycleBin">Where deleted files go; null when they are deleted for good.</param>
+public sealed record BulkDeleteResponse(bool DryRun, string? RecycleBin, List<BulkMovieResult> Results);

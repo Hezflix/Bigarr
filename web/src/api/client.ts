@@ -238,6 +238,14 @@ export type VersionSummary = {
   qualityProfileId: number
   status: VersionStatus
   quality: string | null
+  minimumAvailability: MinimumAvailability
+  rootFolderId: number
+  /** Tag ids. */
+  tags: number[]
+  /** File size in bytes; null without a file. */
+  size: number | null
+  /** Null without a file; false when the file is below the profile cutoff (quality and custom format score). */
+  cutoffMet: boolean | null
 }
 
 export type MovieSummary = {
@@ -249,6 +257,9 @@ export type MovieSummary = {
   posterUrl: string | null
   effectiveStatus: MovieStatus
   monitored: boolean
+  addedAt: string
+  tmdbRating: number | null
+  imdbRating: number | null
   versions: VersionSummary[]
 }
 
@@ -313,6 +324,72 @@ export const movies = {
   promote: (movieId: number, versionId: number) => post<Version>(`/api/v1/movies/${movieId}/versions/${versionId}/promote`),
   /** Drops the version's file (to the recycle bin when configured); the version stays and is missing again. */
   deleteFile: (movieId: number, versionId: number) => api<Version>(`/api/v1/movies/${movieId}/versions/${versionId}/file`, { method: 'DELETE' }),
+  bulkUpdate: (body: BulkUpdateRequest) => put<BulkResponse>('/api/v1/movies/bulk', body),
+  /** Queues an automatic search per targeted version; they run in the background, one at a time. */
+  bulkSearch: (movieIds: number[], versions: VersionSelector) => post<BulkResponse>('/api/v1/movies/bulk/search', { movieIds, versions }),
+  /** With `dryRun`, answers the exact plan and changes nothing. */
+  bulkDelete: (body: BulkDeleteRequest) => post<BulkDeleteResponse>('/api/v1/movies/bulk/delete', body),
+}
+
+// ---- bulk edit -------------------------------------------------------------
+
+/** Which version of each film a bulk action touches; same syntax as an API key's view. */
+export type VersionSelector = 'default' | 'all' | `version:${string}`
+
+export type TagsMode = 'add' | 'remove' | 'replace'
+
+/** Null fields are left untouched. */
+export type BulkUpdateRequest = {
+  movieIds: number[]
+  versions: VersionSelector
+  monitored?: boolean | null
+  qualityProfileId?: number | null
+  minimumAvailability?: MinimumAvailability | null
+  tagIds?: number[] | null
+  applyTags?: TagsMode | null
+}
+
+export type BulkOutcome = 'updated' | 'unchanged' | 'queued' | 'alreadyQueued' | 'movieDeleted' | 'versionsDeleted' | 'skipped' | 'failed'
+
+export type BulkMovieResult = {
+  movieId: number
+  title: string
+  outcome: BulkOutcome
+  /** Names of the versions acted on. */
+  versions: string[]
+  /** Why the film was skipped or failed. */
+  detail: string | null
+  /** Delete: files removed. */
+  files: number
+  /** Delete: the version that became the film's default. */
+  promoted: string | null
+}
+
+export type BulkResponse = { results: BulkMovieResult[] }
+
+export type BulkDeleteRequest = {
+  movieIds: number[]
+  versions: VersionSelector
+  deleteFiles: boolean
+  addImportExclusion: boolean
+  dryRun: boolean
+}
+
+export type BulkDeleteResponse = {
+  dryRun: boolean
+  /** Where deleted files go; null means they are deleted for good. */
+  recycleBin: string | null
+  results: BulkMovieResult[]
+}
+
+// ---- tags ------------------------------------------------------------------
+
+export type Tag = { id: number; label: string }
+
+export const tags = {
+  list: () => api<Tag[]>('/api/v1/tags'),
+  /** Idempotent by label: an existing tag comes back as is. */
+  add: (label: string) => post<Tag>('/api/v1/tags', { label }),
 }
 
 // ---- quality ---------------------------------------------------------------
@@ -1097,14 +1174,6 @@ export const blocklist = {
   },
   remove: (id: number) => del(`/api/v1/blocklist/${id}`),
   bulkDelete: (ids: number[]) => post<number>('/api/v1/blocklist/bulk-delete', { ids }),
-}
-
-// ---- tags ------------------------------------------------------------------
-
-export type Tag = { id: number; label: string }
-
-export const tags = {
-  list: () => api<Tag[]>('/api/v1/tags'),
 }
 
 // ---- notifications ---------------------------------------------------------

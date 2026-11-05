@@ -23,17 +23,13 @@ public static class MoviesEndpoints
         group.MapDelete("/{id:int}/versions/{versionId:int}", DeleteVersionAsync);
         group.MapPost("/{id:int}/versions/{versionId:int}/promote", PromoteAsync);
         group.MapDelete("/{id:int}/versions/{versionId:int}/file", DeleteFileAsync);
+        group.MapBulkEdit();
 
         return app;
     }
 
-    private static async Task<Ok<List<MovieSummary>>> ListAsync(MovieService movies, CancellationToken ct)
-    {
-        var all = await movies.WithGraph().OrderBy(m => m.SortTitle).ThenBy(m => m.Year).ToListAsync(ct);
-        var active = await movies.ActiveTargetsAsync(all.SelectMany(m => m.Versions).Select(v => v.Id), ct);
-        var today = movies.Today;
-        return TypedResults.Ok(all.Select(m => MovieMapper.ToSummary(m, active, today)).ToList());
-    }
+    private static async Task<Ok<List<MovieSummary>>> ListAsync(MovieSummaryQuery summaries, CancellationToken ct) =>
+        TypedResults.Ok(await summaries.ListAsync(ct));
 
     private static async Task<Results<Ok<List<MovieLookupResult>>, ValidationProblem, ProblemHttpResult>> LookupAsync(
         string? term, MovieService movies, CancellationToken ct)

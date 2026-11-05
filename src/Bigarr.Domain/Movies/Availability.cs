@@ -62,8 +62,13 @@ public static class Availability
     public static VersionStatus StatusOf(MovieVersion version, bool hasActiveGrab, DateOnly today)
     {
         ArgumentNullException.ThrowIfNull(version);
+        return StatusOf(version.Movie, version.MinimumAvailability, version.File is not null, hasActiveGrab, today);
+    }
 
-        if (version.File is not null)
+    /// <summary>The same verdict from loose values, for reads that project columns instead of loading versions.</summary>
+    public static VersionStatus StatusOf(Movie movie, MinimumAvailability minimum, bool hasFile, bool hasActiveGrab, DateOnly today)
+    {
+        if (hasFile)
         {
             return VersionStatus.Available;
         }
@@ -73,6 +78,6 @@ public static class Availability
             return VersionStatus.Downloading;
         }
 
-        return IsAvailable(version.Movie, version.MinimumAvailability, today) ? VersionStatus.Missing : VersionStatus.Pending;
+        return IsAvailable(movie, minimum, today) ? VersionStatus.Missing : VersionStatus.Pending;
     }
 }
