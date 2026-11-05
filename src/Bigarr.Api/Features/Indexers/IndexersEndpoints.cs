@@ -36,15 +36,6 @@ public static class IndexersEndpoints
             return result.IsSuccess ? TypedResults.NoContent() : result.Failure!.ToProblem();
         });
 
-        // Read-only Prowlarr sync, driven by Bigarr:Prowlarr configuration.
-        group.MapGet("/prowlarr", Ok<ProwlarrStatusResponse> (ProwlarrSyncService prowlarr) => TypedResults.Ok(prowlarr.Status()));
-
-        group.MapPost("/prowlarr/sync", async Task<Results<Ok<ProwlarrSyncResult>, ProblemHttpResult>> (ProwlarrSyncService prowlarr, CancellationToken ct) =>
-        {
-            var result = await prowlarr.SyncAsync(ct);
-            return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
-        });
-
         // Test an unsaved configuration (the form) or a saved indexer (the row).
         group.MapPost("/test", async Task<Results<Ok<IndexerTestResponse>, ProblemHttpResult>> (IndexerRequest request, IndexerService indexers, CancellationToken ct) =>
         {

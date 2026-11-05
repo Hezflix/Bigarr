@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Bigarr.Api.Features.Compat.Radarr;
 using Bigarr.Api.Features.Indexers;
 using Bigarr.Api.Tests.Auth;
+using Bigarr.Domain.Indexers;
 using static Bigarr.Api.Tests.Compat.CompatTestHelpers;
 
 namespace Bigarr.Api.Tests.Compat;
@@ -102,6 +103,76 @@ public sealed class ProwlarrPushTests(BigarrApiFactory factory) : IClassFixture<
 
         Assert.Equal(HttpStatusCode.OK, (await prowlarr.DeleteAsync($"/api/v3/indexer/{id}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await prowlarr.GetAsync($"/api/v3/indexer/{id}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await prowlarr.DeleteAsync($"/api/v3/indexer/{id}")).StatusCode);
+
+        // Like Radarr, a second delete still answers 200: Prowlarr only forgets its mapping on success.
+        Assert.Equal(HttpStatusCode.OK, (await prowlarr.DeleteAsync($"/api/v3/indexer/{id}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Prowlarr_adding_an_indexer_already_linked_to_it_takes_the_row_over()
+    {
+        var session = await SessionAsync(factory);
+        var (prowlarr, _) = await KeyClientAsync(factory, session, "prowlarr-adopt", "default", header: true);
+
+        // A row as the former read-only sync left it: Prowlarr's name without the suffix, its URL as Bigarr reached it,
+        // and a rate limit tuned here.
+        var pulled = await session.PostAsJsonAsync("/api/v1/indexers", new IndexerRequest(
+            "Nyaa.si", IndexerImplementation.Torznab, BaseUrl: "http://prowlarr:9696/7", ApiKey: "prowlarr-key",
+            Categories: [2000, 2040], Priority: 25, MinimumSeeders: 3, RateLimitSeconds: 10, ProwlarrId: 7), Json);
+        Assert.Equal(HttpStatusCode.Created, pulled.StatusCode);
+        var pulledId = (await pulled.Content.ReadFromJsonAsync<IndexerResponse>(Json))!.Id;
+
+        // Prowlarr does not recognise it (its "Prowlarr Server" is written another way) and adds indexer 7.
+        object Add(int prowlarrId, string name) => new
+        {
+            id = 0,
+            name,
+            implementation = "Torznab",
+            configContract = "TorznabSettings",
+            enableRss = true,
+            enableAutomaticSearch = true,
+            enableInteractiveSearch = true,
+            priority = 20,
+            tags = Array.Empty<int>(),
+            fields = new object[]
+            {
+                new { name = "baseUrl", value = $"http://10.0.0.5:9696/{prowlarrId}/" },
+                new { name = "apiPath", value = "/api" },
+                new { name = "apiKey", value = "prowlarr-key" },
+                new { name = "categories", value = new[] { 2000 } },
+                new { name = "minimumSeeders", value = 1 },
+            },
+        };
+
+        var adopted = await prowlarr.PostAsJsonAsync("/api/v3/indexer", Add(7, "Nyaa.si (Prowlarr)"));
+        Assert.Equal(HttpStatusCode.Created, adopted.StatusCode);
+        Assert.Equal(pulledId, (await adopted.ReadJsonAsync()).GetProperty("id").GetInt32());
+
+        var linked = (await session.GetFromJsonAsync<List<IndexerResponse>>("/api/v1/indexers", Json))!.Where(i => i.ProwlarrId == 7).ToList();
+        var row = Assert.Single(linked);
+        Assert.Equal(pulledId, row.Id);
+        Assert.Equal("Nyaa.si (Prowlarr)", row.Name);
+        Assert.Equal("http://10.0.0.5:9696/7", row.BaseUrl);
+        Assert.Equal([2000], row.Categories);
+        Assert.Equal(20, row.Priority);
+        Assert.Equal(1, row.MinimumSeeders);
+        Assert.Equal(10, row.RateLimitSeconds); // Prowlarr does not send it: the tuned value stays
+
+        // Prowlarr lost its mapping and adds it once more: still the same row.
+        var again = await prowlarr.PostAsJsonAsync("/api/v3/indexer?forceSave=true", Add(7, "Nyaa.si (Prowlarr)"));
+        Assert.Equal(HttpStatusCode.Created, again.StatusCode);
+        Assert.Equal(pulledId, (await again.ReadJsonAsync()).GetProperty("id").GetInt32());
+        Assert.Single((await session.GetFromJsonAsync<List<IndexerResponse>>("/api/v1/indexers", Json))!, i => i.ProwlarrId == 7);
+
+        // Pointing another row at indexer 7 is refused with Radarr's validation shape, not a database error.
+        var other = await prowlarr.PostAsJsonAsync("/api/v3/indexer", Add(8, "Torr9 (Prowlarr)"));
+        Assert.Equal(HttpStatusCode.Created, other.StatusCode);
+        var otherId = (await other.ReadJsonAsync()).GetProperty("id").GetInt32();
+        var clash = await prowlarr.PutAsJsonAsync($"/api/v3/indexer/{otherId}", Add(7, "Torr9 (Prowlarr)"));
+        Assert.Equal(HttpStatusCode.BadRequest, clash.StatusCode);
+        Assert.Contains("Prowlarr indexer 7", (await clash.ReadJsonAsync())[0].GetProperty("errorMessage").GetString());
+
+        Assert.Equal(HttpStatusCode.OK, (await prowlarr.DeleteAsync($"/api/v3/indexer/{pulledId}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await prowlarr.DeleteAsync($"/api/v3/indexer/{otherId}")).StatusCode);
     }
 }

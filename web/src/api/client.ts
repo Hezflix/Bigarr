@@ -634,7 +634,7 @@ export type Indexer = {
   seedTimeMinutes: number | null
   rateLimitSeconds: number
   protocol: 'torrent' | 'usenet'
-  /** Set when the row comes from Prowlarr: name, URL, key, priority and enabled state follow it. */
+  /** Set when Prowlarr manages the row: each of its syncs rewrites everything but the rate limit. */
   prowlarrId: number | null
   status: IndexerStatus
   createdAt: string
@@ -648,22 +648,6 @@ export type IndexerTestResult = {
   supportsTmdbSearch: boolean
   categoryCount: number
   recentReleases: number
-}
-
-export type ProwlarrSyncResult = { total: number; added: number; updated: number; removed: number; skipped: number; skippedNames: string[] }
-
-export type ProwlarrStatus = {
-  configured: boolean
-  host: string | null
-  syncOnStartup: boolean
-  lastSyncAt: string | null
-  lastError: string | null
-  lastResult: ProwlarrSyncResult | null
-}
-
-export const prowlarr = {
-  status: () => api<ProwlarrStatus>('/api/v1/indexers/prowlarr'),
-  sync: () => post<ProwlarrSyncResult>('/api/v1/indexers/prowlarr/sync'),
 }
 
 export const indexers = {

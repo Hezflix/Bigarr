@@ -18,8 +18,9 @@ public sealed record IndexerRequest(
     int MinimumSeeders = 1,
     double? SeedRatio = null,
     int? SeedTimeMinutes = null,
-    int RateLimitSeconds = 2,
-    /// <summary>Set by the Prowlarr paths (read-only sync, or Prowlarr pushing through the compat API) so both recognise the row.</summary>
+    /// <summary>Null keeps the current value (2 seconds on a new indexer): Prowlarr does not send it.</summary>
+    int? RateLimitSeconds = null,
+    /// <summary>Set when Prowlarr pushes the indexer through the compat API, from the <c>/{id}/</c> in its URL; null keeps the current link.</summary>
     int? ProwlarrId = null);
 
 public sealed record IndexerStatusResponse(
@@ -47,7 +48,7 @@ public sealed record IndexerResponse(
     int? SeedTimeMinutes,
     int RateLimitSeconds,
     DownloadProtocol Protocol,
-    /// <summary>Set when the row comes from Prowlarr; name, URL, key, priority and enabled state follow it on each sync.</summary>
+    /// <summary>Set when Prowlarr manages the row: each sync rewrites everything but the rate limit, and the row goes when Prowlarr removes it.</summary>
     int? ProwlarrId,
     IndexerStatusResponse Status,
     DateTime CreatedAt);

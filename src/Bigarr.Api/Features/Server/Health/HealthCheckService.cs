@@ -43,7 +43,7 @@ public sealed class HealthCheckService(
         var allIndexers = await db.Indexers.AsNoTracking().ToListAsync(ct);
         if (allIndexers.Count == 0)
         {
-            issues.Add(new HealthIssue("indexers", HealthIssueType.Warning, "No indexer is configured: nothing can be searched or grabbed. Add one in Settings → Indexers."));
+            issues.Add(new HealthIssue("indexers", HealthIssueType.Warning, "No indexer is configured: nothing can be searched or grabbed. Add Bigarr to Prowlarr as a Radarr application, or add one in Settings → Indexers."));
         }
         else
         {
