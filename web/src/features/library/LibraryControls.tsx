@@ -47,7 +47,7 @@ const keepOpen = (event: Event) => event.preventDefault()
 
 const toggle = <T,>(values: T[], value: T) => (values.includes(value) ? values.filter((v) => v !== value) : [...values, value])
 
-// ---- saved views (proposal C) ----------------------------------------------
+// ---- presets and saved views ------------------------------------------------
 
 type SavedViewsProps = {
   presets: (Preset & { count: number })[]
@@ -159,7 +159,7 @@ function SaveViewDialog({ open, onOpenChange, onSave }: { open: boolean; onOpenC
   )
 }
 
-// ---- search, mode, sort, filter, view (proposals A and D) --------------------
+// ---- search, layout, sort, filter, view options ------------------------------
 
 type ControlsProps = {
   prefs: LibraryPrefs
