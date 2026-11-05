@@ -15,6 +15,7 @@ public sealed class NotificationEndpointConfiguration : IEntityTypeConfiguration
         builder.Property(e => e.Url).HasMaxLength(2048);
         builder.Property(e => e.Secret).HasMaxLength(512);
         builder.Property(e => e.Events).HasJsonConversion();
+        builder.Property(e => e.Discord).HasJsonConversion();
         builder.Property(e => e.View)
             .HasConversion(v => v.ToString(), s => CompatView.Parse(s))
             .HasMaxLength(80);

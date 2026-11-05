@@ -10,9 +10,13 @@ public sealed class NotificationEndpoint
 
     public required string Name { get; set; }
 
+    /// <summary>A Discord webhook's URL carries its token in the path: as secret as <see cref="Secret"/>, so never logged.</summary>
     public required string Url { get; set; }
 
-    /// <summary>HMAC-SHA256 key for the <c>X-Bigarr-Signature</c> header. Optional: a private network may not need it.</summary>
+    /// <summary>
+    /// HMAC-SHA256 key for the <c>X-Bigarr-Signature</c> header. Optional: a private network may not need it. Never
+    /// set on a Discord endpoint, which has nothing to check it with.
+    /// </summary>
     public string? Secret { get; set; }
 
     public bool Enabled { get; set; } = true;
@@ -30,6 +34,9 @@ public sealed class NotificationEndpoint
 
     /// <summary>For the Radarr format: which versions are Radarr movies, exactly like an API key's view (§3.8).</summary>
     public CompatView View { get; set; } = CompatView.Default;
+
+    /// <summary>For the Discord format: the webhook's name, avatar and the fields of each message. Null for the other formats.</summary>
+    public DiscordSettings? Discord { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

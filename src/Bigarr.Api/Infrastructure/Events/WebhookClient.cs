@@ -1,23 +1,27 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Bigarr.Api.Features.Notifications.Discord;
 using Bigarr.Domain.Notifications;
 using Microsoft.Extensions.Options;
 
 namespace Bigarr.Api.Infrastructure.Events;
 
-public sealed record WebhookResult(bool Success, int? StatusCode, string? Error, TimeSpan Elapsed);
+/// <param name="RetryAfter">On a 429: how long the receiver asked to wait, when it said.</param>
+public sealed record WebhookResult(bool Success, int? StatusCode, string? Error, TimeSpan Elapsed, TimeSpan? RetryAfter = null);
 
 /// <summary>
 /// One HTTP POST per delivery. The body wraps the event payload with its type and id, or is Radarr's payload for a
-/// Radarr-format endpoint; when the endpoint has a secret, <c>X-Bigarr-Signature</c> carries
-/// <c>sha256=&lt;hex HMAC of the body&gt;</c> so the receiver can check the origin.
+/// Radarr-format endpoint, or Discord's message for a Discord one; when the endpoint has a secret,
+/// <c>X-Bigarr-Signature</c> carries <c>sha256=&lt;hex HMAC of the body&gt;</c> so the receiver can check the origin.
+/// The URL may carry a token (Discord's does): it is never logged, the endpoint is named by its name only.
 /// </summary>
-public sealed class WebhookClient(IHttpClientFactory httpClientFactory, IOptions<NotificationsOptions> options, ILogger<WebhookClient> logger)
+public sealed class WebhookClient(IHttpClientFactory httpClientFactory, IOptions<NotificationsOptions> options, TimeProvider time, ILogger<WebhookClient> logger)
 {
     public const string HttpClientName = "bigarr-webhooks";
 
@@ -26,6 +30,9 @@ public sealed class WebhookClient(IHttpClientFactory httpClientFactory, IOptions
     public const string EventHeader = "X-Bigarr-Event";
 
     public const string DeliveryHeader = "X-Bigarr-Delivery";
+
+    /// <summary>Enough of an error answer for Discord's JSON; the rest of a large page is not read.</summary>
+    private const int ErrorBodyLimit = 16 * 1024;
 
     public Task<WebhookResult> PostAsync(NotificationEndpoint endpoint, string eventType, long eventId, string payloadJson, DateTime occurredAt, string deliveryId, CancellationToken ct) =>
         SendAsync(endpoint, eventType, Body(eventType, eventId, payloadJson, occurredAt, options.Value.ApplicationUrl), deliveryId, ct);
@@ -40,9 +47,9 @@ public sealed class WebhookClient(IHttpClientFactory httpClientFactory, IOptions
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, endpoint.Url);
             request.Content = new StringContent(body, Encoding.UTF8, "application/json");
-            if (endpoint.Format == WebhookFormat.Radarr)
+            if (endpoint.Format is WebhookFormat.Radarr or WebhookFormat.Discord)
             {
-                // What Radarr's WebhookProxy sends besides the JSON content type.
+                // What Radarr's WebhookProxy and DiscordProxy send besides the JSON content type.
                 request.Headers.Accept.ParseAdd("application/json");
             }
 
@@ -60,7 +67,12 @@ public sealed class WebhookClient(IHttpClientFactory httpClientFactory, IOptions
                 return new WebhookResult(true, status, null, stopwatch.Elapsed);
             }
 
-            return new WebhookResult(false, status, $"HTTP {status} {response.ReasonPhrase}".Trim(), stopwatch.Elapsed);
+            // Discord says what is wrong in JSON ({"message", "code"}) and how long to wait on a 429 (retry_after).
+            var discord = endpoint.Format == WebhookFormat.Discord;
+            var answer = discord ? await ReadAsync(response, ct) : null;
+            var retryAfter = response.StatusCode == HttpStatusCode.TooManyRequests ? RetryAfter(response) ?? (discord ? DiscordWebhook.RetryAfter(answer) : null) : null;
+            var error = (discord ? DiscordWebhook.Error(answer) : null) ?? $"HTTP {status} {response.ReasonPhrase}".Trim();
+            return new WebhookResult(false, status, error, stopwatch.Elapsed, retryAfter);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -98,4 +110,50 @@ public sealed class WebhookClient(IHttpClientFactory httpClientFactory, IOptions
 
     public static string Sign(string secret, string body) =>
         "sha256=" + Convert.ToHexStringLower(HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes(body)));
+
+    /// <summary>The <c>Retry-After</c> header: seconds (Discord may send a fraction) or a date.</summary>
+    private TimeSpan? RetryAfter(HttpResponseMessage response)
+    {
+        if (response.Headers.RetryAfter is { } header)
+        {
+            if (header.Delta is { } delta)
+            {
+                return delta;
+            }
+
+            if (header.Date is { } date)
+            {
+                var left = date - time.GetUtcNow();
+                return left > TimeSpan.Zero ? left : TimeSpan.Zero;
+            }
+        }
+
+        return response.Headers.TryGetValues("Retry-After", out var values)
+            && double.TryParse(values.FirstOrDefault(), NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds)
+            && seconds >= 0
+                ? TimeSpan.FromSeconds(seconds)
+                : null;
+    }
+
+    private static async Task<string?> ReadAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        try
+        {
+            await using var stream = await response.Content.ReadAsStreamAsync(ct);
+            var buffer = new byte[ErrorBodyLimit];
+            var read = 0;
+            int chunk;
+            while (read < buffer.Length && (chunk = await stream.ReadAsync(buffer.AsMemory(read), ct)) > 0)
+            {
+                read += chunk;
+            }
+
+            return Encoding.UTF8.GetString(buffer, 0, read);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException)
+        {
+            // the status alone still says something
+            return null;
+        }
+    }
 }

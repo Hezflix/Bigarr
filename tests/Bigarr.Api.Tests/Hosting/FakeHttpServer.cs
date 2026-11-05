@@ -17,8 +17,8 @@ public sealed class FakeHttpServer : IAsyncDisposable
 
     public sealed record Received(string Method, string Path, string Query, IReadOnlyDictionary<string, string> Headers, string Body);
 
-    /// <summary>An answer: status code and an optional JSON body.</summary>
-    public sealed record Answer(int StatusCode, string? Json = null);
+    /// <summary>An answer: status code, an optional JSON body and optional headers (<c>Retry-After</c>…).</summary>
+    public sealed record Answer(int StatusCode, string? Json = null, IReadOnlyDictionary<string, string>? Headers = null);
 
     private FakeHttpServer(WebApplication app)
     {
@@ -48,6 +48,11 @@ public sealed class FakeHttpServer : IAsyncDisposable
             server.Requests.Enqueue(received);
             var answer = server.Responder(received) ?? new Answer(404);
             context.Response.StatusCode = answer.StatusCode;
+            foreach (var (name, value) in answer.Headers ?? new Dictionary<string, string>())
+            {
+                context.Response.Headers[name] = value;
+            }
+
             if (answer.Json is not null)
             {
                 context.Response.ContentType = "application/json";

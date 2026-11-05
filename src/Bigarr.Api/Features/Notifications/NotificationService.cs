@@ -1,3 +1,4 @@
+using Bigarr.Api.Features.Notifications.Discord;
 using Bigarr.Api.Features.Notifications.Radarr;
 using Bigarr.Api.Features.Tags;
 using Bigarr.Api.Infrastructure;
@@ -62,7 +63,8 @@ public sealed class NotificationService(
         Apply(endpoint, request);
         db.NotificationEndpoints.Add(endpoint);
         await db.SaveChangesAsync(ct);
-        logger.LogInformation("Notification endpoint {Name} added ({Url})", endpoint.Name, endpoint.Url);
+        // By name only: the URL may carry a token, as Discord's does.
+        logger.LogInformation("Notification endpoint {Name} added ({Format} format)", endpoint.Name, endpoint.Format);
         return Result<NotificationEndpointResponse>.Ok(ToResponse(endpoint, null));
     }
 
@@ -138,11 +140,16 @@ public sealed class NotificationService(
             endpoint = saved;
         }
 
-        // Radarr's own test payload for a Radarr-format endpoint: what a tool written for Radarr expects to see.
+        // Radarr's own test payload for a Radarr-format endpoint: what a tool written for Radarr expects to see. A Discord
+        // channel gets the test embed.
         var now = time.GetUtcNow().UtcDateTime;
-        var result = endpoint.Format == WebhookFormat.Radarr
-            ? await webhooks.SendAsync(endpoint, "test", RadarrWebhook.Serialize(RadarrWebhook.Test(options.Value.ApplicationUrl ?? string.Empty)), "test", ct)
-            : await webhooks.PostAsync(endpoint, "test", 0, EventJson.Serialize(new TestEvent($"Bigarr can reach {endpoint.Name}.") { OccurredAt = now }), now, "test", ct);
+        var message = $"Bigarr can reach {endpoint.Name}.";
+        var result = endpoint.Format switch
+        {
+            WebhookFormat.Radarr => await webhooks.SendAsync(endpoint, "test", RadarrWebhook.Serialize(RadarrWebhook.Test(options.Value.ApplicationUrl ?? string.Empty)), "test", ct),
+            WebhookFormat.Discord => await webhooks.SendAsync(endpoint, "test", DiscordWebhook.Serialize(DiscordWebhook.Test(message, now, endpoint.Discord)), "test", ct),
+            _ => await webhooks.PostAsync(endpoint, "test", 0, EventJson.Serialize(new TestEvent(message) { OccurredAt = now }), now, "test", ct),
+        };
         if (!result.Success)
         {
             return new Failure(StatusCodes.Status502BadGateway, "The endpoint did not accept the test event", result.Error);
@@ -210,7 +217,23 @@ public sealed class NotificationService(
 
         if (!Enum.IsDefined(request.Format))
         {
-            return Failure.Invalid("Unknown format", "The format must be bigarr or radarr.");
+            return Failure.Invalid("Unknown format", "The format must be bigarr, radarr or discord.");
+        }
+
+        // Discord answers anything but its own message body with "Cannot send an empty message".
+        if (request.Format == WebhookFormat.Discord && !DiscordWebhookUrl.IsChannelWebhook(uri))
+        {
+            return Failure.Invalid("Not a Discord webhook URL", $"The Discord format posts to a channel webhook, {DiscordWebhookUrl.Shape}, as Discord's \"Copy Webhook URL\" gives it.");
+        }
+
+        if (request.Format != WebhookFormat.Discord && DiscordWebhookUrl.IsAnyWebhook(uri))
+        {
+            return Failure.Invalid("Discord webhook URL", "This is a Discord webhook: Discord only reads its own messages, not Bigarr's or Radarr's webhook body. Pick the Discord format.");
+        }
+
+        if (request.Format == WebhookFormat.Discord && ValidateDiscord(request.Discord) is { } discord)
+        {
+            return discord;
         }
 
         if (!CompatView.TryParse(request.View, out _))
@@ -224,18 +247,45 @@ public sealed class NotificationService(
             return Failure.Invalid("Not sent in Radarr's format", $"Radarr's webhook has no counterpart for: {string.Join(", ", unsent)}.");
         }
 
+        var unposted = request.Format == WebhookFormat.Discord ? (request.Events ?? []).Where(e => !WebhookRouting.SentToDiscord(e)).ToList() : [];
+        if (unposted.Count > 0)
+        {
+            return Failure.Invalid("Not sent to Discord", $"The Discord format posts nothing for: {string.Join(", ", unposted)}.");
+        }
+
         return null;
+    }
+
+    private static Failure? ValidateDiscord(DiscordSettings? settings)
+    {
+        if (settings is null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(settings.Avatar)
+            && (!Uri.TryCreate(settings.Avatar.Trim(), UriKind.Absolute, out var avatar) || (avatar.Scheme != Uri.UriSchemeHttp && avatar.Scheme != Uri.UriSchemeHttps)))
+        {
+            return Failure.Invalid("Invalid avatar URL", "The avatar must be an image URL starting with http:// or https://.");
+        }
+
+        var known = (settings.GrabFields ?? []).All(Enum.IsDefined)
+            && (settings.ImportFields ?? []).All(Enum.IsDefined)
+            && (settings.ManualInteractionFields ?? []).All(Enum.IsDefined);
+        return known ? null : Failure.Invalid("Unknown Discord field", "A grab, import or import failure field is not one Discord messages have.");
     }
 
     private static void Apply(NotificationEndpoint endpoint, NotificationEndpointRequest request)
     {
         endpoint.Name = request.Name.Trim();
         endpoint.Url = request.Url.Trim();
-        endpoint.Secret = string.IsNullOrWhiteSpace(request.Secret) ? null : request.Secret;
+        // Discord has nothing to check a signature with.
+        endpoint.Secret = string.IsNullOrWhiteSpace(request.Secret) || request.Format == WebhookFormat.Discord ? null : request.Secret;
         endpoint.Enabled = request.Enabled;
         endpoint.Events = (request.Events ?? []).Distinct(StringComparer.Ordinal).OrderBy(e => e, StringComparer.Ordinal).ToList();
         endpoint.Format = request.Format;
         endpoint.View = CompatView.Parse(string.IsNullOrWhiteSpace(request.View) ? "default" : request.View);
+        endpoint.Discord = request.Format == WebhookFormat.Discord ? (request.Discord ?? new DiscordSettings()).Normalized() : null;
     }
 
     private async Task<Dictionary<int, DeliveryStats>> StatsAsync(List<int> endpointIds, CancellationToken ct)
@@ -287,6 +337,7 @@ public sealed class NotificationService(
         endpoint.Tags.Select(t => t.Id).Order().ToList(),
         endpoint.Format,
         endpoint.View.ToString(),
+        endpoint.Discord,
         stats?.Pending ?? 0,
         stats?.Failed ?? 0,
         stats?.LastDeliveredAt,

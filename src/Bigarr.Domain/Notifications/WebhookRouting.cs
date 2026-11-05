@@ -3,8 +3,9 @@ using Bigarr.Domain.Events;
 namespace Bigarr.Domain.Notifications;
 
 /// <summary>
-/// Which deliveries one event makes for one endpoint (blueprint §3.9): its subscription, its tags and, in the Radarr
-/// format, its view and whether Radarr has a word for the event. Pure: the dispatcher passes the versions' tags.
+/// Which deliveries one event makes for one endpoint (blueprint §3.9): its subscription, its tags, in the Radarr
+/// format its view and whether Radarr has a word for the event, in the Discord format whether a message is worth
+/// posting. Pure: the dispatcher passes the versions' tags.
 /// </summary>
 public static class WebhookRouting
 {
@@ -26,6 +27,21 @@ public static class WebhookRouting
 
     /// <summary>Radarr's event type for a Bigarr one, or null when the Radarr format does not send it.</summary>
     public static string? RadarrEventType(string eventType) => RadarrTypes.GetValueOrDefault(eventType);
+
+    /// <summary>
+    /// What Radarr's Discord connection posts, plus what Bigarr adds and a human wants to read: the failures, and a
+    /// version added, deleted or made the default. A version's settings changing stays out of the channel: it fires on
+    /// every monitoring, profile or tag edit, once per version in a bulk edit.
+    /// </summary>
+    private static readonly HashSet<string> DiscordTypes = new[]
+    {
+        typeof(ReleaseGrabbed), typeof(FileImported), typeof(FileUpgraded), typeof(FileRenamed), typeof(MovieAdded), typeof(MovieDeleted),
+        typeof(FileDeleted), typeof(HealthIssueRaised), typeof(HealthIssueResolved), typeof(ImportFailed), typeof(DownloadFailed), typeof(TestEvent),
+        typeof(VersionAdded), typeof(VersionDeleted), typeof(DefaultVersionChanged),
+    }.Select(DomainEventCatalog.NameOf).ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>True when the Discord format posts a message for the event type.</summary>
+    public static bool SentToDiscord(string eventType) => DiscordTypes.Contains(eventType);
 
     /// <summary>The versions an event is about. Empty when it is about no film: health, test, a download nothing matched.</summary>
     public static IReadOnlyList<VersionRef> Subjects(DomainEvent domainEvent) => domainEvent switch
@@ -63,7 +79,7 @@ public static class WebhookRouting
     /// One entry per delivery to create, empty when the endpoint gets nothing. <c>null</c> is a delivery about the
     /// event as a whole; a version id is a Radarr-format delivery whose Radarr movie is that version. A film-level
     /// event matches the tags when any of its versions does; in the Radarr format each version is judged on its own,
-    /// since each one is a separate Radarr movie.
+    /// since each one is a separate Radarr movie. A Discord endpoint is routed like a Bigarr one, one message per event.
     /// </summary>
     /// <param name="domainEvent">The parsed payload; null when its type is no longer in the catalogue.</param>
     /// <param name="tagsOf">The tag ids of a version the event is about.</param>
@@ -95,6 +111,11 @@ public static class WebhookRouting
                 .Select(v => (int?)v.Id)
                 .Distinct()
                 .ToList();
+        }
+
+        if (endpoint.Format == WebhookFormat.Discord && (domainEvent is null || !SentToDiscord(eventType)))
+        {
+            return [];
         }
 
         if (endpoint.Tags.Count == 0 || (domainEvent is not null && IgnoresTags(domainEvent)))

@@ -15,7 +15,10 @@ public static class EventsExtensions
                 http.Timeout = TimeSpan.FromSeconds(Math.Max(1, configuration.GetValue($"{NotificationsOptions.Section}:TimeoutSeconds", 30)));
                 http.DefaultRequestHeaders.UserAgent.ParseAdd($"Bigarr/{Features.Server.SystemEndpoints.Version}");
             })
-            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false })
+
+            // The factory's handlers log every request URI at Information, and a webhook URL can carry a token (Discord's does).
+            .RemoveAllLoggers();
         services.AddSingleton<WebhookClient>();
         services.AddHostedService<OutboxDispatcher>();
         services.AddHostedService<WebhookSender>();
