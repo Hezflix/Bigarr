@@ -1090,7 +1090,7 @@
     "radarrEventsHint": "Radarr's format only sends the events Radarr has; the others are greyed out.",
     "radarrAs": "→ {{type}}",
     "notInRadarr": "not sent in Radarr's format",
-    "discordEventsHint": "Discord gets what Radarr's Discord connection posts, plus failed downloads and imports; version bookkeeping is greyed out.",
+    "discordEventsHint": "Discord gets what Radarr's Discord connection posts, plus failed downloads and imports and versions added, deleted or made the default; a version's settings changing is greyed out.",
     "notInDiscord": "not posted to Discord",
     "ignoresTags": "sent whatever the tags"
   },

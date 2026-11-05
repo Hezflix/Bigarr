@@ -29,13 +29,15 @@ public static class WebhookRouting
     public static string? RadarrEventType(string eventType) => RadarrTypes.GetValueOrDefault(eventType);
 
     /// <summary>
-    /// What Radarr's Discord connection posts, plus the failures Bigarr reports and a human wants to read. Version
-    /// bookkeeping (added, updated, deleted, default changed) stays out of the channel.
+    /// What Radarr's Discord connection posts, plus what Bigarr adds and a human wants to read: the failures, and a
+    /// version added, deleted or made the default. A version's settings changing stays out of the channel: it fires on
+    /// every monitoring, profile or tag edit, once per version in a bulk edit.
     /// </summary>
     private static readonly HashSet<string> DiscordTypes = new[]
     {
         typeof(ReleaseGrabbed), typeof(FileImported), typeof(FileUpgraded), typeof(FileRenamed), typeof(MovieAdded), typeof(MovieDeleted),
         typeof(FileDeleted), typeof(HealthIssueRaised), typeof(HealthIssueResolved), typeof(ImportFailed), typeof(DownloadFailed), typeof(TestEvent),
+        typeof(VersionAdded), typeof(VersionDeleted), typeof(DefaultVersionChanged),
     }.Select(DomainEventCatalog.NameOf).ToHashSet(StringComparer.Ordinal);
 
     /// <summary>True when the Discord format posts a message for the event type.</summary>

@@ -144,23 +144,30 @@ public sealed class WebhookRoutingTests
         Assert.Equal([41], Route(Endpoint(WebhookFormat.Radarr), new ImportFailed(Movie, Hd, Release, 1, "No video file")));
     }
 
+    [Fact]
+    public void The_Discord_format_leaves_version_settings_changes_out_of_the_channel()
+    {
+        Assert.False(WebhookRouting.SentToDiscord("versionUpdated"));
+        Assert.Empty(Route(Endpoint(WebhookFormat.Discord), new VersionUpdated(Movie, Hd)));
+    }
+
     [Theory]
     [InlineData("versionAdded")]
-    [InlineData("versionUpdated")]
     [InlineData("versionDeleted")]
     [InlineData("defaultVersionChanged")]
-    public void The_Discord_format_leaves_version_bookkeeping_out_of_the_channel(string type)
+    public void The_Discord_format_posts_versions_added_deleted_or_made_default(string type)
     {
         DomainEvent domainEvent = type switch
         {
             "versionAdded" => new VersionAdded(Movie, Hd),
-            "versionUpdated" => new VersionUpdated(Movie, Hd),
             "versionDeleted" => new VersionDeleted(Movie, Hd, false),
             _ => new DefaultVersionChanged(Movie, Hd, Uhd),
         };
 
-        Assert.False(WebhookRouting.SentToDiscord(type));
-        Assert.Empty(Route(Endpoint(WebhookFormat.Discord), domainEvent));
+        Assert.True(WebhookRouting.SentToDiscord(type));
+        Assert.Equal([null], Route(Endpoint(WebhookFormat.Discord), domainEvent));
+        Assert.Equal([null], Route(Endpoint(WebhookFormat.Discord, tags: [Kids]), domainEvent));
+        Assert.Empty(Route(Endpoint(WebhookFormat.Discord, tags: [Alice]), domainEvent));
     }
 
     [Fact]

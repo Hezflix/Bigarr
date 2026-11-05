@@ -222,14 +222,38 @@ public sealed class DiscordWebhookTests
     }
 
     [Fact]
-    public void Version_bookkeeping_posts_nothing()
+    public void Versions_added_deleted_or_made_default_say_which()
     {
-        Assert.Null(DiscordWebhook.Payload(new VersionAdded(Movie, Version), null));
+        var added = Embed(At(new VersionAdded(Movie, Version with { FilePath = null, SizeOnDisk = 0 })));
+        Assert.Equal("The Matrix (1999)", added["title"]!.GetValue<string>());
+        Assert.Equal("Version Added", added["description"]!.GetValue<string>());
+        Assert.Equal("https://www.themoviedb.org/movie/603", added["url"]!.GetValue<string>());
+        Assert.Equal((int)DiscordColor.Success, added["color"]!.GetValue<int>());
+        Assert.Equal("https://image.tmdb.org/t/p/original/poster.jpg", added["thumbnail"]!["url"]!.GetValue<string>());
+        Assert.Null(added["image"]);
+        Assert.Equal([("Version", "4k", true), ("Quality Profile", "4K", true), ("Tags", "alice, kids", false)], Fields(added));
+        Assert.Null(Embed(At(new VersionAdded(Movie, Version)), new DiscordSettings(ImportFields: []))["thumbnail"]);
+
+        var deleted = Embed(At(new VersionDeleted(Movie, Version, true)));
+        Assert.Equal("Version removed and its files were deleted", deleted["description"]!.GetValue<string>());
+        Assert.Equal((int)DiscordColor.Danger, deleted["color"]!.GetValue<int>());
+        Assert.Equal([("Version", "4k", true), ("Quality Profile", "4K", true), ("Size", "23.3 GB", true), ("Tags", "alice, kids", false)], Fields(deleted));
+        Assert.Equal("Version removed, files were not deleted", Embed(At(new VersionDeleted(Movie, Version, false)))["description"]!.GetValue<string>());
+
+        var hd = Version with { Id = 41, Name = "1080p" };
+        var promoted = Embed(At(new DefaultVersionChanged(Movie, Version, hd)));
+        Assert.Equal("Default Version Changed", promoted["description"]!.GetValue<string>());
+        Assert.Equal((int)DiscordColor.Standard, promoted["color"]!.GetValue<int>());
+        Assert.Equal([("Default Version", "4k", true), ("Previous Default", "1080p", true)], Fields(promoted));
+        Assert.Equal([("Default Version", "4k", true)], Fields(Embed(At(new DefaultVersionChanged(Movie, Version, null)))));
+    }
+
+    [Fact]
+    public void A_version_settings_change_posts_nothing()
+    {
         Assert.Null(DiscordWebhook.Payload(new VersionUpdated(Movie, Version), null));
-        Assert.Null(DiscordWebhook.Payload(new VersionDeleted(Movie, Version, false), null));
-        Assert.Null(DiscordWebhook.Payload(new DefaultVersionChanged(Movie, Version, null), null));
-        Assert.Null(DiscordWebhook.Body("versionAdded", EventJson.Serialize(new VersionAdded(Movie, Version)), null));
-        Assert.NotNull(DiscordWebhook.Body("movieAdded", EventJson.Serialize(new MovieAdded(Movie, Version)), null));
+        Assert.Null(DiscordWebhook.Body("versionUpdated", EventJson.Serialize(new VersionUpdated(Movie, Version)), null));
+        Assert.NotNull(DiscordWebhook.Body("versionAdded", EventJson.Serialize(new VersionAdded(Movie, Version)), null));
     }
 
     [Fact]

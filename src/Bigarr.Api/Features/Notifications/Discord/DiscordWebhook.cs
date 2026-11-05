@@ -10,9 +10,10 @@ namespace Bigarr.Api.Features.Notifications.Discord;
 
 /// <summary>
 /// Bigarr events as Radarr's Discord connection posts them (<c>NzbDrone.Core/Notifications/Discord</c>): same embeds,
-/// colors and fields, chosen by the endpoint's <see cref="DiscordSettings"/>, plus the version the event is about and
-/// the failures Radarr keeps to itself, colored as Lidarr colors them. Built from the event's snapshot only, like the
-/// other formats. Every text is cut to Discord's limits: a long overview never gets a message refused.
+/// colors and fields, chosen by the endpoint's <see cref="DiscordSettings"/>, plus the version the event is about, the
+/// failures Radarr keeps to itself (colored as Lidarr colors them) and the versions added, removed or made the
+/// default, which Radarr cannot have. Built from the event's snapshot only, like the other formats. Every text is cut
+/// to Discord's limits: a long overview never gets a message refused.
 /// </summary>
 public static class DiscordWebhook
 {
@@ -80,6 +81,13 @@ public static class DiscordWebhook
 
             // Radarr's rename embed: no author, no color, the paths relative to the film's folder.
             FileRenamed e => new DiscordEmbed(Title(e.Movie), $"{Relative(e.Version, e.PreviousPath)} renamed to {e.File.RelativePath ?? Relative(e.Version, e.File.Path)}", null, null, null, null, null, null, null),
+
+            // Bigarr's own: Radarr has one version per film.
+            VersionAdded e => VersionChange(s, e.Movie, e.Version, "Version Added", DiscordColor.Success, at),
+            VersionDeleted e => VersionChange(s, e.Movie, e.Version, e.DeletedFiles ? "Version removed and its files were deleted" : "Version removed, files were not deleted", DiscordColor.Danger, at),
+            DefaultVersionChanged e => Embed(s, e.Movie, null, "Default Version Changed", DiscordColor.Standard, at, Poster(s, e.Movie), null, Fields(
+                ("Default Version", e.NewDefault.Name, true),
+                ("Previous Default", e.PreviousDefault?.Name, true))),
             HealthIssueRaised e => Embed(s, null, e.Source, e.Message, e.IssueType == HealthIssueType.Error ? DiscordColor.Danger : DiscordColor.Warning, at, null, null, null),
             HealthIssueResolved e => Embed(s, null, $"Health Issue Resolved: {e.Source}", $"The following issue is now resolved: {e.Message}", DiscordColor.Success, at, null, null, null),
             ImportFailed e => ImportFailure(s, e, at),
@@ -283,6 +291,18 @@ public static class DiscordWebhook
             Image(movie, ImageType.Fanart, chosen.Contains(DiscordImportField.Fanart)),
             Fields(("Links", Links(movie), false)));
     }
+
+    /// <summary>A version added to or removed from a film: which one, its profile and tags, the size it took on disk.</summary>
+    private static DiscordEmbed VersionChange(DiscordSettings s, MovieRef movie, VersionRef version, string description, DiscordColor color, string at) =>
+        Embed(s, movie, null, description, color, at, Poster(s, movie), null, Fields(
+            ("Version", version.Name, true),
+            ("Quality Profile", version.QualityProfile, true),
+            ("Size", version.SizeOnDisk is long size and > 0 ? Bytes(size) : null, true),
+            ("Tags", Tags(version), false)));
+
+    /// <summary>The poster as a thumbnail, when the import fields have it, as for an added film.</summary>
+    private static DiscordImage? Poster(DiscordSettings s, MovieRef movie) =>
+        Image(movie, ImageType.Poster, (s.ImportFields ?? DiscordSettings.DefaultImportFields).Contains(DiscordImportField.Poster));
 
     /// <param name="title">The title when the event is about no film: a release, a health check.</param>
     private static DiscordEmbed Embed(DiscordSettings s, MovieRef? movie, string? title, string description, DiscordColor color, string at, DiscordImage? thumbnail, DiscordImage? image, List<DiscordField>? fields) => new(
