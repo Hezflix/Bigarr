@@ -5,7 +5,7 @@ namespace Bigarr.Api.Features.Search;
 
 public sealed record RejectionResponse(string Reason, bool Temporary);
 
-/// <summary>The verdict of one version on one release. A release matched to the film has one per version searched.</summary>
+/// <summary>The verdict of one version on one release. A release whose title parses has one per version searched.</summary>
 public sealed record VersionDecisionResponse(int VersionId, string VersionName, bool Approved, List<RejectionResponse> Rejections, int CustomFormatScore = 0);
 
 public sealed record ReleaseResponse(
@@ -36,11 +36,17 @@ public sealed record ReleaseResponse(
     List<string> CustomFormats,
     string? ParsedTitle,
     int? ParsedYear,
-    /// <summary>False when the release is not this film at all; then <see cref="Versions"/> is empty.</summary>
+    /// <summary>False when the release does not look like this film; it is still judged by every version and can be grabbed by hand.</summary>
     bool MatchesMovie,
     /// <summary>Why the release is not the film, when it is not.</summary>
     List<RejectionResponse> Rejections,
-    List<VersionDecisionResponse> Versions);
+    /// <summary>One verdict per version; empty only when the title does not parse.</summary>
+    List<VersionDecisionResponse> Versions,
+    /// <summary>
+    /// Where a grab goes unless the user picks another version: the version that accepts the release (the RSS
+    /// attribution rule), otherwise the one closest to accepting it, otherwise the default version.
+    /// </summary>
+    int? SuggestedVersionId = null);
 
 public sealed record IndexerErrorResponse(int IndexerId, string Indexer, IndexerFailureKind Kind, string Message);
 
@@ -49,4 +55,6 @@ public sealed record SearchResponse(
     DateTime SearchedAt,
     int IndexersQueried,
     List<ReleaseResponse> Releases,
-    List<IndexerErrorResponse> IndexerErrors);
+    List<IndexerErrorResponse> IndexerErrors,
+    /// <summary>The text the indexers were asked, when the user typed one; null when the film was searched by its ids and titles.</summary>
+    string? Query = null);
