@@ -2,6 +2,7 @@ using System.Net.ServerSentEvents;
 using Bigarr.Api.Infrastructure.Auth;
 using Bigarr.Api.Infrastructure.Events;
 using Bigarr.Domain.Events;
+using Bigarr.Domain.Notifications;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Bigarr.Api.Features.Notifications;
@@ -16,7 +17,9 @@ public static class NotificationsEndpoints
             TypedResults.Ok(await notifications.ListAsync(ct)));
 
         group.MapGet("/events", Ok<List<NotificationEventTypeResponse>> () =>
-            TypedResults.Ok(DomainEventCatalog.All.Select(e => new NotificationEventTypeResponse(e.Type, e.Description)).ToList()));
+            TypedResults.Ok(DomainEventCatalog.All
+                .Select(e => new NotificationEventTypeResponse(e.Type, e.Description, WebhookRouting.RadarrEventType(e.Type), WebhookRouting.IgnoresTags(e.Type)))
+                .ToList()));
 
         group.MapGet("/{id:int}", async Task<Results<Ok<NotificationEndpointResponse>, NotFound>> (int id, NotificationService notifications, CancellationToken ct) =>
         {

@@ -602,7 +602,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
         }
 
         db.History.Add(FileDeletedEvent(movie, version, path, recycled, time.GetUtcNow().UtcDateTime));
-        outbox.Publish(new FileDeleted(MovieRef.From(movie), VersionRef.From(version), new FileRef(version.File!.Id, path, version.File.Quality?.Name, version.File.Size), recycled is null ? "deleted" : "recycled"));
+        outbox.Publish(new FileDeleted(MovieRef.From(movie), VersionRef.From(version), FileRef.From(version.File!, path) with { RecycleBinPath = recycled }, recycled is null ? "deleted" : "recycled"));
         return null;
     }
 

@@ -24,6 +24,8 @@
   <ItemGroup>
     <!-- TRaSH guide custom formats, imported unchanged: the acceptance corpus of the decision engine (see Decision/Trash/NOTICE.md). -->
     <EmbeddedResource Include="Decision\Trash\*.json" LogicalName="Trash.%(Filename).json" />
+    <!-- Radarr's webhook bodies, written by Radarr's own payload classes and serializer settings (see Notifications/RadarrSamples/README.md). -->
+    <EmbeddedResource Include="Notifications\RadarrSamples\*.json" LogicalName="RadarrWebhook.%(Filename).json" />
   </ItemGroup>
 
 </Project>

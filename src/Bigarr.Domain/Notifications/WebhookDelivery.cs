@@ -30,6 +30,12 @@ public sealed class WebhookDelivery
     /// <summary>Snapshot of the event type, for lists and filters without a join.</summary>
     public required string EventType { get; set; }
 
+    /// <summary>
+    /// For a Radarr-format delivery about a film: the version that is the Radarr movie of the payload. A film deleted
+    /// under the <c>all</c> view makes one delivery per version. No foreign key: the version may be gone already.
+    /// </summary>
+    public int? VersionId { get; set; }
+
     public int Attempts { get; set; }
 
     /// <summary>Null once delivered or given up.</summary>

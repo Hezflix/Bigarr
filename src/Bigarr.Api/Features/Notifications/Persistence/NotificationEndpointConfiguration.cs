@@ -1,4 +1,5 @@
 using Bigarr.Api.Infrastructure.Persistence;
+using Bigarr.Domain.Auth;
 using Bigarr.Domain.Notifications;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -14,7 +15,21 @@ public sealed class NotificationEndpointConfiguration : IEntityTypeConfiguration
         builder.Property(e => e.Url).HasMaxLength(2048);
         builder.Property(e => e.Secret).HasMaxLength(512);
         builder.Property(e => e.Events).HasJsonConversion();
+        builder.Property(e => e.View)
+            .HasConversion(v => v.ToString(), s => CompatView.Parse(s))
+            .HasMaxLength(80);
         builder.HasIndex(e => e.Name).IsUnique();
+
+        builder.HasMany(e => e.Tags)
+            .WithMany()
+            .UsingEntity<NotificationEndpointTag>(
+                right => right.HasOne(t => t.Tag).WithMany().HasForeignKey(t => t.TagId).OnDelete(DeleteBehavior.Cascade),
+                left => left.HasOne(t => t.Endpoint).WithMany().HasForeignKey(t => t.EndpointId).OnDelete(DeleteBehavior.Cascade),
+                join =>
+                {
+                    join.ToTable("NotificationEndpointTags");
+                    join.HasKey(t => new { t.EndpointId, t.TagId });
+                });
     }
 }
 

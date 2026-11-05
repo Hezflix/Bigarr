@@ -1,25 +1,36 @@
+using Bigarr.Api.Features.Notifications.Radarr;
+using Bigarr.Api.Features.Tags;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Events;
 using Bigarr.Api.Infrastructure.Persistence;
+using Bigarr.Domain.Auth;
 using Bigarr.Domain.Events;
 using Bigarr.Domain.Notifications;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Bigarr.Api.Features.Notifications;
 
 /// <summary>Outgoing webhooks: the endpoints, what they subscribe to, and how their deliveries are doing.</summary>
-public sealed class NotificationService(BigarrDbContext db, WebhookClient webhooks, WebhookSignal signal, TimeProvider time, ILogger<NotificationService> logger)
+public sealed class NotificationService(
+    BigarrDbContext db,
+    TagService tags,
+    WebhookClient webhooks,
+    WebhookSignal signal,
+    IOptions<NotificationsOptions> options,
+    TimeProvider time,
+    ILogger<NotificationService> logger)
 {
     public async Task<List<NotificationEndpointResponse>> ListAsync(CancellationToken ct)
     {
-        var endpoints = await db.NotificationEndpoints.AsNoTracking().OrderBy(e => e.Name).ToListAsync(ct);
+        var endpoints = await db.NotificationEndpoints.AsNoTracking().Include(e => e.Tags).OrderBy(e => e.Name).ToListAsync(ct);
         var stats = await StatsAsync(endpoints.Select(e => e.Id).ToList(), ct);
         return endpoints.Select(e => ToResponse(e, stats.GetValueOrDefault(e.Id))).ToList();
     }
 
     public async Task<NotificationEndpointResponse?> GetAsync(int id, CancellationToken ct)
     {
-        var endpoint = await db.NotificationEndpoints.AsNoTracking().FirstOrDefaultAsync(e => e.Id == id, ct);
+        var endpoint = await db.NotificationEndpoints.AsNoTracking().Include(e => e.Tags).FirstOrDefaultAsync(e => e.Id == id, ct);
         if (endpoint is null)
         {
             return null;
@@ -41,7 +52,13 @@ public sealed class NotificationService(BigarrDbContext db, WebhookClient webhoo
             return Failure.Conflict("Name already used", $"A notification named '{request.Name.Trim()}' already exists.");
         }
 
-        var endpoint = new NotificationEndpoint { Name = request.Name.Trim(), Url = request.Url.Trim(), CreatedAt = time.GetUtcNow().UtcDateTime };
+        var resolved = await tags.ResolveAsync(request.Tags ?? [], ct);
+        if (!resolved.IsSuccess)
+        {
+            return resolved.Failure!;
+        }
+
+        var endpoint = new NotificationEndpoint { Name = request.Name.Trim(), Url = request.Url.Trim(), CreatedAt = time.GetUtcNow().UtcDateTime, Tags = resolved.Value! };
         Apply(endpoint, request);
         db.NotificationEndpoints.Add(endpoint);
         await db.SaveChangesAsync(ct);
@@ -56,7 +73,7 @@ public sealed class NotificationService(BigarrDbContext db, WebhookClient webhoo
             return invalid;
         }
 
-        var endpoint = await db.NotificationEndpoints.FirstOrDefaultAsync(e => e.Id == id, ct);
+        var endpoint = await db.NotificationEndpoints.Include(e => e.Tags).FirstOrDefaultAsync(e => e.Id == id, ct);
         if (endpoint is null)
         {
             return Failure.NotFound("Notification");
@@ -67,7 +84,19 @@ public sealed class NotificationService(BigarrDbContext db, WebhookClient webhoo
             return Failure.Conflict("Name already used", $"A notification named '{request.Name.Trim()}' already exists.");
         }
 
+        var resolved = await tags.ResolveAsync(request.Tags ?? [], ct);
+        if (!resolved.IsSuccess)
+        {
+            return resolved.Failure!;
+        }
+
         Apply(endpoint, request);
+        endpoint.Tags.Clear();
+        foreach (var tag in resolved.Value!)
+        {
+            endpoint.Tags.Add(tag);
+        }
+
         await db.SaveChangesAsync(ct);
         if (endpoint.Enabled)
         {
@@ -109,9 +138,11 @@ public sealed class NotificationService(BigarrDbContext db, WebhookClient webhoo
             endpoint = saved;
         }
 
+        // Radarr's own test payload for a Radarr-format endpoint: what a tool written for Radarr expects to see.
         var now = time.GetUtcNow().UtcDateTime;
-        var payload = EventJson.Serialize(new TestEvent($"Bigarr can reach {endpoint.Name}.") { OccurredAt = now });
-        var result = await webhooks.PostAsync(endpoint, "test", 0, payload, now, "test", ct);
+        var result = endpoint.Format == WebhookFormat.Radarr
+            ? await webhooks.SendAsync(endpoint, "test", RadarrWebhook.Serialize(RadarrWebhook.Test(options.Value.ApplicationUrl ?? string.Empty)), "test", ct)
+            : await webhooks.PostAsync(endpoint, "test", 0, EventJson.Serialize(new TestEvent($"Bigarr can reach {endpoint.Name}.") { OccurredAt = now }), now, "test", ct);
         if (!result.Success)
         {
             return new Failure(StatusCodes.Status502BadGateway, "The endpoint did not accept the test event", result.Error);
@@ -177,6 +208,22 @@ public sealed class NotificationService(BigarrDbContext db, WebhookClient webhoo
             return Failure.Invalid("Unknown event type", $"Unknown event type(s): {string.Join(", ", unknown)}.");
         }
 
+        if (!Enum.IsDefined(request.Format))
+        {
+            return Failure.Invalid("Unknown format", "The format must be bigarr or radarr.");
+        }
+
+        if (!CompatView.TryParse(request.View, out _))
+        {
+            return Failure.Invalid("Invalid view", "The view must be 'default', 'all' or 'version:<name>' (a lowercase slug).");
+        }
+
+        var unsent = request.Format == WebhookFormat.Radarr ? (request.Events ?? []).Where(e => WebhookRouting.RadarrEventType(e) is null).ToList() : [];
+        if (unsent.Count > 0)
+        {
+            return Failure.Invalid("Not sent in Radarr's format", $"Radarr's webhook has no counterpart for: {string.Join(", ", unsent)}.");
+        }
+
         return null;
     }
 
@@ -187,6 +234,8 @@ public sealed class NotificationService(BigarrDbContext db, WebhookClient webhoo
         endpoint.Secret = string.IsNullOrWhiteSpace(request.Secret) ? null : request.Secret;
         endpoint.Enabled = request.Enabled;
         endpoint.Events = (request.Events ?? []).Distinct(StringComparer.Ordinal).OrderBy(e => e, StringComparer.Ordinal).ToList();
+        endpoint.Format = request.Format;
+        endpoint.View = CompatView.Parse(string.IsNullOrWhiteSpace(request.View) ? "default" : request.View);
     }
 
     private async Task<Dictionary<int, DeliveryStats>> StatsAsync(List<int> endpointIds, CancellationToken ct)
@@ -235,6 +284,9 @@ public sealed class NotificationService(BigarrDbContext db, WebhookClient webhoo
         !string.IsNullOrEmpty(endpoint.Secret),
         endpoint.Enabled,
         endpoint.Events,
+        endpoint.Tags.Select(t => t.Id).Order().ToList(),
+        endpoint.Format,
+        endpoint.View.ToString(),
         stats?.Pending ?? 0,
         stats?.Failed ?? 0,
         stats?.LastDeliveredAt,

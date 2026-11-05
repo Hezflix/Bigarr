@@ -1,3 +1,6 @@
+using Bigarr.Domain.Auth;
+using Bigarr.Domain.Tags;
+
 namespace Bigarr.Domain.Notifications;
 
 /// <summary>An outgoing webhook (blueprint §3.7): where events go, signed with the secret when there is one.</summary>
@@ -17,7 +20,25 @@ public sealed class NotificationEndpoint
     /// <summary>Event types subscribed (<see cref="Events.DomainEvent.Type"/>). Empty means every event.</summary>
     public List<string> Events { get; set; } = [];
 
+    /// <summary>
+    /// Only films whose versions carry one of these tags, like a Radarr connection's tags. Empty means every film.
+    /// Events about no film (health, test) ignore them.
+    /// </summary>
+    public ICollection<Tag> Tags { get; set; } = [];
+
+    public WebhookFormat Format { get; set; } = WebhookFormat.Bigarr;
+
+    /// <summary>For the Radarr format: which versions are Radarr movies, exactly like an API key's view (§3.8).</summary>
+    public CompatView View { get; set; } = CompatView.Default;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public bool Subscribes(string eventType) => Events.Count == 0 || Events.Contains(eventType, StringComparer.Ordinal);
+
+    /// <summary>True when the endpoint has no tag or shares one with <paramref name="tagIds"/>.</summary>
+    public bool Matches(IEnumerable<int> tagIds)
+    {
+        ArgumentNullException.ThrowIfNull(tagIds);
+        return Tags.Count == 0 || tagIds.Any(id => Tags.Any(t => t.Id == id));
+    }
 }

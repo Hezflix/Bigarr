@@ -23,6 +23,9 @@ public sealed class NotificationsOptions
     /// <summary>Dispatched events (and their deliveries) older than this are purged by the maintenance job.</summary>
     public int RetentionDays { get; set; } = 14;
 
+    /// <summary>The <c>applicationUrl</c> of Radarr-format payloads (Radarr's Settings → General → Application URL); empty like Radarr's default.</summary>
+    public string? ApplicationUrl { get; set; } = string.Empty;
+
     public TimeSpan RetryDelay(int attempts)
     {
         var delays = RetryDelaysMinutes is { Length: > 0 } ? RetryDelaysMinutes : DefaultRetryDelaysMinutes;

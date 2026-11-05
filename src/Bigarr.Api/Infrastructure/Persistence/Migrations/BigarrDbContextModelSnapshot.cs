@@ -932,6 +932,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Format")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(128)
@@ -946,12 +949,32 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(2048)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("View")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
                         .IsUnique();
 
                     b.ToTable("NotificationEndpoints", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Notifications.NotificationEndpointTag", b =>
+                {
+                    b.Property<int>("EndpointId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TagId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("EndpointId", "TagId");
+
+                    b.HasIndex("TagId");
+
+                    b.ToTable("NotificationEndpointTags", (string)null);
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Notifications.WebhookDelivery", b =>
@@ -992,6 +1015,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime?>("NextAttemptAt")
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("VersionId")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -1467,6 +1493,25 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Tag");
 
                     b.Navigation("Version");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Notifications.NotificationEndpointTag", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Notifications.NotificationEndpoint", "Endpoint")
+                        .WithMany()
+                        .HasForeignKey("EndpointId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Bigarr.Domain.Tags.Tag", "Tag")
+                        .WithMany()
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Endpoint");
+
+                    b.Navigation("Tag");
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Notifications.WebhookDelivery", b =>

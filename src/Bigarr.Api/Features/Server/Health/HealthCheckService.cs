@@ -190,7 +190,7 @@ public sealed class HealthCheckJob(HealthCheckService checks, HealthState state,
 
         foreach (var issue in resolved.Where(i => i.Type != HealthIssueType.Notice))
         {
-            outbox.Publish(new HealthIssueResolved(issue.Source, issue.Message) { OccurredAt = now });
+            outbox.Publish(new HealthIssueResolved(issue.Source, issue.Message, issue.Type) { OccurredAt = now });
         }
 
         if (db.ChangeTracker.HasChanges())

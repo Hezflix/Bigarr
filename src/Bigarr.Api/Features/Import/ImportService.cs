@@ -489,17 +489,25 @@ public sealed class ImportService(
         // Two saves in one transaction: the event carries the new file's id.
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await db.SaveChangesAsync(ct);
-        var releaseRef = plan.Grab is null ? null : new ReleaseRef(plan.ReleaseTitle, plan.Quality.Quality.Name, plan.Grab.IndexerName, plan.Grab.Size, releaseGroup, null, plan.Grab.InfoHash);
-        var fileRef = new FileRef(file.Id, destination, data["quality"], source.Length, matched.Select(m => m.Name).ToList(), ProfileRanking.FormatScore(version.QualityProfile, matched.Select(m => m.Id)));
+        var releaseRef = plan.Grab is null ? null : new ReleaseRef(plan.ReleaseTitle, plan.Quality.Quality.Name, plan.Grab.IndexerName, plan.Grab.Size, releaseGroup, null, plan.Grab.InfoHash, revision.Version, languages, plan.Flags);
+        var fileRef = FileRef.From(file, destination) with
+        {
+            Quality = data["quality"],
+            CustomFormats = matched.Select(m => m.Name).ToList(),
+            CustomFormatIds = matched.Select(m => m.Id).ToList(),
+            CustomFormatScore = ProfileRanking.FormatScore(version.QualityProfile, matched.Select(m => m.Id)),
+            SourcePath = source.FullName,
+        };
         var transferName = data["transfer"];
+        var clientType = await EventSnapshots.DownloadClientTypeAsync(db, plan.Grab?.DownloadClientId, ct);
         if (existing is null)
         {
-            outbox.Publish(new FileImported(MovieRef.From(movie), VersionRef.From(version), fileRef, releaseRef, plan.Grab?.Id, plan.Force, transferName) { OccurredAt = now });
+            outbox.Publish(new FileImported(MovieRef.From(movie), VersionRef.From(version), fileRef, releaseRef, plan.Grab?.Id, plan.Force, transferName, plan.Grab?.DownloadClientName, clientType, plan.Grab?.DownloadId) { OccurredAt = now });
         }
         else
         {
-            var previous = new FileRef(existing.Id, existingPath ?? string.Empty, data["previousQuality"], existing.Size);
-            outbox.Publish(new FileUpgraded(MovieRef.From(movie), VersionRef.From(version), fileRef, previous, releaseRef, plan.Grab?.Id, plan.Force, transferName) { OccurredAt = now });
+            var previous = FileRef.From(existing, existingPath ?? string.Empty) with { Quality = data["previousQuality"], RecycleBinPath = recycled };
+            outbox.Publish(new FileUpgraded(MovieRef.From(movie), VersionRef.From(version), fileRef, previous, releaseRef, plan.Grab?.Id, plan.Force, transferName, plan.Grab?.DownloadClientName, clientType, plan.Grab?.DownloadId) { OccurredAt = now });
         }
 
         await db.SaveChangesAsync(ct);
@@ -509,7 +517,12 @@ public sealed class ImportService(
 
     private async Task FailAsync(Grab grab, string reason, CancellationToken ct)
     {
-        var version = grab.Targets.Count == 0 ? null : await db.MovieVersions.AsNoTracking().Include(v => v.Movie).FirstOrDefaultAsync(v => v.Id == grab.Targets.First().TargetId, ct);
+        var version = grab.Targets.Count == 0 ? null : await db.MovieVersions.AsNoTracking()
+            .Include(v => v.Movie)
+            .Include(v => v.QualityProfile).ThenInclude(p => p.FormatScores)
+            .Include(v => v.RootFolder)
+            .Include(v => v.Tags)
+            .FirstOrDefaultAsync(v => v.Id == grab.Targets.First().TargetId, ct);
         grab.StatusMessages.RemoveAll(m => m.Title == FailedMessageTitle);
         grab.StatusMessages.Add(new StatusMessage { Title = FailedMessageTitle, Messages = [reason], Severity = StatusSeverity.Error });
         if (!grab.State.IsTerminal())
@@ -534,9 +547,12 @@ public sealed class ImportService(
         outbox.Publish(new ImportFailed(
             version is null ? null : MovieRef.From(version.Movie),
             version is null ? null : VersionRef.From(version),
-            new ReleaseRef(grab.ReleaseTitle, Downloads.GrabService.QualityOf(grab.ReleaseTitle), grab.IndexerName, grab.Size, null, null, grab.InfoHash),
+            EventSnapshots.Release(grab.ReleaseTitle, grab.IndexerName, grab.Size, grab.IndexerFlags, version?.Movie, version?.QualityProfile, await scorer.CalculatorAsync(ct), null, grab.InfoHash),
             grab.Id,
-            reason));
+            reason,
+            grab.DownloadClientName,
+            await EventSnapshots.DownloadClientTypeAsync(db, grab.DownloadClientId, ct),
+            grab.DownloadId));
         await db.SaveChangesAsync(ct);
         logger.LogWarning("Import of {Title} failed: {Reason}", grab.ReleaseTitle, reason);
     }
@@ -576,6 +592,7 @@ public sealed class ImportService(
             .Include(v => v.RootFolder)
             .Include(v => v.File!).ThenInclude(f => f.Quality)
             .Include(v => v.File!).ThenInclude(f => f.Extras)
+            .Include(v => v.Tags)
             .AsSplitQuery()
             .FirstOrDefaultAsync(v => v.Id == versionId, ct);
 

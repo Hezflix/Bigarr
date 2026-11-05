@@ -1099,7 +1099,18 @@ export const blocklist = {
   bulkDelete: (ids: number[]) => post<number>('/api/v1/blocklist/bulk-delete', { ids }),
 }
 
+// ---- tags ------------------------------------------------------------------
+
+export type Tag = { id: number; label: string }
+
+export const tags = {
+  list: () => api<Tag[]>('/api/v1/tags'),
+}
+
 // ---- notifications ---------------------------------------------------------
+
+/** `bigarr`: Bigarr's own body for every event. `radarr`: Radarr's webhook payloads, for tools written for Radarr. */
+export type WebhookFormat = 'bigarr' | 'radarr'
 
 export type NotificationEndpointRequest = {
   name: string
@@ -1108,6 +1119,11 @@ export type NotificationEndpointRequest = {
   enabled?: boolean
   /** Event types to send; empty means every event. */
   events?: string[]
+  /** Tag ids: only films whose versions carry one of them. Empty means every film. */
+  tags?: number[]
+  format?: WebhookFormat
+  /** Radarr format only: `default`, `all` or `version:<name>`, like an API key's view. */
+  view?: string
 }
 
 export type NotificationEndpoint = {
@@ -1117,6 +1133,9 @@ export type NotificationEndpoint = {
   hasSecret: boolean
   enabled: boolean
   events: string[]
+  tags: number[]
+  format: WebhookFormat
+  view: string
   pendingDeliveries: number
   failedDeliveries: number
   lastDeliveredAt: string | null
@@ -1124,7 +1143,14 @@ export type NotificationEndpoint = {
   createdAt: string
 }
 
-export type NotificationEventType = { type: string; description: string }
+export type NotificationEventType = {
+  type: string
+  description: string
+  /** What the Radarr format sends it as; null when that format does not send it. */
+  radarrEventType: string | null
+  /** About no film (health, test): sent whatever the tags. */
+  ignoresTags: boolean
+}
 
 export type WebhookTestResult = { statusCode: number | null; elapsedMs: number }
 

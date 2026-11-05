@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Movies;
 
 namespace Bigarr.Domain.Events;
@@ -17,29 +18,153 @@ public abstract record DomainEvent
     public string Type => DomainEventCatalog.NameOf(GetType());
 }
 
-public sealed record MovieRef(int Id, int TmdbId, string? ImdbId, string Title, int? Year)
+/// <param name="Images">Poster and fanart as TMDB serves them.</param>
+/// <param name="OriginalLanguage">ISO 639-1 code as TMDB gives it (<c>en</c>).</param>
+public sealed record MovieRef(
+    int Id,
+    int TmdbId,
+    string? ImdbId,
+    string Title,
+    int? Year,
+    string? Overview = null,
+    List<string>? Genres = null,
+    List<ImageRef>? Images = null,
+    DateOnly? InCinemas = null,
+    DateOnly? PhysicalRelease = null,
+    DateOnly? DigitalRelease = null,
+    string? OriginalLanguage = null)
 {
     public static MovieRef From(Movie movie)
     {
         ArgumentNullException.ThrowIfNull(movie);
-        return new MovieRef(movie.Id, movie.TmdbId, movie.ImdbId, movie.Title, movie.Year);
+        return new MovieRef(
+            movie.Id,
+            movie.TmdbId,
+            movie.ImdbId,
+            movie.Title,
+            movie.Year,
+            movie.Overview,
+            movie.Genres.Count == 0 ? null : [.. movie.Genres],
+            movie.Images.Count == 0 ? null : movie.Images.Select(i => new ImageRef(i.Type, i.RemoteUrl)).ToList(),
+            movie.InCinemasDate,
+            movie.PhysicalReleaseDate,
+            movie.DigitalReleaseDate,
+            movie.OriginalLanguage);
     }
 }
 
+public sealed record ImageRef(ImageType CoverType, string RemoteUrl);
+
+public sealed record TagRef(int Id, string Label);
+
 /// <param name="Folder">The version's folder on disk, when the root folder was loaded with it.</param>
-public sealed record VersionRef(int Id, string Name, VersionMode Mode, bool IsDefault, bool Monitored, string? QualityProfile, string? Folder = null)
+/// <param name="Tags">
+/// The version's tags, when they were loaded with it. Webhook routing uses them, and reads the current tags of a
+/// version whose snapshot has none in case they were simply not loaded.
+/// </param>
+/// <param name="FilePath">The version's file at that moment, when the file and the root folder were loaded with it.</param>
+/// <param name="SizeOnDisk">The size of that file.</param>
+public sealed record VersionRef(
+    int Id,
+    string Name,
+    VersionMode Mode,
+    bool IsDefault,
+    bool Monitored,
+    string? QualityProfile,
+    string? Folder = null,
+    List<TagRef>? Tags = null,
+    string? FilePath = null,
+    long? SizeOnDisk = null)
 {
     public static VersionRef From(MovieVersion version)
     {
         ArgumentNullException.ThrowIfNull(version);
         var folder = version.RootFolder is null ? null : Path.Combine(version.RootFolder.Path, version.FolderName);
-        return new VersionRef(version.Id, version.Name, version.Mode, version.IsDefault, version.Monitored, version.QualityProfile?.Name, folder);
+        var tags = version.Tags.Count == 0 ? null : version.Tags.OrderBy(t => t.Id).Select(t => new TagRef(t.Id, t.Label)).ToList();
+        var filePath = folder is null || version.File is null ? null : Path.Combine(folder, version.File.RelativePath);
+        return new VersionRef(version.Id, version.Name, version.Mode, version.IsDefault, version.Monitored, version.QualityProfile?.Name, folder, tags, filePath, version.File?.Size);
     }
 }
 
-public sealed record ReleaseRef(string Title, string? Quality, string? Indexer, long Size, string? ReleaseGroup = null, int? Seeders = null, string? InfoHash = null);
+/// <param name="QualityVersion">The quality's revision: 2 for a PROPER or a REPACK.</param>
+/// <param name="Languages">Language names as the parser reads them ("English", "French").</param>
+/// <param name="CustomFormats">The release's custom formats, judged against the version's profile; ids in <paramref name="CustomFormatIds"/>, same order.</param>
+public sealed record ReleaseRef(
+    string Title,
+    string? Quality,
+    string? Indexer,
+    long Size,
+    string? ReleaseGroup = null,
+    int? Seeders = null,
+    string? InfoHash = null,
+    int? QualityVersion = null,
+    List<string>? Languages = null,
+    IndexerFlags? IndexerFlags = null,
+    List<string>? CustomFormats = null,
+    List<int>? CustomFormatIds = null,
+    int? CustomFormatScore = null);
 
-public sealed record FileRef(int Id, string Path, string? Quality, long Size, List<string>? CustomFormats = null, int? CustomFormatScore = null);
+/// <param name="CustomFormatIds">Ids of <paramref name="CustomFormats"/>, same order.</param>
+/// <param name="SceneName">The release name the file came from.</param>
+/// <param name="SourcePath">On an import: where the file was taken from.</param>
+/// <param name="RecycleBinPath">On a replaced or deleted file: where the recycle bin keeps it.</param>
+public sealed record FileRef(
+    int Id,
+    string Path,
+    string? Quality,
+    long Size,
+    List<string>? CustomFormats = null,
+    int? CustomFormatScore = null,
+    string? RelativePath = null,
+    int? QualityVersion = null,
+    string? ReleaseGroup = null,
+    string? SceneName = null,
+    List<string>? Languages = null,
+    IndexerFlags? IndexerFlags = null,
+    MediaInfoRef? MediaInfo = null,
+    DateTime? DateAdded = null,
+    List<int>? CustomFormatIds = null,
+    string? SourcePath = null,
+    string? RecycleBinPath = null)
+{
+    /// <param name="path">The file's full path: the version's folder and its relative path.</param>
+    public static FileRef From(MediaFile file, string path)
+    {
+        ArgumentNullException.ThrowIfNull(file);
+        return new FileRef(
+            file.Id,
+            path,
+            file.Quality?.Name,
+            file.Size,
+            RelativePath: file.RelativePath,
+            QualityVersion: file.Revision.Version,
+            ReleaseGroup: file.ReleaseGroup,
+            SceneName: file.OriginalReleaseTitle,
+            Languages: [.. file.Languages],
+            IndexerFlags: file.IndexerFlags,
+            MediaInfo: file.MediaInfo is null ? null : MediaInfoRef.From(file.MediaInfo),
+            DateAdded: file.DateAdded);
+    }
+}
+
+/// <summary>What ffprobe found, the part Radarr's webhook sends.</summary>
+public sealed record MediaInfoRef(
+    double? AudioChannels,
+    string? AudioCodec,
+    List<string> AudioLanguages,
+    int? Width,
+    int? Height,
+    List<string> Subtitles,
+    string? VideoCodec,
+    string? VideoDynamicRange,
+    string? VideoDynamicRangeType)
+{
+    public static MediaInfoRef From(MediaInfo info)
+    {
+        ArgumentNullException.ThrowIfNull(info);
+        return new MediaInfoRef(info.AudioChannels, info.AudioCodec, [.. info.AudioLanguages], info.Width, info.Height, [.. info.Subtitles], info.VideoCodec, info.VideoDynamicRange, info.VideoDynamicRangeType);
+    }
+}
 
 public sealed record MovieAdded(MovieRef Movie, VersionRef Version) : DomainEvent;
 
@@ -53,15 +178,47 @@ public sealed record MovieDeleted(MovieRef Movie, bool DeletedFiles, List<Versio
 
 public sealed record VersionDeleted(MovieRef Movie, VersionRef Version, bool DeletedFiles) : DomainEvent;
 
-public sealed record ReleaseGrabbed(MovieRef Movie, VersionRef Version, ReleaseRef Release, int GrabId, string DownloadClient, string DownloadId, string? Trigger) : DomainEvent;
+/// <param name="DownloadClientType">The client's implementation: <c>QBittorrent</c>.</param>
+public sealed record ReleaseGrabbed(MovieRef Movie, VersionRef Version, ReleaseRef Release, int GrabId, string DownloadClient, string DownloadId, string? Trigger, string? DownloadClientType = null) : DomainEvent;
 
-public sealed record FileImported(MovieRef Movie, VersionRef Version, FileRef File, ReleaseRef? Release, int? GrabId, bool Manual, string Transfer) : DomainEvent;
+/// <param name="DownloadClient">Name of the client the file was downloaded with; null for a file imported from a folder.</param>
+public sealed record FileImported(
+    MovieRef Movie,
+    VersionRef Version,
+    FileRef File,
+    ReleaseRef? Release,
+    int? GrabId,
+    bool Manual,
+    string Transfer,
+    string? DownloadClient = null,
+    string? DownloadClientType = null,
+    string? DownloadId = null) : DomainEvent;
 
-public sealed record FileUpgraded(MovieRef Movie, VersionRef Version, FileRef File, FileRef PreviousFile, ReleaseRef? Release, int? GrabId, bool Manual, string Transfer) : DomainEvent;
+/// <param name="PreviousFile">The replaced file, with the recycle bin path when it went there.</param>
+public sealed record FileUpgraded(
+    MovieRef Movie,
+    VersionRef Version,
+    FileRef File,
+    FileRef PreviousFile,
+    ReleaseRef? Release,
+    int? GrabId,
+    bool Manual,
+    string Transfer,
+    string? DownloadClient = null,
+    string? DownloadClientType = null,
+    string? DownloadId = null) : DomainEvent;
 
 public sealed record DownloadFailed(MovieRef? Movie, VersionRef? Version, ReleaseRef Release, int GrabId, string Reason, bool Blocklisted, bool SearchRequested) : DomainEvent;
 
-public sealed record ImportFailed(MovieRef? Movie, VersionRef? Version, ReleaseRef Release, int GrabId, string Reason) : DomainEvent;
+public sealed record ImportFailed(
+    MovieRef? Movie,
+    VersionRef? Version,
+    ReleaseRef Release,
+    int GrabId,
+    string Reason,
+    string? DownloadClient = null,
+    string? DownloadClientType = null,
+    string? DownloadId = null) : DomainEvent;
 
 public sealed record FileDeleted(MovieRef Movie, VersionRef Version, FileRef File, string Reason) : DomainEvent;
 
@@ -79,7 +236,8 @@ public enum HealthIssueType
 
 public sealed record HealthIssueRaised(string Source, HealthIssueType IssueType, string Message) : DomainEvent;
 
-public sealed record HealthIssueResolved(string Source, string Message) : DomainEvent;
+/// <param name="IssueType">The level the issue had; Radarr's HealthRestored webhook carries it.</param>
+public sealed record HealthIssueResolved(string Source, string Message, HealthIssueType? IssueType = null) : DomainEvent;
 
 /// <summary>Sent by the "test" button of a notification endpoint.</summary>
 public sealed record TestEvent(string Message) : DomainEvent;
