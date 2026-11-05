@@ -39,7 +39,16 @@ const appRoute = createRoute({
 })
 
 // Each page is its own chunk, fetched on first visit: the shell and the login page load without the rest.
-const libraryRoute = createRoute({ getParentRoute: () => appRoute, path: '/', component: lazyRouteComponent(() => import('./features/library/LibraryPage'), 'LibraryPage') })
+const libraryRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/',
+  // `?view=table&preset=missing-4k`: a layout and a saved view to open on (applied once, then dropped from the URL).
+  validateSearch: (search: Record<string, unknown>): { view?: string; preset?: string } => ({
+    view: typeof search.view === 'string' ? search.view : undefined,
+    preset: typeof search.preset === 'string' ? search.preset : undefined,
+  }),
+  component: lazyRouteComponent(() => import('./features/library/LibraryPage'), 'LibraryPage'),
+})
 const addRoute = createRoute({ getParentRoute: () => appRoute, path: '/add', component: lazyRouteComponent(() => import('./features/movies/AddMoviePage'), 'AddMoviePage') })
 const movieRoute = createRoute({ getParentRoute: () => appRoute, path: '/movies/$movieId', component: lazyRouteComponent(() => import('./features/movies/MovieDetailPage'), 'MovieDetailPage') })
 const queueRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/queue', component: lazyRouteComponent(() => import('./features/activity/QueuePage'), 'QueuePage') })

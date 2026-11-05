@@ -11,6 +11,9 @@ export const statusStyles: Record<VersionStatus, string> = {
   pending: 'border-border bg-muted text-muted-foreground',
 }
 
+/** A file below its profile cutoff: present, but an upgrade is still wanted. */
+export const cutoffUnmetStyle = 'border-violet-600/30 bg-violet-500/15 text-violet-700 dark:border-violet-400/30 dark:text-violet-300'
+
 export function StatusBadge({ status, className }: { status: VersionStatus; className?: string }) {
   const { t } = useTranslation()
   return (

@@ -63,7 +63,232 @@
     "empty": "No movies yet.",
     "emptyHint": "<add>Add a movie</add> or <scan>scan an existing library</scan>.",
     "loadError": "The library could not be loaded.",
-    "noFile": "no file"
+    "noFile": "no file",
+    "countShown": "{{shown}} of {{count}} movies",
+    "noMatch": "No movie matches this view.",
+    "clearFilters": "Clear filters",
+    "searchPlaceholder": "Filter by title or year…",
+    "select": "Select",
+    "cutoffUnmet": "cutoff unmet",
+    "unmonitored": "unmonitored",
+    "modes": {
+      "posters": "Posters",
+      "table": "Table",
+      "matrix": "Versions"
+    },
+    "sort": {
+      "label": "Sort by",
+      "title": "Title",
+      "year": "Year",
+      "added": "Date added",
+      "size": "Size",
+      "quality": "Quality",
+      "rating": "Rating",
+      "asc": "Ascending",
+      "desc": "Descending"
+    },
+    "filter": {
+      "label": "Filter",
+      "scope": "Applies to",
+      "scopeHint": "Which version monitoring, status, quality, tags and root folder look at.",
+      "scopes": {
+        "any": "Any version",
+        "all": "Every version",
+        "default": "Default version"
+      },
+      "monitored": "Monitoring",
+      "monitoredValues": {
+        "any": "Any",
+        "monitored": "Monitored",
+        "unmonitored": "Unmonitored"
+      },
+      "status": "Status",
+      "statuses": {
+        "any": "Any",
+        "missing": "Missing",
+        "downloading": "Downloading",
+        "pending": "Not available yet",
+        "available": "Has a file",
+        "cutoffUnmet": "Cutoff unmet",
+        "noFile": "No file"
+      },
+      "quality": "Quality",
+      "tags": "Tags",
+      "rootFolder": "Root folder",
+      "hasVersion": "Has version",
+      "lacksVersion": "Lacks version",
+      "added": "Added",
+      "addedAny": "Any time",
+      "addedDays_one": "Last {{count}} day",
+      "addedDays_other": "Last {{count}} days",
+      "nothing": "Nothing to pick."
+    },
+    "view": {
+      "label": "View",
+      "mode": "Layout",
+      "posterSize": "Poster size",
+      "sizes": {
+        "small": "Small",
+        "medium": "Medium",
+        "large": "Large"
+      },
+      "cardFields": "Poster shows",
+      "fields": {
+        "title": "Title",
+        "year": "Year",
+        "versions": "Versions",
+        "quality": "Quality",
+        "size": "Size on disk",
+        "rating": "Rating"
+      },
+      "columns": "Table columns",
+      "density": "Density",
+      "densities": {
+        "compact": "Compact",
+        "comfortable": "Comfortable"
+      }
+    },
+    "columns": {
+      "title": "Title",
+      "year": "Year",
+      "versions": "Versions",
+      "status": "Status",
+      "quality": "Quality",
+      "profile": "Profile",
+      "availability": "Availability",
+      "size": "Size",
+      "added": "Added",
+      "rating": "Rating",
+      "tags": "Tags",
+      "rootFolder": "Root folder"
+    },
+    "presets": {
+      "all": "All",
+      "missing": "Missing",
+      "missingVersion": "Missing {{name}}",
+      "cutoffUnmet": "Cutoff unmet",
+      "recent": "Recently added",
+      "unmonitored": "Unmonitored"
+    },
+    "savedViews": {
+      "label": "Views",
+      "save": "Save view",
+      "saveTitle": "Save this view",
+      "saveHint": "Keeps the filters, the sort and the layout under a name, for you on this browser.",
+      "name": "Name",
+      "delete": "Delete the view {{name}}"
+    },
+    "matrix": {
+      "count": "{{count}} / {{total}}",
+      "selectWith": "Select the {{count}} with {{name}}",
+      "selectWithout": "Select the {{count}} without {{name}}"
+    }
+  },
+  "bulk": {
+    "selected_one": "{{count}} selected",
+    "selected_other": "{{count}} selected",
+    "selectAll": "Select all {{count}}",
+    "selectShown": "Select the {{count}} shown",
+    "clear": "Clear",
+    "done": "Done",
+    "target": "Version",
+    "targets": {
+      "default": "Default version",
+      "all": "All versions"
+    },
+    "inline": {
+      "default": "the default version",
+      "all": "every version",
+      "version": "the {{name}} version"
+    },
+    "coverage_one": "{{count}} without {{name}} will be skipped",
+    "coverage_other": "{{count}} without {{name}} will be skipped",
+    "monitor": "Monitor",
+    "unmonitor": "Unmonitor",
+    "profile": "Quality profile",
+    "availability": "Minimum availability",
+    "tags": "Tags",
+    "search": "Search",
+    "failed": "The bulk action failed.",
+    "details": "Details",
+    "count": "{{label}} {{count}}",
+    "promoted": "{{name}} is the new default",
+    "files_one": "{{count}} file",
+    "files_other": "{{count}} files",
+    "outcomes": {
+      "updated": "Updated",
+      "unchanged": "Unchanged",
+      "queued": "Queued",
+      "alreadyQueued": "Already queued",
+      "movieDeleted": "Film deleted",
+      "versionsDeleted": "Version deleted",
+      "skipped": "Skipped",
+      "failed": "Failed"
+    },
+    "actions": {
+      "monitor": "Monitor {{target}}",
+      "unmonitor": "Unmonitor {{target}}",
+      "profile": "Quality profile {{name}} on {{target}}",
+      "availability": "Minimum availability “{{value}}” on {{target}}",
+      "tags": "{{mode}} tags on {{target}}",
+      "search": "Search {{target}}",
+      "delete": "Delete {{target}}"
+    },
+    "tagsMode": {
+      "add": "Add",
+      "remove": "Remove",
+      "replace": "Replace"
+    },
+    "tagsHint": {
+      "add": "The picked tags are added; other tags stay.",
+      "remove": "The picked tags are removed; other tags stay.",
+      "replace": "The version's tags become exactly the picked ones."
+    },
+    "noTags": "No tags yet: create one below.",
+    "newTag": "New tag",
+    "createTag": "Create",
+    "applyTags_one": "Apply {{count}} tag",
+    "applyTags_other": "Apply {{count}} tags",
+    "clearTags": "Remove every tag",
+    "delete": {
+      "button": "Delete…",
+      "title_one": "Delete {{target}} of {{count}} movie?",
+      "title_other": "Delete {{target}} of {{count}} movies?",
+      "titleAll_one": "Delete {{count}} movie?",
+      "titleAll_other": "Delete {{count}} movies?",
+      "allHint": "Every version goes: the movies leave the library.",
+      "versionHint": "Only {{target}} of each movie goes. A movie whose last version it is leaves the library.",
+      "deleteFiles": "Delete the files",
+      "deleteFilesHint": "To the recycle bin when one is set in media management, otherwise for good.",
+      "exclusion": "Add an import exclusion",
+      "exclusionHint": "For movies that leave the library: a scan or an import will not add them back.",
+      "planning": "Working out what would be deleted…",
+      "nothing": "Nothing to delete with this version choice.",
+      "planVersions_one": "{{count}} version deleted, from {{films}} movie.",
+      "planVersions_other": "{{count}} versions deleted, from {{films}} movies.",
+      "planFilmsKept_one": "{{count}} movie keeps its other versions.",
+      "planFilmsKept_other": "{{count}} movies keep their other versions.",
+      "planFilmsRemoved_one": "{{count}} movie loses its last version and leaves the library.",
+      "planFilmsRemoved_other": "{{count}} movies lose their last version and leave the library.",
+      "planExclusions_one": "{{count}} import exclusion is added.",
+      "planExclusions_other": "{{count}} import exclusions are added.",
+      "planPromoted_one": "{{count}} movie gets a new default version: {{names}}.",
+      "planPromoted_other": "{{count}} movies get a new default version: {{names}}.",
+      "planFilesKept": "Files stay on disk.",
+      "planNoFiles": "None of these versions has a file.",
+      "planFilesRecycled_one": "{{count}} file goes to the recycle bin ({{path}}).",
+      "planFilesRecycled_other": "{{count}} files go to the recycle bin ({{path}}).",
+      "planFilesDeleted_one": "{{count}} file is deleted for good: no recycle bin is set.",
+      "planFilesDeleted_other": "{{count}} files are deleted for good: no recycle bin is set.",
+      "planSkipped_one": "{{count}} movie is skipped:",
+      "planSkipped_other": "{{count}} movies are skipped:",
+      "planSkippedReason": "{{reason}} ({{count}})",
+      "perFilm": "Movie by movie",
+      "confirmVersions_one": "Delete {{count}} version",
+      "confirmVersions_other": "Delete {{count}} versions",
+      "confirmFilms_one": "Delete {{count}} movie",
+      "confirmFilms_other": "Delete {{count}} movies"
+    }
   },
   "lookup": {
     "title": "Add a movie",
