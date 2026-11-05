@@ -49,7 +49,7 @@ type Props = Selection & {
   onSort: (key: SortKey) => void
 }
 
-/** Radarr's table view: one row per film, columns picked in the view menu, headers sort. */
+/** Radarr's table view: one row per film, columns picked in the view menu, headers sort, a row opens its film. */
 export function MovieTable({ movies, columns, density, lookups, sort, direction, onSort, ...selection }: Props) {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -145,7 +145,7 @@ function TableRowView({
       aria-selected={selecting ? isSelected : undefined}
       onClick={selecting ? (event) => onToggle(movie.id, event.shiftKey) : undefined}
       className={cn(
-        'absolute top-0 left-0 grid w-full items-center gap-3 border-b px-3 text-sm last:border-b-0 hover:bg-accent/40',
+        'group/row absolute top-0 left-0 grid w-full items-center gap-3 border-b px-3 text-sm last:border-b-0 hover:bg-accent/40',
         selecting && 'cursor-pointer select-none',
         isSelected && 'bg-primary/10 hover:bg-primary/15',
       )}
@@ -154,7 +154,7 @@ function TableRowView({
       {selecting && <SelectionMark checked={isSelected} />}
       <MovieTitleCell movie={movie} density={density} selecting={selecting} />
       {columns.map((column) => (
-        <div key={column} className="min-w-0 truncate">
+        <div key={column} role="cell" className="min-w-0 truncate">
           <Cell movie={movie} column={column} lookups={lookups} />
         </div>
       ))}
@@ -162,20 +162,32 @@ function TableRowView({
   )
 }
 
-/** Poster thumbnail (comfortable density) and title; a link outside selection mode. */
-export function MovieTitleCell({ movie, density, selecting }: { movie: MovieSummary; density: Density; selecting: boolean }) {
+/**
+ * Poster thumbnail (comfortable density) and title. Outside selection mode the title is the row's one link, stretched
+ * over the whole row by its ::after: a click anywhere opens the film, and ctrl/cmd/middle click or "open in new tab"
+ * work like on any link, without a link or button nested in another.
+ */
+function MovieTitleCell({ movie, density, selecting }: { movie: MovieSummary; density: Density; selecting: boolean }) {
   const content = (
     <>
       {density === 'comfortable' && <Poster url={movie.posterUrl} title={movie.title} size="thumb" className="rounded-sm" />}
-      <span className="truncate font-medium">{movie.title}</span>
+      <span className="truncate font-medium underline-offset-4 group-hover/row:underline">{movie.title}</span>
     </>
   )
-  return selecting ? (
-    <div className="flex min-w-0 items-center gap-2.5">{content}</div>
-  ) : (
-    <Link to="/movies/$movieId" params={{ movieId: String(movie.id) }} className="flex min-w-0 items-center gap-2.5 hover:underline underline-offset-4">
-      {content}
-    </Link>
+  return (
+    <div role="cell" className="min-w-0">
+      {selecting ? (
+        <div className="flex min-w-0 items-center gap-2.5">{content}</div>
+      ) : (
+        <Link
+          to="/movies/$movieId"
+          params={{ movieId: String(movie.id) }}
+          className="flex min-w-0 items-center gap-2.5 outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-ring/50 focus-visible:after:ring-inset"
+        >
+          {content}
+        </Link>
+      )}
+    </div>
   )
 }
 
