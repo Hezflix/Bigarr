@@ -49,7 +49,9 @@ public static partial class ExtraFiles
         ".srt", ".ass", ".ssa", ".sub", ".idx", ".sup", ".vtt", ".smi", ".sami", ".ttml", ".dfxp", ".mks",
     };
 
-    private static readonly StringComparer PathComparer = OperatingSystem.IsLinux() ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
+    private const string NfoExtension = ".nfo";
+
+    private static readonly StringComparer PathComparer =OperatingSystem.IsLinux() ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
 
     private static readonly EnumerationOptions Recursive = new() { RecurseSubdirectories = true, IgnoreInaccessible = true };
 
@@ -104,12 +106,17 @@ public static partial class ExtraFiles
             ? new DirectoryInfo(folder).EnumerateFiles("*", Recursive).Where(f => !InSample(Path.GetRelativePath(folder, f.FullName)))
             : new DirectoryInfo(directory).EnumerateFiles().Where(f => SharesBaseName(f.Name, baseName));
 
-        return files
-            .Where(f => extensions.Contains(f.Extension))
-            .OrderBy(f => f.FullName, StringComparer.Ordinal)
+        var wanted = files.Where(f => extensions.Contains(f.Extension)).OrderBy(f => f.FullName, StringComparer.Ordinal).ToList();
+
+        // One .nfo per release, like Radarr: the others repeat the same text. The one named after the video wins.
+        var nfo = wanted.Where(IsNfo).OrderBy(f => SharesBaseName(f.Name, baseName) ? 0 : 1).FirstOrDefault();
+        return wanted
+            .Where(f => !IsNfo(f) || f == nfo)
             .Select(f => new ExtraCandidate(f, Describe(f.FullName, baseName)))
             .ToList();
     }
+
+    private static bool IsNfo(FileInfo file) => string.Equals(file.Extension, NfoExtension, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The side files picked in the manual import, described like found ones. Missing files and videos are dropped.</summary>
     public static List<ExtraCandidate> Chosen(string video, IEnumerable<string> paths)
@@ -140,7 +147,9 @@ public static partial class ExtraFiles
         var extension = Path.GetExtension(path).ToLowerInvariant();
         if (!SubtitleExtensions.Contains(extension))
         {
-            return new ExtraFileName(group, extension, ExtraFileKind.Other, null, false, false);
+            // A release's .nfo is its group's text, not the XML that Kodi, Jellyfin and Emby read from <movie>.nfo.
+            // Radarr and Sonarr rename it .nfo-orig when their own metadata takes that name; Bigarr writes none, so it lands there directly.
+            return new ExtraFileName(group, extension == NfoExtension ? NfoExtension + "-orig" : extension, ExtraFileKind.Other, null, false, false);
         }
 
         if (string.Equals(Path.GetFileNameWithoutExtension(path), videoBaseName, StringComparison.OrdinalIgnoreCase))

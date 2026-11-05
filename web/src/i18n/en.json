@@ -703,7 +703,7 @@
     "importExtraFiles": "Import extra files",
     "importExtraFilesHint": "Subtitles and other side files of the release come along with the movie, with the same transfer, named after the movie file with their language. They follow its renames and leave with it on an upgrade or a deletion. Files Bigarr did not import, such as Bazarr's subtitles, are never renamed nor deleted.",
     "extraFileExtensions": "Extra file extensions",
-    "extraFileExtensionsHint": "Comma separated, without dots: srt,ass,ssa,sub,idx,sup,vtt. Video extensions are refused.",
+    "extraFileExtensionsHint": "Comma separated, without dots: srt,ass,ssa,sub,idx,sup,vtt. Other extensions (nfo, pdf…) come along under the movie's name; a release's .nfo is kept as .nfo-orig, once, so media servers do not read it as metadata. Video extensions are refused.",
     "mediaInfo": "Media info",
     "mediaInfoAvailable": "ffprobe found at {{path}}: imported files get their codecs, channels, HDR and languages read from the stream.",
     "mediaInfoMissing": "ffprobe was not found: files are imported without media info. Install ffmpeg (the Docker image ships it) or set Bigarr__Media__FfprobePath.",

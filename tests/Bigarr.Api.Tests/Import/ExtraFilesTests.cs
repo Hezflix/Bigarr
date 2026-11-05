@@ -58,6 +58,27 @@ public sealed class ExtraFilesTests(BigarrApiFactory factory) : IClassFixture<Bi
     }
 
     [Fact]
+    public void A_release_nfo_comes_once_as_nfo_orig_so_media_servers_do_not_read_it_as_metadata()
+    {
+        var release = Directory.CreateDirectory(Path.Combine(_downloads, "Nfo.Film.2005.1080p.BluRay.x264-GRP")).FullName;
+        var video = Touch(release, "Nfo.Film.2005.1080p.BluRay.x264-GRP.mkv");
+        Touch(release, Path.Combine("Extras", "grp.nfo"));
+        Touch(release, "Nfo.Film.2005.1080p.BluRay.x264-GRP.nfo");
+        Touch(release, "Nfo.Film.2005.1080p.BluRay.x264-GRP.pdf");
+
+        var found = ExtraFiles.Find(video, release, ExtraFiles.ParseExtensions("srt,nfo,pdf"));
+
+        // The .nfo named after the video wins over the other one; a .pdf is just another extra.
+        Assert.Equal(["Nfo.Film.2005.1080p.BluRay.x264-GRP.nfo", "Nfo.Film.2005.1080p.BluRay.x264-GRP.pdf"], found.Select(c => c.Source.Name));
+        Assert.Equal(["Movie.nfo-orig", "Movie.pdf"], found.Select(c => c.Name.For("Movie", 0)));
+        Assert.All(found, c => Assert.Equal(ExtraFileKind.Other, c.Name.Kind));
+
+        // A rename keeps the suffix: it is stored with the extra.
+        var stored = new ExtraFile { RelativePath = "Old.nfo-orig", Extension = ".nfo-orig", Kind = ExtraFileKind.Other };
+        Assert.Equal("New.nfo-orig", ExtraFileName.Of(stored).For("New", 0));
+    }
+
+    [Fact]
     public void A_folder_release_gives_everything_under_it_and_a_shared_folder_only_the_video_siblings()
     {
         var release = Directory.CreateDirectory(Path.Combine(_downloads, "Movie.2010.1080p.BluRay.x264-GRP")).FullName;
@@ -302,6 +323,41 @@ public sealed class ExtraFilesTests(BigarrApiFactory factory) : IClassFixture<Bi
         }
         finally
         {
+            await client.DeleteAsync($"/api/v1/movies/{movie.Id}");
+        }
+    }
+
+    [Fact]
+    public async Task Extensions_added_to_the_list_come_along_and_the_nfo_lands_as_nfo_orig()
+    {
+        var client = await ClientAsync(factory);
+        var (hd, _) = await ProfilesAsync(client);
+        var root = await AddRootAsync(client, Path.Combine(_root, "nfo"));
+        var configured = await client.PutAsJsonAsync("/api/v1/mediamanagement", Request(_bin, MediaManagementConfig.DefaultFileNameTemplate, true, "srt,nfo,pdf"), Json);
+        Assert.Equal(HttpStatusCode.OK, configured.StatusCode);
+
+        var movie = await AddMovieAsync(client, 78, hd, root.Id); // Blade Runner
+        var version = movie.Versions.Single();
+        try
+        {
+            var release = Directory.CreateDirectory(Path.Combine(_downloads, "Blade.Runner.1982.1080p.BluRay.x264-GRP")).FullName;
+            var video = Touch(release, "Blade.Runner.1982.1080p.BluRay.x264-GRP.mkv", 64 * 1024);
+            Touch(release, "Blade.Runner.1982.1080p.BluRay.x264-GRP.nfo");
+            Touch(release, "Blade.Runner.1982.1080p.BluRay.x264-GRP.pdf");
+
+            var response = await client.PostAsJsonAsync("/api/v1/manualimport", new ManualImportRequest([new ManualImportItemRequest(video, version.Id)]), Json);
+            Assert.True(Assert.Single((await response.Content.ReadFromJsonAsync<List<ManualImportResultResponse>>(Json))!).Imported);
+
+            var file = (await GetMovieAsync(client, movie.Id)).Versions.Single().File!;
+            Assert.Equal(["Blade Runner (1982) [Bluray-1080p].nfo-orig", "Blade Runner (1982) [Bluray-1080p].pdf"], file.Extras.Select(e => e.RelativePath));
+            Assert.Equal([".nfo-orig", ".pdf"], file.Extras.Select(e => e.Extension));
+            Assert.All(file.Extras, e => Assert.Equal(ExtraFileKind.Other, e.Kind));
+            Assert.All(file.Extras, e => Assert.True(File.Exists(e.Path)));
+            Assert.False(File.Exists(Path.Combine(root.Path, "Blade Runner (1982)", "Blade Runner (1982) [Bluray-1080p].nfo")), "nothing a media server would read as metadata");
+        }
+        finally
+        {
+            await ConfigureAsync(client, _bin);
             await client.DeleteAsync($"/api/v1/movies/{movie.Id}");
         }
     }
