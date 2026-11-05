@@ -39,29 +39,6 @@ public static class MovieMapper
             .Select(v => ToVersion(v, activeTargets.Contains(v.Id), today, assessments is not null && assessments.TryGetValue(v.Id, out var a) ? a : null))
             .ToList());
 
-    public static MovieSummary ToSummary(Movie movie, IReadOnlySet<int> activeTargets, DateOnly today) => new(
-        movie.Id,
-        movie.TmdbId,
-        movie.Title,
-        movie.SortTitle,
-        movie.Year,
-        Image(movie, ImageType.Poster),
-        Availability.EffectiveStatus(movie, today),
-        movie.Monitored,
-        movie.Versions
-            .OrderByDescending(v => v.IsDefault)
-            .ThenBy(v => v.Id)
-            .Select(v => new VersionSummary(
-                v.Id,
-                v.Name,
-                v.Mode,
-                v.IsDefault,
-                v.Monitored,
-                v.QualityProfileId,
-                Availability.StatusOf(v, activeTargets.Contains(v.Id), today),
-                v.File?.Quality?.Name))
-            .ToList());
-
     public static VersionResponse ToVersion(MovieVersion version, bool hasActiveGrab, DateOnly today, FileAssessment? assessment = null)
     {
         var folder = Path.Combine(version.RootFolder.Path, version.FolderName);

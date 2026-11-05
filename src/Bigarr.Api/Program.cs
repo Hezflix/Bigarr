@@ -55,6 +55,8 @@ builder.Services.AddBigarrIndexers(builder.Configuration);
 builder.Services.AddBigarrDownloads(builder.Configuration);
 builder.Services.AddBigarrEvents(builder.Configuration);
 builder.Services.AddScoped<MovieService>();
+builder.Services.AddScoped<MovieSummaryQuery>();
+builder.Services.AddScoped<BulkEditService>();
 builder.Services.AddScoped<TagService>();
 builder.Services.AddScoped<HistoryService>();
 builder.Services.AddScoped<RootFolderService>();
