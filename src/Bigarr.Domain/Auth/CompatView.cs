@@ -76,6 +76,14 @@ public sealed record CompatView
         return false;
     }
 
+    /// <summary>Whether a version with this name and default flag is a line of the view.</summary>
+    public bool Sees(string versionName, bool isDefault) => Kind switch
+    {
+        CompatViewKind.Default => isDefault,
+        CompatViewKind.All => true,
+        _ => string.Equals(versionName, VersionName, StringComparison.Ordinal),
+    };
+
     public static CompatView Parse(string value) =>
         TryParse(value, out var view) ? view : throw new FormatException($"'{value}' is not a valid compat view. Expected 'default', 'all' or 'version:<slug>'.");
 

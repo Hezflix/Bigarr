@@ -47,7 +47,11 @@ public sealed record ImportPlan(
     Grab? Grab,
     /// <summary>The user decided: no upgrade check, a one-shot with a file is replaced too.</summary>
     bool Force,
-    TransferMode Mode);
+    TransferMode Mode,
+    /// <summary>What the download client reported (folder or file), for the extra files. Null: judged from the video's folder.</summary>
+    string? ReleasePath = null,
+    /// <summary>The extra files picked in the manual import, exactly; null finds them per the media management settings.</summary>
+    IReadOnlyList<string>? ExtraPaths = null);
 
 /// <summary>
 /// Completed download handling (blueprint §5): find the video in what the client wrote, attach it to its version (the grab
@@ -238,7 +242,7 @@ public sealed class ImportService(
             logger.LogInformation("{Title} (added by hand) attributed to {Movie} [{Version}]", grab.ReleaseTitle, version.Movie.Title, version.Name);
         }
 
-        var plan = new ImportPlan(video.FullName, version, grab.ReleaseTitle, parsed ?? parsedFile, quality, grab.IndexerFlags, grab, Force: false, config.TransferMode);
+        var plan = new ImportPlan(video.FullName, version, grab.ReleaseTitle, parsed ?? parsedFile, quality, grab.IndexerFlags, grab, Force: false, config.TransferMode, item.OutputPath);
         return await ExecuteAsync(plan, ct);
     }
 
@@ -336,6 +340,9 @@ public sealed class ImportService(
             return ImportOutcome.Failed($"A file already exists at {destination}. Add {{Version}} to the file name template if two versions share this folder, or remove that file.");
         }
 
+        // Listed before the movie moves: a move would empty the release folder.
+        var extraCandidates = FindExtras(plan, config, source.FullName, folder);
+
         var now = time.GetUtcNow().UtcDateTime;
         string? recycled = null;
         if (existingPath is not null && replacesInPlace && !alreadyThere)
@@ -361,10 +368,32 @@ public sealed class ImportService(
             }
         }
 
+        var extras = new List<ExtraFile>();
         if (existing is not null)
         {
+            if (inPlace)
+            {
+                // The same file imported again: its extras did not move, they stay attached.
+                extras.AddRange(existing.Extras.Select(e => new ExtraFile
+                {
+                    RelativePath = e.RelativePath,
+                    Extension = e.Extension,
+                    Kind = e.Kind,
+                    Language = e.Language,
+                    Forced = e.Forced,
+                    HearingImpaired = e.HearingImpaired,
+                    DateAdded = e.DateAdded,
+                }));
+            }
+            else
+            {
+                RecycleExtras(existing, folder, config, version.RootFolder.Path);
+            }
+
             db.MediaFiles.Remove(existing);
         }
+
+        extras.AddRange(await TransferExtrasAsync(extraCandidates, destination, folder, plan.Mode, now, ct));
 
         var file = new MediaFile
         {
@@ -380,6 +409,7 @@ public sealed class ImportService(
             IndexerFlags = plan.Flags,
             OriginalReleaseTitle = plan.ReleaseTitle,
             MediaInfo = mediaInfo,
+            Extras = extras,
         };
         version.File = file;
 
@@ -432,6 +462,11 @@ public sealed class ImportService(
             data["customFormats"] = string.Join(", ", matched.Select(m => m.Name));
         }
 
+        if (extras.Count > 0)
+        {
+            data["extras"] = extras.Count.ToString(CultureInfo.InvariantCulture);
+        }
+
         db.History.Add(new HistoryEvent
         {
             TargetId = version.Id,
@@ -454,17 +489,25 @@ public sealed class ImportService(
         // Two saves in one transaction: the event carries the new file's id.
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await db.SaveChangesAsync(ct);
-        var releaseRef = plan.Grab is null ? null : new ReleaseRef(plan.ReleaseTitle, plan.Quality.Quality.Name, plan.Grab.IndexerName, plan.Grab.Size, releaseGroup, null, plan.Grab.InfoHash);
-        var fileRef = new FileRef(file.Id, destination, data["quality"], source.Length, matched.Select(m => m.Name).ToList(), ProfileRanking.FormatScore(version.QualityProfile, matched.Select(m => m.Id)));
+        var releaseRef = plan.Grab is null ? null : new ReleaseRef(plan.ReleaseTitle, plan.Quality.Quality.Name, plan.Grab.IndexerName, plan.Grab.Size, releaseGroup, null, plan.Grab.InfoHash, revision.Version, languages, plan.Flags);
+        var fileRef = FileRef.From(file, destination) with
+        {
+            Quality = data["quality"],
+            CustomFormats = matched.Select(m => m.Name).ToList(),
+            CustomFormatIds = matched.Select(m => m.Id).ToList(),
+            CustomFormatScore = ProfileRanking.FormatScore(version.QualityProfile, matched.Select(m => m.Id)),
+            SourcePath = source.FullName,
+        };
         var transferName = data["transfer"];
+        var clientType = await EventSnapshots.DownloadClientTypeAsync(db, plan.Grab?.DownloadClientId, ct);
         if (existing is null)
         {
-            outbox.Publish(new FileImported(MovieRef.From(movie), VersionRef.From(version), fileRef, releaseRef, plan.Grab?.Id, plan.Force, transferName) { OccurredAt = now });
+            outbox.Publish(new FileImported(MovieRef.From(movie), VersionRef.From(version), fileRef, releaseRef, plan.Grab?.Id, plan.Force, transferName, plan.Grab?.DownloadClientName, clientType, plan.Grab?.DownloadId) { OccurredAt = now });
         }
         else
         {
-            var previous = new FileRef(existing.Id, existingPath ?? string.Empty, data["previousQuality"], existing.Size);
-            outbox.Publish(new FileUpgraded(MovieRef.From(movie), VersionRef.From(version), fileRef, previous, releaseRef, plan.Grab?.Id, plan.Force, transferName) { OccurredAt = now });
+            var previous = FileRef.From(existing, existingPath ?? string.Empty) with { Quality = data["previousQuality"], RecycleBinPath = recycled };
+            outbox.Publish(new FileUpgraded(MovieRef.From(movie), VersionRef.From(version), fileRef, previous, releaseRef, plan.Grab?.Id, plan.Force, transferName, plan.Grab?.DownloadClientName, clientType, plan.Grab?.DownloadId) { OccurredAt = now });
         }
 
         await db.SaveChangesAsync(ct);
@@ -474,7 +517,12 @@ public sealed class ImportService(
 
     private async Task FailAsync(Grab grab, string reason, CancellationToken ct)
     {
-        var version = grab.Targets.Count == 0 ? null : await db.MovieVersions.AsNoTracking().Include(v => v.Movie).FirstOrDefaultAsync(v => v.Id == grab.Targets.First().TargetId, ct);
+        var version = grab.Targets.Count == 0 ? null : await db.MovieVersions.AsNoTracking()
+            .Include(v => v.Movie)
+            .Include(v => v.QualityProfile).ThenInclude(p => p.FormatScores)
+            .Include(v => v.RootFolder)
+            .Include(v => v.Tags)
+            .FirstOrDefaultAsync(v => v.Id == grab.Targets.First().TargetId, ct);
         grab.StatusMessages.RemoveAll(m => m.Title == FailedMessageTitle);
         grab.StatusMessages.Add(new StatusMessage { Title = FailedMessageTitle, Messages = [reason], Severity = StatusSeverity.Error });
         if (!grab.State.IsTerminal())
@@ -499,9 +547,12 @@ public sealed class ImportService(
         outbox.Publish(new ImportFailed(
             version is null ? null : MovieRef.From(version.Movie),
             version is null ? null : VersionRef.From(version),
-            new ReleaseRef(grab.ReleaseTitle, Downloads.GrabService.QualityOf(grab.ReleaseTitle), grab.IndexerName, grab.Size, null, null, grab.InfoHash),
+            EventSnapshots.Release(grab.ReleaseTitle, grab.IndexerName, grab.Size, grab.IndexerFlags, version?.Movie, version?.QualityProfile, await scorer.CalculatorAsync(ct), null, grab.InfoHash),
             grab.Id,
-            reason));
+            reason,
+            grab.DownloadClientName,
+            await EventSnapshots.DownloadClientTypeAsync(db, grab.DownloadClientId, ct),
+            grab.DownloadId));
         await db.SaveChangesAsync(ct);
         logger.LogWarning("Import of {Title} failed: {Reason}", grab.ReleaseTitle, reason);
     }
@@ -540,7 +591,94 @@ public sealed class ImportService(
             .Include(v => v.QualityProfile).ThenInclude(p => p.FormatScores)
             .Include(v => v.RootFolder)
             .Include(v => v.File!).ThenInclude(f => f.Quality)
+            .Include(v => v.File!).ThenInclude(f => f.Extras)
+            .Include(v => v.Tags)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(v => v.Id == versionId, ct);
+
+    /// <summary>
+    /// The release's side files (the user's pick in a manual import, else what the settings find), minus what already
+    /// sits in the version's folder: not ours to move (Bazarr's subtitles, another version's extras).
+    /// </summary>
+    private List<ExtraCandidate> FindExtras(ImportPlan plan, MediaManagementConfig config, string video, string folder)
+    {
+        try
+        {
+            var candidates = plan.ExtraPaths is not null
+                ? ExtraFiles.Chosen(video, plan.ExtraPaths)
+                : config.ImportExtraFiles ? ExtraFiles.Find(video, plan.ReleasePath, ExtraFiles.ParseExtensions(config.ExtraFileExtensions)) : [];
+            return candidates.Where(c => !IsUnder(c.Source.FullName, folder)).ToList();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning("The extra files next to {Video} could not be listed: {Message}", video, ex.Message);
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Same transfer as the movie (a hardlink keeps the torrent seeding), named after the movie file. One that fails
+    /// stays behind with a warning: the movie is in, an extra is not worth failing the import for.
+    /// </summary>
+    private async Task<List<ExtraFile>> TransferExtrasAsync(IReadOnlyList<ExtraCandidate> candidates, string destination, string folder, TransferMode mode, DateTime now, CancellationToken ct)
+    {
+        if (candidates.Count == 0)
+        {
+            return [];
+        }
+
+        var extras = new List<ExtraFile>();
+        try
+        {
+            var targets = ExtraFiles.Destinations(candidates.Select(c => c.Name).ToList(), Path.GetDirectoryName(destination)!, Path.GetFileNameWithoutExtension(destination), File.Exists);
+            foreach (var (candidate, target) in candidates.Zip(targets))
+            {
+                try
+                {
+                    await transfer.TransferAsync(candidate.Source.FullName, target, mode, ct);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    logger.LogWarning("Extra file {Source} was left behind: {Message}", candidate.Source.FullName, ex.Message);
+                    continue;
+                }
+
+                extras.Add(new ExtraFile
+                {
+                    RelativePath = Path.GetRelativePath(folder, target),
+                    Extension = candidate.Name.Extension,
+                    Kind = candidate.Name.Kind,
+                    Language = candidate.Name.Language,
+                    Forced = candidate.Name.Forced,
+                    HearingImpaired = candidate.Name.HearingImpaired,
+                    DateAdded = now,
+                });
+            }
+        }
+        catch (IOException ex)
+        {
+            logger.LogWarning("The extra files of {Destination} were left behind: {Message}", destination, ex.Message);
+        }
+
+        return extras;
+    }
+
+    /// <summary>The replaced file's extras leave with it through the recycle bin, before the new ones take their names.</summary>
+    private void RecycleExtras(MediaFile replaced, string folder, MediaManagementConfig config, string root)
+    {
+        foreach (var extra in replaced.Extras)
+        {
+            var path = Path.Combine(folder, extra.RelativePath);
+            try
+            {
+                recycleBin.RemoveFile(path, config.RecycleBinPath, root);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                logger.LogWarning("The replaced extra file {Path} could not be removed: {Message}", path, ex.Message);
+            }
+        }
+    }
 
     /// <summary>The largest video file that is not a sample; a single file is taken as is.</summary>
     public static FileInfo? PickVideoFile(string outputPath)
@@ -597,6 +735,12 @@ public sealed class ImportService(
         {
             return null;
         }
+    }
+
+    private static bool IsUnder(string path, string folder)
+    {
+        var relative = Path.GetRelativePath(folder, path);
+        return !relative.StartsWith("..", StringComparison.Ordinal) && !Path.IsPathRooted(relative);
     }
 
     private static bool PathsEqual(string a, string b) =>

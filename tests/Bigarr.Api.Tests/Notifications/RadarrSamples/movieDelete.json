@@ -1,0 +1,41 @@
+{
+  "movie": {
+    "id": 42,
+    "title": "The Matrix",
+    "year": 1999,
+    "releaseDate": "1999-09-21",
+    "folderPath": "/movies/The Matrix (1999) {4k}",
+    "tmdbId": 603,
+    "imdbId": "tt0133093",
+    "overview": "A hacker learns the truth about his reality.",
+    "genres": [
+      "Action",
+      "Science Fiction"
+    ],
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCover/42/poster.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/poster.jpg"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/MediaCover/42/fanart.jpg",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/fanart.jpg"
+      }
+    ],
+    "tags": [
+      "alice",
+      "kids"
+    ],
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    }
+  },
+  "deletedFiles": true,
+  "movieFolderSize": 25000000000,
+  "eventType": "MovieDelete",
+  "instanceName": "Bigarr",
+  "applicationUrl": "https://bigarr.example.org"
+}

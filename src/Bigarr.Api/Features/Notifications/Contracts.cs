@@ -9,7 +9,12 @@ public sealed record NotificationEndpointRequest(
     string? Secret = null,
     bool Enabled = true,
     /// <summary>Event types to send; empty means every event.</summary>
-    List<string>? Events = null);
+    List<string>? Events = null,
+    /// <summary>Tag ids: only films whose versions carry one of them. Empty means every film; health and test ignore them.</summary>
+    List<int>? Tags = null,
+    WebhookFormat Format = WebhookFormat.Bigarr,
+    /// <summary>For the Radarr format, which versions are Radarr movies: <c>default</c>, <c>all</c> or <c>version:&lt;name&gt;</c>.</summary>
+    string? View = null);
 
 public sealed record NotificationEndpointResponse(
     int Id,
@@ -18,13 +23,18 @@ public sealed record NotificationEndpointResponse(
     bool HasSecret,
     bool Enabled,
     List<string> Events,
+    List<int> Tags,
+    WebhookFormat Format,
+    string View,
     int PendingDeliveries,
     int FailedDeliveries,
     DateTime? LastDeliveredAt,
     string? LastError,
     DateTime CreatedAt);
 
-public sealed record NotificationEventTypeResponse(string Type, string Description);
+/// <param name="RadarrEventType">What the Radarr format sends it as; null when that format does not send it.</param>
+/// <param name="IgnoresTags">About no film: sent whatever the endpoint's tags.</param>
+public sealed record NotificationEventTypeResponse(string Type, string Description, string? RadarrEventType, bool IgnoresTags);
 
 public sealed record WebhookTestResponse(int? StatusCode, int ElapsedMs);
 

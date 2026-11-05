@@ -77,9 +77,27 @@ export function RenameDialog({ movie, onRenamed }: { movie: Movie; onRenamed: ()
                     <TableCell className="align-top">
                       <Badge variant="secondary">{row.versionName}</Badge>
                     </TableCell>
-                    <TableCell className="max-w-[20rem] align-top whitespace-normal break-all text-xs">{row.currentRelativePath}</TableCell>
                     <TableCell className="max-w-[20rem] align-top whitespace-normal break-all text-xs">
-                      {row.changed ? <span className="font-medium text-foreground">{row.newRelativePath}</span> : <span>{t('rename.unchanged')}</span>}
+                      {row.currentRelativePath}
+                      {row.extras.map((extra) => (
+                        <span key={extra.extraFileId} className="mt-0.5 block text-muted-foreground">
+                          {extra.currentRelativePath}
+                        </span>
+                      ))}
+                    </TableCell>
+                    <TableCell className="max-w-[20rem] align-top whitespace-normal break-all text-xs">
+                      {row.changed ? (
+                        <>
+                          <span className="font-medium text-foreground">{row.newRelativePath}</span>
+                          {row.extras.map((extra) => (
+                            <span key={extra.extraFileId} className="mt-0.5 block text-foreground">
+                              {extra.newRelativePath}
+                            </span>
+                          ))}
+                        </>
+                      ) : (
+                        <span>{t('rename.unchanged')}</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

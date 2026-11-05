@@ -6,16 +6,18 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Bigarr.Domain.Notifications;
+using Microsoft.Extensions.Options;
 
 namespace Bigarr.Api.Infrastructure.Events;
 
 public sealed record WebhookResult(bool Success, int? StatusCode, string? Error, TimeSpan Elapsed);
 
 /// <summary>
-/// One HTTP POST per delivery. The body wraps the event payload with its type and id; when the endpoint has a secret,
-/// <c>X-Bigarr-Signature</c> carries <c>sha256=&lt;hex HMAC of the body&gt;</c> so the receiver can check the origin.
+/// One HTTP POST per delivery. The body wraps the event payload with its type and id, or is Radarr's payload for a
+/// Radarr-format endpoint; when the endpoint has a secret, <c>X-Bigarr-Signature</c> carries
+/// <c>sha256=&lt;hex HMAC of the body&gt;</c> so the receiver can check the origin.
 /// </summary>
-public sealed class WebhookClient(IHttpClientFactory httpClientFactory, ILogger<WebhookClient> logger)
+public sealed class WebhookClient(IHttpClientFactory httpClientFactory, IOptions<NotificationsOptions> options, ILogger<WebhookClient> logger)
 {
     public const string HttpClientName = "bigarr-webhooks";
 
@@ -25,16 +27,25 @@ public sealed class WebhookClient(IHttpClientFactory httpClientFactory, ILogger<
 
     public const string DeliveryHeader = "X-Bigarr-Delivery";
 
-    public async Task<WebhookResult> PostAsync(NotificationEndpoint endpoint, string eventType, long eventId, string payloadJson, DateTime occurredAt, string deliveryId, CancellationToken ct)
+    public Task<WebhookResult> PostAsync(NotificationEndpoint endpoint, string eventType, long eventId, string payloadJson, DateTime occurredAt, string deliveryId, CancellationToken ct) =>
+        SendAsync(endpoint, eventType, Body(eventType, eventId, payloadJson, occurredAt, options.Value.ApplicationUrl), deliveryId, ct);
+
+    /// <summary>Posts a body already built; the Bigarr headers go along whatever the format, the receiver ignores what it does not know.</summary>
+    public async Task<WebhookResult> SendAsync(NotificationEndpoint endpoint, string eventType, string body, string deliveryId, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
 
-        var body = Body(eventType, eventId, payloadJson, occurredAt);
         var stopwatch = Stopwatch.StartNew();
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, endpoint.Url);
             request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+            if (endpoint.Format == WebhookFormat.Radarr)
+            {
+                // What Radarr's WebhookProxy sends besides the JSON content type.
+                request.Headers.Accept.ParseAdd("application/json");
+            }
+
             request.Headers.TryAddWithoutValidation(EventHeader, eventType);
             request.Headers.TryAddWithoutValidation(DeliveryHeader, deliveryId);
             if (!string.IsNullOrEmpty(endpoint.Secret))
@@ -63,15 +74,23 @@ public sealed class WebhookClient(IHttpClientFactory httpClientFactory, ILogger<
         }
     }
 
-    /// <summary>The wire shape: <c>{ eventType, eventId, occurredAt, instance, data }</c>.</summary>
-    public static string Body(string eventType, long eventId, string payloadJson, DateTime occurredAt)
+    /// <summary>
+    /// The wire shape: <c>{ eventType, eventId, occurredAt, instance, data }</c>. <c>instance.applicationUrl</c> is
+    /// Radarr's <c>applicationUrl</c>, for links back to Bigarr; empty until <c>Bigarr:Notifications:ApplicationUrl</c> is set.
+    /// </summary>
+    public static string Body(string eventType, long eventId, string payloadJson, DateTime occurredAt, string? applicationUrl = null)
     {
         var body = new JsonObject
         {
             ["eventType"] = eventType,
             ["eventId"] = eventId,
             ["occurredAt"] = occurredAt.ToString("O", CultureInfo.InvariantCulture),
-            ["instance"] = new JsonObject { ["name"] = "Bigarr", ["version"] = Features.Server.SystemEndpoints.Version },
+            ["instance"] = new JsonObject
+            {
+                ["name"] = "Bigarr",
+                ["version"] = Features.Server.SystemEndpoints.Version,
+                ["applicationUrl"] = applicationUrl ?? string.Empty,
+            },
             ["data"] = JsonNode.Parse(payloadJson),
         };
         return body.ToJsonString(new JsonSerializerOptions(JsonSerializerDefaults.Web));

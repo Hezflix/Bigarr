@@ -71,6 +71,8 @@ public sealed class ManualImportService(BigarrDbContext db, ImportService import
         var definitions = await db.QualityDefinitions.AsNoTracking().ToDictionaryAsync(q => q.Id, ct);
         var calculator = await scorer.CalculatorAsync(ct);
         var contextCache = new Dictionary<int, List<TargetContext>>();
+        var extraExtensions = config.ImportExtraFiles ? ExtraFiles.ParseExtensions(config.ExtraFileExtensions) : null;
+        var listingRoot = File.Exists(path) ? Path.GetDirectoryName(path)! : path;
 
         var files = File.Exists(path)
             ? [new FileInfo(path)]
@@ -144,7 +146,8 @@ public sealed class ManualImportService(BigarrDbContext db, ImportService import
                 movie?.Year,
                 movie is null ? matchReason : null,
                 suggested,
-                options));
+                options,
+                ListExtras(file.FullName, grab is null ? null : path, extraExtensions, listingRoot)));
         }
 
         return Result<ManualImportResponse>.Ok(new ManualImportResponse(path, grab?.Id, releaseTitle, config.TransferMode, rows));
@@ -215,7 +218,7 @@ public sealed class ManualImportService(BigarrDbContext db, ImportService import
         }
 
         var releaseTitle = grab?.ReleaseTitle ?? Path.GetFileNameWithoutExtension(item.Path);
-        var plan = new ImportPlan(item.Path, version, releaseTitle, parsedRelease ?? parsedFile, quality, grab?.IndexerFlags ?? IndexerFlags.None, grab, Force: true, mode);
+        var plan = new ImportPlan(item.Path, version, releaseTitle, parsedRelease ?? parsedFile, quality, grab?.IndexerFlags ?? IndexerFlags.None, grab, Force: true, mode, ExtraPaths: item.ExtraPaths);
         try
         {
             var outcome = await importer.ExecuteAsync(plan, ct);
@@ -234,6 +237,28 @@ public sealed class ManualImportService(BigarrDbContext db, ImportService import
         {
             logger.LogError(ex, "Manual import of {Path} crashed", item.Path);
             return new ManualImportResultResponse(item.Path, item.VersionId, false, ex.Message, null, null, false);
+        }
+    }
+
+    /// <summary>What the import would bring with this video; the user keeps or drops each one. Nothing when the setting is off.</summary>
+    private List<ManualImportExtraResponse> ListExtras(string video, string? releasePath, IReadOnlySet<string>? extensions, string listingRoot)
+    {
+        if (extensions is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            return ExtraFiles.Find(video, releasePath, extensions)
+                .Select(c => new ManualImportExtraResponse(
+                    c.Source.FullName, Path.GetRelativePath(listingRoot, c.Source.FullName), c.Name.Extension, c.Name.Kind, c.Name.Language, c.Name.Forced, c.Name.HearingImpaired))
+                .ToList();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning("The extra files next to {Video} could not be listed: {Message}", video, ex.Message);
+            return [];
         }
     }
 

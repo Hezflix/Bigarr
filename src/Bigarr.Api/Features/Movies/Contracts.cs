@@ -73,7 +73,21 @@ public sealed record MediaFileResponse(
     List<string> Languages,
     string? OriginalReleaseTitle,
     bool HasMediaInfo,
-    MediaInfo? MediaInfo);
+    MediaInfo? MediaInfo,
+    /// <summary>Side files imported with it. Files written by others (Bazarr) are not listed.</summary>
+    List<ExtraFileResponse> Extras);
+
+public sealed record ExtraFileResponse(
+    int Id,
+    string RelativePath,
+    string Path,
+    string Extension,
+    ExtraFileKind Kind,
+    /// <summary>ISO 639-1 code, null when the name did not say.</summary>
+    string? Language,
+    bool Forced,
+    bool HearingImpaired,
+    DateTime DateAdded);
 
 public sealed record VersionResponse(
     int Id,

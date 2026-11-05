@@ -1,0 +1,7 @@
+{
+  "level": "warning",
+  "message": "No indexer is enabled",
+  "type": "indexers",
+  "eventType": "HealthRestored",
+  "instanceName": "Bigarr"
+}

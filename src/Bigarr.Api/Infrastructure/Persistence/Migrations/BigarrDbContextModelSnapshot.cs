@@ -519,6 +519,11 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int>("Id")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("ExtraFileExtensions")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("FileNameTemplate")
                         .IsRequired()
                         .HasMaxLength(1024)
@@ -528,6 +533,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(1024)
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("ImportExtraFiles")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("RecycleBinPath")
                         .HasMaxLength(1024)
@@ -654,6 +662,48 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("MediaServers", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Movies.ExtraFile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("DateAdded")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Extension")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Forced")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("HearingImpaired")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Language")
+                        .HasMaxLength(8)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MediaFileId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RelativePath")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MediaFileId");
+
+                    b.ToTable("ExtraFiles", (string)null);
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Movies.MediaFile", b =>
@@ -882,6 +932,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Format")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(128)
@@ -896,12 +949,32 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(2048)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("View")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
                         .IsUnique();
 
                     b.ToTable("NotificationEndpoints", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Notifications.NotificationEndpointTag", b =>
+                {
+                    b.Property<int>("EndpointId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TagId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("EndpointId", "TagId");
+
+                    b.HasIndex("TagId");
+
+                    b.ToTable("NotificationEndpointTags", (string)null);
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Notifications.WebhookDelivery", b =>
@@ -942,6 +1015,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime?>("NextAttemptAt")
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("VersionId")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -1312,6 +1388,17 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("RootFolder");
                 });
 
+            modelBuilder.Entity("Bigarr.Domain.Movies.ExtraFile", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Movies.MediaFile", "MediaFile")
+                        .WithMany("Extras")
+                        .HasForeignKey("MediaFileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MediaFile");
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Movies.MediaFile", b =>
                 {
                     b.HasOne("Bigarr.Domain.Quality.QualityDefinition", "Quality")
@@ -1408,6 +1495,25 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Version");
                 });
 
+            modelBuilder.Entity("Bigarr.Domain.Notifications.NotificationEndpointTag", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Notifications.NotificationEndpoint", "Endpoint")
+                        .WithMany()
+                        .HasForeignKey("EndpointId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Bigarr.Domain.Tags.Tag", "Tag")
+                        .WithMany()
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Endpoint");
+
+                    b.Navigation("Tag");
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Notifications.WebhookDelivery", b =>
                 {
                     b.HasOne("Bigarr.Domain.Notifications.NotificationEndpoint", "Endpoint")
@@ -1492,6 +1598,11 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Bigarr.Domain.Auth.User", b =>
                 {
                     b.Navigation("ApiKeys");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Movies.MediaFile", b =>
+                {
+                    b.Navigation("Extras");
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Movies.Movie", b =>
