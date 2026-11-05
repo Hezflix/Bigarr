@@ -73,8 +73,7 @@
     "unmonitored": "unmonitored",
     "modes": {
       "posters": "Posters",
-      "table": "Table",
-      "matrix": "Versions"
+      "table": "Table"
     },
     "sort": {
       "label": "Sort by",
@@ -177,11 +176,6 @@
       "saveHint": "Keeps the filters, the sort and the layout under a name, for you on this browser.",
       "name": "Name",
       "delete": "Delete the view {{name}}"
-    },
-    "matrix": {
-      "count": "{{count}} / {{total}}",
-      "selectWith": "Select the {{count}} with {{name}}",
-      "selectWithout": "Select the {{count}} without {{name}}"
     }
   },
   "bulk": {

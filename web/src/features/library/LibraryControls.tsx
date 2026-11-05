@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
-import { BookmarkPlusIcon, Grid2x2Icon, LayoutGridIcon, ListFilterIcon, SearchIcon, Settings2Icon, SortAscIcon, TableIcon, XIcon } from 'lucide-react'
+import { BookmarkPlusIcon, LayoutGridIcon, ListFilterIcon, SearchIcon, Settings2Icon, SortAscIcon, TableIcon, XIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { RootFolder, Tag } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
@@ -175,7 +175,6 @@ type ControlsProps = {
 const modeIcons: Record<ViewMode, ReactNode> = {
   posters: <LayoutGridIcon />,
   table: <TableIcon />,
-  matrix: <Grid2x2Icon />,
 }
 
 export function LibraryControls({ prefs, onChange, term, onTermChange, names, qualities, tags, rootFolders }: ControlsProps) {

@@ -27,14 +27,14 @@ export function useVersionTitle() {
       .join(' · ')
 }
 
-/** A version as a small chip; `label` replaces the name (the matrix shows the quality or the status instead). */
-export function VersionChip({ version, label, className }: { version: VersionSummary; label?: string; className?: string }) {
+/** A version as a small chip. */
+export function VersionChip({ version, className }: { version: VersionSummary; className?: string }) {
   const title = useVersionTitle()
   return (
     <Badge variant="outline" className={cn('gap-0.5', versionChipClass(version), className)} title={title(version)}>
-      {version.isDefault && label === undefined && <StarIcon className="size-2.5 fill-current" aria-hidden="true" />}
+      {version.isDefault && <StarIcon className="size-2.5 fill-current" aria-hidden="true" />}
       {version.cutoffMet === false && <ArrowUpIcon className="size-2.5" aria-hidden="true" />}
-      {label ?? version.name}
+      {version.name}
     </Badge>
   )
 }

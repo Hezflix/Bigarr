@@ -1,8 +1,13 @@
 import { useCallback, useState } from 'react'
 import type { MovieSummary, VersionSelector, VersionSummary } from '@/api/client'
 
-export const viewModes = ['posters', 'table', 'matrix'] as const
+export const viewModes = ['posters', 'table'] as const
 export type ViewMode = (typeof viewModes)[number]
+
+/** A stored or linked layout. The version matrix is gone: what pointed at it (`matrix`) opens the table. */
+export function viewMode(value: unknown): ViewMode {
+  return viewModes.find((mode) => mode === value) ?? 'table'
+}
 
 export const posterSizes = ['small', 'medium', 'large'] as const
 export type PosterSize = (typeof posterSizes)[number]
@@ -99,7 +104,13 @@ function readPrefs(key: string): LibraryPrefs {
     if (!raw) return defaultPrefs
     const stored = JSON.parse(raw) as Partial<LibraryPrefs>
     // Spread over the defaults: a key added by a later version of the page gets its default.
-    return { ...defaultPrefs, ...stored, filter: { ...emptyFilter, ...stored.filter } }
+    return {
+      ...defaultPrefs,
+      ...stored,
+      mode: stored.mode === undefined ? defaultPrefs.mode : viewMode(stored.mode),
+      filter: { ...emptyFilter, ...stored.filter },
+      savedViews: (stored.savedViews ?? []).map((view) => ({ ...view, mode: viewMode(view.mode), filter: { ...emptyFilter, ...view.filter } })),
+    }
   } catch {
     /* storage unavailable or a corrupt value: start from the defaults */
     return defaultPrefs
@@ -291,7 +302,7 @@ export function presets(names: VersionName[]): Preset[] {
   return [
     { id: 'all', filter: emptyFilter },
     { id: 'missing', filter: { ...emptyFilter, scope: 'default', monitored: 'monitored', status: 'missing' } },
-    // Films with that version wanted and still without a file; which films lack the version altogether is the matrix's job.
+    // Films with that version wanted and still without a file; which films lack the version altogether is the "Lacks version" filter's job.
     ...names.slice(1, 3).map((v) => ({ id: `missing-${v.name}`, version: v.name, filter: { ...emptyFilter, scope: `version:${v.name}` as const, monitored: 'monitored' as const, status: 'missing' as const } })),
     { id: 'cutoffUnmet', filter: { ...emptyFilter, status: 'cutoffUnmet' } },
     { id: 'recent', filter: { ...emptyFilter, addedWithinDays: 30 }, sort: { key: 'added', direction: 'desc' } },
