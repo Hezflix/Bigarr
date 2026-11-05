@@ -14,5 +14,6 @@ public sealed class MediaManagementConfigConfiguration : IEntityTypeConfiguratio
         builder.Property(c => c.FileNameTemplate).HasMaxLength(1024);
         builder.Property(c => c.FolderNameTemplate).HasMaxLength(1024);
         builder.Property(c => c.RecycleBinPath).HasMaxLength(1024);
+        builder.Property(c => c.ExtraFileExtensions).HasMaxLength(255);
     }
 }

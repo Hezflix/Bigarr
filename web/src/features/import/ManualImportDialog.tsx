@@ -16,13 +16,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { extraSummary } from '@/features/import/extraFiles'
 import { formatBytes } from '@/i18n'
 
 const approvedStyle = 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300'
 const rejectedStyle = 'border-amber-600/30 bg-amber-500/15 text-amber-700 dark:border-amber-400/30 dark:text-amber-300'
 const modes: TransferMode[] = ['hardlinkOrCopy', 'copy', 'move']
 
-type Selection = { selected: boolean; movieId: number | null; versionId: number | null; qualityId: number }
+/** `extras`: paths of the listed extra files the user keeps (all of them at first). */
+type Selection = { selected: boolean; movieId: number | null; versionId: number | null; qualityId: number; extras: string[] }
 
 /**
  * Manual import (blueprint §5): the files under a path or behind a queued download, each with the film, version and
@@ -54,7 +56,13 @@ export function ManualImportDialog({ grabId, path: initialPath, title, onClose }
       Object.fromEntries(
         listing.data.files.map((f) => [
           f.path,
-          { selected: !f.isSample && f.movieId !== null && f.versionId !== null, movieId: f.movieId, versionId: f.versionId, qualityId: f.qualityId } satisfies Selection,
+          {
+            selected: !f.isSample && f.movieId !== null && f.versionId !== null,
+            movieId: f.movieId,
+            versionId: f.versionId,
+            qualityId: f.qualityId,
+            extras: f.extras.map((e) => e.path),
+          } satisfies Selection,
         ]),
       ),
     )
@@ -65,7 +73,7 @@ export function ManualImportDialog({ grabId, path: initialPath, title, onClose }
 
   const items: ManualImportItem[] = Object.entries(selections)
     .filter(([, s]) => s.selected && s.versionId !== null)
-    .map(([filePath, s]) => ({ path: filePath, versionId: s.versionId!, qualityId: s.qualityId, grabId: grabId ?? null }))
+    .map(([filePath, s]) => ({ path: filePath, versionId: s.versionId!, qualityId: s.qualityId, grabId: grabId ?? null, extraPaths: s.extras }))
 
   const run = useMutation({
     mutationFn: () => manualImport.import(items, mode === 'default' ? null : mode),
@@ -165,6 +173,28 @@ export function ManualImportDialog({ grabId, path: initialPath, title, onClose }
                           {file.releaseGroup && <span>{file.releaseGroup}</span>}
                           {file.languages.length > 0 && <span>{file.languages.join(', ')}</span>}
                         </span>
+                        {file.extras.length > 0 && (
+                          <div className="mt-2 grid gap-1" data-testid="manual-import-extras">
+                            <span className="text-xs font-medium text-muted-foreground">{t('manualImport.extras', { count: file.extras.length })}</span>
+                            {file.extras.map((extra) => (
+                              <label key={extra.path} className="flex items-start gap-2 text-xs">
+                                <Checkbox
+                                  checked={selection.extras.includes(extra.path)}
+                                  onCheckedChange={(v) =>
+                                    update(file.path, { extras: v === true ? [...selection.extras, extra.path] : selection.extras.filter((p) => p !== extra.path) })
+                                  }
+                                  disabled={!selection.selected}
+                                  aria-label={t('manualImport.selectExtra', { name: extra.relativePath })}
+                                  className="mt-0.5"
+                                />
+                                <span className="grid">
+                                  <span className="break-all">{extra.relativePath}</span>
+                                  <span className="text-muted-foreground">{extraSummary(extra, t)}</span>
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
                         {result && (
                           <span className={cn('mt-1 block break-all text-xs', result.imported ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive')}>
                             {result.imported ? t('manualImport.imported', { path: result.destinationPath }) : t('manualImport.failed', { reason: result.reason })}

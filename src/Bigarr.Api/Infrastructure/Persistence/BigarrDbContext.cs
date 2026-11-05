@@ -31,6 +31,8 @@ public sealed class BigarrDbContext(DbContextOptions<BigarrDbContext> options) :
 
     public DbSet<MediaFile> MediaFiles => Set<MediaFile>();
 
+    public DbSet<ExtraFile> ExtraFiles => Set<ExtraFile>();
+
     public DbSet<Grab> Grabs => Set<Grab>();
 
     public DbSet<GrabTarget> GrabTargets => Set<GrabTarget>();

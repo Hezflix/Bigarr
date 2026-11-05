@@ -104,7 +104,11 @@ public static class MovieMapper
         file.Languages,
         file.OriginalReleaseTitle,
         file.MediaInfo is not null,
-        file.MediaInfo);
+        file.MediaInfo,
+        file.Extras
+            .OrderBy(e => e.RelativePath, StringComparer.Ordinal)
+            .Select(e => new ExtraFileResponse(e.Id, e.RelativePath, Path.Combine(folder, e.RelativePath), e.Extension, e.Kind, e.Language, e.Forced, e.HearingImpaired, e.DateAdded))
+            .ToList());
 
     public static ConstraintsDto? ToConstraints(AcquisitionConstraints? constraints) =>
         constraints is null || constraints.IsEmpty

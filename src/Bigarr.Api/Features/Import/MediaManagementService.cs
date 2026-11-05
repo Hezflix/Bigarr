@@ -75,6 +75,16 @@ public sealed class MediaManagementService(BigarrDbContext db, IMediaInfoReader 
             }
         }
 
+        string? extensions = null;
+        if (request.ExtraFileExtensions is not null)
+        {
+            extensions = ExtraFiles.Normalize(request.ExtraFileExtensions, out var extensionError);
+            if (extensions is null)
+            {
+                return Failure.Invalid("Invalid extra file extensions", extensionError);
+            }
+        }
+
         var config = await GetAsync(ct);
         config.RenameFiles = request.RenameFiles;
         config.FileNameTemplate = request.FileNameTemplate.Trim();
@@ -82,6 +92,8 @@ public sealed class MediaManagementService(BigarrDbContext db, IMediaInfoReader 
         config.TransferMode = Enum.IsDefined(request.TransferMode) ? request.TransferMode : TransferMode.HardlinkOrCopy;
         config.RecycleBinPath = bin;
         config.RecycleBinRetentionDays = request.RecycleBinRetentionDays;
+        config.ImportExtraFiles = request.ImportExtraFiles ?? config.ImportExtraFiles;
+        config.ExtraFileExtensions = extensions ?? config.ExtraFileExtensions;
         await db.SaveChangesAsync(ct);
         return Result<MediaManagementConfig>.Ok(config);
     }
@@ -96,6 +108,8 @@ public sealed class MediaManagementService(BigarrDbContext db, IMediaInfoReader 
             config.TransferMode,
             config.RecycleBinPath,
             config.RecycleBinRetentionDays,
+            config.ImportExtraFiles,
+            config.ExtraFileExtensions,
             probe.IsAvailable,
             probe is FfprobeMediaInfoReader ffprobe ? ffprobe.ExecutablePath : null,
             SafeRender(config.FileNameTemplate) + ".mkv",
