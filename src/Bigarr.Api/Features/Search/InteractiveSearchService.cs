@@ -15,13 +15,15 @@ namespace Bigarr.Api.Features.Search;
 
 /// <summary>
 /// Interactive search (blueprint §5): every indexer in parallel, each release parsed, matched to the film, then judged by
-/// every version of the film so the user sees the reasons, not just the verdict. Grabbing arrives with the download client.
+/// every version of the film so the user sees the reasons, not just the verdict. The search is for the film: the version
+/// a release goes to is chosen when grabbing, each release carries a suggested one.
 /// </summary>
 public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFactory contexts, CustomFormatScorer scorer, IndexerGateway gateway, TimeProvider time, ILogger<InteractiveSearchService> logger)
 {
     private readonly ReleaseEvaluator _evaluator = ReleaseEvaluator.Interactive();
 
-    public async Task<Result<SearchResponse>> SearchAsync(int movieId, int? versionId, CancellationToken ct)
+    /// <summary>Searches the film by its ids and titles, or by <paramref name="query"/> when the user typed one.</summary>
+    public async Task<Result<SearchResponse>> SearchAsync(int movieId, int? versionId, string? query, CancellationToken ct)
     {
         var movie = await contexts.MoviesWithVersions().FirstOrDefaultAsync(m => m.Id == movieId, ct);
         if (movie is null)
@@ -45,12 +47,14 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
             return Failure.Invalid("No indexer available", "No indexer has interactive search enabled. Add one in Settings → Indexers.");
         }
 
-        var criteria = CriteriaFor(movie);
+        // The user's own words go out as they are: no ids, no year, no alternative titles, so every indexer gets a text query.
+        query = string.IsNullOrWhiteSpace(query) ? null : query.Trim();
+        var criteria = query is null ? CriteriaFor(movie) : MovieSearchCriteria.ForTitle(query);
 
         var stopwatch = Stopwatch.StartNew();
         var results = await IndexerQueries.RunAsync(indexers, (indexer, token) => gateway.SearchAsync(indexer, criteria, token), ct);
-        logger.LogInformation("Interactive search for {Movie}: {Releases} release(s) from {Indexers} indexer(s) in {Elapsed} ms",
-            movie.Title, results.Sum(r => r.Releases.Count), indexers.Count, stopwatch.ElapsedMilliseconds);
+        logger.LogInformation("Interactive search for {Movie}{Query}: {Releases} release(s) from {Indexers} indexer(s) in {Elapsed} ms",
+            movie.Title, query is null ? string.Empty : $" by text '{query}'", results.Sum(r => r.Releases.Count), indexers.Count, stopwatch.ElapsedMilliseconds);
 
         var targets = await contexts.BuildAsync(movie, versions, ct);
         var calculator = await scorer.CalculatorAsync(ct);
@@ -73,7 +77,7 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
             .Select(r => new IndexerErrorResponse(r.Indexer.Id, r.Indexer.Name, r.Error!.Kind, r.Error.Message))
             .ToList();
 
-        return Result<SearchResponse>.Ok(new SearchResponse(movie.Id, time.GetUtcNow().UtcDateTime, indexers.Count, releases, errors));
+        return Result<SearchResponse>.Ok(new SearchResponse(movie.Id, time.GetUtcNow().UtcDateTime, indexers.Count, releases, errors, query));
     }
 
     /// <summary>What the indexers are asked: title, year, ids and every alternative title the metadata knows.</summary>
@@ -94,22 +98,24 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
         var mismatch = ReleaseMatcher.Match(parsed, release, movie);
         var formats = parsed is null ? [] : calculator.Match(CustomFormatScorer.ReleaseInput(parsed, release, movie.Year, movie.OriginalLanguage));
 
-        var versions = new List<VersionDecisionResponse>();
-        if (mismatch is null && parsed is not null)
+        // A release that is not the film is still judged: the user may know better (a film listed under another name)
+        // and grab it by hand, and then wants to know which version it fits.
+        var decisions = new List<ReleaseDecision>();
+        if (parsed is not null)
         {
             var candidate = new ReleaseCandidate(release, parsed, minimumSeeders) { CustomFormatIds = formats.Select(f => f.Id).ToList() };
-            foreach (var context in contexts)
-            {
-                var version = (MovieVersion)context.Target;
-                var decision = _evaluator.Evaluate(candidate, context);
-                versions.Add(new VersionDecisionResponse(
-                    version.Id,
-                    version.Name,
-                    decision.Approved,
-                    decision.Rejections.Select(r => new RejectionResponse(r.Reason, r.Type == RejectionType.Temporary)).ToList(),
-                    decision.CustomFormatScore));
-            }
+            decisions.AddRange(contexts.Select(context => _evaluator.Evaluate(candidate, context)));
         }
+
+        var versions = decisions
+            .Select(decision => new VersionDecisionResponse(
+                decision.Target.Target.Id,
+                ((MovieVersion)decision.Target.Target).Name,
+                decision.Approved,
+                decision.Rejections.Select(r => new RejectionResponse(r.Reason, r.Type == RejectionType.Temporary)).ToList(),
+                decision.CustomFormatScore))
+            .ToList();
+        var suggested = VersionAttribution.Suggest(decisions)?.Target.Target.Id ?? contexts.FirstOrDefault()?.Target.Id;
 
         var quality = parsed?.Quality?.Quality ?? ParserQuality.Unknown;
         var revision = parsed?.Quality?.Revision;
@@ -143,6 +149,7 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
             parsed is { Year: > 0 } ? parsed.Year : null,
             mismatch is null,
             mismatch is null ? [] : [new RejectionResponse(mismatch, false)],
-            versions);
+            versions,
+            suggested);
     }
 }

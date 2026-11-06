@@ -698,9 +698,13 @@ export type Release = {
   customFormats: string[]
   parsedTitle: string | null
   parsedYear: number | null
+  /** False when the release does not look like this film; it is still judged by every version and can be grabbed by hand. */
   matchesMovie: boolean
   rejections: Rejection[]
+  /** One verdict per version; empty only when the title does not parse. */
   versions: VersionDecision[]
+  /** Where a grab goes unless the user picks another version: the one that accepts it, else the closest, else the default. */
+  suggestedVersionId: number | null
 }
 
 export type SearchResult = {
@@ -709,6 +713,8 @@ export type SearchResult = {
   indexersQueried: number
   releases: Release[]
   indexerErrors: { indexerId: number; indexer: string; kind: IndexerFailureKind; message: string }[]
+  /** The text the indexers were asked, when the user typed one; null for the film's own search (ids and titles). */
+  query: string | null
 }
 
 export type AutomaticSearchOutcome = 'grabbed' | 'nothingFound' | 'noIndexer' | 'skipped' | 'failed'
@@ -729,8 +735,13 @@ export type AutomaticSearchResult = {
 }
 
 export const search = {
-  movie: (movieId: number, versionId?: number) =>
-    api<SearchResult>(`/api/v1/search?movieId=${movieId}${versionId ? `&versionId=${versionId}` : ''}`),
+  /** Interactive search for the film, judged by every version (or one); `query` replaces its ids and titles with a text. */
+  movie: (movieId: number, options: { versionId?: number; query?: string } = {}) => {
+    const params = new URLSearchParams({ movieId: String(movieId) })
+    if (options.versionId) params.set('versionId', String(options.versionId))
+    if (options.query?.trim()) params.set('query', options.query.trim())
+    return api<SearchResult>(`/api/v1/search?${params}`)
+  },
   /** Automatic search on demand: every version of the film (or one), the best approved release grabbed. */
   automatic: (movieId: number, versionId?: number) =>
     post<AutomaticSearchResult[]>(`/api/v1/movies/${movieId}/search${versionId ? `?versionId=${versionId}` : ''}`),

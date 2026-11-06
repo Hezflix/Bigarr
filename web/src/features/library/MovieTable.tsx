@@ -163,29 +163,23 @@ function TableRowView({
 }
 
 /**
- * Poster thumbnail (comfortable density) and title. Outside selection mode the title is the row's one link, stretched
- * over the whole row by its ::after: a click anywhere opens the film, and ctrl/cmd/middle click or "open in new tab"
- * work like on any link, without a link or button nested in another.
+ * Poster thumbnail (comfortable density) and title. Outside selection mode an empty link is laid over the whole row
+ * (the row is its positioned ancestor): a click anywhere opens the film, and ctrl/cmd/middle click or "open in new tab"
+ * work like on any link, with no link or button nested in another. The link sits next to the content rather than
+ * around it, so the thumbnail stays mounted, and painted, when selection mode toggles.
  */
 function MovieTitleCell({ movie, density, selecting }: { movie: MovieSummary; density: Density; selecting: boolean }) {
-  const content = (
-    <>
-      {density === 'comfortable' && <Poster url={movie.posterUrl} title={movie.title} size="thumb" className="rounded-sm" />}
-      <span className="truncate font-medium underline-offset-4 group-hover/row:underline">{movie.title}</span>
-    </>
-  )
   return (
-    <div role="cell" className="min-w-0">
-      {selecting ? (
-        <div className="flex min-w-0 items-center gap-2.5">{content}</div>
-      ) : (
+    <div role="cell" className="flex min-w-0 items-center gap-2.5">
+      {density === 'comfortable' && <Poster url={movie.posterUrl} title={movie.title} size="thumb" className="rounded-sm" />}
+      <span className={cn('truncate font-medium', !selecting && 'underline-offset-4 group-hover/row:underline')}>{movie.title}</span>
+      {!selecting && (
         <Link
           to="/movies/$movieId"
           params={{ movieId: String(movie.id) }}
-          className="flex min-w-0 items-center gap-2.5 outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-ring/50 focus-visible:after:ring-inset"
-        >
-          {content}
-        </Link>
+          aria-label={movie.title}
+          className="absolute inset-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+        />
       )}
     </div>
   )
