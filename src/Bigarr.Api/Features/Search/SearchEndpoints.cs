@@ -5,20 +5,28 @@ namespace Bigarr.Api.Features.Search;
 
 public static class SearchEndpoints
 {
+    public const int MaxQueryLength = 200;
+
     public static IEndpointRouteBuilder MapSearch(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/v1/search").WithTags("Search").RequireAuthorization(AuthPolicies.Api);
 
-        // Interactive search: one round of indexer queries for the film, judged by every version (or one).
+        // Interactive search: one round of indexer queries for the film, judged by every version (or one). A query
+        // replaces the film's ids and titles with the user's own text (a film listed under another name or spelling).
         group.MapGet("/", async Task<Results<Ok<SearchResponse>, ValidationProblem, ProblemHttpResult>> (
-            int? movieId, int? versionId, InteractiveSearchService search, CancellationToken ct) =>
+            int? movieId, int? versionId, string? query, InteractiveSearchService search, CancellationToken ct) =>
         {
             if (movieId is null or <= 0)
             {
                 return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["movieId"] = ["A movie id is required."] });
             }
 
-            var result = await search.SearchAsync(movieId.Value, versionId, ct);
+            if (query?.Trim().Length > MaxQueryLength)
+            {
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["query"] = [$"The search text is limited to {MaxQueryLength} characters."] });
+            }
+
+            var result = await search.SearchAsync(movieId.Value, versionId, query, ct);
             return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
         });
 

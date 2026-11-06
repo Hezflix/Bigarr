@@ -281,6 +281,35 @@ public sealed class ReleaseEvaluatorTests
     }
 
     [Fact]
+    public void The_suggested_grab_target_is_the_attributed_one_else_the_closest_to_accepting()
+    {
+        var release = Candidate("The.Matrix.1999.1080p.BluRay.x264-GRP");
+        var hd = Version(id: 1);
+        var oneShot = Version(constraints: new AcquisitionConstraints { Edition = "director'?s cut" }, id: 2, name: "directors-cut");
+        var uhdProfile = Profile();
+        uhdProfile.Items.Where(i => !i.QualityIds.Contains(ParserQuality.Bluray2160p.Id)).ToList().ForEach(i => i.Allowed = false);
+        var uhd = Version(id: 3, name: "4k");
+
+        // Someone accepts it: attribution decides, whatever the others say.
+        var accepted = new[] { Evaluator.Evaluate(release, Context(oneShot)), Evaluator.Evaluate(release, Context(hd)) };
+        Assert.Equal(1, VersionAttribution.Suggest(accepted)!.Target.Target.Id);
+
+        // Nobody does: fewer permanent rejections win, so a version busy with a download (a temporary refusal) still
+        // gets the release it fits; then fewer rejections, then the default.
+        var busy = Evaluator.Evaluate(release, Context(hd, activeGrab: true));
+        var twoRefusals = Evaluator.Evaluate(release, Context(oneShot, profile: uhdProfile));
+        var oneRefusal = Evaluator.Evaluate(release, Context(uhd, profile: uhdProfile));
+        Assert.Equal(1, VersionAttribution.Suggest([twoRefusals, oneRefusal, busy])!.Target.Target.Id);
+        Assert.Equal(3, VersionAttribution.Suggest([twoRefusals, oneRefusal])!.Target.Target.Id);
+
+        var defaultUhd = Evaluator.Evaluate(release, Context(Version(id: 4, name: "4k-default"), profile: uhdProfile) with { IsDefaultTarget = true });
+        Assert.Equal(4, VersionAttribution.Suggest([oneRefusal, defaultUhd])!.Target.Target.Id);
+        Assert.Equal(3, VersionAttribution.Suggest([defaultUhd with { Target = defaultUhd.Target with { IsDefaultTarget = false } }, oneRefusal])!.Target.Target.Id);
+
+        Assert.Null(VersionAttribution.Suggest([]));
+    }
+
+    [Fact]
     public void Custom_format_scores_come_from_the_profile_and_gate_on_the_minimum()
     {
         var profile = Profile();
