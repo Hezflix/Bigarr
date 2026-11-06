@@ -220,6 +220,7 @@ export function LibraryPage() {
           movies={shown}
           columns={prefs.columns}
           density={prefs.density}
+          posterSize={prefs.posterSize}
           lookups={lookups}
           sort={prefs.sort}
           direction={prefs.direction}

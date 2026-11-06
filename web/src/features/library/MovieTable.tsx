@@ -1,16 +1,16 @@
-import { useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import { cn } from 'cn'
 import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, ChevronDownIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { MovieSummary } from '@/api/client'
-import { Poster } from '@/components/Poster'
+import { Poster, type PosterSize as PosterImage } from '@/components/Poster'
 import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { formatBytes, formatDate } from '@/i18n'
 import { useDocumentOffset, useOverflows } from './layout'
-import { sortedVersion, totalSize, type Density, type SortDirection, type SortKey, type TableColumn } from './libraryView'
+import { sortedVersion, totalSize, type Density, type PosterSize, type SortDirection, type SortKey, type TableColumn } from './libraryView'
 import type { Selection } from './selection'
 import { SelectionMark } from './SelectionMark'
 import { SizeSplit, useSortLabel } from './SizeSplit'
@@ -23,8 +23,17 @@ export type Lookups = {
   rootFolders: ReadonlyMap<number, string>
 }
 
-/** Compact rows hold one line of text, with slimmer chips; comfortable rows fit the poster thumbnail. */
-export const rowHeight: Record<Density, number> = { compact: 28, comfortable: 52 }
+/** The thumbnail of comfortable rows at each poster size, and its width in px. */
+const thumbnails: Record<PosterSize, { image: PosterImage; width: number }> = {
+  small: { image: 'thumb', width: 28 },
+  medium: { image: 'thumbMedium', width: 40 },
+  large: { image: 'thumbLarge', width: 56 },
+}
+
+/** Compact rows hold one line of text, with slimmer chips; comfortable rows fit the 2:3 thumbnail with 5 px above and below. */
+export function rowHeight(density: Density, posterSize: PosterSize): number {
+  return density === 'compact' ? 28 : thumbnails[posterSize].width * 1.5 + 10
+}
 
 const widths: Record<TableColumn, string> = {
   year: '4rem',
@@ -49,6 +58,7 @@ type Props = Selection & {
   movies: MovieSummary[]
   columns: TableColumn[]
   density: Density
+  posterSize: PosterSize
   lookups: Lookups
   sort: SortKey
   direction: SortDirection
@@ -60,7 +70,7 @@ type Props = Selection & {
 }
 
 /** Radarr's table view: one row per film, columns picked in the view menu, headers sort, a row opens its film. */
-export function MovieTable({ movies, columns, density, lookups, sort, direction, onSort, sizeSplit, versionNames, ...selection }: Props) {
+export function MovieTable({ movies, columns, density, posterSize, lookups, sort, direction, onSort, sizeSplit, versionNames, ...selection }: Props) {
   const { t } = useTranslation()
   const sortLabel = useSortLabel()
   const versions = versionNames.length > 1
@@ -71,8 +81,10 @@ export function MovieTable({ movies, columns, density, lookups, sort, direction,
   const contentRef = useRef<HTMLDivElement>(null)
   const offset = useDocumentOffset(containerRef)
   const overflows = useOverflows(frameRef, contentRef)
-  const height = rowHeight[density]
+  const height = rowHeight(density, posterSize)
   const virtualizer = useWindowVirtualizer({ count: movies.length, estimateSize: () => height, overscan: 10, scrollMargin: offset })
+  // The virtualizer keeps the row positions it computed: a new row height has to move every row.
+  useEffect(() => virtualizer.measure(), [virtualizer, height])
   // The split needs room: "1080p 39 GB · 4k 82 GB" under the total, or next to it on a compact row.
   const width = (column: TableColumn) => (column === 'size' && split === 'under' ? '11rem' : column === 'size' && split === 'inline' ? '16.5rem' : widths[column])
   const template = [selection.selecting ? '2rem' : null, 'minmax(14rem, 2.5fr)', ...columns.map(width)].filter(Boolean).join(' ')
@@ -182,6 +194,7 @@ export function MovieTable({ movies, columns, density, lookups, sort, direction,
                 movie={movie}
                 columns={columns}
                 density={density}
+                posterSize={posterSize}
                 lookups={lookups}
                 split={split}
                 emphasis={emphasis}
@@ -201,6 +214,7 @@ function TableRowView({
   movie,
   columns,
   density,
+  posterSize,
   lookups,
   split,
   emphasis,
@@ -213,6 +227,7 @@ function TableRowView({
   movie: MovieSummary
   columns: TableColumn[]
   density: Density
+  posterSize: PosterSize
   lookups: Lookups
   split: Split
   emphasis: string | null
@@ -237,7 +252,7 @@ function TableRowView({
       style={{ ...style, gridTemplateColumns: template }}
     >
       {selecting && <SelectionMark checked={isSelected} />}
-      <MovieTitleCell movie={movie} density={density} selecting={selecting} />
+      <MovieTitleCell movie={movie} image={density === 'comfortable' ? thumbnails[posterSize].image : null} selecting={selecting} />
       {columns.map((column) => (
         <div key={column} role="cell" className="min-w-0 truncate">
           <Cell movie={movie} column={column} lookups={lookups} split={split} emphasis={emphasis} />
@@ -248,15 +263,15 @@ function TableRowView({
 }
 
 /**
- * Poster thumbnail (comfortable density) and title. Outside selection mode an empty link is laid over the whole row
- * (the row is its positioned ancestor): a click anywhere opens the film, and ctrl/cmd/middle click or "open in new tab"
- * work like on any link, with no link or button nested in another. The link sits next to the content rather than
- * around it, so the thumbnail stays mounted, and painted, when selection mode toggles.
+ * Poster thumbnail (comfortable density, sized by the poster size) and title. Outside selection mode an empty link is
+ * laid over the whole row (the row is its positioned ancestor): a click anywhere opens the film, and ctrl/cmd/middle
+ * click or "open in new tab" work like on any link, with no link or button nested in another. The link sits next to the
+ * content rather than around it, so the thumbnail stays mounted, and painted, when selection mode toggles.
  */
-function MovieTitleCell({ movie, density, selecting }: { movie: MovieSummary; density: Density; selecting: boolean }) {
+function MovieTitleCell({ movie, image, selecting }: { movie: MovieSummary; image: PosterImage | null; selecting: boolean }) {
   return (
     <div role="cell" className="flex min-w-0 items-center gap-2.5">
-      {density === 'comfortable' && <Poster url={movie.posterUrl} title={movie.title} size="thumb" className="rounded-sm" />}
+      {image && <Poster url={movie.posterUrl} title={movie.title} size={image} className="rounded-sm" />}
       <span className={cn('truncate font-medium', !selecting && 'underline-offset-4 group-hover/row:underline')}>{movie.title}</span>
       {!selecting && (
         <Link

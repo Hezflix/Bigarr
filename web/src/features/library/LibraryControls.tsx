@@ -407,8 +407,14 @@ function CheckboxSub<T extends string | number>({
   )
 }
 
+/**
+ * Only the options of the current layout: card fields do nothing to the table, columns nothing to the posters. The
+ * other layout's settings stay stored and apply again when it comes back. Sort and density apply to both, and so does
+ * the poster size: the cards, or the thumbnail of comfortable table rows (compact rows have none, so it is greyed out).
+ */
 function ViewMenu({ prefs, onChange, names }: { prefs: LibraryPrefs; onChange: (patch: Partial<LibraryPrefs>) => void; names: VersionName[] }) {
   const { t } = useTranslation()
+  const noImage = prefs.mode === 'table' && prefs.density === 'compact'
   // Under Size, in both lists: one setting for the posters and the table. Without a second version there is nothing to split.
   const sizeSplit = (shown: boolean, testid: string) =>
     names.length > 1 && (
@@ -430,12 +436,12 @@ function ViewMenu({ prefs, onChange, names }: { prefs: LibraryPrefs; onChange: (
           {t('library.view.label')}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-60">
         <SortSub prefs={prefs} onChange={onChange} names={names} />
         <DropdownMenuSub>
-          <DropdownMenuSubTrigger data-testid="library-poster-size">
+          <DropdownMenuSubTrigger disabled={noImage} data-testid="library-poster-size">
             <span className="flex-1">{t('library.view.posterSize')}</span>
-            <span className="text-xs text-muted-foreground">{t(`library.view.sizes.${prefs.posterSize}`)}</span>
+            <span className="text-xs text-muted-foreground">{noImage ? t('library.view.comfortableOnly') : t(`library.view.sizes.${prefs.posterSize}`)}</span>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
             <DropdownMenuRadioGroup value={prefs.posterSize} onValueChange={(value) => onChange({ posterSize: value as LibraryPrefs['posterSize'] })}>
@@ -447,43 +453,47 @@ function ViewMenu({ prefs, onChange, names }: { prefs: LibraryPrefs; onChange: (
             </DropdownMenuRadioGroup>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger data-testid="library-card-fields">{t('library.view.cardFields')}</DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            {cardFields.map((field) => (
-              <Fragment key={field}>
-                <DropdownMenuCheckboxItem
-                  checked={prefs.cardFields.includes(field)}
-                  onCheckedChange={() => onChange({ cardFields: toggle(prefs.cardFields, field) })}
-                  onSelect={keepOpen}
-                  data-testid={`library-card-field-${field}`}
-                >
-                  {t(`library.view.fields.${field}`)}
-                </DropdownMenuCheckboxItem>
-                {field === 'size' && sizeSplit(prefs.cardFields.includes('size'), 'library-card-field-size-split')}
-              </Fragment>
-            ))}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger data-testid="library-columns">{t('library.view.columns')}</DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            {tableColumns.map((column) => (
-              <Fragment key={column}>
-                <DropdownMenuCheckboxItem
-                  checked={prefs.columns.includes(column)}
-                  // Keep the declared order whatever the order of the clicks.
-                  onCheckedChange={() => onChange({ columns: tableColumns.filter((c) => (c === column ? !prefs.columns.includes(c) : prefs.columns.includes(c))) })}
-                  onSelect={keepOpen}
-                  data-testid={`library-column-${column}`}
-                >
-                  {t(`library.columns.${column}`)}
-                </DropdownMenuCheckboxItem>
-                {column === 'size' && sizeSplit(prefs.columns.includes('size'), 'library-column-size-split')}
-              </Fragment>
-            ))}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
+        {prefs.mode === 'posters' && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger data-testid="library-card-fields">{t('library.view.cardFields')}</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {cardFields.map((field) => (
+                <Fragment key={field}>
+                  <DropdownMenuCheckboxItem
+                    checked={prefs.cardFields.includes(field)}
+                    onCheckedChange={() => onChange({ cardFields: toggle(prefs.cardFields, field) })}
+                    onSelect={keepOpen}
+                    data-testid={`library-card-field-${field}`}
+                  >
+                    {t(`library.view.fields.${field}`)}
+                  </DropdownMenuCheckboxItem>
+                  {field === 'size' && sizeSplit(prefs.cardFields.includes('size'), 'library-card-field-size-split')}
+                </Fragment>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )}
+        {prefs.mode === 'table' && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger data-testid="library-columns">{t('library.view.columns')}</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {tableColumns.map((column) => (
+                <Fragment key={column}>
+                  <DropdownMenuCheckboxItem
+                    checked={prefs.columns.includes(column)}
+                    // Keep the declared order whatever the order of the clicks.
+                    onCheckedChange={() => onChange({ columns: tableColumns.filter((c) => (c === column ? !prefs.columns.includes(c) : prefs.columns.includes(c))) })}
+                    onSelect={keepOpen}
+                    data-testid={`library-column-${column}`}
+                  >
+                    {t(`library.columns.${column}`)}
+                  </DropdownMenuCheckboxItem>
+                  {column === 'size' && sizeSplit(prefs.columns.includes('size'), 'library-column-size-split')}
+                </Fragment>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">{t('library.view.density')}</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={prefs.density} onValueChange={(value) => onChange({ density: value as LibraryPrefs['density'] })}>

@@ -154,6 +154,7 @@
       "label": "View",
       "mode": "Layout",
       "posterSize": "Poster size",
+      "comfortableOnly": "Comfortable only",
       "sizes": {
         "small": "Small",
         "medium": "Medium",
