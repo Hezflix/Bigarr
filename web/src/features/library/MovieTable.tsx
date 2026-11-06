@@ -143,20 +143,17 @@ function TableRowView({
   )
 }
 
-/** Poster thumbnail (comfortable density) and title; a link outside selection mode. */
+/**
+ * Poster thumbnail (comfortable density) and title; a link outside selection mode. The link is laid over the cell
+ * rather than wrapped around it, so the thumbnail stays mounted, and painted, when selection mode toggles.
+ */
 export function MovieTitleCell({ movie, density, selecting }: { movie: MovieSummary; density: Density; selecting: boolean }) {
-  const content = (
-    <>
+  return (
+    <div className="group/title relative flex min-w-0 items-center gap-2.5">
       {density === 'comfortable' && <Poster url={movie.posterUrl} title={movie.title} size="thumb" className="rounded-sm" />}
-      <span className="truncate font-medium">{movie.title}</span>
-    </>
-  )
-  return selecting ? (
-    <div className="flex min-w-0 items-center gap-2.5">{content}</div>
-  ) : (
-    <Link to="/movies/$movieId" params={{ movieId: String(movie.id) }} className="flex min-w-0 items-center gap-2.5 hover:underline underline-offset-4">
-      {content}
-    </Link>
+      <span className={cn('truncate font-medium', !selecting && 'underline-offset-4 group-hover/title:underline')}>{movie.title}</span>
+      {!selecting && <Link to="/movies/$movieId" params={{ movieId: String(movie.id) }} aria-label={movie.title} className="absolute inset-0" />}
+    </div>
   )
 }
 
