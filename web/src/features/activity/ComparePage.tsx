@@ -35,7 +35,7 @@ const rejectStyle = 'border-red-600/30 bg-red-500/10 text-red-700 dark:border-re
 function formatGap(seconds: number): string {
   const s = Math.abs(seconds)
   if (s < 90) return `${Math.round(s)} s`
-  if (s < 90 * 60) return `${Math.round(s / 60)} min`
+  if (s < 3600) return `${Math.round(s / 60)} min`
   if (s < 48 * 3600) return `${Math.round(s / 3600)} h`
   return `${Math.round(s / 86400)} d`
 }
@@ -152,8 +152,8 @@ export function ComparePage() {
           <AlertDescription>
             <span>
               {t('compare.noRadarrHint')}{' '}
-              <Link to="/settings/compare-radarr" className="underline underline-offset-4">
-                {t('nav.settingsCompareRadarr')}
+              <Link to="/settings/followed-radarrs" className="underline underline-offset-4">
+                {t('nav.settingsFollowedRadarrs')}
               </Link>
             </span>
           </AlertDescription>
@@ -391,8 +391,9 @@ function Details({ row }: { row: CompareRow }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="grid gap-3 lg:grid-cols-2">
-        {row.radarr ? <GrabCard grab={row.radarr} versionName={row.versionName} /> : <BigarrOnlyWhy row={row} />}
-        {row.bigarr ? <PickCard pick={row.bigarr} tmdbId={row.tmdbId} /> : <RadarrOnlyWhy row={row} />}
+        {/* Radarr's side on the left, Bigarr's on the right; a one-sided row says why the other side chose nothing. */}
+        {row.radarr ? <GrabCard grab={row.radarr} versionName={row.versionName} showVerdict={row.bigarr !== null} /> : <BigarrOnlyWhy row={row} />}
+        {row.bigarr ? <PickCard pick={row.bigarr} tmdbId={row.tmdbId} showView={row.radarr !== null} /> : <RadarrOnlyWhy row={row} />}
       </div>
       {row.radarr && row.bigarr && row.outcome === 'different' && <p className="text-xs text-muted-foreground">{t('compare.differentHint')}</p>}
       {row.alsoPicked.length > 0 && (
@@ -442,9 +443,8 @@ function Card({ title, tone, children }: { title: string; tone?: 'radarr' | 'big
   )
 }
 
-function GrabCard({ grab, versionName }: { grab: CompareGrab; versionName: string }) {
+function GrabCard({ grab, versionName, showVerdict }: { grab: CompareGrab; versionName: string; showVerdict: boolean }) {
   const { t } = useTranslation()
-  const verdict = grab.bigarr
   return (
     <Card title={t('compare.radarrCard', { name: grab.radarrName })} tone="radarr">
       <Field label={t('compare.release')}>
@@ -466,41 +466,48 @@ function GrabCard({ grab, versionName }: { grab: CompareGrab; versionName: strin
       <Field label={t('compare.source')}>
         {grab.releaseSource ? t(`compare.sources.${grab.releaseSource}`, { defaultValue: grab.releaseSource }) : '—'} · {t(`compare.states.${grab.state}`)}
       </Field>
-      <div className="mt-1 border-t pt-2">
-        <Field label={t('compare.bigarrSays')}>
-          {!verdict ? (
-            '—'
-          ) : verdict.unmatched ? (
-            <span className="text-red-700 dark:text-red-300">{verdict.unmatched}</span>
-          ) : (
-            <span className="flex flex-col gap-1">
-              <span className="flex flex-wrap items-center gap-1">
-                {verdict.approved ? (
-                  <Badge variant="outline" className={okStyle}>
-                    {verdict.attributedVersion && verdict.attributedVersion !== versionName ? t('compare.approvedElsewhere', { version: verdict.attributedVersion }) : t('compare.approved')}
-                  </Badge>
-                ) : (
-                  verdict.rejections.map((reason) => (
-                    <Badge key={reason} variant="outline" className={cn('whitespace-normal text-left', rejectStyle)}>
-                      {reason}
-                    </Badge>
-                  ))
-                )}
-                <span className="tabular-nums text-muted-foreground">{t('search.score', { score: verdict.customFormatScore })}</span>
-              </span>
-              {verdict.customFormats.length > 0 && <Formats names={verdict.customFormats} score={null} />}
-              <span className="text-muted-foreground">
-                {verdict.currentQuality ? t('compare.fileThen', { quality: verdict.currentQuality, score: verdict.currentScore ?? 0 }) : t('compare.noFileThen')}
-              </span>
-            </span>
-          )}
-        </Field>
-      </div>
+      {showVerdict && (
+        <div className="mt-1 border-t pt-2">
+          <Field label={t('compare.bigarrSays')}>
+            <VerdictText grab={grab} versionName={versionName} />
+          </Field>
+        </div>
+      )}
     </Card>
   )
 }
 
-function PickCard({ pick, tmdbId }: { pick: ComparePick; tmdbId: number }) {
+/** Bigarr's engine on Radarr's release, when the grab was read: rejections or approval, score, the file the version had. */
+function VerdictText({ grab, versionName }: { grab: CompareGrab; versionName: string }) {
+  const { t } = useTranslation()
+  const verdict = grab.bigarr
+  if (!verdict) return <>—</>
+  if (verdict.unmatched) return <span className="text-red-700 dark:text-red-300">{verdict.unmatched}</span>
+  return (
+    <span className="flex flex-col gap-1">
+      <span className="flex flex-wrap items-center gap-1">
+        {verdict.approved ? (
+          <Badge variant="outline" className={okStyle}>
+            {verdict.attributedVersion && verdict.attributedVersion !== versionName ? t('compare.approvedElsewhere', { version: verdict.attributedVersion }) : t('compare.approved')}
+          </Badge>
+        ) : (
+          verdict.rejections.map((reason) => (
+            <Badge key={reason} variant="outline" className={cn('whitespace-normal text-left', rejectStyle)}>
+              {reason}
+            </Badge>
+          ))
+        )}
+        <span className="tabular-nums text-muted-foreground">{t('search.score', { score: verdict.customFormatScore })}</span>
+      </span>
+      {verdict.customFormats.length > 0 && <Formats names={verdict.customFormats} score={null} />}
+      <span className="text-muted-foreground">
+        {verdict.currentQuality ? t('compare.fileThen', { quality: verdict.currentQuality, score: verdict.currentScore ?? 0 }) : t('compare.noFileThen')}
+      </span>
+    </span>
+  )
+}
+
+function PickCard({ pick, tmdbId, showView }: { pick: ComparePick; tmdbId: number; showView: boolean }) {
   const { t } = useTranslation()
   return (
     <Card title={t('compare.bigarrCard')} tone="bigarr">
@@ -524,11 +531,13 @@ function PickCard({ pick, tmdbId }: { pick: ComparePick; tmdbId: number }) {
         {t(`compare.triggers.${pick.trigger.replace(':', '_')}`, { defaultValue: pick.trigger })}
         {pick.picks > 1 && <span className="text-muted-foreground"> · {t('compare.pickedTimes', { count: pick.picks })}</span>}
       </Field>
-      <div className="mt-1 border-t pt-2">
-        <Field label={t('compare.radarrSays')}>
-          <RadarrViewText pick={pick} tmdbId={tmdbId} />
-        </Field>
-      </div>
+      {showView && (
+        <div className="mt-1 border-t pt-2">
+          <Field label={t('compare.radarrSays')}>
+            <RadarrViewText pick={pick} tmdbId={tmdbId} />
+          </Field>
+        </div>
+      )}
     </Card>
   )
 }
@@ -599,13 +608,10 @@ function RadarrOnlyWhy({ row }: { row: CompareRow }) {
         )}
       </Field>
       <Field label={t('compare.engineNow')}>
-        {grab.bigarr?.unmatched ? (
-          <span className="text-red-700 dark:text-red-300">{grab.bigarr.unmatched}</span>
-        ) : grab.bigarr?.approved ? (
-          <span>{t('compare.engineWouldTake', { score: grab.bigarr.customFormatScore })}</span>
-        ) : (
-          <span>{t('compare.engineRejects')}</span>
-        )}
+        <span className="flex flex-col gap-1">
+          <VerdictText grab={grab} versionName={row.versionName} />
+          {grab.bigarr?.approved && !sighting && <span className="text-muted-foreground">{t('compare.engineWouldTake')}</span>}
+        </span>
       </Field>
     </Card>
   )

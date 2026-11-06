@@ -66,7 +66,7 @@ const toForm = (radarr: FollowedRadarr): FollowedRadarrRequest => ({
 })
 
 /**
- * Settings → Compare with Radarr: the Radarrs Bigarr runs next to in shadow mode. Each one maps to a version; Bigarr reads
+ * Settings → Followed Radarrs: the Radarrs Bigarr runs next to in shadow mode. Each one maps to a version; Bigarr reads
  * its history (its grabs) and follows its library, and Activity → Compare puts its grabs next to Bigarr's picks.
  */
 export function RadarrFollowPage() {
@@ -337,11 +337,11 @@ function FollowedRadarrDialog({ radarr, onClose, onSaved }: { radarr: FollowedRa
           </DialogHeader>
 
           <div className="my-6 grid gap-4 sm:grid-cols-2">
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 content-start gap-2">
               <Label htmlFor="fr-name">{t('radarrFollow.name')}</Label>
               <Input id="fr-name" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Radarr 4k" autoFocus />
             </div>
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 content-start gap-2">
               <Label htmlFor="fr-version">{t('radarrFollow.version')}</Label>
               <Input id="fr-version" value={form.versionName} onChange={(e) => set('versionName', e.target.value)} aria-invalid={!versionValid} />
               <p className="text-xs text-muted-foreground">{versionValid ? t('radarrFollow.versionHint') : t('importRadarr.versionNameInvalid')}</p>

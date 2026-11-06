@@ -27,7 +27,7 @@
     "settingsConnect": "Connect",
     "settingsMediaServers": "Media servers",
     "settingsImportRadarr": "Import from Radarr",
-    "settingsCompareRadarr": "Compare with Radarr",
+    "settingsFollowedRadarrs": "Followed Radarrs",
     "compare": "Compare"
   },
   "theme": {
@@ -1384,12 +1384,11 @@
     "seenElsewhere": "Attributed to version {{version}} instead.",
     "seenBeaten": "Accepted for this version, but a better release of the same pass was picked.",
     "engineNow": "Bigarr's engine",
-    "engineWouldTake": "Would take it (score {{score}}): Bigarr's feeds did not carry it in time.",
-    "engineRejects": "Rejects it: see the reasons on Radarr's side.",
+    "engineWouldTake": "Bigarr would have taken it: its feeds did not carry it.",
     "bigarrOnlyHint": "Radarr is asked about each pick on the follow's next pass: the film it matches the title to, its custom formats and score, and its current file."
   },
   "radarrFollow": {
-    "title": "Compare with Radarr",
+    "title": "Followed Radarrs",
     "intro": "The Radarrs Bigarr runs next to before replacing them. Each one is a version of your films: Bigarr reads its history (what it grabbed, imported, upgraded) and keeps that version in line with its library, so what Bigarr would grab can be compared with what Radarr grabs. Bigarr only reads from Radarr.",
     "add": "Follow a Radarr",
     "new": "Follow a Radarr",
@@ -1472,7 +1471,7 @@
     "keepMonitored": "Keep Radarr's monitored flags",
     "includeWithoutFile": "Include films without a file",
     "follow": "Keep following this Radarr afterwards (shadow mode)",
-    "followHint": "Bigarr then reads this Radarr's history and library every few minutes with the same mapping: its grabs feed Activity → Compare, and the films and files it adds land in this version. Settings → Compare with Radarr.",
+    "followHint": "Bigarr then reads this Radarr's history and library every few minutes with the same mapping: its grabs feed Activity → Compare, and the films and files it adds land in this version. Settings → Followed Radarrs.",
     "start": "Start import",
     "starting": "Starting…",
     "startFailed": "The import could not start.",

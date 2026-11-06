@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 namespace Bigarr.Api.Features.Shadow;
 
 /// <summary>
-/// Settings → Compare with Radarr: the Radarrs Bigarr follows in shadow mode, each mapped to a version with the import's
+/// Settings → Followed Radarrs: the Radarrs Bigarr follows in shadow mode, each mapped to a version with the import's
 /// mapping. The API key is stored like an indexer's and only ever sent back masked; a masked or blank key on update keeps
 /// the stored one, like Radarr's own privacy fields.
 /// </summary>

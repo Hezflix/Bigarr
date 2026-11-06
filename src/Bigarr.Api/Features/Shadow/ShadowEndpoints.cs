@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Bigarr.Api.Features.Shadow;
 
-/// <summary>Shadow mode: its status, the comparison with Radarr (Activity → Compare), the Radarrs it follows (Settings → Compare with Radarr).</summary>
+/// <summary>Shadow mode: its status, the comparison with Radarr (Activity → Compare), the Radarrs it follows (Settings → Followed Radarrs).</summary>
 public static class ShadowEndpoints
 {
     public static IEndpointRouteBuilder MapShadow(this IEndpointRouteBuilder app)
