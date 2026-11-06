@@ -84,15 +84,18 @@ type CardProps = { movie: MovieSummary; density: Density; posterSize: PosterSize
 function MovieCard({ selecting, selected, onToggle, ...card }: Selection & CardProps) {
   const { movie } = card
   const isSelected = selected.has(movie.id)
+  const link = useRef<HTMLAnchorElement>(null)
   // Only the control over the card changes with selection mode. Wrapping the card in a <button> instead of an <a>
   // would remount it, and every poster <img> with it: each one repainted, visibly, at every toggle.
   return (
     <div className="group relative" data-testid="movie-card" data-movie-id={movie.id}>
+      {/* Only the version chips rise above the control, for their tooltips: a click on one acts as a click on the card. */}
       <Card
         className={cn(
           'relative h-full gap-0 overflow-hidden p-0 transition-colors group-hover:border-ring/40 group-hover:bg-accent/40',
           isSelected && 'border-primary ring-2 ring-primary/60',
         )}
+        onClick={(event) => (selecting ? onToggle(movie.id, event.shiftKey) : link.current?.click())}
       >
         <Poster url={movie.posterUrl} title={movie.title} size="grid" className="rounded-none" />
         {selecting && (
@@ -110,7 +113,7 @@ function MovieCard({ selecting, selected, onToggle, ...card }: Selection & CardP
           className={cardControl}
         />
       ) : (
-        <Link to="/movies/$movieId" params={{ movieId: String(movie.id) }} aria-label={movie.title} title={movie.title} className={cardControl} />
+        <Link ref={link} to="/movies/$movieId" params={{ movieId: String(movie.id) }} aria-label={movie.title} title={movie.title} className={cardControl} />
       )}
     </div>
   )
@@ -148,9 +151,9 @@ function CardInfo({ movie, density, posterSize, fields, sizeSplit, emphasis }: C
       {sizeSplit && show('size') && <SizeSplit movie={movie} emphasis={emphasis} />}
       {show('quality') && <span className="truncate text-xs text-muted-foreground">{qualities.length > 0 ? qualities.join(' · ') : t('library.noFile')}</span>}
       {show('versions') && movie.versions.length > 0 && (
-        <div className="mt-0.5 flex flex-wrap gap-1">
+        <div className="pointer-events-none relative z-10 mt-0.5 flex flex-wrap gap-1">
           {movie.versions.map((v) => (
-            <VersionChip key={v.id} version={v} />
+            <VersionChip key={v.id} version={v} className="pointer-events-auto" />
           ))}
         </div>
       )}
