@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
+using Bigarr.Api.Features.Server.Tasks;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Auth;
 using Bigarr.Domain.Metadata;
@@ -18,7 +19,9 @@ public sealed record SystemStatusResponse(
     bool IsDocker,
     string ConfigDirectory,
     /// <summary><c>tmdb</c> or <c>fixtures</c>.</summary>
-    string MetadataProvider);
+    string MetadataProvider,
+    /// <summary><c>Bigarr:Scheduler:Enabled</c>: when false no task runs on its own (RSS sync, searches, health check, maintenance, backups); each runs only when triggered.</summary>
+    bool SchedulerEnabled);
 
 public static class SystemEndpoints
 {
@@ -37,7 +40,7 @@ public static class SystemEndpoints
         return app;
     }
 
-    private static Ok<SystemStatusResponse> Status(IOptions<BigarrOptions> options, IHostEnvironment environment, IMetadataProvider metadata) =>
+    private static Ok<SystemStatusResponse> Status(IOptions<BigarrOptions> options, IOptions<SchedulerOptions> scheduler, IHostEnvironment environment, IMetadataProvider metadata) =>
         TypedResults.Ok(new SystemStatusResponse(
             AppName: "Bigarr",
             Version: Version,
@@ -47,5 +50,6 @@ public static class SystemEndpoints
             Os: RuntimeInformation.OSDescription,
             IsDocker: string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase),
             ConfigDirectory: Path.GetFullPath(options.Value.ConfigDirectory),
-            MetadataProvider: metadata.Name));
+            MetadataProvider: metadata.Name,
+            SchedulerEnabled: scheduler.Value.Enabled));
 }

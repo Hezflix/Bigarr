@@ -96,16 +96,18 @@ public sealed class RssFeedState
         }
     }
 
-    public RssStatusResponse Status(RssSyncOptions options)
+    /// <summary>The feed's side of the status; the scheduler's side (is it on, when is the next pass) comes from the caller.</summary>
+    public RssStatusResponse Status(RssSyncOptions options, bool schedulerEnabled, DateTime? nextRunAt)
     {
         lock (_lock)
         {
             return new RssStatusResponse(
                 options.Enabled,
+                schedulerEnabled,
                 (int)options.Interval.TotalMinutes,
                 Running,
                 LastRunAt,
-                null, // the scheduler knows; RssSyncService fills it in
+                nextRunAt,
                 _releases.Count,
                 _releases.Count(r => r.Movie is not null),
                 _releases.Count(r => r.AttributedVersionId is not null),

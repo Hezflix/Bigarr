@@ -60,10 +60,14 @@ public sealed record RssReleaseResponse(
 public sealed record RssIndexerStatusResponse(int IndexerId, string Indexer, DateTime? LastRunAt, string? LastError, int LastFetched, int LastNew);
 
 public sealed record RssStatusResponse(
+    /// <summary><c>Bigarr:Rss:Enabled</c>: the pass is one of the scheduled tasks.</summary>
     bool Enabled,
+    /// <summary><c>Bigarr:Scheduler:Enabled</c>: when false no task runs on its own, so the pass only runs when triggered.</summary>
+    bool SchedulerEnabled,
     int IntervalMinutes,
     bool Running,
     DateTime? LastRunAt,
+    /// <summary>Set only when the pass runs on its own: RSS and the scheduler both enabled.</summary>
     DateTime? NextRunAt,
     int Stored,
     int Matched,

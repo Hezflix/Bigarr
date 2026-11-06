@@ -29,6 +29,7 @@ public sealed class RssSyncService(
     RssFeedState state,
     SchedulerState scheduler,
     IOptions<RssSyncOptions> options,
+    IOptions<SchedulerOptions> schedulerOptions,
     TimeProvider time,
     ILogger<RssSyncService> logger)
 {
@@ -36,7 +37,13 @@ public sealed class RssSyncService(
 
     private readonly ReleaseEvaluator _evaluator = ReleaseEvaluator.Automatic();
 
-    public RssStatusResponse Status() => state.Status(options.Value) with { NextRunAt = options.Value.Enabled ? scheduler.NextRunAt(RssSyncJob.JobName) : null };
+    /// <summary>A next pass only when one will come on its own: RSS enabled and the scheduler on, as System → Tasks shows it.</summary>
+    public RssStatusResponse Status()
+    {
+        var scheduling = schedulerOptions.Value.Enabled;
+        var nextRunAt = options.Value.Enabled && scheduling ? scheduler.NextRunAt(RssSyncJob.JobName) : null;
+        return state.Status(options.Value, scheduling, nextRunAt);
+    }
 
     public async Task<Result<RssSyncResponse>> RunAsync(CancellationToken ct)
     {

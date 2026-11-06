@@ -7,6 +7,7 @@ using Bigarr.Api.Features.Library;
 using Bigarr.Api.Features.Movies;
 using Bigarr.Api.Features.Quality;
 using Bigarr.Api.Features.Search;
+using Bigarr.Api.Features.Server;
 using Bigarr.Api.Tests.Auth;
 using Bigarr.Domain.Indexers;
 
@@ -30,6 +31,8 @@ public sealed class RssSyncTests(BigarrApiFactory factory) : IClassFixture<Bigar
 
         var before = (await client.GetFromJsonAsync<RssStatusResponse>("/api/v1/rss", Json))!;
         Assert.True(before.Enabled);
+        Assert.False(before.SchedulerEnabled); // the test factory runs with the scheduler off
+        Assert.Null(before.NextRunAt); // so no pass is coming on its own
         Assert.Equal(15, before.IntervalMinutes);
         Assert.False(before.Running);
 
@@ -172,6 +175,47 @@ public sealed class RssSyncTests(BigarrApiFactory factory) : IClassFixture<Bigar
         }
     }
 
+    [Theory]
+    [InlineData(true, true, true)]
+    [InlineData(false, true, false)] // shadow mode next to Radarr: the pass only runs when triggered
+    [InlineData(true, false, false)]
+    public async Task Status_shows_a_next_pass_only_when_one_comes_on_its_own(bool scheduler, bool rss, bool scheduled)
+    {
+        await using var app = new ConfiguredBigarrApiFactory(null, new Dictionary<string, string>
+        {
+            ["Bigarr:Scheduler:Enabled"] = scheduler ? "true" : "false",
+            ["Bigarr:Rss:Enabled"] = rss ? "true" : "false",
+            ["Bigarr:Rss:InitialDelaySeconds"] = "3600", // no scheduled pass while the test runs
+        });
+        var client = await ClientAsync(app);
+
+        var system = (await client.GetFromJsonAsync<SystemStatusResponse>("/api/v1/system/status", Json))!;
+        Assert.Equal(scheduler, system.SchedulerEnabled);
+
+        var status = (await client.GetFromJsonAsync<RssStatusResponse>("/api/v1/rss", Json))!;
+        Assert.Equal(rss, status.Enabled);
+        Assert.Equal(scheduler, status.SchedulerEnabled);
+        if (!scheduled)
+        {
+            Assert.Null(status.NextRunAt);
+        }
+
+        // A pass by hand: the scheduler books the next one from it, which only counts when it will run on its own.
+        var run = await client.PostAsync($"/api/v1/system/tasks/{RssSyncJob.JobName}/run", null);
+        Assert.Equal(HttpStatusCode.OK, run.StatusCode);
+
+        status = (await client.GetFromJsonAsync<RssStatusResponse>("/api/v1/rss", Json))!;
+        Assert.NotNull(status.LastRunAt);
+        if (scheduled)
+        {
+            Assert.True(status.NextRunAt > status.LastRunAt);
+        }
+        else
+        {
+            Assert.Null(status.NextRunAt);
+        }
+    }
+
     private static async Task<RssSyncResponse> SyncAsync(HttpClient client)
     {
         var response = await client.PostAsync("/api/v1/rss/sync", null);
@@ -179,9 +223,11 @@ public sealed class RssSyncTests(BigarrApiFactory factory) : IClassFixture<Bigar
         return (await response.Content.ReadFromJsonAsync<RssSyncResponse>(Json))!;
     }
 
-    private async Task<HttpClient> ClientAsync()
+    private Task<HttpClient> ClientAsync() => ClientAsync(factory);
+
+    private static async Task<HttpClient> ClientAsync(BigarrApiFactory app)
     {
-        var client = factory.CreateClientWithCookies();
+        var client = app.CreateClientWithCookies();
         var login = await client.PostAsJsonAsync("/api/v1/auth/login", new { username = BigarrApiFactory.AdminUsername, password = BigarrApiFactory.AdminPassword });
         Assert.Equal(HttpStatusCode.NoContent, login.StatusCode);
         return client;
