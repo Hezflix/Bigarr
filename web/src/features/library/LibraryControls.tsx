@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { Fragment, useState, type FormEvent, type ReactNode } from 'react'
 import { ArrowDownIcon, ArrowUpIcon, BookmarkPlusIcon, LayoutGridIcon, ListFilterIcon, SearchIcon, Settings2Icon, TableIcon, XIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { RootFolder, Tag } from '@/api/client'
@@ -37,10 +37,12 @@ import {
   type MonitoredFilter,
   type Preset,
   type SavedView,
+  type SortKey,
   type StatusFilter,
   type VersionName,
   type ViewMode,
 } from './libraryView'
+import { useSortLabel } from './SizeSplit'
 
 /** Menu items that change a setting keep the menu open: several are usually changed in a row. */
 const keepOpen = (event: Event) => event.preventDefault()
@@ -216,7 +218,7 @@ export function LibraryControls({ prefs, onChange, term, onTermChange, names, qu
 
       <div className="ml-auto flex flex-wrap items-center gap-2">
         <FilterMenu filter={prefs.filter} onChange={(filter) => onChange({ filter })} names={names} qualities={qualities} tags={tags} rootFolders={rootFolders} />
-        <ViewMenu prefs={prefs} onChange={onChange} />
+        <ViewMenu prefs={prefs} onChange={onChange} names={names} />
       </div>
     </div>
   )
@@ -403,8 +405,21 @@ function CheckboxSub<T extends string | number>({
   )
 }
 
-function ViewMenu({ prefs, onChange }: { prefs: LibraryPrefs; onChange: (patch: Partial<LibraryPrefs>) => void }) {
+function ViewMenu({ prefs, onChange, names }: { prefs: LibraryPrefs; onChange: (patch: Partial<LibraryPrefs>) => void; names: VersionName[] }) {
   const { t } = useTranslation()
+  // Under Size, in both lists: one setting for the posters and the table. Without a second version there is nothing to split.
+  const sizeSplit = (shown: boolean, testid: string) =>
+    names.length > 1 && (
+      <DropdownMenuCheckboxItem
+        checked={prefs.sizeSplit}
+        disabled={!shown}
+        onCheckedChange={() => onChange({ sizeSplit: !prefs.sizeSplit })}
+        onSelect={keepOpen}
+        data-testid={testid}
+      >
+        {t('library.view.sizeSplit')}
+      </DropdownMenuCheckboxItem>
+    )
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -414,7 +429,7 @@ function ViewMenu({ prefs, onChange }: { prefs: LibraryPrefs; onChange: (patch: 
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        <SortSub prefs={prefs} onChange={onChange} />
+        <SortSub prefs={prefs} onChange={onChange} names={names} />
         <DropdownMenuSub>
           <DropdownMenuSubTrigger data-testid="library-poster-size">
             <span className="flex-1">{t('library.view.posterSize')}</span>
@@ -434,15 +449,17 @@ function ViewMenu({ prefs, onChange }: { prefs: LibraryPrefs; onChange: (patch: 
           <DropdownMenuSubTrigger data-testid="library-card-fields">{t('library.view.cardFields')}</DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
             {cardFields.map((field) => (
-              <DropdownMenuCheckboxItem
-                key={field}
-                checked={prefs.cardFields.includes(field)}
-                onCheckedChange={() => onChange({ cardFields: toggle(prefs.cardFields, field) })}
-                onSelect={keepOpen}
-                data-testid={`library-card-field-${field}`}
-              >
-                {t(`library.view.fields.${field}`)}
-              </DropdownMenuCheckboxItem>
+              <Fragment key={field}>
+                <DropdownMenuCheckboxItem
+                  checked={prefs.cardFields.includes(field)}
+                  onCheckedChange={() => onChange({ cardFields: toggle(prefs.cardFields, field) })}
+                  onSelect={keepOpen}
+                  data-testid={`library-card-field-${field}`}
+                >
+                  {t(`library.view.fields.${field}`)}
+                </DropdownMenuCheckboxItem>
+                {field === 'size' && sizeSplit(prefs.cardFields.includes('size'), 'library-card-field-size-split')}
+              </Fragment>
             ))}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
@@ -450,16 +467,18 @@ function ViewMenu({ prefs, onChange }: { prefs: LibraryPrefs; onChange: (patch: 
           <DropdownMenuSubTrigger data-testid="library-columns">{t('library.view.columns')}</DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
             {tableColumns.map((column) => (
-              <DropdownMenuCheckboxItem
-                key={column}
-                checked={prefs.columns.includes(column)}
-                // Keep the declared order whatever the order of the clicks.
-                onCheckedChange={() => onChange({ columns: tableColumns.filter((c) => (c === column ? !prefs.columns.includes(c) : prefs.columns.includes(c))) })}
-                onSelect={keepOpen}
-                data-testid={`library-column-${column}`}
-              >
-                {t(`library.columns.${column}`)}
-              </DropdownMenuCheckboxItem>
+              <Fragment key={column}>
+                <DropdownMenuCheckboxItem
+                  checked={prefs.columns.includes(column)}
+                  // Keep the declared order whatever the order of the clicks.
+                  onCheckedChange={() => onChange({ columns: tableColumns.filter((c) => (c === column ? !prefs.columns.includes(c) : prefs.columns.includes(c))) })}
+                  onSelect={keepOpen}
+                  data-testid={`library-column-${column}`}
+                >
+                  {t(`library.columns.${column}`)}
+                </DropdownMenuCheckboxItem>
+                {column === 'size' && sizeSplit(prefs.columns.includes('size'), 'library-column-size-split')}
+              </Fragment>
             ))}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
@@ -478,23 +497,26 @@ function ViewMenu({ prefs, onChange }: { prefs: LibraryPrefs; onChange: (patch: 
 }
 
 /** The posters have no column headers: their sort lives here. The table's headers set the same sort. */
-function SortSub({ prefs, onChange }: { prefs: LibraryPrefs; onChange: (patch: Partial<LibraryPrefs>) => void }) {
+function SortSub({ prefs, onChange, names }: { prefs: LibraryPrefs; onChange: (patch: Partial<LibraryPrefs>) => void; names: VersionName[] }) {
   const { t } = useTranslation()
+  const label = useSortLabel()
   const Arrow = prefs.direction === 'asc' ? ArrowUpIcon : ArrowDownIcon
+  // With several versions, each one's size sorts too, right after the total.
+  const keys: SortKey[] = sortKeys.flatMap((key) => (key === 'size' && names.length > 1 ? [key, ...names.map((n) => `size:${n.name}` as const)] : [key]))
   return (
     <DropdownMenuSub>
       <DropdownMenuSubTrigger data-testid="library-sort">
         <span className="flex-1">{t('library.sort.label')}</span>
         <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
-          {t(`library.sort.${prefs.sort}`)}
+          {label(prefs.sort)}
           <Arrow className="size-3" aria-label={t(`library.sort.${prefs.direction}`)} />
         </span>
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="w-44">
         <DropdownMenuRadioGroup value={prefs.sort} onValueChange={(value) => onChange({ sort: value as LibraryPrefs['sort'] })}>
-          {sortKeys.map((key) => (
+          {keys.map((key) => (
             <DropdownMenuRadioItem key={key} value={key} onSelect={keepOpen} data-testid={`library-sort-${key}`}>
-              {t(`library.sort.${key}`)}
+              {label(key)}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>

@@ -22,16 +22,28 @@ export function formatDateTime(iso: string | null | undefined): string {
   return new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
 }
 
-export function formatBytes(bytes: number | null | undefined): string {
-  if (bytes === null || bytes === undefined) return '—'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+const byteUnits = ['B', 'KB', 'MB', 'GB', 'TB']
+
+function scaleBytes(bytes: number) {
   let value = bytes
   let unit = 0
-  while (value >= 1024 && unit < units.length - 1) {
+  while (value >= 1024 && unit < byteUnits.length - 1) {
     value /= 1024
     unit++
   }
-  return `${new Intl.NumberFormat(i18n.language, { maximumFractionDigits: unit >= 3 ? 2 : 0 }).format(value)} ${units[unit]}`
+  return { value, unit: byteUnits[unit], decimals: unit >= 3 ? 2 : 0 }
+}
+
+export function formatBytes(bytes: number | null | undefined): string {
+  if (bytes === null || bytes === undefined) return '—'
+  const { value, unit, decimals } = scaleBytes(bytes)
+  return `${new Intl.NumberFormat(i18n.language, { maximumFractionDigits: decimals }).format(value)} ${unit}`
+}
+
+/** A shorter size for tight places: whole units from 10 up, one decimal below ("39 GB", "4.1 GB", "1.2 TB"). */
+export function formatBytesShort(bytes: number): string {
+  const { value, unit } = scaleBytes(bytes)
+  return `${new Intl.NumberFormat(i18n.language, { maximumFractionDigits: value >= 10 ? 0 : 1 }).format(value)} ${unit}`
 }
 
 /** "en" → "English" in the UI language; the code itself when the browser does not know it. */

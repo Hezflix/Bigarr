@@ -16,8 +16,14 @@ export const densities = ['compact', 'comfortable'] as const
 export type Density = (typeof densities)[number]
 
 export const sortKeys = ['title', 'year', 'added', 'size', 'quality', 'rating'] as const
-export type SortKey = (typeof sortKeys)[number]
+/** A sort key, or `size:<version>`: the size of that version's file. */
+export type SortKey = (typeof sortKeys)[number] | `size:${string}`
 export type SortDirection = 'asc' | 'desc'
+
+/** The version whose size the list is sorted by, if any. */
+export function sortedVersion(key: SortKey): string | null {
+  return key.startsWith('size:') ? key.slice('size:'.length) : null
+}
 
 /** Direction of the first click on a column header: A to Z and oldest year first, but the biggest, newest, best first. */
 export function firstDirection(key: SortKey): SortDirection {
@@ -71,6 +77,8 @@ export type LibraryPrefs = {
   filter: LibraryFilter
   cardFields: CardField[]
   columns: TableColumn[]
+  /** The size per version under a film's total (table and posters), for films with more than one file. */
+  sizeSplit: boolean
   savedViews: SavedView[]
 }
 
@@ -95,6 +103,7 @@ export const defaultPrefs: LibraryPrefs = {
   filter: emptyFilter,
   cardFields: ['title', 'year', 'versions'],
   columns: ['year', 'versions', 'quality', 'profile', 'size', 'added'],
+  sizeSplit: true,
   savedViews: [],
 }
 
@@ -262,7 +271,10 @@ export function totalSize(movie: MovieSummary): number {
  * so a film sorts by its best file.
  */
 export function sortMovies(movies: MovieSummary[], sort: SortKey, direction: SortDirection, qualityRank: ReadonlyMap<string, number>): MovieSummary[] {
-  const key = (movie: MovieSummary): number | string => {
+  const version = sortedVersion(sort)
+  // Null: the film has no file for that version.
+  const key = (movie: MovieSummary): number | string | null => {
+    if (version !== null) return movie.versions.find((v) => v.name === version)?.size ?? null
     switch (sort) {
       case 'title':
         return movie.sortTitle
@@ -276,6 +288,8 @@ export function sortMovies(movies: MovieSummary[], sort: SortKey, direction: Sor
         return Math.max(-1, ...movie.versions.map((v) => (v.quality === null ? -1 : (qualityRank.get(v.quality) ?? -1))))
       case 'rating':
         return movie.tmdbRating ?? movie.imdbRating ?? -1
+      default:
+        return null
     }
   }
 
@@ -283,6 +297,8 @@ export function sortMovies(movies: MovieSummary[], sort: SortKey, direction: Sor
   return movies
     .map((movie) => ({ movie, key: key(movie) }))
     .sort((a, b) => {
+      // Films without the file go last whatever the direction: sorted by 4k size, the 4k files come first.
+      if (a.key === null || b.key === null) return a.key === b.key ? collator.compare(a.movie.sortTitle, b.movie.sortTitle) : a.key === null ? 1 : -1
       const order = typeof a.key === 'string' ? collator.compare(a.key, b.key as string) : a.key - (b.key as number)
       return order !== 0 ? order * sign : collator.compare(a.movie.sortTitle, b.movie.sortTitle)
     })
