@@ -10,6 +10,7 @@ using Bigarr.Domain.Movies;
 using Bigarr.Domain.Notifications;
 using Bigarr.Domain.Quality;
 using Bigarr.Domain.Scheduling;
+using Bigarr.Domain.Shadow;
 using Bigarr.Domain.Tags;
 using Microsoft.EntityFrameworkCore;
 
@@ -72,6 +73,10 @@ public sealed class BigarrDbContext(DbContextOptions<BigarrDbContext> options) :
     public DbSet<ScheduledJob> ScheduledJobs => Set<ScheduledJob>();
 
     public DbSet<MediaServer> MediaServers => Set<MediaServer>();
+
+    public DbSet<ShadowPick> ShadowPicks => Set<ShadowPick>();
+
+    public DbSet<ReleaseSighting> ReleaseSightings => Set<ReleaseSighting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

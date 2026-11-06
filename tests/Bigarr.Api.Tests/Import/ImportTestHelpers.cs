@@ -111,7 +111,7 @@ internal static class ImportTestHelpers
     {
         var grab = await GrabAsync(client, release, versionId);
         await RefreshAsync(client);
-        await CompleteAsync(client, grab.DownloadId);
+        await CompleteAsync(client, grab.DownloadId!);
         await RefreshAsync(client);
         return grab;
     }

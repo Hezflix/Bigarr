@@ -147,9 +147,10 @@ public sealed class CutoffUnmetSearchJob(WantedService wanted, AutomaticSearchSe
 
         var results = await search.SearchAsync(due.Select(d => d.VersionId).ToList(), SearchTrigger.CutoffUnmet, ct);
         var grabbed = results.Count(r => r.Outcome == AutomaticSearchOutcome.Grabbed);
+        var picked = results.Count(r => r.Outcome == AutomaticSearchOutcome.Picked);
         var noIndexer = results.Count(r => r.Outcome == AutomaticSearchOutcome.NoIndexer);
         return noIndexer == results.Count
             ? $"{results.Count} version(s) due, no indexer with automatic search"
-            : $"{results.Count} version(s) searched, {grabbed} grabbed";
+            : $"{results.Count} version(s) searched, {grabbed} grabbed" + (picked > 0 ? $", {picked} picked in shadow mode" : string.Empty);
     }
 }

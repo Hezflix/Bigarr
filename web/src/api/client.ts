@@ -59,6 +59,8 @@ export type SystemStatus = {
   metadataProvider: 'tmdb' | 'fixtures'
   /** Bigarr__Scheduler__Enabled: when false no task runs on its own; each runs only when triggered. */
   schedulerEnabled: boolean
+  /** Bigarr__Shadow__Enabled: grabs are recorded as Bigarr's picks, nothing is sent to a download client. */
+  shadowEnabled: boolean
 }
 
 export const auth = {
@@ -719,7 +721,8 @@ export type SearchResult = {
   query: string | null
 }
 
-export type AutomaticSearchOutcome = 'grabbed' | 'nothingFound' | 'noIndexer' | 'skipped' | 'failed'
+/** `picked`: shadow mode recorded the best approved release instead of grabbing it. */
+export type AutomaticSearchOutcome = 'grabbed' | 'nothingFound' | 'noIndexer' | 'skipped' | 'failed' | 'picked'
 
 /** One version's outcome of an automatic search: the best approved release was grabbed, or here is why not. */
 export type AutomaticSearchResult = {
@@ -815,6 +818,8 @@ export type RssRelease = {
   grabId: number | null
   /** Why the attributed release was not grabbed after all. */
   grabError: string | null
+  /** Shadow mode: the pick recorded in place of a grab. */
+  shadowPickId: number | null
 }
 
 export type RssIndexerStatus = { indexerId: number; indexer: string; lastRunAt: string | null; lastError: string | null; lastFetched: number; lastNew: number }
@@ -834,6 +839,8 @@ export type RssStatus = {
   wouldGrab: number
   indexers: RssIndexerStatus[]
   grabbed: number
+  /** Shadow mode: releases recorded as picks instead of grabs. */
+  picked: number
 }
 
 export type RssSyncResult = {
@@ -844,6 +851,7 @@ export type RssSyncResult = {
   wouldGrab: number
   indexerErrors: { indexerId: number; indexer: string; kind: IndexerFailureKind; message: string }[]
   grabbed: number
+  picked: number
 }
 
 export const rss = {
@@ -920,9 +928,21 @@ export type GrabRequest = {
   flags: string
   protocol: 'torrent' | 'usenet'
   indexer: string
+  /** Kept with the pick in shadow mode. */
+  publishDate?: string | null
 }
 
-export type GrabResult = { grabId: number; downloadId: string; downloadClientId: number; downloadClient: string; state: GrabState; grabbedAt: string }
+/** A grab sent to a client; in shadow mode only `shadowPickId` and `grabbedAt` are set (`shadow` is true). */
+export type GrabResult = {
+  grabId: number | null
+  downloadId: string | null
+  downloadClientId: number | null
+  downloadClient: string | null
+  state: GrabState | null
+  grabbedAt: string
+  shadowPickId: number | null
+  shadow: boolean
+}
 
 export type QueueItem = {
   grabId: number | null

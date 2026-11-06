@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 using Bigarr.Api.Features.Server.Tasks;
+using Bigarr.Api.Features.Shadow;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Auth;
 using Bigarr.Domain.Metadata;
@@ -21,7 +22,9 @@ public sealed record SystemStatusResponse(
     /// <summary><c>tmdb</c> or <c>fixtures</c>.</summary>
     string MetadataProvider,
     /// <summary><c>Bigarr:Scheduler:Enabled</c>: when false no task runs on its own (RSS sync, searches, health check, maintenance, backups); each runs only when triggered.</summary>
-    bool SchedulerEnabled);
+    bool SchedulerEnabled,
+    /// <summary><c>Bigarr:Shadow:Enabled</c>: grabs are recorded as picks and nothing is sent to a download client.</summary>
+    bool ShadowEnabled = false);
 
 public static class SystemEndpoints
 {
@@ -40,7 +43,7 @@ public static class SystemEndpoints
         return app;
     }
 
-    private static Ok<SystemStatusResponse> Status(IOptions<BigarrOptions> options, IOptions<SchedulerOptions> scheduler, IHostEnvironment environment, IMetadataProvider metadata) =>
+    private static Ok<SystemStatusResponse> Status(IOptions<BigarrOptions> options, IOptions<SchedulerOptions> scheduler, IOptions<ShadowOptions> shadow, IHostEnvironment environment, IMetadataProvider metadata) =>
         TypedResults.Ok(new SystemStatusResponse(
             AppName: "Bigarr",
             Version: Version,
@@ -51,5 +54,6 @@ public static class SystemEndpoints
             IsDocker: string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase),
             ConfigDirectory: Path.GetFullPath(options.Value.ConfigDirectory),
             MetadataProvider: metadata.Name,
-            SchedulerEnabled: scheduler.Value.Enabled));
+            SchedulerEnabled: scheduler.Value.Enabled,
+            ShadowEnabled: shadow.Value.Enabled));
 }

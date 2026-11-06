@@ -1205,6 +1205,188 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("ScheduledJobs", (string)null);
                 });
 
+            modelBuilder.Entity("Bigarr.Domain.Shadow.ReleaseSighting", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AttributedVersion")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Guid")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("IndexerId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("IndexerName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InfoHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("PublishDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("SeenAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("TmdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UnmatchedReason")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Verdicts")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Guid");
+
+                    b.HasIndex("InfoHash");
+
+                    b.HasIndex("SeenAt");
+
+                    b.HasIndex("IndexerName", "Guid")
+                        .IsUnique();
+
+                    b.ToTable("ReleaseSightings", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Shadow.ShadowPick", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("CustomFormatScore")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CustomFormats")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("IndexerFlags")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("IndexerId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("IndexerName")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InfoHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Languages")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("LastPickedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("MovieId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MovieTitle")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("PickedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Picks")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset?>("PublishDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Quality")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("QualityId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RadarrView")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("RadarrViewAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReleaseGroup")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReleaseGuid")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReleaseTitle")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("RevisionVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Seeders")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TmdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Trigger")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("VersionId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("VersionName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IndexerId");
+
+                    b.HasIndex("MovieId");
+
+                    b.HasIndex("PickedAt");
+
+                    b.HasIndex("TmdbId", "VersionName");
+
+                    b.HasIndex("VersionId", "ReleaseGuid")
+                        .IsUnique();
+
+                    b.ToTable("ShadowPicks", (string)null);
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Tags.Tag", b =>
                 {
                     b.Property<int>("Id")
@@ -1553,6 +1735,26 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("CustomFormat");
 
                     b.Navigation("QualityProfile");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Shadow.ShadowPick", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Indexers.Indexer", null)
+                        .WithMany()
+                        .HasForeignKey("IndexerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Bigarr.Domain.Movies.Movie", null)
+                        .WithMany()
+                        .HasForeignKey("MovieId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Bigarr.Domain.Movies.MovieVersion", "Version")
+                        .WithMany()
+                        .HasForeignKey("VersionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Version");
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Movies.MovieVersion", b =>

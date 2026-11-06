@@ -108,10 +108,16 @@ public static class DownloadsEndpoints
         });
 
         var grab = app.MapGroup("/api/v1/grab").WithTags("Queue").RequireAuthorization(AuthPolicies.Api);
-        grab.MapPost("/", async Task<Results<Created<GrabResponse>, ProblemHttpResult>> (GrabRequest request, GrabService grabs, CancellationToken ct) =>
+        // In shadow mode the release is recorded as a pick (200) instead of being sent to a client (201).
+        grab.MapPost("/", async Task<Results<Created<GrabResponse>, Ok<GrabResponse>, ProblemHttpResult>> (GrabRequest request, GrabService grabs, CancellationToken ct) =>
         {
             var result = await grabs.GrabAsync(request, ct);
-            return result.IsSuccess ? TypedResults.Created("/api/v1/queue", result.Value!) : result.Failure!.ToProblem();
+            if (!result.IsSuccess)
+            {
+                return result.Failure!.ToProblem();
+            }
+
+            return result.Value!.Shadow ? TypedResults.Ok(result.Value) : TypedResults.Created("/api/v1/queue", result.Value);
         });
     }
 }

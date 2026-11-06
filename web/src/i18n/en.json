@@ -592,6 +592,7 @@
     "defaultVersion": "default",
     "suggested": "suggested",
     "grabbed": "Grabbed “{{title}}” for {{version}} → {{client}}.",
+    "picked": "Shadow mode: “{{title}}” recorded as Bigarr's pick for {{version}}; nothing was sent to a download client.",
     "grabFailed": "The grab failed.",
     "grabOneShot": "New one-shot version…",
     "autoSearch": "Search automatically",
@@ -600,7 +601,8 @@
     "autoNothing": "{{label}}: nothing to grab. {{detail}}",
     "autoNoIndexer": "{{label}}: no indexer has automatic search enabled.",
     "autoSkipped": "{{label}}: skipped. {{detail}}",
-    "autoFailed": "{{label}}: the grab failed. {{detail}}"
+    "autoFailed": "{{label}}: the grab failed. {{detail}}",
+    "autoPicked": "{{label}}: “{{title}}” recorded as Bigarr's pick (shadow mode)."
   },
   "rss": {
     "title": "Releases",
@@ -617,12 +619,16 @@
     "sync": "Sync now",
     "syncing": "Syncing…",
     "synced": "RSS pass done: {{fetched}} releases, {{new}} new, {{matched}} matched, {{grabbed}} grabbed.",
+    "syncedShadow": "RSS pass done: {{fetched}} releases, {{new}} new, {{matched}} matched, {{picked}} picked (shadow mode).",
+    "storedPicked": "{{picked}} picked in shadow mode",
     "syncFailed": "The RSS pass failed.",
     "empty": "No releases seen yet.",
     "emptyMatched": "No release matched a film of the library yet.",
     "movie": "Movie",
     "noMatch": "Not in the library",
     "grabbed": "Grabbed for {{version}}",
+    "picked": "Picked for {{version}}",
+    "pickedHint": "Shadow mode: this is what Bigarr would have grabbed. It is recorded for Activity → Compare and nothing was sent to a download client.",
     "attributed": "Attributed to {{version}}",
     "grabHint": "Each pass sends the best attributed release of every version to a download client. A release attributed but not grabbed lost to a better one of the same pass, or was refused by the client."
   },

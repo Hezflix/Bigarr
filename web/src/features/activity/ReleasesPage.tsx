@@ -17,6 +17,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { formatAge, formatBytes, formatDateTime } from '@/i18n'
 
 const grabStyle = 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300'
+const pickStyle = 'border-violet-600/30 bg-violet-500/15 text-violet-700 dark:border-violet-400/30 dark:text-violet-300'
 const attributedStyle = 'border-blue-600/30 bg-blue-500/15 text-blue-700 dark:border-blue-400/30 dark:text-blue-300'
 const temporaryStyle = 'border-amber-600/30 bg-amber-500/15 text-amber-700 dark:border-amber-400/30 dark:text-amber-300'
 const permanentStyle = 'border-red-600/30 bg-red-500/10 text-red-700 dark:border-red-400/30 dark:text-red-300'
@@ -36,7 +37,11 @@ export function ReleasesPage() {
   const sync = useMutation({
     mutationFn: rss.sync,
     onSuccess: async (result) => {
-      toast.success(t('rss.synced', { fetched: result.fetched, new: result.new, matched: result.matched, grabbed: result.grabbed }))
+      toast.success(
+        result.picked > 0
+          ? t('rss.syncedShadow', { fetched: result.fetched, new: result.new, matched: result.matched, picked: result.picked })
+          : t('rss.synced', { fetched: result.fetched, new: result.new, matched: result.matched, grabbed: result.grabbed }),
+      )
       await invalidate()
     },
     onError: async (e) => {
@@ -74,6 +79,7 @@ export function ReleasesPage() {
           {s.lastRunAt ? ` · ${t('rss.lastRun', { date: formatDateTime(s.lastRunAt) })}` : ` · ${t('rss.neverRan')}`}
           {s.nextRunAt ? ` · ${t('rss.nextRun', { date: formatDateTime(s.nextRunAt) })}` : ''}
           {` · ${t('rss.stored', { stored: s.stored, matched: s.matched, attributed: s.wouldGrab, grabbed: s.grabbed })}`}
+          {s.picked > 0 ? ` · ${t('rss.storedPicked', { picked: s.picked })}` : ''}
         </p>
       )}
 
@@ -134,6 +140,7 @@ function ReleaseRow({ release }: { release: RssRelease }) {
   const { t } = useTranslation()
   const wouldGrab = release.attributedVersionId !== null
   const grabbed = release.grabId !== null
+  const picked = release.shadowPickId !== null
   const flags = release.flags === 'none' ? [] : release.flags.split(', ')
   const details = [release.edition, release.releaseGroup, release.languages.length > 0 ? release.languages.join(', ') : null, release.isRepack ? t('search.repack') : null].filter(
     (d): d is string => !!d,
@@ -141,7 +148,7 @@ function ReleaseRow({ release }: { release: RssRelease }) {
   const dimmed = !wouldGrab
 
   return (
-    <TableRow className={cn(dimmed && 'text-muted-foreground')} data-would-grab={wouldGrab} data-grabbed={grabbed}>
+    <TableRow className={cn(dimmed && 'text-muted-foreground')} data-would-grab={wouldGrab} data-grabbed={grabbed} data-picked={picked}>
       <TableCell className="align-top whitespace-nowrap">
         <Tooltip>
           <TooltipTrigger asChild>
@@ -196,6 +203,15 @@ function ReleaseRow({ release }: { release: RssRelease }) {
           <Badge variant="outline" className={grabStyle}>
             {t('rss.grabbed', { version: release.attributedVersionName ?? '' })}
           </Badge>
+        ) : picked ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="outline" className={pickStyle}>
+                {t('rss.picked', { version: release.attributedVersionName ?? '' })}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">{t('rss.pickedHint')}</TooltipContent>
+          </Tooltip>
         ) : wouldGrab ? (
           <span className="flex flex-col items-start gap-1">
             <Badge variant="outline" className={attributedStyle}>

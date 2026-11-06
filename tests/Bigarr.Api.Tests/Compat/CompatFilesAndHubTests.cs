@@ -60,7 +60,7 @@ public sealed class CompatFilesAndHubTests(BigarrApiFactory factory) : IClassFix
         Assert.Equal(grab.DownloadId, record.GetProperty("downloadId").GetString());
         Assert.Contains("1080p", record.GetProperty("quality").GetProperty("quality").GetProperty("name").GetString());
 
-        await CompleteAsync(session, grab.DownloadId);
+        await CompleteAsync(session, grab.DownloadId!);
         await RefreshAsync(session);
         var imported = await WaitForFileAsync(session, movie.Id, version.Id);
 

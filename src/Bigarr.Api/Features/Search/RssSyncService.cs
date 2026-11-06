@@ -1,5 +1,6 @@
 using Bigarr.Api.Features.Downloads;
 using Bigarr.Api.Features.Server.Tasks;
+using Bigarr.Api.Features.Shadow;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Decision;
 using Bigarr.Api.Infrastructure.Indexers;
@@ -18,7 +19,8 @@ namespace Bigarr.Api.Features.Search;
 /// <summary>
 /// The main loop (blueprint §5): one feed request per indexer, every new release parsed, matched to a film of the
 /// library and judged by each of its versions with the automatic rules, attributed to one version, and the best
-/// release of the pass for each version sent to a download client. This is what fills the library day to day.
+/// release of the pass for each version sent to a download client. This is what fills the library day to day. In shadow
+/// mode the winner is recorded as a pick instead, and every release of the pass is kept as a sighting for the comparison.
 /// </summary>
 public sealed class RssSyncService(
     BigarrDbContext db,
@@ -26,6 +28,7 @@ public sealed class RssSyncService(
     CustomFormatScorer scorer,
     IndexerGateway gateway,
     GrabService grabs,
+    ReleaseSightings sightings,
     RssFeedState state,
     SchedulerState scheduler,
     IOptions<RssSyncOptions> options,
@@ -95,6 +98,7 @@ public sealed class RssSyncService(
         var matched = 0;
         var wouldGrab = 0;
         var grabbed = 0;
+        var picked = 0;
         if (fresh.Count > 0)
         {
             var movies = await contexts.MoviesWithVersions().ToListAsync(ct);
@@ -128,20 +132,25 @@ public sealed class RssSyncService(
                 winners[group.Key] = (best.Entry, best.Release);
             }
 
-            var outcomes = new Dictionary<string, (int? GrabId, string? Error)>(StringComparer.Ordinal);
+            var outcomes = new Dictionary<string, (int? GrabId, int? PickId, string? Error)>(StringComparer.Ordinal);
             foreach (var (versionId, (entry, release)) in winners)
             {
                 var grab = await grabs.GrabAsync(GrabRequest.From(release, versionId), GrabTrigger, ct);
-                if (grab.IsSuccess)
+                if (grab.IsSuccess && grab.Value!.ShadowPickId is { } pickId)
+                {
+                    picked++;
+                    outcomes[Key(entry)] = (null, pickId, null);
+                }
+                else if (grab.IsSuccess)
                 {
                     grabbed++;
-                    outcomes[Key(entry)] = (grab.Value!.GrabId, null);
+                    outcomes[Key(entry)] = (grab.Value!.GrabId, null, null);
                 }
                 else
                 {
                     var failure = grab.Failure!;
                     logger.LogWarning("RSS: {Title} not grabbed for version {Version}: {Title2} {Detail}", entry.Title, versionId, failure.Title, failure.Detail);
-                    outcomes[Key(entry)] = (null, failure.Detail is null ? failure.Title : $"{failure.Title}: {failure.Detail}");
+                    outcomes[Key(entry)] = (null, null, failure.Detail is null ? failure.Title : $"{failure.Title}: {failure.Detail}");
                 }
             }
 
@@ -151,11 +160,17 @@ public sealed class RssSyncService(
                 if (entry.AttributedVersionId is not null)
                 {
                     stored = outcomes.TryGetValue(Key(entry), out var outcome)
-                        ? entry with { GrabId = outcome.GrabId, GrabError = outcome.Error }
-                        : entry with { GrabError = $"A better release of this pass was grabbed for {entry.AttributedVersionName}" };
+                        ? entry with { GrabId = outcome.GrabId, ShadowPickId = outcome.PickId, GrabError = outcome.Error }
+                        : entry with { GrabError = $"A better release of this pass was {(picked > 0 ? "picked" : "grabbed")} for {entry.AttributedVersionName}" };
                 }
 
                 state.Add(stored);
+            }
+
+            if (sightings.Enabled)
+            {
+                var tmdbIds = movies.ToDictionary(m => m.Id, m => m.TmdbId);
+                await sightings.RecordAsync(judged.Select(j => (j.Entry, j.Release, j.Entry.Movie is { } movie ? tmdbIds.GetValueOrDefault(movie.Id) : (int?)null)), now, ct);
             }
         }
 
@@ -163,10 +178,10 @@ public sealed class RssSyncService(
             .Select(r => new IndexerErrorResponse(r.Indexer.Id, r.Indexer.Name, r.Error!.Kind, r.Error.Message))
             .ToList();
 
-        logger.LogInformation("RSS sync: {Indexers} indexer(s), {Fetched} release(s), {New} new, {Matched} matched, {WouldGrab} attributed, {Grabbed} grabbed, {Errors} error(s)",
-            indexers.Count, results.Sum(r => r.Releases.Count), fresh.Count, matched, wouldGrab, grabbed, errors.Count);
+        logger.LogInformation("RSS sync: {Indexers} indexer(s), {Fetched} release(s), {New} new, {Matched} matched, {WouldGrab} attributed, {Grabbed} grabbed, {Picked} picked in shadow mode, {Errors} error(s)",
+            indexers.Count, results.Sum(r => r.Releases.Count), fresh.Count, matched, wouldGrab, grabbed, picked, errors.Count);
 
-        return new RssSyncResponse(indexers.Count, results.Sum(r => r.Releases.Count), fresh.Count, matched, wouldGrab, errors, grabbed);
+        return new RssSyncResponse(indexers.Count, results.Sum(r => r.Releases.Count), fresh.Count, matched, wouldGrab, errors, grabbed, picked);
     }
 
     private static string Key(RssReleaseResponse entry) => $"{entry.IndexerId}:{entry.Guid}";
@@ -251,6 +266,8 @@ public sealed class RssSyncJob(RssSyncService rss, IOptions<RssSyncOptions> opti
         var pass = result.Value!;
         return pass.Indexers == 0
             ? "No indexer has RSS enabled"
-            : $"{pass.Fetched} release(s) from {pass.Indexers} indexer(s), {pass.New} new, {pass.Matched} matched, {pass.Grabbed} grabbed" + (pass.IndexerErrors.Count > 0 ? $", {pass.IndexerErrors.Count} indexer error(s)" : string.Empty);
+            : $"{pass.Fetched} release(s) from {pass.Indexers} indexer(s), {pass.New} new, {pass.Matched} matched, {pass.Grabbed} grabbed"
+              + (pass.Picked > 0 ? $", {pass.Picked} picked in shadow mode" : string.Empty)
+              + (pass.IndexerErrors.Count > 0 ? $", {pass.IndexerErrors.Count} indexer error(s)" : string.Empty);
     }
 }

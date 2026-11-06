@@ -18,6 +18,7 @@ using Bigarr.Api.Features.Server;
 using Bigarr.Api.Features.Server.Backup;
 using Bigarr.Api.Features.Server.Health;
 using Bigarr.Api.Features.Server.Tasks;
+using Bigarr.Api.Features.Shadow;
 using Bigarr.Api.Features.Tags;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Auth;
@@ -82,6 +83,11 @@ builder.Services.AddScoped<NotificationService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<LibraryScanRunner>());
 builder.Services.AddScoped<DownloadClientService>();
 builder.Services.AddScoped<GrabService>();
+
+// Shadow mode (next to Radarr): picks instead of grabs, sightings of what the RSS pass saw.
+builder.Services.Configure<ShadowOptions>(builder.Configuration.GetSection(ShadowOptions.Section));
+builder.Services.AddScoped<ShadowPickRecorder>();
+builder.Services.AddScoped<ReleaseSightings>();
 builder.Services.AddScoped<QueueService>();
 builder.Services.AddScoped<QueuePoller>();
 builder.Services.AddSingleton<QueueState>();
