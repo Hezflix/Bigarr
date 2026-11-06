@@ -17,6 +17,7 @@ import {
   matchesFilter,
   matchesSearch,
   presets,
+  rootFolderView,
   sameFilter,
   sortMovies,
   sortedVersion,
@@ -92,20 +93,21 @@ export function LibraryPage() {
     update((current) => (current.sort === key ? { direction: current.direction === 'asc' ? 'desc' : 'asc' } : { sort: key, direction: firstDirection(key) }))
   const onReport = (r: BulkReport) => toastBulk(t, r, setReport)
 
-  // `?view=table&preset=missing-4k` opens the page on that layout and view, then leaves the URL clean.
+  // `?view=table&preset=missing-4k` (or `&rootFolder=2`) opens the page on that layout and view, then leaves the URL clean.
   const params = useSearch({ from: '/app/' })
   const navigate = useNavigate()
   useEffect(() => {
-    if ((!params.view && !params.preset) || !library.data) return
+    if ((!params.view && !params.preset && params.rootFolder === undefined) || !library.data) return
     const patch: Partial<LibraryPrefs> = {}
     if (params.view) patch.mode = viewMode(params.view)
     const preset = presetList.find((p) => p.id === params.preset)
     const saved = prefs.savedViews.find((v) => v.id === params.preset)
     if (preset) Object.assign(patch, preset.sort ? { filter: preset.filter, sort: preset.sort.key, direction: preset.sort.direction } : { filter: preset.filter })
     if (saved) Object.assign(patch, { filter: saved.filter, sort: saved.sort, direction: saved.direction, mode: saved.mode })
+    if (params.rootFolder !== undefined) Object.assign(patch, rootFolderView(library.data, params.rootFolder))
     update(patch)
     void navigate({ to: '/', search: {}, replace: true })
-  }, [params.view, params.preset, library.data, presetList, prefs.savedViews, update, navigate])
+  }, [params.view, params.preset, params.rootFolder, library.data, presetList, prefs.savedViews, update, navigate])
 
   if (library.isPending) {
     return (

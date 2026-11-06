@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Link } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { useTranslation } from 'react-i18next'
 import type { MovieSummary, RootFolder } from '@/api/client'
@@ -66,25 +67,36 @@ export function StorageBar({ movies, roots }: { movies: MovieSummary[]; roots: R
           {free !== null ? t('settings.storage.free', { size: formatBytesShort(free) }) : <span title={t('settings.storage.freeUnknownHint')}>{t('settings.storage.freeUnknown')}</span>}
         </span>
       </div>
-      <div className="flex h-3.5 w-full overflow-hidden rounded-full bg-muted" role="img" aria-label={t('settings.storage.bar')}>
+      {/* The segments are a mouse shortcut to the legend's links, which carry the same figures for the keyboard and screen readers. */}
+      <div className="flex h-3.5 w-full overflow-hidden rounded-full bg-muted" aria-hidden="true">
         {usage.map((f) => (
-          <div
+          <Link
             key={f.id}
-            className={cn('h-full min-w-1 border-r-2 border-background', free === null && 'last:border-r-0', tone(f.id))}
+            to="/"
+            search={{ view: 'table', rootFolder: f.id }}
+            tabIndex={-1}
+            className={cn('h-full min-w-1 border-r-2 border-background transition-opacity hover:opacity-75', free === null && 'last:border-r-0', tone(f.id))}
             style={{ width: `${(f.bytes / capacity) * 100}%` }}
-            title={t('settings.storage.segment', { path: f.path, size: formatBytes(f.bytes), count: f.files, share: share(f.bytes, used) })}
+            title={[t('settings.storage.segment', { path: f.path, size: formatBytes(f.bytes), count: f.files, share: share(f.bytes, used) }), t('settings.storage.open')].join('\n')}
             data-testid={`storage-segment:${f.id}`}
           />
         ))}
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
         {usage.map((f) => (
-          <span key={f.id} className="inline-flex items-center gap-1.5">
+          <Link
+            key={f.id}
+            to="/"
+            search={{ view: 'table', rootFolder: f.id }}
+            className="group inline-flex items-center gap-1.5 rounded-sm outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            title={t('settings.storage.open')}
+            data-testid={`storage-folder:${f.id}`}
+          >
             <span className={cn('size-2.5 shrink-0 rounded-full', tone(f.id))} aria-hidden="true" />
-            <span className="font-mono break-all">{f.path}</span>
+            <span className="font-mono break-all underline-offset-2 group-hover:underline">{f.path}</span>
             <span className="text-foreground tabular-nums">{formatBytesShort(f.bytes)}</span>
             <span className="tabular-nums">· {t('settings.storage.files', { count: f.files })}</span>
-          </span>
+          </Link>
         ))}
         {free !== null && (
           <span className="inline-flex items-center gap-1.5">
