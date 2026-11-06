@@ -2,16 +2,18 @@ import { useRef, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import { cn } from 'cn'
-import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon } from 'lucide-react'
+import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, ChevronDownIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { MovieSummary } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import { Badge } from '@/components/ui/badge'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { formatBytes, formatDate } from '@/i18n'
 import { useDocumentOffset, useOverflows } from './layout'
-import { totalSize, type Density, type SortDirection, type SortKey, type TableColumn } from './libraryView'
+import { sortedVersion, totalSize, type Density, type SortDirection, type SortKey, type TableColumn } from './libraryView'
 import type { Selection } from './selection'
 import { SelectionMark } from './SelectionMark'
+import { SizeSplit, useSortLabel } from './SizeSplit'
 import { VersionChip } from './VersionChip'
 
 /** Names behind the ids a summary carries. */
@@ -40,6 +42,9 @@ const widths: Record<TableColumn, string> = {
 
 const sortable: Partial<Record<TableColumn | 'title', SortKey>> = { title: 'title', year: 'year', added: 'added', size: 'size', quality: 'quality', rating: 'rating' }
 
+/** Where the Size cell puts the size per version: under the total, or on its line when the row has room for one line only. */
+type Split = 'under' | 'inline' | null
+
 type Props = Selection & {
   movies: MovieSummary[]
   columns: TableColumn[]
@@ -48,11 +53,19 @@ type Props = Selection & {
   sort: SortKey
   direction: SortDirection
   onSort: (key: SortKey) => void
+  /** Show the size per version in the Size column. */
+  sizeSplit: boolean
+  /** The library's version names: with more than one, the Size header can sort by one version's size. */
+  versionNames: string[]
 }
 
 /** Radarr's table view: one row per film, columns picked in the view menu, headers sort, a row opens its film. */
-export function MovieTable({ movies, columns, density, lookups, sort, direction, onSort, ...selection }: Props) {
+export function MovieTable({ movies, columns, density, lookups, sort, direction, onSort, sizeSplit, versionNames, ...selection }: Props) {
   const { t } = useTranslation()
+  const sortLabel = useSortLabel()
+  const versions = versionNames.length > 1
+  const split: Split = sizeSplit && versions ? (density === 'comfortable' ? 'under' : 'inline') : null
+  const emphasis = sortedVersion(sort)
   const containerRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -60,9 +73,61 @@ export function MovieTable({ movies, columns, density, lookups, sort, direction,
   const overflows = useOverflows(frameRef, contentRef)
   const height = rowHeight[density]
   const virtualizer = useWindowVirtualizer({ count: movies.length, estimateSize: () => height, overscan: 10, scrollMargin: offset })
-  const template = [selection.selecting ? '2rem' : null, 'minmax(14rem, 2.5fr)', ...columns.map((c) => widths[c])].filter(Boolean).join(' ')
+  // The split needs room: "1080p 39 GB · 4k 82 GB" under the total, or next to it on a compact row.
+  const width = (column: TableColumn) => (column === 'size' && split === 'under' ? '11rem' : column === 'size' && split === 'inline' ? '16.5rem' : widths[column])
+  const template = [selection.selecting ? '2rem' : null, 'minmax(14rem, 2.5fr)', ...columns.map(width)].filter(Boolean).join(' ')
+
+  // With several versions, the Size header sorts like the others and its chevron picks what it sorts by: the total or
+  // one version's size. One button and a menu, however many versions the library has.
+  const sizeHeader = () => {
+    const current: SortKey = emphasis !== null ? sort : 'size'
+    const active = sort === current
+    const Arrow = !active ? ArrowUpDownIcon : direction === 'asc' ? ArrowUpIcon : ArrowDownIcon
+    return (
+      <span key="size" role="columnheader" aria-sort={!active ? 'none' : direction === 'asc' ? 'ascending' : 'descending'} className="flex min-w-0 items-center gap-0.5">
+        <button
+          type="button"
+          className={cn(
+            'group/sort -ml-1.5 flex min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-left outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/50',
+            active && 'text-foreground',
+          )}
+          onClick={() => onSort(current)}
+          data-testid="sort-size"
+        >
+          <span className="truncate">{emphasis !== null ? sortLabel(current) : t('library.columns.size')}</span>
+          <Arrow className={cn('size-3 shrink-0', !active && 'opacity-0 group-hover/sort:opacity-50 group-focus-visible/sort:opacity-50')} aria-hidden="true" />
+        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="shrink-0 rounded-md p-1 text-muted-foreground/70 outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/50 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
+              aria-label={t('library.sort.sizeOf')}
+              data-testid="sort-size-menu"
+            >
+              <ChevronDownIcon className="size-3" aria-hidden="true" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-44">
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">{t('library.sort.sizeOf')}</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={current} onValueChange={(value) => value !== sort && onSort(value as SortKey)}>
+              <DropdownMenuRadioItem value="size" data-testid="sort-size-total">
+                {t('library.sort.allVersions')}
+              </DropdownMenuRadioItem>
+              {versionNames.map((name) => (
+                <DropdownMenuRadioItem key={name} value={`size:${name}`} data-testid={`sort-size:${name}`}>
+                  {name}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </span>
+    )
+  }
 
   const header = (key: TableColumn | 'title', label: string) => {
+    if (key === 'size' && versions) return sizeHeader()
     const sortKey = sortable[key]
     if (!sortKey) {
       return (
@@ -118,6 +183,8 @@ export function MovieTable({ movies, columns, density, lookups, sort, direction,
                 columns={columns}
                 density={density}
                 lookups={lookups}
+                split={split}
+                emphasis={emphasis}
                 template={template}
                 style={{ height, transform: `translateY(${item.start - virtualizer.options.scrollMargin}px)` }}
                 {...selection}
@@ -135,12 +202,23 @@ function TableRowView({
   columns,
   density,
   lookups,
+  split,
+  emphasis,
   template,
   style,
   selecting,
   selected,
   onToggle,
-}: Selection & { movie: MovieSummary; columns: TableColumn[]; density: Density; lookups: Lookups; template: string; style: React.CSSProperties }) {
+}: Selection & {
+  movie: MovieSummary
+  columns: TableColumn[]
+  density: Density
+  lookups: Lookups
+  split: Split
+  emphasis: string | null
+  template: string
+  style: React.CSSProperties
+}) {
   const isSelected = selected.has(movie.id)
   return (
     <div
@@ -162,7 +240,7 @@ function TableRowView({
       <MovieTitleCell movie={movie} density={density} selecting={selecting} />
       {columns.map((column) => (
         <div key={column} role="cell" className="min-w-0 truncate">
-          <Cell movie={movie} column={column} lookups={lookups} />
+          <Cell movie={movie} column={column} lookups={lookups} split={split} emphasis={emphasis} />
         </div>
       ))}
     </div>
@@ -192,7 +270,7 @@ function MovieTitleCell({ movie, density, selecting }: { movie: MovieSummary; de
   )
 }
 
-function Cell({ movie, column, lookups }: { movie: MovieSummary; column: TableColumn; lookups: Lookups }): ReactNode {
+function Cell({ movie, column, lookups, split, emphasis }: { movie: MovieSummary; column: TableColumn; lookups: Lookups; split: Split; emphasis: string | null }): ReactNode {
   const { t } = useTranslation()
   const distinct = <T,>(values: T[]) => [...new Set(values)]
   switch (column) {
@@ -218,7 +296,25 @@ function Cell({ movie, column, lookups }: { movie: MovieSummary; column: TableCo
       return <span className="text-muted-foreground">{distinct(movie.versions.map((v) => t(`availability.${v.minimumAvailability}`))).join(' · ')}</span>
     case 'size': {
       const size = totalSize(movie)
-      return <span className="tabular-nums">{size > 0 ? formatBytes(size) : <span className="text-muted-foreground">{t('common.none')}</span>}</span>
+      const total = <span className="tabular-nums">{size > 0 ? formatBytes(size) : <span className="text-muted-foreground">{t('common.none')}</span>}</span>
+      if (split === 'under') {
+        return (
+          <span className="flex flex-col leading-tight">
+            {total}
+            <SizeSplit movie={movie} emphasis={emphasis} />
+          </span>
+        )
+      }
+      if (split === 'inline') {
+        // The total keeps a fixed width so the splits line up from row to row.
+        return (
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className="min-w-[4.5rem] shrink-0">{total}</span>
+            <SizeSplit movie={movie} emphasis={emphasis} className="min-w-0" />
+          </span>
+        )
+      }
+      return total
     }
     case 'added':
       return <span className="tabular-nums text-muted-foreground">{formatDate(movie.addedAt)}</span>

@@ -12,6 +12,7 @@ import { useDocumentOffset, useElementWidth } from './layout'
 import { totalSize, type CardField, type Density, type PosterSize } from './libraryView'
 import type { Selection } from './selection'
 import { SelectionMark } from './SelectionMark'
+import { SizeSplit } from './SizeSplit'
 import { VersionChip } from './VersionChip'
 
 /** Narrowest a card may get before the grid drops a column. */
@@ -22,10 +23,14 @@ type Props = Selection & {
   posterSize: PosterSize
   density: Density
   fields: CardField[]
+  /** Show the size per version under the size. */
+  sizeSplit: boolean
+  /** The version the list is sorted by: it stands out in the split. */
+  emphasis: string | null
 }
 
 /** Rows of posters, only the rows near the viewport mounted: 5000 films scroll like 50. */
-export function PosterGrid({ movies, posterSize, density, fields, ...selection }: Props) {
+export function PosterGrid({ movies, posterSize, density, fields, sizeSplit, emphasis, ...selection }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const width = useElementWidth(containerRef)
   const offset = useDocumentOffset(containerRef)
@@ -62,7 +67,7 @@ export function PosterGrid({ movies, posterSize, density, fields, ...selection }
             }}
           >
             {movies.slice(row.index * columns, (row.index + 1) * columns).map((movie) => (
-              <MovieCard key={movie.id} movie={movie} density={density} posterSize={posterSize} fields={fields} {...selection} />
+              <MovieCard key={movie.id} movie={movie} density={density} posterSize={posterSize} fields={fields} sizeSplit={sizeSplit} emphasis={emphasis} {...selection} />
             ))}
           </div>
         ))}
@@ -74,7 +79,10 @@ export function PosterGrid({ movies, posterSize, density, fields, ...selection }
 /** Laid over the whole card: a link to the film, or the selection toggle in selection mode. */
 const cardControl = 'absolute inset-0 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
 
-function MovieCard({ movie, density, posterSize, fields, selecting, selected, onToggle }: Selection & { movie: MovieSummary; density: Density; posterSize: PosterSize; fields: CardField[] }) {
+type CardProps = { movie: MovieSummary; density: Density; posterSize: PosterSize; fields: CardField[]; sizeSplit: boolean; emphasis: string | null }
+
+function MovieCard({ selecting, selected, onToggle, ...card }: Selection & CardProps) {
+  const { movie } = card
   const isSelected = selected.has(movie.id)
   // Only the control over the card changes with selection mode. Wrapping the card in a <button> instead of an <a>
   // would remount it, and every poster <img> with it: each one repainted, visibly, at every toggle.
@@ -90,7 +98,7 @@ function MovieCard({ movie, density, posterSize, fields, selecting, selected, on
         {selecting && (
           <SelectionMark checked={isSelected} className={cn('absolute top-2 left-2 size-5', !isSelected && 'bg-background/90')} />
         )}
-        {fields.length > 0 && <CardInfo movie={movie} density={density} posterSize={posterSize} fields={fields} />}
+        {card.fields.length > 0 && <CardInfo {...card} />}
       </Card>
       {selecting ? (
         <button
@@ -108,7 +116,7 @@ function MovieCard({ movie, density, posterSize, fields, selecting, selected, on
   )
 }
 
-function CardInfo({ movie, density, posterSize, fields }: { movie: MovieSummary; density: Density; posterSize: PosterSize; fields: CardField[] }) {
+function CardInfo({ movie, density, posterSize, fields, sizeSplit, emphasis }: CardProps) {
   const { t } = useTranslation()
   const show = (field: CardField) => fields.includes(field)
   const size = totalSize(movie)
@@ -137,6 +145,7 @@ function CardInfo({ movie, density, posterSize, fields }: { movie: MovieSummary;
           )}
         </span>
       )}
+      {sizeSplit && show('size') && <SizeSplit movie={movie} emphasis={emphasis} />}
       {show('quality') && <span className="truncate text-xs text-muted-foreground">{qualities.length > 0 ? qualities.join(' · ') : t('library.noFile')}</span>}
       {show('versions') && movie.versions.length > 0 && (
         <div className="mt-0.5 flex flex-wrap gap-1">

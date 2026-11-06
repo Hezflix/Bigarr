@@ -83,6 +83,9 @@
       "size": "Size",
       "quality": "Quality",
       "rating": "Rating",
+      "versionSize": "Size · {{version}}",
+      "sizeOf": "Sort by the size of",
+      "allVersions": "All versions",
       "asc": "Ascending",
       "desc": "Descending"
     },
@@ -141,6 +144,7 @@
         "rating": "Rating"
       },
       "columns": "Table columns",
+      "sizeSplit": "Size per version",
       "density": "Density",
       "densities": {
         "compact": "Compact",

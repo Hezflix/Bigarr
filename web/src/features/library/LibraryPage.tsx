@@ -19,6 +19,7 @@ import {
   presets,
   sameFilter,
   sortMovies,
+  sortedVersion,
   useLibraryPrefs,
   versionNames,
   viewMode,
@@ -48,6 +49,7 @@ export function LibraryPage() {
 
   const items = useMemo(() => library.data ?? [], [library.data])
   const names = useMemo(() => versionNames(items), [items])
+  const versionList = useMemo(() => names.map((n) => n.name), [names])
   const qualities = useMemo(() => [...new Set(items.flatMap((m) => m.versions.map((v) => v.quality).filter((q): q is string => q !== null)))].sort(), [items])
   const rank = useMemo(() => new Map((definitions.data ?? []).map((d, i) => [d.name, i])), [definitions.data])
   const lookups = useMemo<Lookups>(
@@ -202,9 +204,30 @@ export function LibraryPage() {
         </Card>
       )}
 
-      {shown.length > 0 && prefs.mode === 'posters' && <PosterGrid movies={shown} posterSize={prefs.posterSize} density={prefs.density} fields={prefs.cardFields} {...views} />}
+      {shown.length > 0 && prefs.mode === 'posters' && (
+        <PosterGrid
+          movies={shown}
+          posterSize={prefs.posterSize}
+          density={prefs.density}
+          fields={prefs.cardFields}
+          sizeSplit={prefs.sizeSplit}
+          emphasis={sortedVersion(prefs.sort)}
+          {...views}
+        />
+      )}
       {shown.length > 0 && prefs.mode === 'table' && (
-        <MovieTable movies={shown} columns={prefs.columns} density={prefs.density} lookups={lookups} sort={prefs.sort} direction={prefs.direction} onSort={onSort} {...views} />
+        <MovieTable
+          movies={shown}
+          columns={prefs.columns}
+          density={prefs.density}
+          lookups={lookups}
+          sort={prefs.sort}
+          direction={prefs.direction}
+          onSort={onSort}
+          sizeSplit={prefs.sizeSplit}
+          versionNames={versionList}
+          {...views}
+        />
       )}
 
       {selection.selecting && (
