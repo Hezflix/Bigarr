@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { FlaskConicalIcon, PencilIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
+import { CopyIcon, FlaskConicalIcon, PencilIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -179,6 +179,11 @@ export function RadarrFollowPage() {
                       radarr.lastSummary && <span className="block text-xs text-muted-foreground">{radarr.lastSummary}</span>
                     )}
                     <span className="block text-xs text-muted-foreground">{t('radarrFollow.checkpoint', { date: formatDateTime(radarr.historyCheckpoint) })}</span>
+                    <span className="block text-xs text-muted-foreground" data-testid="followed-radarr-webhook">
+                      {radarr.lastWebhookAt
+                        ? t('radarrFollow.webhookLast', { event: radarr.lastWebhookEvent ?? '?', date: formatDateTime(radarr.lastWebhookAt) })
+                        : t('radarrFollow.webhookNever')}
+                    </span>
                   </TableCell>
                   <TableCell className="align-top text-right tabular-nums">
                     {radarr.grabs}
@@ -388,6 +393,8 @@ function FollowedRadarrDialog({ radarr, onClose, onSaved }: { radarr: FollowedRa
               )}
             </div>
 
+            <WebhookHelp radarr={radarr} />
+
             <div className="flex flex-col gap-3 sm:col-span-2">
               <Toggle id="fr-tags" label={t('importRadarr.importTags')} checked={form.importTags} onChange={(value) => set('importTags', value)} />
               <Toggle id="fr-monitored" label={t('importRadarr.keepMonitored')} checked={form.keepMonitored} onChange={(value) => set('keepMonitored', value)} />
@@ -419,5 +426,45 @@ function FollowedRadarrDialog({ radarr, onClose, onSaved }: { radarr: FollowedRa
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/**
+ * What to paste in Radarr → Settings → Connect → Webhook so a pass runs within seconds of an event instead of at the next
+ * scheduled one. The address is Bigarr's as Radarr reaches it; the key is any Bigarr API key (Settings → Connect).
+ */
+function WebhookHelp({ radarr }: { radarr: FollowedRadarr | null }) {
+  const { t } = useTranslation()
+  const url = radarr ? `${window.location.origin}${shadow.radarrs.webhookPath(radarr.id)}?apikey=YOUR_API_KEY` : null
+  return (
+    <div className="flex flex-col gap-2 sm:col-span-2" data-testid="followed-radarr-webhook-help">
+      <h3 className="font-medium">{t('radarrFollow.webhookTitle')}</h3>
+      {url ? (
+        <>
+          <div className="flex items-center gap-2">
+            <code className="min-w-0 flex-1 rounded bg-muted px-2 py-1.5 text-xs break-all">{url}</code>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label={t('radarrFollow.webhookCopy')}
+              onClick={() => {
+                void navigator.clipboard?.writeText(url).then(() => toast.success(t('radarrFollow.webhookCopied')))
+              }}
+            >
+              <CopyIcon />
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {t('radarrFollow.webhookHint')}{' '}
+            <Link to="/settings/connect" className="underline underline-offset-4">
+              {t('nav.settingsConnect')}
+            </Link>
+          </p>
+        </>
+      ) : (
+        <p className="text-xs text-muted-foreground">{t('radarrFollow.webhookAfterSave')}</p>
+      )}
+    </div>
   )
 }

@@ -1482,6 +1482,9 @@ export type FollowedRadarr = {
   lastSummary: string | null
   lastError: string | null
   lastErrorAt: string | null
+  /** The last call of Radarr's webhook and its eventType (MovieAdded, Grab, Download, Test…). */
+  lastWebhookAt: string | null
+  lastWebhookEvent: string | null
   grabs: number
   inFlight: number
   createdAt: string
@@ -1503,7 +1506,7 @@ export type FollowedRadarrRequest = {
 
 export type FollowedRadarrTest = { appName: string | null; version: string | null; movies: number }
 
-export type RadarrFollowPass = { followedRadarrId: number; name: string; success: boolean; summary: string; grabs: number; resolved: number; picksShown: number }
+export type RadarrFollowPass = { followedRadarrId: number; name: string; success: boolean; summary: string; grabs: number; resolved: number; picksShown: number; searchedOnAdd: number }
 
 export type ShadowStatus = { enabled: boolean; picks: number; lastPickAt: string | null; radarrGrabs: number; sightings: number; radarrs: FollowedRadarr[] }
 
@@ -1628,7 +1631,8 @@ export type CompareResult = {
   pageSize: number
 }
 
-export type CompareQuery = { version?: string; outcome?: CompareOutcome; days: number; windowHours: number; page: number; pageSize: number }
+/** `tmdbId`: one film only (the film page). `days: 0` means all time. */
+export type CompareQuery = { version?: string; outcome?: CompareOutcome; days: number; windowHours: number; page: number; pageSize: number; tmdbId?: number }
 
 export const shadow = {
   status: () => api<ShadowStatus>('/api/v1/shadow'),
@@ -1644,12 +1648,15 @@ export const shadow = {
     /** The import's mapping data for a saved Radarr, read with its stored key. */
     preview: (id: number) => post<RadarrImportPreview>(`/api/v1/shadow/radarrs/${id}/preview`),
     sync: (id: number) => post<RadarrFollowPass>(`/api/v1/shadow/radarrs/${id}/sync`),
+    /** The path Radarr's webhook calls (Radarr → Settings → Connect → Webhook), with a Bigarr API key as `?apikey=`. */
+    webhookPath: (id: number) => `/api/v1/shadow/radarrs/${id}/webhook`,
   },
   /** Radarr's grabs next to Bigarr's picks; the summary ignores the outcome filter. */
   compare: (query: CompareQuery) => {
     const params = new URLSearchParams({ days: String(query.days), windowHours: String(query.windowHours), page: String(query.page), pageSize: String(query.pageSize) })
     if (query.version) params.set('version', query.version)
     if (query.outcome) params.set('outcome', query.outcome)
+    if (query.tmdbId) params.set('tmdbId', String(query.tmdbId))
     return api<CompareResult>(`/api/v1/shadow/compare?${params}`)
   },
 }

@@ -4,9 +4,10 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { EyeIcon, EyeOffIcon, FileXIcon, PlusIcon, RefreshCwIcon, SearchIcon, StarIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, customFormats, history, movies, quality, rootFolders, search, type MediaInfo, type MinimumAvailability, type Movie, type Version, type VersionMode } from '@/api/client'
+import { ApiError, customFormats, history, movies, quality, rootFolders, search, shadow, type MediaInfo, type MinimumAvailability, type Movie, type Version, type VersionMode } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import { StatusBadge } from '@/components/StatusBadge'
+import { CompareTable } from '@/features/activity/CompareTable'
 import { HistoryTable } from '@/features/activity/HistoryTable'
 import { extraSummary } from '@/features/import/extraFiles'
 import { RenameDialog } from '@/features/movies/RenameDialog'
@@ -234,8 +235,36 @@ export function MovieDetailPage() {
       </div>
       <VersionsTable movie={m} onChanged={invalidate} onSearched={afterSearch} />
       <InteractiveSearch movie={m} />
+      <MovieComparison tmdbId={m.tmdbId} />
       <MovieHistory movieId={m.id} />
     </>
+  )
+}
+
+/**
+ * Shadow mode, for this film: what the followed Radarrs grabbed next to what Bigarr would have grabbed, the rows of
+ * Activity → Compare without the film column. Shown when shadow mode is on, or when there is something to compare.
+ */
+function MovieComparison({ tmdbId }: { tmdbId: number }) {
+  const { t } = useTranslation()
+  const compare = useQuery({
+    queryKey: ['compare', 'movie', tmdbId],
+    queryFn: () => shadow.compare({ tmdbId, days: 0, windowHours: 24, page: 1, pageSize: 100 }),
+  })
+  const data = compare.data
+  if (!data || (!data.shadowEnabled && data.rows.length === 0)) return null
+
+  return (
+    <section className="flex flex-col gap-3" data-testid="movie-compare">
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="text-xl font-semibold tracking-tight">{t('compare.filmTitle')}</h2>
+        <Link to="/activity/compare" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
+          {t('nav.compare')}
+        </Link>
+      </div>
+      <p className="max-w-3xl text-sm text-muted-foreground">{t('compare.filmHint')}</p>
+      {data.rows.length === 0 ? <p className="text-sm text-muted-foreground">{t('compare.filmEmpty')}</p> : <CompareTable rows={data.rows} showMovie={false} />}
+    </section>
   )
 }
 
