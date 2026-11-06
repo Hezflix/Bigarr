@@ -22,6 +22,9 @@ public sealed class RadarrImportProgress(RadarrImportRequest request)
     private int _customFormatsAdded;
     private int _customFormatsUpdated;
     private int _profilesScored;
+    private int _filesReplaced;
+    private int _filesRenamed;
+    private int _filesRemoved;
 
     public RadarrImportRequest Request { get; } = request;
 
@@ -68,6 +71,21 @@ public sealed class RadarrImportProgress(RadarrImportRequest request)
     public void CustomFormatUpdated() => Interlocked.Increment(ref _customFormatsUpdated);
 
     public void ProfileScored() => Interlocked.Increment(ref _profilesScored);
+
+    /// <summary>Following a Radarr: its file replaced the version's (an upgrade, a new download).</summary>
+    public void FileReplaced() => Interlocked.Increment(ref _filesReplaced);
+
+    /// <summary>Following a Radarr: the same file under a new name.</summary>
+    public void FileRenamed() => Interlocked.Increment(ref _filesRenamed);
+
+    /// <summary>Following a Radarr: it has no file any more, the version's record went (the disk is not touched).</summary>
+    public void FileRemoved() => Interlocked.Increment(ref _filesRemoved);
+
+    public int FilesReplaced => _filesReplaced;
+
+    public int FilesRenamed => _filesRenamed;
+
+    public int FilesRemoved => _filesRemoved;
 
     /// <summary>One line about one film (or format, or profile), kept for the report; the list is capped so a huge library cannot exhaust memory.</summary>
     public void Issue(string title, int? tmdbId, string reason, int? movieId = null)

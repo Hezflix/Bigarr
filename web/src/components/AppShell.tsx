@@ -6,6 +6,7 @@ import {
   FilmIcon,
   FolderCogIcon,
   FolderOpenIcon,
+  GitCompareArrowsIcon,
   HardDriveDownloadIcon,
   HeartPulseIcon,
   HistoryIcon,
@@ -66,6 +67,7 @@ type NavItem = {
     | '/settings/connect'
     | '/settings/mediaservers'
     | '/settings/import-radarr'
+    | '/settings/compare-radarr'
     | '/system/status'
   label: string
   icon: React.ComponentType<{ className?: string }>
@@ -110,6 +112,7 @@ function useSections(): NavSection[] {
         { to: '/settings/mediaservers', label: t('nav.settingsMediaServers'), icon: MonitorPlayIcon },
         { to: '/settings/connect', label: t('nav.settingsConnect'), icon: PlugIcon },
         { to: '/settings/import-radarr', label: t('nav.settingsImportRadarr'), icon: ImportIcon },
+        { to: '/settings/compare-radarr', label: t('nav.settingsCompareRadarr'), icon: GitCompareArrowsIcon },
       ],
     },
     {

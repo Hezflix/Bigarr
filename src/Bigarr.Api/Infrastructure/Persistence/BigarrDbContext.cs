@@ -78,6 +78,10 @@ public sealed class BigarrDbContext(DbContextOptions<BigarrDbContext> options) :
 
     public DbSet<ReleaseSighting> ReleaseSightings => Set<ReleaseSighting>();
 
+    public DbSet<FollowedRadarr> FollowedRadarrs => Set<FollowedRadarr>();
+
+    public DbSet<RadarrGrab> RadarrGrabs => Set<RadarrGrab>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(BigarrDbContext).Assembly);

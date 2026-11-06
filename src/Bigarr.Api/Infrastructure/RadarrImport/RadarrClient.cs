@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -62,7 +63,9 @@ public sealed record RadarrMovieFile(
     string? OriginalFilePath,
     int IndexerFlags,
     RadarrQuality? Quality,
-    List<RadarrLanguageRef>? Languages);
+    List<RadarrLanguageRef>? Languages,
+    /// <summary>Radarr v4+: the file's score in its film's profile.</summary>
+    int? CustomFormatScore = null);
 
 public sealed record RadarrMovie(
     int Id,
@@ -110,7 +113,19 @@ public sealed record RadarrHistoryItem(
     DateTime Date,
     string? DownloadId,
     string? EventType,
-    Dictionary<string, string?>? Data);
+    Dictionary<string, string?>? Data,
+    List<RadarrLanguageRef>? Languages = null,
+    /// <summary>Recomputed by Radarr with the profile of today; the score at grab time is in <c>data.customFormatScore</c>.</summary>
+    int? CustomFormatScore = null);
+
+/// <summary>What Radarr's parser reads in a release title.</summary>
+public sealed record RadarrParsedMovieInfo(RadarrQuality? Quality, string? ReleaseGroup, List<RadarrLanguageRef>? Languages);
+
+/// <summary>
+/// Radarr's <c>GET /api/v3/parse?title=</c>: the film of its library the title maps to (absent when none), the quality,
+/// and the custom formats and score in that film's profile.
+/// </summary>
+public sealed record RadarrParseResult(string? Title, RadarrParsedMovieInfo? ParsedMovieInfo, RadarrMovie? Movie, List<RadarrCustomFormatRef>? CustomFormats, int CustomFormatScore);
 
 public sealed record RadarrHistoryPage(int Page, int PageSize, int TotalRecords, List<RadarrHistoryItem>? Records);
 
@@ -122,7 +137,7 @@ public sealed record RadarrBlocklistPage(int Page, int PageSize, int TotalRecord
 /// <summary>Raised when Radarr cannot be reached or refuses the key; the message is meant for the screen.</summary>
 public sealed class RadarrUnavailableException(string message, Exception? inner = null) : Exception(message, inner);
 
-/// <summary>Reads an existing Radarr over its v3 API, to migrate its library into Bigarr (M8).</summary>
+/// <summary>Reads an existing Radarr over its v3 API, to migrate its library into Bigarr (M8) and to follow it in shadow mode. Only ever GETs.</summary>
 public sealed class RadarrClient(IHttpClientFactory httpClientFactory)
 {
     public const string HttpClientName = "bigarr-radarr-import";
@@ -221,6 +236,21 @@ public sealed class RadarrClient(IHttpClientFactory httpClientFactory)
 
         return all;
     }
+
+    /// <summary>
+    /// Every history line from <paramref name="since"/> on, oldest first: what the follow reads on each pass. Radarr
+    /// includes the line dated exactly <paramref name="since"/> and only lists lines whose film still exists.
+    /// </summary>
+    public async Task<List<RadarrHistoryItem>> HistorySinceAsync(RadarrConnection connection, DateTime since, CancellationToken ct)
+    {
+        var date = DateTime.SpecifyKind(since, DateTimeKind.Utc).ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture);
+        var lines = await GetAsync<List<RadarrHistoryItem>>(connection, $"/history/since?date={Uri.EscapeDataString(date)}", ct);
+        return lines.OrderBy(h => h.Date).ThenBy(h => h.Id).ToList();
+    }
+
+    /// <summary>What Radarr makes of a release title: the film it maps it to, its quality, custom formats and score.</summary>
+    public Task<RadarrParseResult> ParseAsync(RadarrConnection connection, string title, CancellationToken ct) =>
+        GetAsync<RadarrParseResult>(connection, $"/parse?title={Uri.EscapeDataString(title)}", ct);
 
     /// <summary>How many releases Radarr's blocklist holds; 0 when the route is missing.</summary>
     public async Task<int> BlocklistCountAsync(RadarrConnection connection, CancellationToken ct)
