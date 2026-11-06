@@ -47,6 +47,8 @@ export function ReleasesPage() {
 
   const s = status.data
   const failing = s?.indexers.filter((i) => i.lastError) ?? []
+  /** False when RSS or the scheduler is off: then a pass only runs on Sync now. */
+  const onItsOwn = !s || (s.enabled && s.schedulerEnabled)
 
   return (
     <>
@@ -68,9 +70,9 @@ export function ReleasesPage() {
 
       {s && (
         <p className="text-sm text-muted-foreground" data-testid="rss-status">
-          {s.enabled ? t('rss.schedule', { minutes: s.intervalMinutes }) : t('rss.disabled')}
+          {!s.enabled ? t('rss.disabled') : s.schedulerEnabled ? t('rss.schedule', { minutes: s.intervalMinutes }) : t('rss.schedulerOff')}
           {s.lastRunAt ? ` · ${t('rss.lastRun', { date: formatDateTime(s.lastRunAt) })}` : ` · ${t('rss.neverRan')}`}
-          {s.enabled && s.nextRunAt ? ` · ${t('rss.nextRun', { date: formatDateTime(s.nextRunAt) })}` : ''}
+          {s.nextRunAt ? ` · ${t('rss.nextRun', { date: formatDateTime(s.nextRunAt) })}` : ''}
           {` · ${t('rss.stored', { stored: s.stored, matched: s.matched, attributed: s.wouldGrab, grabbed: s.grabbed })}`}
         </p>
       )}
@@ -97,7 +99,7 @@ export function ReleasesPage() {
       )}
 
       {releases.data?.length === 0 && (
-        <p className="text-sm text-muted-foreground">{s?.lastRunAt ? t(matchedOnly ? 'rss.emptyMatched' : 'rss.empty') : t('rss.hint')}</p>
+        <p className="text-sm text-muted-foreground">{s?.lastRunAt ? t(matchedOnly ? 'rss.emptyMatched' : 'rss.empty') : t(onItsOwn ? 'rss.hint' : 'rss.hintManual')}</p>
       )}
 
       {releases.data && releases.data.length > 0 && (

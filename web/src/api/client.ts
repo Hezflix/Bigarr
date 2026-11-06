@@ -57,6 +57,8 @@ export type SystemStatus = {
   isDocker: boolean
   configDirectory: string
   metadataProvider: 'tmdb' | 'fixtures'
+  /** Bigarr__Scheduler__Enabled: when false no task runs on its own; each runs only when triggered. */
+  schedulerEnabled: boolean
 }
 
 export const auth = {
@@ -818,10 +820,14 @@ export type RssRelease = {
 export type RssIndexerStatus = { indexerId: number; indexer: string; lastRunAt: string | null; lastError: string | null; lastFetched: number; lastNew: number }
 
 export type RssStatus = {
+  /** Bigarr__Rss__Enabled: the pass is one of the scheduled tasks. */
   enabled: boolean
+  /** Bigarr__Scheduler__Enabled: when false the pass only runs when triggered. */
+  schedulerEnabled: boolean
   intervalMinutes: number
   running: boolean
   lastRunAt: string | null
+  /** Set only when the pass runs on its own. */
   nextRunAt: string | null
   stored: number
   matched: number

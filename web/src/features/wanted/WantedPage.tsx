@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { toastSearchError, toastSearchResults } from '@/features/search/searchOutcome'
+import { useSchedulerEnabled } from '@/hooks/useSchedulerEnabled'
 import { formatAge, formatDateTime } from '@/i18n'
 
 const pageSize = 50
@@ -30,6 +31,8 @@ export function WantedPage() {
   const [page, setPage] = useState(1)
   const kind = filter === 'all' ? undefined : filter
   const list = useQuery({ queryKey: ['wanted', kind ?? 'all', page], queryFn: () => wanted.list(kind, page, pageSize), refetchInterval: 60_000 })
+  // Scheduler off: no automatic search will come, so no "next automatic search" column.
+  const schedulerOff = useSchedulerEnabled() === false
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['wanted'] })
     void queryClient.invalidateQueries({ queryKey: ['movies'] })
@@ -83,7 +86,7 @@ export function WantedPage() {
           </Button>
         </div>
       </div>
-      <p className="max-w-3xl text-sm text-muted-foreground">{t('wanted.hint')}</p>
+      <p className="max-w-3xl text-sm text-muted-foreground">{t(schedulerOff ? 'wanted.hintManual' : 'wanted.hint')}</p>
 
       {list.isPending && (
         <div className="flex flex-col gap-2">
@@ -109,7 +112,7 @@ export function WantedPage() {
                   <TableHead>{t('wanted.current')}</TableHead>
                   <TableHead>{t('wanted.cutoff')}</TableHead>
                   <TableHead>{t('wanted.lastSearch')}</TableHead>
-                  <TableHead>{t('wanted.nextSearch')}</TableHead>
+                  {!schedulerOff && <TableHead>{t('wanted.nextSearch')}</TableHead>}
                   <TableHead className="text-right">{t('versions.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -160,18 +163,20 @@ export function WantedPage() {
                         <span className="text-muted-foreground">{t('wanted.never')}</span>
                       )}
                     </TableCell>
-                    <TableCell className={cn('align-top whitespace-nowrap', !item.nextSearchAt && 'text-muted-foreground')}>
-                      {item.nextSearchAt ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span>{new Date(item.nextSearchAt) <= new Date() ? t('wanted.due') : formatDateTime(item.nextSearchAt)}</span>
-                          </TooltipTrigger>
-                          <TooltipContent>{t('wanted.nextSearchHint')}</TooltipContent>
-                        </Tooltip>
-                      ) : (
-                        t('wanted.due')
-                      )}
-                    </TableCell>
+                    {!schedulerOff && (
+                      <TableCell className={cn('align-top whitespace-nowrap', !item.nextSearchAt && 'text-muted-foreground')}>
+                        {item.nextSearchAt ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span>{new Date(item.nextSearchAt) <= new Date() ? t('wanted.due') : formatDateTime(item.nextSearchAt)}</span>
+                            </TooltipTrigger>
+                            <TooltipContent>{t('wanted.nextSearchHint')}</TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          t('wanted.due')
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell className="align-top">
                       <div className="flex justify-end">
                         <Tooltip>

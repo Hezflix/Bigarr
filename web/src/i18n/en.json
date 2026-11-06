@@ -559,7 +559,9 @@
   "rss": {
     "title": "Releases",
     "hint": "Every release the RSS feeds bring in is matched to the library and judged by each version of the film. The first pass runs a minute after startup.",
+    "hintManual": "Every release the RSS feeds bring in is matched to the library and judged by each version of the film. No pass runs on its own: click Sync now.",
     "schedule": "RSS sync every {{minutes}} min",
+    "schedulerOff": "Automatic RSS sync off (scheduler disabled): a pass runs when you click Sync now",
     "disabled": "RSS sync disabled",
     "lastRun": "last pass {{date}}",
     "neverRan": "no pass yet",
@@ -927,6 +929,7 @@
     "recycleBinPathHint": "Replaced and deleted files land here, keeping their path relative to the root folder. Empty: they are deleted for good.",
     "retention": "Retention (days)",
     "retentionHint": "Files older than this are removed from the bin every hour. 0 keeps them until you empty it yourself.",
+    "retentionHintManual": "Files older than this are removed from the bin when the maintenance task runs, by hand while the scheduler is off (System → Status). 0 keeps them until you empty it yourself.",
     "extraFiles": "Extra files",
     "importExtraFiles": "Import extra files",
     "importExtraFilesHint": "Subtitles and other side files of the release come along with the movie, with the same transfer, named after the movie file with their language. They follow its renames and leave with it on an upgrade or a deletion. Files Bigarr did not import, such as Bazarr's subtitles, are never renamed nor deleted.",
@@ -945,6 +948,7 @@
   "wanted": {
     "title": "Wanted",
     "hint": "Monitored versions without a file, and files below their profile cutoff. The cutoff-unmet task searches them on its own, waiting longer after each empty search; a search from here ignores that wait.",
+    "hintManual": "Monitored versions without a file, and files below their profile cutoff. The scheduler is off, so nothing searches them on its own: search from here, or run the cutoff-unmet task from System → Status.",
     "filter": "Filter",
     "filters": {
       "all": "All",
@@ -1128,6 +1132,7 @@
   "tasks": {
     "title": "Scheduled tasks",
     "hint": "What runs on its own: the RSS pass, the search for missing and upgradable versions, the health check, the maintenance, the weekly backup. Each can be run now.",
+    "schedulerOff": "The scheduler is off (Bigarr__Scheduler__Enabled=false): no task runs on its own. Each runs only when triggered, here with Run now or from its own page.",
     "task": "Task",
     "interval": "Every",
     "lastRun": "Last run",
@@ -1189,6 +1194,7 @@
   "backups": {
     "title": "Backups",
     "hint": "A zip of the database, taken every week and kept four weeks (Bigarr__Backup__IntervalDays, RetentionDays). Restoring stages the file and restarts Bigarr; in Docker the container comes back on the restored database.",
+    "hintManual": "A zip of the database. The scheduler is off, so no weekly backup is taken and old ones are not pruned: click Back up now, or run the Backup task above. Restoring stages the file and restarts Bigarr; in Docker the container comes back on the restored database.",
     "create": "Back up now",
     "created": "Backup {{name}} written.",
     "createFailed": "The backup could not be written.",

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
-import { ArchiveIcon, DownloadIcon, HeartPulseIcon, HistoryIcon, PlayIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
+import { ArchiveIcon, CirclePauseIcon, DownloadIcon, HeartPulseIcon, HistoryIcon, PlayIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, backups, health, system, tasks, type Backup, type HealthIssueType, type ScheduledTask } from '@/api/client'
@@ -67,6 +67,7 @@ export function SystemPage() {
   })
 
   const issues = healthQuery.data?.issues ?? []
+  const schedulerOff = status.data?.schedulerEnabled === false
 
   return (
     <>
@@ -113,7 +114,14 @@ export function SystemPage() {
 
       <section className="flex flex-col gap-3">
         <h2 className="text-xl font-semibold tracking-tight">{t('tasks.title')}</h2>
-        <p className="max-w-3xl text-sm text-muted-foreground">{t('tasks.hint')}</p>
+        {schedulerOff ? (
+          <Alert className="max-w-3xl" data-testid="scheduler-off">
+            <CirclePauseIcon />
+            <AlertDescription>{t('tasks.schedulerOff')}</AlertDescription>
+          </Alert>
+        ) : (
+          <p className="max-w-3xl text-sm text-muted-foreground">{t('tasks.hint')}</p>
+        )}
         <div className="overflow-x-auto rounded-lg border">
           <Table data-testid="tasks-table">
             <TableHeader>
@@ -187,7 +195,7 @@ export function SystemPage() {
         </div>
       </section>
 
-      <BackupsSection />
+      <BackupsSection schedulerOff={schedulerOff} />
 
       {status.data && (
         <Card data-testid="system-status">
@@ -220,7 +228,7 @@ export function SystemPage() {
 }
 
 /** Backups (M7): a zip of the database, weekly and on demand; restoring stages the file and restarts Bigarr. */
-function BackupsSection() {
+function BackupsSection({ schedulerOff }: { schedulerOff: boolean }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const list = useQuery({ queryKey: ['backups'], queryFn: backups.list })
@@ -273,7 +281,7 @@ function BackupsSection() {
           {t('backups.create')}
         </Button>
       </div>
-      <p className="max-w-3xl text-sm text-muted-foreground">{t('backups.hint')}</p>
+      <p className="max-w-3xl text-sm text-muted-foreground">{t(schedulerOff ? 'backups.hintManual' : 'backups.hint')}</p>
       {restarting && (
         <Alert data-testid="restoring">
           <AlertDescription>{t('backups.restoring')}</AlertDescription>

@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useSchedulerEnabled } from '@/hooks/useSchedulerEnabled'
 
 const modes: TransferMode[] = ['hardlinkOrCopy', 'copy', 'move']
 
@@ -71,6 +72,8 @@ function MediaManagementForm({ initial }: { initial: MediaManagement }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [form, setForm] = useState<MediaManagementRequest>(() => toRequest(initial))
+  // The bin is emptied by the maintenance task, which only runs by hand while the scheduler is off.
+  const schedulerOff = useSchedulerEnabled() === false
   const debouncedFile = useDebounced(form.fileNameTemplate, 300)
   const debouncedFolder = useDebounced(form.folderNameTemplate, 300)
   const preview = useQuery({
@@ -239,7 +242,7 @@ function MediaManagementForm({ initial }: { initial: MediaManagement }) {
               value={form.recycleBinRetentionDays}
               onChange={(e) => setForm({ ...form, recycleBinRetentionDays: Number(e.target.value) })}
             />
-            <span className="text-xs text-muted-foreground">{t('mediaManagement.retentionHint')}</span>
+            <span className="text-xs text-muted-foreground">{t(schedulerOff ? 'mediaManagement.retentionHintManual' : 'mediaManagement.retentionHint')}</span>
           </div>
         </div>
       </section>
