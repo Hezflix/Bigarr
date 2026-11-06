@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FolderInputIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, rootFolders, type RootFolder, type UnmappedFolder } from '@/api/client'
+import { ApiError, movies, rootFolders, type RootFolder, type UnmappedFolder } from '@/api/client'
 import { PathPicker } from '@/components/PathPicker'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -23,12 +23,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ManualImportDialog } from '@/features/import/ManualImportDialog'
 import { formatBytes } from '@/i18n'
+import { StorageBar } from './StorageBar'
 
 export function LibrarySettingsPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const roots = useQuery({ queryKey: ['rootFolders'], queryFn: rootFolders.list })
   const unmapped = useQuery({ queryKey: ['unmapped'], queryFn: rootFolders.unmapped })
+  const library = useQuery({ queryKey: ['movies'], queryFn: movies.list })
   const [path, setPath] = useState('')
   const [pendingRemove, setPendingRemove] = useState<RootFolder | null>(null)
   const [importing, setImporting] = useState<UnmappedFolder | null>(null)
@@ -63,6 +65,8 @@ export function LibrarySettingsPage() {
 
       <section className="flex flex-col gap-3">
         <h2 className="text-xl font-semibold tracking-tight">{t('settings.rootFolders')}</h2>
+
+        {library.data && roots.data && <StorageBar movies={library.data} roots={roots.data} />}
 
         <div className="overflow-x-auto rounded-lg border">
           <Table data-testid="rootfolders-table">
