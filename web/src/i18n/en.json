@@ -428,6 +428,8 @@
     "path": "Path",
     "freeSpace": "Free space",
     "versions": "Versions",
+    "versionsHint": "Film versions stored in this folder, with or without a file yet. A folder can't be removed while any point at it.",
+    "versionFiles": "{{count}} with a file",
     "unmapped": "Unmapped",
     "scan": "Scan",
     "scanning": "Scanning…",

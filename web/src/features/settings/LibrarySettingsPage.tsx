@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FolderInputIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -23,7 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ManualImportDialog } from '@/features/import/ManualImportDialog'
 import { formatBytes } from '@/i18n'
-import { StorageBar } from './StorageBar'
+import { StorageBar, usagePerRootFolder } from './StorageBar'
 
 export function LibrarySettingsPage() {
   const { t } = useTranslation()
@@ -31,6 +31,11 @@ export function LibrarySettingsPage() {
   const roots = useQuery({ queryKey: ['rootFolders'], queryFn: rootFolders.list })
   const unmapped = useQuery({ queryKey: ['unmapped'], queryFn: rootFolders.unmapped })
   const library = useQuery({ queryKey: ['movies'], queryFn: movies.list })
+  // Movie files per root folder, next to its version count; null until the library is loaded.
+  const files = useMemo(
+    () => (library.data && roots.data ? new Map(usagePerRootFolder(library.data, roots.data).map((f) => [f.id, f.files])) : null),
+    [library.data, roots.data],
+  )
   const [path, setPath] = useState('')
   const [pendingRemove, setPendingRemove] = useState<RootFolder | null>(null)
   const [importing, setImporting] = useState<UnmappedFolder | null>(null)
@@ -74,7 +79,14 @@ export function LibrarySettingsPage() {
               <TableRow>
                 <TableHead>{t('settings.path')}</TableHead>
                 <TableHead>{t('settings.freeSpace')}</TableHead>
-                <TableHead>{t('settings.versions')}</TableHead>
+                <TableHead>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help underline decoration-dotted underline-offset-4">{t('settings.versions')}</span>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">{t('settings.versionsHint')}</TooltipContent>
+                  </Tooltip>
+                </TableHead>
                 <TableHead>{t('settings.unmapped')}</TableHead>
                 <TableHead className="w-[28%]">{t('settings.scan')}</TableHead>
                 <TableHead className="text-right">{t('versions.actions')}</TableHead>
@@ -82,7 +94,7 @@ export function LibrarySettingsPage() {
             </TableHeader>
             <TableBody>
               {roots.data?.map((r) => (
-                <RootFolderRow key={r.id} root={r} onRequestRemove={() => setPendingRemove(r)} />
+                <RootFolderRow key={r.id} root={r} files={files === null ? null : (files.get(r.id) ?? 0)} onRequestRemove={() => setPendingRemove(r)} />
               ))}
               {roots.data?.length === 0 && (
                 <TableRow>
@@ -179,7 +191,7 @@ export function LibrarySettingsPage() {
   )
 }
 
-function RootFolderRow({ root, onRequestRemove }: { root: RootFolder; onRequestRemove: () => void }) {
+function RootFolderRow({ root, files, onRequestRemove }: { root: RootFolder; files: number | null; onRequestRemove: () => void }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const status = useQuery({
@@ -221,7 +233,10 @@ function RootFolderRow({ root, onRequestRemove }: { root: RootFolder; onRequestR
       <TableCell className="align-top whitespace-nowrap">
         {formatBytes(root.freeSpace)} <span className="text-muted-foreground">/ {formatBytes(root.totalSpace)}</span>
       </TableCell>
-      <TableCell className="align-top">{root.versionCount}</TableCell>
+      <TableCell className="align-top whitespace-nowrap" data-testid="rootfolder-versions">
+        {root.versionCount}
+        {files !== null && <span className="text-muted-foreground"> · {t('settings.versionFiles', { count: files })}</span>}
+      </TableCell>
       <TableCell className="align-top">{root.unmappedFolderCount}</TableCell>
       <TableCell className="align-top">
         {busy && s && (
