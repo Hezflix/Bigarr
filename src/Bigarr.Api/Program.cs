@@ -134,6 +134,8 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<RadarrImportRunner
 // Shadow mode: the Radarrs Bigarr follows (history, grabs, library) to compare its picks with what they grab.
 builder.Services.AddScoped<RadarrFollower>();
 builder.Services.AddScoped<FollowedRadarrService>();
+builder.Services.AddSingleton<RadarrFollowWakeups>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<RadarrFollowWakeups>());
 builder.Services.AddScoped<CompareService>();
 builder.Services.AddScoped<IScheduledJob, RadarrFollowJob>();
 

@@ -19,6 +19,7 @@ public sealed class FollowedRadarrConfiguration : IEntityTypeConfiguration<Follo
         builder.Property(r => r.RootFolderMap).HasJsonConversion();
         builder.Property(r => r.LastSummary).HasMaxLength(1024);
         builder.Property(r => r.LastError).HasMaxLength(2048);
+        builder.Property(r => r.LastWebhookEvent).HasMaxLength(64);
 
         builder.HasIndex(r => r.Name).IsUnique();
     }

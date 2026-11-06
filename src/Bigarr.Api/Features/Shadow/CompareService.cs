@@ -98,7 +98,8 @@ public sealed class CompareService(BigarrDbContext db, IOptions<ShadowOptions> o
 
     public const int MaxWindowHours = 24 * 14;
 
-    public async Task<CompareResponse> CompareAsync(string? version, CompareOutcome? outcome, int days, int windowHours, int page, int pageSize, CancellationToken ct)
+    /// <param name="tmdbId">One film only: the film page's own comparison.</param>
+    public async Task<CompareResponse> CompareAsync(string? version, CompareOutcome? outcome, int days, int windowHours, int page, int pageSize, CancellationToken ct, int? tmdbId = null)
     {
         var now = time.GetUtcNow().UtcDateTime;
         var window = TimeSpan.FromHours(Math.Clamp(windowHours, 1, MaxWindowHours));
@@ -113,6 +114,12 @@ public sealed class CompareService(BigarrDbContext db, IOptions<ShadowOptions> o
         {
             grabQuery = grabQuery.Where(g => g.VersionName == version);
             pickQuery = pickQuery.Where(p => p.VersionName == version);
+        }
+
+        if (tmdbId is { } film)
+        {
+            grabQuery = grabQuery.Where(g => g.TmdbId == film);
+            pickQuery = pickQuery.Where(p => p.TmdbId == film);
         }
 
         var grabs = (await grabQuery.ToListAsync(ct)).ToDictionary(g => g.Id);

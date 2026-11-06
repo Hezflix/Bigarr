@@ -1,5 +1,6 @@
 using System.Globalization;
 using Bigarr.Api.Features.Migration;
+using Bigarr.Api.Features.Search;
 using Bigarr.Api.Features.Server.Tasks;
 using Bigarr.Api.Infrastructure.Downloads.Torrents;
 using Bigarr.Api.Infrastructure.Persistence;
@@ -14,20 +15,29 @@ using Microsoft.Extensions.Options;
 namespace Bigarr.Api.Features.Shadow;
 
 /// <summary>The outcome of one pass over one followed Radarr.</summary>
-public sealed record RadarrFollowPass(int FollowedRadarrId, string Name, bool Success, string Summary, int Grabs, int Resolved, int PicksShown);
+public sealed record RadarrFollowPass(int FollowedRadarrId, string Name, bool Success, string Summary, int Grabs, int Resolved, int PicksShown, int SearchedOnAdd = 0);
 
 /// <summary>
-/// One pass over a followed Radarr (shadow mode), reading only: its history since the checkpoint (a few minutes before
-/// it, lines already read are recognised), whose grabs become <see cref="RadarrGrab"/> rows judged by Bigarr's engine on
-/// the spot, and whose imports and failures close the grabs they belong to; then its library, through the import's own
-/// rules (<see cref="RadarrImportService.FollowAsync"/>); then Radarr's opinion of Bigarr's latest picks. The checkpoint
-/// only moves when the whole pass went through, so a Radarr that was down is caught up from where it stopped.
+/// One pass over a followed Radarr (shadow mode), reading only, in this order so that Bigarr judges what Radarr did
+/// against the library as it was before Radarr's download:
+/// <list type="number">
+/// <item>films Radarr has and Bigarr does not come in, without their file;</item>
+/// <item>Radarr's grabs since the checkpoint (read from a few minutes before it, lines already read are recognised)
+/// become <see cref="RadarrGrab"/> rows judged by Bigarr's engine on the spot; imports and failures close them;</item>
+/// <item>a film added to Radarr since the follow started gets Bigarr's own search on add, recorded as picks;</item>
+/// <item>the rest of the library follows Radarr's through the import's rules (<see cref="RadarrImportService.FollowAsync"/>):
+/// files, settings, history;</item>
+/// <item>Bigarr's latest picks are shown to Radarr's <c>/parse</c>.</item>
+/// </list>
+/// The checkpoint only moves when the whole pass went through, so a Radarr that was down is caught up from where it
+/// stopped. Passes run on the schedule, on demand, and when Radarr's webhook calls (<see cref="RadarrFollowWakeups"/>).
 /// </summary>
 public sealed class RadarrFollower(
     BigarrDbContext db,
     RadarrClient radarr,
     RadarrImportService imports,
     ShadowJudge judge,
+    AutomaticSearchService search,
     IOptions<ShadowOptions> options,
     TimeProvider time,
     ILogger<RadarrFollower> logger)
@@ -98,11 +108,7 @@ public sealed class RadarrFollower(
         // Radarr blocklists on a failed download: the blocklist is only worth reading when one happened.
         var blocklist = history.Any(h => RadarrImportService.HistoryType(h.EventType) == HistoryEventType.DownloadFailed) ? await radarr.BlocklistAsync(connection, ct) : [];
         var byId = movies.GroupBy(m => m.Id).ToDictionary(g => g.Key, g => g.First());
-
-        // Radarr's grabs first: Bigarr judges each one before the follow brings in the file it led to.
-        var grabs = await RecordGrabsAsync(follow, history, byId, ct);
-        var resolved = await ResolveAsync(follow, history, ct);
-
+        var data = new RadarrFollowData(profiles, tags, movies, history, blocklist);
         var request = new RadarrImportRequest(
             follow.Url,
             follow.ApiKey,
@@ -116,7 +122,21 @@ public sealed class RadarrFollower(
             ImportCustomFormats: false,
             follow.KeepMonitored,
             follow.IncludeMoviesWithoutFile);
-        var library = await imports.FollowAsync(request, new RadarrFollowData(profiles, tags, movies, history, blocklist), ct);
+
+        // 1. New films, without their file: what Radarr grabbed for them is judged against a film that had none.
+        var addedSinceFollowing = await AddedSinceFollowingAsync(follow, movies, ct);
+        var added = await imports.AddNewFilmsAsync(request, data, ct);
+        db.ChangeTracker.Clear();
+
+        // 2. Radarr's grabs, judged before the follow brings in the file they led to.
+        var grabs = await RecordGrabsAsync(follow, history, byId, ct);
+        var resolved = await ResolveAsync(follow, history, ct);
+
+        // 3. Bigarr's own search on add for the films Radarr was given since the follow started.
+        var searched = await SearchOnAddAsync(follow, addedSinceFollowing, ct);
+
+        // 4. Files, settings and history.
+        var library = await imports.FollowAsync(request, data, ct);
         db.ChangeTracker.Clear();
 
         await LinkAsync(follow, ct);
@@ -124,7 +144,7 @@ public sealed class RadarrFollower(
 
         var now = time.GetUtcNow().UtcDateTime;
         var checkpoint = history.Count > 0 ? new[] { follow.HistoryCheckpoint, history.Max(h => Utc(h.Date)) }.Max() : follow.HistoryCheckpoint;
-        var summary = Summary(grabs, resolved, library, shown);
+        var summary = Summary(grabs, resolved, added, library, searched, shown);
         await db.FollowedRadarrs.Where(f => f.Id == follow.Id).ExecuteUpdateAsync(s => s
             .SetProperty(f => f.HistoryCheckpoint, checkpoint)
             .SetProperty(f => f.LastSyncAt, now)
@@ -133,11 +153,56 @@ public sealed class RadarrFollower(
             .SetProperty(f => f.LastErrorAt, (DateTime?)null), ct);
 
         logger.LogInformation("Following {Name}: {Summary}", follow.Name, summary);
-        return new RadarrFollowPass(follow.Id, follow.Name, true, summary, grabs, resolved, shown);
+        return new RadarrFollowPass(follow.Id, follow.Name, true, summary, grabs, resolved, shown, searched);
     }
 
-    private static string Summary(int grabs, int resolved, RadarrImportProgress library, int shown)
+    /// <summary>
+    /// TMDB ids of the films Radarr was given since the follow started (its <c>added</c> date, a few minutes of margin) that
+    /// Bigarr does not have yet as this version: those get Bigarr's search on add. Never a back catalogue.
+    /// </summary>
+    private async Task<List<int>> AddedSinceFollowingAsync(FollowedRadarr follow, List<RadarrMovie> movies, CancellationToken ct)
     {
+        var since = follow.HistoryCheckpoint - Overlap;
+        var recent = movies.Where(m => m.TmdbId > 0 && m.Monitored && m.Added is { } added && Utc(added) >= since).Select(m => m.TmdbId).Distinct().ToList();
+        if (recent.Count == 0)
+        {
+            return [];
+        }
+
+        var known = await db.MovieVersions.AsNoTracking().Where(v => v.Name == follow.VersionName && recent.Contains(v.Movie.TmdbId)).Select(v => v.Movie.TmdbId).ToListAsync(ct);
+        return recent.Except(known).ToList();
+    }
+
+    /// <summary>
+    /// The counterpart of the search Radarr runs when Seerr or a user adds a film: Bigarr's automatic search (the rules of a
+    /// search on add), in shadow mode only, so the outcome is a pick and nothing is sent. Bounded per pass.
+    /// </summary>
+    private async Task<int> SearchOnAddAsync(FollowedRadarr follow, List<int> tmdbIds, CancellationToken ct)
+    {
+        if (tmdbIds.Count == 0 || !options.Value.Enabled || !options.Value.SearchOnAdd)
+        {
+            return 0;
+        }
+
+        var versionIds = await db.MovieVersions.AsNoTracking()
+            .Where(v => v.Name == follow.VersionName && v.Monitored && tmdbIds.Contains(v.Movie.TmdbId))
+            .OrderBy(v => v.Id)
+            .Select(v => v.Id)
+            .ToListAsync(ct);
+        var bound = Math.Max(0, options.Value.SearchOnAddPerPass);
+        if (versionIds.Count > bound)
+        {
+            logger.LogWarning("Following {Name}: {Count} films added to Radarr, Bigarr searches the first {Bound}", follow.Name, versionIds.Count, bound);
+        }
+
+        var results = await search.SearchAsync(versionIds.Take(bound).ToList(), SearchTrigger.Added, ct);
+        db.ChangeTracker.Clear();
+        return results.Count;
+    }
+
+    private static string Summary(int grabs, int resolved, RadarrImportProgress added, RadarrImportProgress library, int searched, int shown)
+    {
+        var first = added.ToResponse();
         var report = library.ToResponse();
         var parts = new List<string> { $"{grabs} new grab(s)" };
         void Add(int count, string what)
@@ -149,8 +214,9 @@ public sealed class RadarrFollower(
         }
 
         Add(resolved, "grab(s) imported or failed");
-        Add(report.MoviesAdded, "film(s) added");
-        Add(report.VersionsAdded, "version(s) added");
+        Add(first.MoviesAdded + report.MoviesAdded, "film(s) added");
+        Add(first.VersionsAdded + report.VersionsAdded, "version(s) added");
+        Add(searched, "film(s) searched on add");
         Add(report.VersionsUpdated, "version(s) updated");
         Add(report.FilesAdded + library.FilesReplaced, "file(s) followed");
         Add(library.FilesRenamed, "file(s) renamed");
@@ -158,7 +224,7 @@ public sealed class RadarrFollower(
         Add(report.FilesMissing, "file(s) not found on disk");
         Add(report.HistoryAdded, "history line(s)");
         Add(report.Skipped, "film(s) skipped (mapping)");
-        Add(report.Failed, "film(s) failed");
+        Add(first.Failed + report.Failed, "film(s) failed");
         Add(shown, "pick(s) shown to Radarr");
         return string.Join(", ", parts);
     }

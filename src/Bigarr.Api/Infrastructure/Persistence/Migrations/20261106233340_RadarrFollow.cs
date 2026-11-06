@@ -32,6 +32,8 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     LastSummary = table.Column<string>(type: "TEXT", maxLength: 1024, nullable: true),
                     LastError = table.Column<string>(type: "TEXT", maxLength: 2048, nullable: true),
                     LastErrorAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    LastWebhookAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    LastWebhookEvent = table.Column<string>(type: "TEXT", maxLength: 64, nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>

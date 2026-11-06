@@ -228,7 +228,21 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
     /// the version's file follows Radarr's (imported, upgraded, renamed, deleted), in the database only. Custom formats,
     /// profiles and exclusions are not touched.
     /// </summary>
-    public async Task<RadarrImportProgress> FollowAsync(RadarrImportRequest request, RadarrFollowData data, CancellationToken ct)
+    public Task<RadarrImportProgress> FollowAsync(RadarrImportRequest request, RadarrFollowData data, CancellationToken ct) =>
+        FollowCoreAsync(request, data, newFilmsOnly: false, ct);
+
+    /// <summary>
+    /// The first step of a pass: the films (or versions) Radarr has and Bigarr does not, brought in without their file nor
+    /// their history. Radarr's grabs of them are then judged, and searched for, against the film as it was before Radarr's
+    /// download; <see cref="FollowAsync"/> brings the files and the history right after.
+    /// </summary>
+    public Task<RadarrImportProgress> AddNewFilmsAsync(RadarrImportRequest request, RadarrFollowData data, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return FollowCoreAsync(request with { ImportHistory = false, ImportBlocklist = false }, data, newFilmsOnly: true, ct);
+    }
+
+    private async Task<RadarrImportProgress> FollowCoreAsync(RadarrImportRequest request, RadarrFollowData data, bool newFilmsOnly, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(data);
@@ -239,14 +253,14 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
             new RadarrSystemStatus(null, null, null), data.Profiles, [], data.Tags, movies, [], EmptyFormats,
             data.History.ToLookup(h => h.MovieId), data.History.Count, data.Blocklist.ToLookup(b => b.MovieId), data.Blocklist.Count);
 
-        var changed = await ChangedAsync(snapshot, request, ct);
+        var changed = await ChangedAsync(snapshot, request, newFilmsOnly, ct);
         progress.Total = changed.Count;
         if (changed.Count == 0)
         {
             return progress;
         }
 
-        var context = await ContextAsync(request, snapshot with { Movies = changed }, progress, ct) with { Follow = true };
+        var context = await ContextAsync(request, snapshot with { Movies = changed }, progress, ct) with { Follow = true, SkipFiles = newFilmsOnly };
         foreach (var item in changed)
         {
             ct.ThrowIfCancellationRequested();
@@ -279,9 +293,10 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
 
     /// <summary>
     /// The Radarr films the follow has to look at: not in Bigarr yet as this version, or with a monitored flag, profile,
-    /// availability, tags, folder or file that differs, or with history lines in this pass.
+    /// availability, tags, folder or file that differs, or with history lines in this pass. Only the first kind when
+    /// <paramref name="newFilmsOnly"/>.
     /// </summary>
-    private async Task<List<RadarrMovie>> ChangedAsync(Snapshot snapshot, RadarrImportRequest request, CancellationToken ct)
+    private async Task<List<RadarrMovie>> ChangedAsync(Snapshot snapshot, RadarrImportRequest request, bool newFilmsOnly, CancellationToken ct)
     {
         var versionName = request.VersionName.Trim();
         var bigarr = (await db.MovieVersions.AsNoTracking()
@@ -307,12 +322,6 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         foreach (var item in snapshot.Movies)
         {
             var file = item.HasFile ? item.MovieFile : null;
-            if (snapshot.History[item.Id].Any())
-            {
-                changed.Add(item);
-                continue;
-            }
-
             if (!bigarr.TryGetValue(item.TmdbId, out var version))
             {
                 if (file is not null || request.IncludeMoviesWithoutFile)
@@ -320,6 +329,17 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
                     changed.Add(item);
                 }
 
+                continue;
+            }
+
+            if (newFilmsOnly)
+            {
+                continue;
+            }
+
+            if (snapshot.History[item.Id].Any())
+            {
+                changed.Add(item);
                 continue;
             }
 
@@ -451,7 +471,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
 
         // Reported once the film is saved, so the report can link to it.
         var notes = new List<string>();
-        if (file is not null && (version.File is null || context.Follow))
+        if (file is not null && !context.SkipFiles && (version.File is null || context.Follow))
         {
             var relative = RelativePathOf(file, item);
             if (relative is null)
@@ -1274,5 +1294,6 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
     /// <param name="Indexers">Bigarr indexer name → id, to link a grab or a blocklisted release to the indexer that still exists.</param>
     /// <param name="RootPaths">Bigarr root folder id → path: an existing version's file lives under its own root.</param>
     /// <param name="Follow">A pass of the follow rather than the import: files and folders follow Radarr's.</param>
-    private sealed record ImportContext(RadarrImportRequest Request, Snapshot Snapshot, string VersionName, Dictionary<int, int> Profiles, Dictionary<string, RootFolder> Roots, Dictionary<int, int> Tags, HashSet<int> QualityIds, Dictionary<string, int> Indexers, Dictionary<int, string> RootPaths, bool Follow = false);
+    /// <param name="SkipFiles">The follow's first step: films come in without their file, which the next step brings.</param>
+    private sealed record ImportContext(RadarrImportRequest Request, Snapshot Snapshot, string VersionName, Dictionary<int, int> Profiles, Dictionary<string, RootFolder> Roots, Dictionary<int, int> Tags, HashSet<int> QualityIds, Dictionary<string, int> Indexers, Dictionary<int, string> RootPaths, bool Follow = false, bool SkipFiles = false);
 }

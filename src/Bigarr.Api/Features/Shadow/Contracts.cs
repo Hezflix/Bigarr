@@ -33,6 +33,9 @@ public sealed record FollowedRadarrResponse(
     string? LastSummary,
     string? LastError,
     DateTime? LastErrorAt,
+    /// <summary>The last call of Radarr's webhook and its event, when Radarr is set up to call it.</summary>
+    DateTime? LastWebhookAt,
+    string? LastWebhookEvent,
     /// <summary>Grabs read from this Radarr so far, and those still downloading on its side.</summary>
     int Grabs,
     int InFlight,

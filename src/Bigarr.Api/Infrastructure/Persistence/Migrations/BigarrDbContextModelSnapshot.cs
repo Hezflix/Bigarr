@@ -1248,6 +1248,13 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("LastSyncAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("LastWebhookAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastWebhookEvent")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(64)

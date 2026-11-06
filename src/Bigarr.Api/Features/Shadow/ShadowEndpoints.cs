@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Bigarr.Api.Features.Migration;
 using Bigarr.Api.Infrastructure.Auth;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -13,9 +14,10 @@ public static class ShadowEndpoints
 
         group.MapGet("/", async Task<Ok<ShadowStatusResponse>> (FollowedRadarrService service, CancellationToken ct) => TypedResults.Ok(await service.StatusAsync(ct)));
 
-        // Activity → Compare. outcome is matched by name (same | different | bigarrOnly | radarrOnly); days=0 means all time.
+        // Activity → Compare, and the film page with tmdbId. outcome is matched by name (same | different | bigarrOnly |
+        // radarrOnly); days=0 means all time.
         group.MapGet("/compare", async Task<Results<Ok<CompareResponse>, ValidationProblem>> (
-            string? version, string? outcome, int? days, int? windowHours, int? page, int? pageSize, CompareService compare, CancellationToken ct) =>
+            string? version, string? outcome, int? days, int? windowHours, int? page, int? pageSize, int? tmdbId, CompareService compare, CancellationToken ct) =>
         {
             CompareOutcome? kind = null;
             if (!string.IsNullOrWhiteSpace(outcome))
@@ -28,7 +30,7 @@ public static class ShadowEndpoints
                 kind = parsed;
             }
 
-            return TypedResults.Ok(await compare.CompareAsync(version, kind, days ?? 30, windowHours ?? CompareService.DefaultWindowHours, page ?? 1, pageSize ?? 50, ct));
+            return TypedResults.Ok(await compare.CompareAsync(version, kind, days ?? 30, windowHours ?? CompareService.DefaultWindowHours, page ?? 1, pageSize ?? 50, ct, tmdbId));
         });
 
         var radarrs = group.MapGroup("/radarrs");
@@ -74,6 +76,28 @@ public static class ShadowEndpoints
         {
             var result = await service.PreviewAsync(id, ct);
             return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
+        });
+
+        // Radarr → Settings → Connect → Webhook, with a Bigarr API key in the URL (?apikey=): any event but Test wakes a
+        // pass within seconds. Only eventType is read from Radarr's body; a body that is not JSON is no reason to refuse.
+        radarrs.MapPost("/{id:int}/webhook", async Task<Results<Accepted, ProblemHttpResult>> (int id, HttpRequest request, FollowedRadarrService service, CancellationToken ct) =>
+        {
+            string? eventType = null;
+            try
+            {
+                using var body = await JsonDocument.ParseAsync(request.Body, cancellationToken: ct);
+                if (body.RootElement.ValueKind == JsonValueKind.Object && body.RootElement.TryGetProperty("eventType", out var value) && value.ValueKind == JsonValueKind.String)
+                {
+                    eventType = value.GetString();
+                }
+            }
+            catch (JsonException)
+            {
+                // an empty or foreign body still wakes the pass
+            }
+
+            var result = await service.WebhookAsync(id, eventType, ct);
+            return result.IsSuccess ? TypedResults.Accepted((string?)null) : result.Failure!.ToProblem();
         });
 
         radarrs.MapPost("/{id:int}/sync", async Task<Results<Ok<RadarrFollowPass>, ProblemHttpResult>> (int id, FollowedRadarrService service, CancellationToken ct) =>

@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(BigarrDbContext))]
-    [Migration("20261106224231_RadarrFollow")]
+    [Migration("20261106233340_RadarrFollow")]
     partial class RadarrFollow
     {
         /// <inheritdoc />
@@ -1249,6 +1249,13 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("LastSyncAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastWebhookAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastWebhookEvent")
+                        .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")

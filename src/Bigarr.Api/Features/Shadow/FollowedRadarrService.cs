@@ -13,7 +13,15 @@ namespace Bigarr.Api.Features.Shadow;
 /// mapping. The API key is stored like an indexer's and only ever sent back masked; a masked or blank key on update keeps
 /// the stored one, like Radarr's own privacy fields.
 /// </summary>
-public sealed class FollowedRadarrService(BigarrDbContext db, RadarrClient radarr, RadarrImportService imports, RadarrFollower follower, IOptions<ShadowOptions> options, TimeProvider time, ILogger<FollowedRadarrService> logger)
+public sealed class FollowedRadarrService(
+    BigarrDbContext db,
+    RadarrClient radarr,
+    RadarrImportService imports,
+    RadarrFollower follower,
+    RadarrFollowWakeups wakeups,
+    IOptions<ShadowOptions> options,
+    TimeProvider time,
+    ILogger<FollowedRadarrService> logger)
 {
     public const string KeyMask = "********";
 
@@ -141,6 +149,33 @@ public sealed class FollowedRadarrService(BigarrDbContext db, RadarrClient radar
         return pass.Success ? Result<RadarrFollowPass>.Ok(pass) : new Failure(StatusCodes.Status502BadGateway, $"{pass.Name} could not be followed", pass.Summary);
     }
 
+    /// <summary>
+    /// Radarr's webhook called (Radarr → Settings → Connect → Webhook): the event is noted, and anything but Radarr's
+    /// <c>Test</c> wakes a pass. The body is not trusted for anything else: the pass reads Radarr's history as always.
+    /// </summary>
+    public async Task<Result<bool>> WebhookAsync(int id, string? eventType, CancellationToken ct)
+    {
+        var follow = await db.FollowedRadarrs.AsNoTracking().Where(f => f.Id == id).Select(f => new { f.Name, f.Enabled }).FirstOrDefaultAsync(ct);
+        if (follow is null)
+        {
+            return Failure.NotFound("Followed Radarr");
+        }
+
+        var name = string.IsNullOrWhiteSpace(eventType) ? "Unknown" : eventType.Trim();
+        name = name.Length <= 64 ? name : name[..64];
+        var now = time.GetUtcNow().UtcDateTime;
+        await db.FollowedRadarrs.Where(f => f.Id == id).ExecuteUpdateAsync(s => s.SetProperty(f => f.LastWebhookAt, now).SetProperty(f => f.LastWebhookEvent, name), ct);
+
+        var wakes = follow.Enabled && !string.Equals(name, "Test", StringComparison.OrdinalIgnoreCase);
+        if (wakes)
+        {
+            wakeups.Wake(id);
+        }
+
+        logger.LogInformation("Radarr webhook {Event} for {Name}{Wakes}", name, follow.Name, wakes ? ": a pass follows" : string.Empty);
+        return Result<bool>.Ok(wakes);
+    }
+
     private async Task<RadarrConnection?> ConnectionAsync(FollowedRadarrRequest? request, int? id, CancellationToken ct)
     {
         string? storedKey = null;
@@ -224,6 +259,8 @@ public sealed class FollowedRadarrService(BigarrDbContext db, RadarrClient radar
             follow.LastSummary,
             follow.LastError,
             follow.LastErrorAt,
+            follow.LastWebhookAt,
+            follow.LastWebhookEvent,
             grabs,
             inFlight,
             follow.CreatedAt);

@@ -46,5 +46,11 @@ public sealed class FollowedRadarr
 
     public DateTime? LastErrorAt { get; set; }
 
+    /// <summary>The last call of Radarr's webhook (Settings → Connect in Radarr): any event wakes a pass at once.</summary>
+    public DateTime? LastWebhookAt { get; set; }
+
+    /// <summary>Radarr's <c>eventType</c> of that call: <c>MovieAdded</c>, <c>Grab</c>, <c>Download</c>, <c>Test</c>…</summary>
+    public string? LastWebhookEvent { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

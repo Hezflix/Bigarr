@@ -40,6 +40,9 @@ internal sealed class FakeRadarr : IAsyncDisposable
 
         public int ProfileId { get; set; } = 1;
 
+        /// <summary>When the film was added to Radarr: the follow searches on add only what was added since it started.</summary>
+        public DateTime Added { get; init; } = new(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
         public FilmFile? File { get; set; }
     }
 
@@ -149,7 +152,7 @@ internal sealed class FakeRadarr : IAsyncDisposable
         path = $"{RootPath}/{film.Folder}",
         rootFolderPath = RootPath,
         hasFile = film.File is not null,
-        added = "2024-01-01T00:00:00Z",
+        added = film.Added.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture),
         inCinemas = $"{film.Year}-06-01T00:00:00Z",
         physicalRelease = $"{film.Year}-12-01T00:00:00Z",
         tags = Array.Empty<int>(),
