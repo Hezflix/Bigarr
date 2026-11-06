@@ -21,7 +21,8 @@ export type Lookups = {
   rootFolders: ReadonlyMap<number, string>
 }
 
-export const rowHeight: Record<Density, number> = { compact: 36, comfortable: 52 }
+/** Compact rows hold one line of text, with slimmer chips; comfortable rows fit the poster thumbnail. */
+export const rowHeight: Record<Density, number> = { compact: 28, comfortable: 52 }
 
 const widths: Record<TableColumn, string> = {
   year: '4rem',
@@ -96,7 +97,11 @@ export function MovieTable({ movies, columns, density, lookups, sort, direction,
       <div ref={contentRef} className="min-w-fit">
         <div
           role="row"
-          className={cn('grid items-center gap-3 border-b bg-muted px-3 py-1 text-xs font-medium text-muted-foreground', !overflows && 'sticky top-0 z-10 rounded-t-xl')}
+          className={cn(
+            'grid items-center gap-3 border-b bg-muted px-3 text-xs font-medium text-muted-foreground',
+            density === 'compact' ? 'py-0.5' : 'py-1',
+            !overflows && 'sticky top-0 z-10 rounded-t-xl',
+          )}
           style={{ gridTemplateColumns: template }}
         >
           {selection.selecting && <span />}
@@ -146,6 +151,8 @@ function TableRowView({
       onClick={selecting ? (event) => onToggle(movie.id, event.shiftKey) : undefined}
       className={cn(
         'group/row absolute top-0 left-0 grid w-full items-center gap-3 border-b px-3 text-sm last:border-b-0 hover:bg-accent/40',
+        // Compact: the version and tag chips lose their vertical padding to fit the shorter row.
+        density === 'compact' && '[&_[data-slot=badge]]:py-0',
         selecting && 'cursor-pointer select-none',
         isSelected && 'bg-primary/10 hover:bg-primary/15',
       )}
