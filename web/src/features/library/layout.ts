@@ -30,8 +30,8 @@ export function useDocumentOffset(ref: RefObject<HTMLElement | null>): number {
 }
 
 /**
- * Whether the content is wider than its frame. The table and the matrix keep their header sticky (window scroll) when
- * the columns fit, and fall back to a horizontal scroll box, where a sticky header cannot work, when they do not.
+ * Whether the content is wider than its frame. The table keeps its header sticky (window scroll) when the columns
+ * fit, and falls back to a horizontal scroll box, where a sticky header cannot work, when they do not.
  */
 export function useOverflows(frame: RefObject<HTMLElement | null>, content: RefObject<HTMLElement | null>): boolean {
   const frameWidth = useElementWidth(frame)

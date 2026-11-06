@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
-import { BookmarkPlusIcon, Grid2x2Icon, LayoutGridIcon, ListFilterIcon, SearchIcon, Settings2Icon, SortAscIcon, TableIcon, XIcon } from 'lucide-react'
+import { ArrowDownIcon, ArrowUpIcon, BookmarkPlusIcon, LayoutGridIcon, ListFilterIcon, SearchIcon, Settings2Icon, TableIcon, XIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { RootFolder, Tag } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
@@ -175,7 +175,6 @@ type ControlsProps = {
 const modeIcons: Record<ViewMode, ReactNode> = {
   posters: <LayoutGridIcon />,
   table: <TableIcon />,
-  matrix: <Grid2x2Icon />,
 }
 
 export function LibraryControls({ prefs, onChange, term, onTermChange, names, qualities, tags, rootFolders }: ControlsProps) {
@@ -216,44 +215,10 @@ export function LibraryControls({ prefs, onChange, term, onTermChange, names, qu
       </div>
 
       <div className="ml-auto flex flex-wrap items-center gap-2">
-        <SortMenu prefs={prefs} onChange={onChange} />
         <FilterMenu filter={prefs.filter} onChange={(filter) => onChange({ filter })} names={names} qualities={qualities} tags={tags} rootFolders={rootFolders} />
         <ViewMenu prefs={prefs} onChange={onChange} />
       </div>
     </div>
-  )
-}
-
-function SortMenu({ prefs, onChange }: { prefs: LibraryPrefs; onChange: (patch: Partial<LibraryPrefs>) => void }) {
-  const { t } = useTranslation()
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button type="button" variant="outline" size="sm" data-testid="library-sort">
-          <SortAscIcon />
-          {t(`library.sort.${prefs.sort}`)}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuLabel>{t('library.sort.label')}</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={prefs.sort} onValueChange={(value) => onChange({ sort: value as LibraryPrefs['sort'] })}>
-          {sortKeys.map((key) => (
-            <DropdownMenuRadioItem key={key} value={key} onSelect={keepOpen} data-testid={`library-sort-${key}`}>
-              {t(`library.sort.${key}`)}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuRadioGroup value={prefs.direction} onValueChange={(value) => onChange({ direction: value as LibraryPrefs['direction'] })}>
-          <DropdownMenuRadioItem value="asc" onSelect={keepOpen} data-testid="library-sort-asc">
-            {t('library.sort.asc')}
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="desc" onSelect={keepOpen} data-testid="library-sort-desc">
-            {t('library.sort.desc')}
-          </DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
   )
 }
 
@@ -449,6 +414,7 @@ function ViewMenu({ prefs, onChange }: { prefs: LibraryPrefs; onChange: (patch: 
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
+        <SortSub prefs={prefs} onChange={onChange} />
         <DropdownMenuSub>
           <DropdownMenuSubTrigger data-testid="library-poster-size">
             <span className="flex-1">{t('library.view.posterSize')}</span>
@@ -508,5 +474,40 @@ function ViewMenu({ prefs, onChange }: { prefs: LibraryPrefs; onChange: (patch: 
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/** The posters have no column headers: their sort lives here. The table's headers set the same sort. */
+function SortSub({ prefs, onChange }: { prefs: LibraryPrefs; onChange: (patch: Partial<LibraryPrefs>) => void }) {
+  const { t } = useTranslation()
+  const Arrow = prefs.direction === 'asc' ? ArrowUpIcon : ArrowDownIcon
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger data-testid="library-sort">
+        <span className="flex-1">{t('library.sort.label')}</span>
+        <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+          {t(`library.sort.${prefs.sort}`)}
+          <Arrow className="size-3" aria-label={t(`library.sort.${prefs.direction}`)} />
+        </span>
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="w-44">
+        <DropdownMenuRadioGroup value={prefs.sort} onValueChange={(value) => onChange({ sort: value as LibraryPrefs['sort'] })}>
+          {sortKeys.map((key) => (
+            <DropdownMenuRadioItem key={key} value={key} onSelect={keepOpen} data-testid={`library-sort-${key}`}>
+              {t(`library.sort.${key}`)}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuRadioGroup value={prefs.direction} onValueChange={(value) => onChange({ direction: value as LibraryPrefs['direction'] })}>
+          <DropdownMenuRadioItem value="asc" onSelect={keepOpen} data-testid="library-sort-asc">
+            {t('library.sort.asc')}
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="desc" onSelect={keepOpen} data-testid="library-sort-desc">
+            {t('library.sort.desc')}
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   )
 }

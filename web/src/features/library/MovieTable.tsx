@@ -2,7 +2,7 @@ import { useRef, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import { cn } from 'cn'
-import { ArrowDownIcon, ArrowUpIcon } from 'lucide-react'
+import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { MovieSummary } from '@/api/client'
 import { Poster } from '@/components/Poster'
@@ -49,7 +49,7 @@ type Props = Selection & {
   onSort: (key: SortKey) => void
 }
 
-/** Radarr's table view: one row per film, columns picked in the view menu, headers sort. */
+/** Radarr's table view: one row per film, columns picked in the view menu, headers sort, a row opens its film. */
 export function MovieTable({ movies, columns, density, lookups, sort, direction, onSort, ...selection }: Props) {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -63,12 +63,31 @@ export function MovieTable({ movies, columns, density, lookups, sort, direction,
 
   const header = (key: TableColumn | 'title', label: string) => {
     const sortKey = sortable[key]
-    if (!sortKey) return <span key={key}>{label}</span>
+    if (!sortKey) {
+      return (
+        <span key={key} role="columnheader" className="truncate">
+          {label}
+        </span>
+      )
+    }
+    const active = sort === sortKey
+    // The sorted column shows its direction; the others show a faint hint on hover that they sort too.
+    const Arrow = !active ? ArrowUpDownIcon : direction === 'asc' ? ArrowUpIcon : ArrowDownIcon
     return (
-      <button key={key} type="button" className="flex items-center gap-1 text-left hover:text-foreground" onClick={() => onSort(sortKey)}>
-        {label}
-        {sort === sortKey && (direction === 'asc' ? <ArrowUpIcon className="size-3" /> : <ArrowDownIcon className="size-3" />)}
-      </button>
+      <span key={key} role="columnheader" aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'} className="min-w-0">
+        <button
+          type="button"
+          className={cn(
+            'group/sort -mx-1.5 flex max-w-[calc(100%+0.75rem)] items-center gap-1 rounded-md px-1.5 py-1 text-left outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/50',
+            active && 'text-foreground',
+          )}
+          onClick={() => onSort(sortKey)}
+          data-testid={`sort-${sortKey}`}
+        >
+          <span className="truncate">{label}</span>
+          <Arrow className={cn('size-3 shrink-0', !active && 'opacity-0 group-hover/sort:opacity-50 group-focus-visible/sort:opacity-50')} aria-hidden="true" />
+        </button>
+      </span>
     )
   }
 
@@ -77,7 +96,7 @@ export function MovieTable({ movies, columns, density, lookups, sort, direction,
       <div ref={contentRef} className="min-w-fit">
         <div
           role="row"
-          className={cn('grid items-center gap-3 border-b bg-muted px-3 py-2 text-xs font-medium text-muted-foreground', !overflows && 'sticky top-0 z-10 rounded-t-xl')}
+          className={cn('grid items-center gap-3 border-b bg-muted px-3 py-1 text-xs font-medium text-muted-foreground', !overflows && 'sticky top-0 z-10 rounded-t-xl')}
           style={{ gridTemplateColumns: template }}
         >
           {selection.selecting && <span />}
@@ -126,7 +145,7 @@ function TableRowView({
       aria-selected={selecting ? isSelected : undefined}
       onClick={selecting ? (event) => onToggle(movie.id, event.shiftKey) : undefined}
       className={cn(
-        'absolute top-0 left-0 grid w-full items-center gap-3 border-b px-3 text-sm last:border-b-0 hover:bg-accent/40',
+        'group/row absolute top-0 left-0 grid w-full items-center gap-3 border-b px-3 text-sm last:border-b-0 hover:bg-accent/40',
         selecting && 'cursor-pointer select-none',
         isSelected && 'bg-primary/10 hover:bg-primary/15',
       )}
@@ -135,7 +154,7 @@ function TableRowView({
       {selecting && <SelectionMark checked={isSelected} />}
       <MovieTitleCell movie={movie} density={density} selecting={selecting} />
       {columns.map((column) => (
-        <div key={column} className="min-w-0 truncate">
+        <div key={column} role="cell" className="min-w-0 truncate">
           <Cell movie={movie} column={column} lookups={lookups} />
         </div>
       ))}
@@ -144,15 +163,24 @@ function TableRowView({
 }
 
 /**
- * Poster thumbnail (comfortable density) and title; a link outside selection mode. The link is laid over the cell
- * rather than wrapped around it, so the thumbnail stays mounted, and painted, when selection mode toggles.
+ * Poster thumbnail (comfortable density) and title. Outside selection mode an empty link is laid over the whole row
+ * (the row is its positioned ancestor): a click anywhere opens the film, and ctrl/cmd/middle click or "open in new tab"
+ * work like on any link, with no link or button nested in another. The link sits next to the content rather than
+ * around it, so the thumbnail stays mounted, and painted, when selection mode toggles.
  */
-export function MovieTitleCell({ movie, density, selecting }: { movie: MovieSummary; density: Density; selecting: boolean }) {
+function MovieTitleCell({ movie, density, selecting }: { movie: MovieSummary; density: Density; selecting: boolean }) {
   return (
-    <div className="group/title relative flex min-w-0 items-center gap-2.5">
+    <div role="cell" className="flex min-w-0 items-center gap-2.5">
       {density === 'comfortable' && <Poster url={movie.posterUrl} title={movie.title} size="thumb" className="rounded-sm" />}
-      <span className={cn('truncate font-medium', !selecting && 'underline-offset-4 group-hover/title:underline')}>{movie.title}</span>
-      {!selecting && <Link to="/movies/$movieId" params={{ movieId: String(movie.id) }} aria-label={movie.title} className="absolute inset-0" />}
+      <span className={cn('truncate font-medium', !selecting && 'underline-offset-4 group-hover/row:underline')}>{movie.title}</span>
+      {!selecting && (
+        <Link
+          to="/movies/$movieId"
+          params={{ movieId: String(movie.id) }}
+          aria-label={movie.title}
+          className="absolute inset-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+        />
+      )}
     </div>
   )
 }

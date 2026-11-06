@@ -4,7 +4,7 @@ const sizes = {
   /** Fills its grid cell. */
   grid: 'w-full text-2xl',
   small: 'w-14 text-sm',
-  /** A row thumbnail in the library table and matrix. */
+  /** A row thumbnail in the library table. */
   thumb: 'w-7 text-[9px]',
   large: 'w-40 text-4xl sm:w-48',
 } satisfies Record<string, string>

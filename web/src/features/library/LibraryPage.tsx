@@ -13,6 +13,7 @@ import { BulkToolbar } from './BulkToolbar'
 import { LibraryControls, SavedViewsBar } from './LibraryControls'
 import {
   activeFilterCount,
+  firstDirection,
   matchesFilter,
   matchesSearch,
   presets,
@@ -20,17 +21,15 @@ import {
   sortMovies,
   useLibraryPrefs,
   versionNames,
-  viewModes,
+  viewMode,
   type LibraryPrefs,
   type Preset,
   type SavedView,
   type SortKey,
-  type ViewMode,
 } from './libraryView'
 import { MovieTable, type Lookups } from './MovieTable'
 import { PosterGrid } from './PosterGrid'
 import { useSelection } from './selection'
-import { VersionMatrix } from './VersionMatrix'
 
 const skeletonGrid = 'grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6'
 
@@ -87,7 +86,8 @@ export function LibraryPage() {
       savedViews: [...current.savedViews, { id: `v${Date.now().toString(36)}`, name, filter: current.filter, sort: current.sort, direction: current.direction, mode: current.mode }],
     }))
   const deleteView = (id: string) => update((current) => ({ savedViews: current.savedViews.filter((v) => v.id !== id) }))
-  const onSort = (key: SortKey) => update((current) => (current.sort === key ? { direction: current.direction === 'asc' ? 'desc' : 'asc' } : { sort: key, direction: 'asc' }))
+  const onSort = (key: SortKey) =>
+    update((current) => (current.sort === key ? { direction: current.direction === 'asc' ? 'desc' : 'asc' } : { sort: key, direction: firstDirection(key) }))
   const onReport = (r: BulkReport) => toastBulk(t, r, setReport)
 
   // `?view=table&preset=missing-4k` opens the page on that layout and view, then leaves the URL clean.
@@ -96,7 +96,7 @@ export function LibraryPage() {
   useEffect(() => {
     if ((!params.view && !params.preset) || !library.data) return
     const patch: Partial<LibraryPrefs> = {}
-    if (params.view && (viewModes as readonly string[]).includes(params.view)) patch.mode = params.view as ViewMode
+    if (params.view) patch.mode = viewMode(params.view)
     const preset = presetList.find((p) => p.id === params.preset)
     const saved = prefs.savedViews.find((v) => v.id === params.preset)
     if (preset) Object.assign(patch, preset.sort ? { filter: preset.filter, sort: preset.sort.key, direction: preset.sort.direction } : { filter: preset.filter })
@@ -205,9 +205,6 @@ export function LibraryPage() {
       {shown.length > 0 && prefs.mode === 'posters' && <PosterGrid movies={shown} posterSize={prefs.posterSize} density={prefs.density} fields={prefs.cardFields} {...views} />}
       {shown.length > 0 && prefs.mode === 'table' && (
         <MovieTable movies={shown} columns={prefs.columns} density={prefs.density} lookups={lookups} sort={prefs.sort} direction={prefs.direction} onSort={onSort} {...views} />
-      )}
-      {shown.length > 0 && prefs.mode === 'matrix' && (
-        <VersionMatrix movies={shown} names={names} density={prefs.density} onSelectWhere={(predicate) => selection.add(shown.filter(predicate).map((m) => m.id))} {...views} />
       )}
 
       {selection.selecting && (
