@@ -305,6 +305,22 @@ export function sortMovies(movies: MovieSummary[], sort: SortKey, direction: Sor
     .map((entry) => entry.movie)
 }
 
+/**
+ * The view a root folder opens from the storage bar: the films with a file in it, biggest first. The sort is the size of
+ * the version name holding most of the folder's bytes (`4k` in `/movies-4k`): the folder's own files decide the order,
+ * where the films' total size would count the files they keep in other folders.
+ */
+export function rootFolderView(movies: MovieSummary[], rootFolderId: number): Pick<LibraryPrefs, 'filter' | 'sort' | 'direction'> {
+  const bytes = new Map<string, number>()
+  for (const movie of movies) {
+    for (const v of movie.versions) {
+      if (v.rootFolderId === rootFolderId && v.size) bytes.set(v.name, (bytes.get(v.name) ?? 0) + v.size)
+    }
+  }
+  const main = [...bytes].sort((a, b) => b[1] - a[1])[0]?.[0]
+  return { filter: { ...emptyFilter, status: 'available', rootFolders: [rootFolderId] }, sort: main ? `size:${main}` : 'size', direction: 'desc' }
+}
+
 // ---- saved views -----------------------------------------------------------
 
 export type Preset = {

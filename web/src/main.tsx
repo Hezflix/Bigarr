@@ -42,10 +42,12 @@ const appRoute = createRoute({
 const libraryRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/',
-  // `?view=table&preset=missing-4k`: a layout and a saved view to open on (applied once, then dropped from the URL).
-  validateSearch: (search: Record<string, unknown>): { view?: string; preset?: string } => ({
+  // `?view=table&preset=missing-4k`: a layout and a saved view to open on; `rootFolder=2`: the films stored in that root
+  // folder, biggest first. Applied once, then dropped from the URL.
+  validateSearch: (search: Record<string, unknown>): { view?: string; preset?: string; rootFolder?: number } => ({
     view: typeof search.view === 'string' ? search.view : undefined,
     preset: typeof search.preset === 'string' ? search.preset : undefined,
+    rootFolder: typeof search.rootFolder === 'number' ? search.rootFolder : undefined,
   }),
   component: lazyRouteComponent(() => import('./features/library/LibraryPage'), 'LibraryPage'),
 })
