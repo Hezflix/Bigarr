@@ -56,6 +56,7 @@ const movieRoute = createRoute({ getParentRoute: () => appRoute, path: '/movies/
 const queueRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/queue', component: lazyRouteComponent(() => import('./features/activity/QueuePage'), 'QueuePage') })
 const releasesRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/releases', component: lazyRouteComponent(() => import('./features/activity/ReleasesPage'), 'ReleasesPage') })
 const historyRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/history', component: lazyRouteComponent(() => import('./features/activity/HistoryPage'), 'HistoryPage') })
+const compareRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/compare', component: lazyRouteComponent(() => import('./features/activity/ComparePage'), 'ComparePage') })
 const blocklistRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/blocklist', component: lazyRouteComponent(() => import('./features/activity/BlocklistPage'), 'BlocklistPage') })
 const wantedRoute = createRoute({ getParentRoute: () => appRoute, path: '/wanted', component: lazyRouteComponent(() => import('./features/wanted/WantedPage'), 'WantedPage') })
 const systemRoute = createRoute({ getParentRoute: () => appRoute, path: '/system/status', component: lazyRouteComponent(() => import('./features/system/SystemPage'), 'SystemPage') })
@@ -81,6 +82,7 @@ const router = createRouter({
       releasesRoute,
       historyRoute,
       blocklistRoute,
+      compareRoute,
       librarySettingsRoute,
       mediaManagementRoute,
       indexersSettingsRoute,

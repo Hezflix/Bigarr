@@ -119,7 +119,12 @@ export function RadarrFollowPage() {
           {t('radarrFollow.add')}
         </Button>
       </div>
-      <p className="max-w-3xl text-sm text-muted-foreground">{t('radarrFollow.intro')}</p>
+      <p className="max-w-3xl text-sm text-muted-foreground">
+        {t('radarrFollow.intro')}{' '}
+        <Link to="/activity/compare" className="underline underline-offset-4">
+          {t('nav.compare')}
+        </Link>
+      </p>
 
       {s && (
         <Alert className="max-w-3xl" data-testid="shadow-mode-status">

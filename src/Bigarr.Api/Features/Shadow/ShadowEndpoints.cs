@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Bigarr.Api.Features.Shadow;
 
-/// <summary>Shadow mode: its status, the Radarrs it follows (Settings → Compare with Radarr).</summary>
+/// <summary>Shadow mode: its status, the comparison with Radarr (Activity → Compare), the Radarrs it follows (Settings → Compare with Radarr).</summary>
 public static class ShadowEndpoints
 {
     public static IEndpointRouteBuilder MapShadow(this IEndpointRouteBuilder app)
@@ -12,6 +12,24 @@ public static class ShadowEndpoints
         var group = app.MapGroup("/api/v1/shadow").WithTags("Shadow").RequireAuthorization(AuthPolicies.Api);
 
         group.MapGet("/", async Task<Ok<ShadowStatusResponse>> (FollowedRadarrService service, CancellationToken ct) => TypedResults.Ok(await service.StatusAsync(ct)));
+
+        // Activity → Compare. outcome is matched by name (same | different | bigarrOnly | radarrOnly); days=0 means all time.
+        group.MapGet("/compare", async Task<Results<Ok<CompareResponse>, ValidationProblem>> (
+            string? version, string? outcome, int? days, int? windowHours, int? page, int? pageSize, CompareService compare, CancellationToken ct) =>
+        {
+            CompareOutcome? kind = null;
+            if (!string.IsNullOrWhiteSpace(outcome))
+            {
+                if (!Enum.TryParse<CompareOutcome>(outcome, ignoreCase: true, out var parsed) || !Enum.IsDefined(parsed))
+                {
+                    return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["outcome"] = [$"Unknown outcome '{outcome}'."] });
+                }
+
+                kind = parsed;
+            }
+
+            return TypedResults.Ok(await compare.CompareAsync(version, kind, days ?? 30, windowHours ?? CompareService.DefaultWindowHours, page ?? 1, pageSize ?? 50, ct));
+        });
 
         var radarrs = group.MapGroup("/radarrs");
 

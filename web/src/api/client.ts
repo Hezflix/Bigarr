@@ -1509,6 +1509,127 @@ export type ShadowStatus = { enabled: boolean; picks: number; lastPickAt: string
 
 export const KEY_MASK = '********'
 
+// ---- shadow mode: the comparison ---------------------------------------------
+
+export type CompareOutcome = 'same' | 'different' | 'bigarrOnly' | 'radarrOnly'
+
+/** Bigarr's parser and engine (RSS rules) on a release Radarr grabbed, for that version, when the grab was read. */
+export type BigarrVerdict = {
+  /** Set when the release would not even reach the engine: not this film, unparsable, film not in Bigarr yet. */
+  unmatched: string | null
+  approved: boolean
+  rejections: string[]
+  customFormatScore: number
+  customFormats: string[]
+  quality: string | null
+  attributedVersion: string | null
+  currentQuality: string | null
+  currentScore: number | null
+}
+
+/** Radarr's parse of a release Bigarr picked, and the film's state in Radarr then. */
+export type RadarrView = {
+  /** TMDB id of the film Radarr maps the title to; null when it maps it to none. */
+  tmdbId: number | null
+  quality: string | null
+  customFormats: string[]
+  customFormatScore: number
+  monitored: boolean | null
+  fileQuality: string | null
+  fileScore: number | null
+  error: string | null
+}
+
+export type SightingVerdict = { versionName: string; approved: boolean; rejections: string[]; customFormatScore: number }
+
+export type ComparePick = {
+  id: number
+  pickedAt: string
+  lastPickedAt: string
+  picks: number
+  trigger: string
+  title: string
+  indexer: string | null
+  size: number
+  quality: string | null
+  releaseGroup: string | null
+  languages: string[]
+  customFormats: string[]
+  customFormatScore: number
+  publishDate: string | null
+  radarr: RadarrView | null
+}
+
+export type RadarrGrabState = 'grabbed' | 'imported' | 'failed' | 'ignored'
+
+export type CompareGrab = {
+  id: number
+  radarrName: string
+  grabbedAt: string
+  title: string
+  indexer: string | null
+  size: number
+  quality: string | null
+  releaseGroup: string | null
+  languages: string[]
+  customFormats: string[]
+  customFormatScore: number | null
+  publishedAt: string | null
+  /** Radarr's releaseSource: Rss, Search, UserInvokedSearch, InteractiveSearch, ReleasePush. */
+  releaseSource: string | null
+  state: RadarrGrabState
+  resolvedAt: string | null
+  bigarr: BigarrVerdict | null
+}
+
+export type CompareSighting = {
+  seenAt: string
+  indexer: string
+  title: string
+  matched: boolean
+  unmatchedReason: string | null
+  attributedVersion: string | null
+  verdict: SightingVerdict | null
+}
+
+export type CompareRow = {
+  key: string
+  outcome: CompareOutcome
+  tmdbId: number
+  movieId: number | null
+  movieTitle: string
+  year: number | null
+  posterUrl: string | null
+  versionName: string
+  at: string
+  radarr: CompareGrab | null
+  bigarr: ComparePick | null
+  /** Other picks made while Radarr's download was in flight. */
+  alsoPicked: ComparePick[]
+  /** Positive when Bigarr picked first, in seconds. */
+  bigarrLeadSeconds: number | null
+  /** Radarr-only rows: what Bigarr's feeds saw of Radarr's release; null means never seen. */
+  sighting: CompareSighting | null
+}
+
+export type CompareCounts = { same: number; different: number; bigarrOnly: number; radarrOnly: number; total: number }
+
+export type CompareResult = {
+  from: string | null
+  to: string
+  windowHours: number
+  shadowEnabled: boolean
+  versions: string[]
+  summary: CompareCounts
+  byVersion: { versionName: string; counts: CompareCounts }[]
+  rows: CompareRow[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export type CompareQuery = { version?: string; outcome?: CompareOutcome; days: number; windowHours: number; page: number; pageSize: number }
+
 export const shadow = {
   status: () => api<ShadowStatus>('/api/v1/shadow'),
   radarrs: {
@@ -1523,6 +1644,13 @@ export const shadow = {
     /** The import's mapping data for a saved Radarr, read with its stored key. */
     preview: (id: number) => post<RadarrImportPreview>(`/api/v1/shadow/radarrs/${id}/preview`),
     sync: (id: number) => post<RadarrFollowPass>(`/api/v1/shadow/radarrs/${id}/sync`),
+  },
+  /** Radarr's grabs next to Bigarr's picks; the summary ignores the outcome filter. */
+  compare: (query: CompareQuery) => {
+    const params = new URLSearchParams({ days: String(query.days), windowHours: String(query.windowHours), page: String(query.page), pageSize: String(query.pageSize) })
+    if (query.version) params.set('version', query.version)
+    if (query.outcome) params.set('outcome', query.outcome)
+    return api<CompareResult>(`/api/v1/shadow/compare?${params}`)
   },
 }
 

@@ -134,6 +134,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<RadarrImportRunner
 // Shadow mode: the Radarrs Bigarr follows (history, grabs, library) to compare its picks with what they grab.
 builder.Services.AddScoped<RadarrFollower>();
 builder.Services.AddScoped<FollowedRadarrService>();
+builder.Services.AddScoped<CompareService>();
 builder.Services.AddScoped<IScheduledJob, RadarrFollowJob>();
 
 // Media servers (M8): Plex, Jellyfin and Emby hear about changed folders from the outbox.

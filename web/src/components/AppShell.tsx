@@ -7,6 +7,7 @@ import {
   FolderCogIcon,
   FolderOpenIcon,
   GitCompareArrowsIcon,
+  GitCompareIcon,
   HardDriveDownloadIcon,
   HeartPulseIcon,
   HistoryIcon,
@@ -57,6 +58,7 @@ type NavItem = {
     | '/activity/releases'
     | '/activity/history'
     | '/activity/blocklist'
+    | '/activity/compare'
     | '/settings/library'
     | '/settings/mediamanagement'
     | '/settings/indexers'
@@ -97,6 +99,7 @@ function useSections(): NavSection[] {
         { to: '/activity/releases', label: t('nav.releases'), icon: RssIcon },
         { to: '/activity/history', label: t('nav.history'), icon: HistoryIcon },
         { to: '/activity/blocklist', label: t('nav.blocklist'), icon: BanIcon },
+        { to: '/activity/compare', label: t('nav.compare'), icon: GitCompareIcon },
       ],
     },
     {
