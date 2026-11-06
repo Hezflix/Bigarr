@@ -4,8 +4,10 @@ const sizes = {
   /** Fills its grid cell. */
   grid: 'w-full text-2xl',
   small: 'w-14 text-sm',
-  /** A row thumbnail in the library table. */
+  /** A row thumbnail in the library table, at each poster size of the view options. */
   thumb: 'w-7 text-[9px]',
+  thumbMedium: 'w-10 text-[11px]',
+  thumbLarge: 'w-14 text-xs',
   large: 'w-40 text-4xl sm:w-48',
 } satisfies Record<string, string>
 
@@ -20,6 +22,8 @@ const layoutWidths: Record<PosterSize, string> = {
   grid: 'auto, (min-width: 640px) 240px, 50vw',
   small: '56px',
   thumb: '28px',
+  thumbMedium: '40px',
+  thumbLarge: '56px',
   large: '(min-width: 640px) 192px, 160px',
 }
 
