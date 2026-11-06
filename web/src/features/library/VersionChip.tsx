@@ -5,6 +5,7 @@ import type { VersionStatus, VersionSummary } from '@/api/client'
 import { cutoffUnmetStyle, statusStyles } from '@/components/StatusBadge'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import type { LibraryFilter } from './libraryView'
 
 /** What a chip's colour says: the version's status, a file below the cutoff told apart from one that meets it. */
 export type ChipTone = VersionStatus | 'cutoffUnmet'
@@ -33,6 +34,28 @@ export function versionChipClass(version: VersionSummary) {
 
 export function ToneDot({ tone, className }: { tone: LegendTone; className?: string }) {
   return <span className={cn('inline-block size-2 shrink-0 rounded-full', toneDots[tone], className)} aria-hidden="true" />
+}
+
+/** The chip colour a view lists, if it lists one: "Missing" is amber, "Cutoff unmet" violet, "Unmonitored" dashed. */
+export function filterTone(filter: LibraryFilter): LegendTone | null {
+  switch (filter.status) {
+    case 'missing':
+    case 'downloading':
+    case 'pending':
+    case 'cutoffUnmet':
+      return filter.status
+    case 'any':
+      return filter.monitored === 'unmonitored' ? 'unmonitored' : null
+    default:
+      // "Available" spans the green and the violet chips, "no file" three colours: no single colour to show.
+      return null
+  }
+}
+
+/** Before a view's tab label, the dot of the chips that view lists; nothing for a view that lists several colours. */
+export function ViewToneDot({ filter }: { filter: LibraryFilter }) {
+  const tone = filterTone(filter)
+  return tone && <ToneDot tone={tone} />
 }
 
 /** "● Missing: out per its minimum availability, no file yet", one line of a chip's tooltip. */

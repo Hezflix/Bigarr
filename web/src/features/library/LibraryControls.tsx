@@ -43,6 +43,7 @@ import {
   type ViewMode,
 } from './libraryView'
 import { useSortLabel } from './SizeSplit'
+import { ViewToneDot } from './VersionChip'
 
 /** Menu items that change a setting keep the menu open: several are usually changed in a row. */
 const keepOpen = (event: Event) => event.preventDefault()
@@ -79,6 +80,7 @@ export function SavedViewsBar({ presets, savedViews, activeId, onPreset, onSaved
           onClick={() => onPreset(preset)}
           data-testid={`library-view-${preset.id}`}
         >
+          <ViewToneDot filter={preset.filter} />
           {preset.version ? t('library.presets.missingVersion', { name: preset.version }) : t(`library.presets.${preset.id as 'all'}`)}
           <span className="text-xs font-normal text-muted-foreground tabular-nums">{preset.count}</span>
         </Button>
