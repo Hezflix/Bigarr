@@ -26,6 +26,7 @@ using Bigarr.Api.Infrastructure.Decision;
 using Bigarr.Api.Infrastructure.Downloads;
 using Bigarr.Api.Infrastructure.Events;
 using Bigarr.Api.Infrastructure.Files;
+using Bigarr.Api.Infrastructure.Http;
 using Bigarr.Api.Infrastructure.Indexers;
 using Bigarr.Api.Infrastructure.Matching;
 using Bigarr.Api.Infrastructure.MediaServers;
@@ -148,17 +149,20 @@ builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Ad
 builder.Services.AddHealthChecks().AddDbContextCheck<BigarrDbContext>();
 builder.Services.AddOpenApi("v1");
 builder.Services.AddProblemDetails();
+builder.Services.AddBigarrResponseCompression();
 
 var app = builder.Build();
 
 app.UseForwardedHeaders();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+app.UseBigarrResponseCompression();
 
 // Static files must run before routing: once an endpoint is matched (the SPA fallback matches
 // everything), the static file middleware steps aside and /assets/*.js would come back as index.html.
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UsePrecompressedStaticFiles();
+app.UseStaticFiles(PrecompressedStaticFiles.Options);
 app.UseRouting();
 
 app.UseRadarrCompat();
@@ -191,7 +195,7 @@ app.MapShadow();
 app.MapRadarrCompat();
 
 // The SPA is built into wwwroot by `bun run build`; anything that is not API falls back to index.html.
-app.MapFallbackToFile("{*path:regex(^(?!api/|health$|openapi/|signalr/|MediaCover/).*$)}", "index.html");
+app.MapFallbackToFile("{*path:regex(^(?!api/|health$|openapi/|signalr/|MediaCover/).*$)}", "index.html", PrecompressedStaticFiles.Options);
 
 app.Run();
 
