@@ -44,6 +44,9 @@ internal sealed class FakeRadarr : IAsyncDisposable
         public DateTime Added { get; init; } = new(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         public FilmFile? File { get; set; }
+
+        /// <summary>TMDB knows only its cinema release, as for many older or foreign films: no digital or physical date.</summary>
+        public bool CinemaOnly { get; init; }
     }
 
     public sealed record FilmFile(int Id, string RelativePath, int QualityId, string QualityName, long Size, string ReleaseGroup, int CustomFormatScore = 0);
@@ -157,7 +160,7 @@ internal sealed class FakeRadarr : IAsyncDisposable
         hasFile = film.File is not null,
         added = film.Added.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture),
         inCinemas = $"{film.Year}-06-01T00:00:00Z",
-        physicalRelease = $"{film.Year}-12-01T00:00:00Z",
+        physicalRelease = film.CinemaOnly ? null : $"{film.Year}-12-01T00:00:00Z",
         tags = Array.Empty<int>(),
         genres = new[] { "Drama" },
         images = Array.Empty<object>(),

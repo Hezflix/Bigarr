@@ -32,6 +32,27 @@ public sealed class AvailabilityTests
     }
 
     [Fact]
+    public void Without_a_home_release_date_the_cinema_run_stands_for_one_like_radarr()
+    {
+        // TMDB often knows only the cinema release of an older or foreign film.
+        var old = NewMovie(inCinemas: new DateOnly(1963, 8, 29));
+        Assert.Equal(MovieStatus.Released, Availability.EffectiveStatus(old, Today));
+        Assert.True(Availability.IsAvailable(old, MinimumAvailability.Released, Today));
+
+        // Released 90 days after the cinema release, not a day before.
+        var recent = NewMovie(inCinemas: Today.AddDays(-Availability.CinemaRunDays + 1));
+        Assert.Equal(MovieStatus.InCinemas, Availability.EffectiveStatus(recent, Today));
+        Assert.False(Availability.IsAvailable(recent, MinimumAvailability.Released, Today));
+        recent.InCinemasDate = Today.AddDays(-Availability.CinemaRunDays);
+        Assert.Equal(MovieStatus.Released, Availability.EffectiveStatus(recent, Today));
+
+        // A home-release date still to come wins over the cinema run.
+        var waiting = NewMovie(inCinemas: new DateOnly(2026, 1, 1), digital: new DateOnly(2026, 10, 1));
+        Assert.Equal(MovieStatus.InCinemas, Availability.EffectiveStatus(waiting, Today));
+        Assert.False(Availability.IsAvailable(waiting, MinimumAvailability.Released, Today));
+    }
+
+    [Fact]
     public void Version_status_follows_file_grab_then_availability()
     {
         var movie = NewMovie(inCinemas: new DateOnly(2027, 6, 1));
