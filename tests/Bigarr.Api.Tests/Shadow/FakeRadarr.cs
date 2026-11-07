@@ -59,6 +59,9 @@ internal sealed class FakeRadarr : IAsyncDisposable
 
     public bool Down { get; set; }
 
+    /// <summary>The quality profiles <c>/qualityprofile</c> returns, in Radarr's shape; two bare ones by default.</summary>
+    public List<object> Profiles { get; } = [new { id = 1, name = "HD-1080p" }, new { id = 2, name = "Ultra-HD" }];
+
     public string Url => _server.Url;
 
     public IEnumerable<FakeHttpServer.Received> Requests => _server.Requests;
@@ -88,7 +91,7 @@ internal sealed class FakeRadarr : IAsyncDisposable
         return request.Path switch
         {
             "/api/v3/system/status" => Json(new { appName = "Radarr", version = "5.14.0.9383" }),
-            "/api/v3/qualityprofile" => Json(new object[] { new { id = 1, name = "HD-1080p" }, new { id = 2, name = "Ultra-HD" } }),
+            "/api/v3/qualityprofile" => Json(Profiles),
             "/api/v3/tag" => Json(Array.Empty<object>()),
             "/api/v3/movie" => Json(Films.Select(MovieJson).ToArray()),
             "/api/v3/history/since" => Json(History

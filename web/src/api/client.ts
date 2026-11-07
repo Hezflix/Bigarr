@@ -1422,6 +1422,8 @@ export type RadarrImportRequest = {
   includeMoviesWithoutFile: boolean
   /** Shadow mode: keep following this Radarr with the same mapping once the import is done. */
   follow?: boolean
+  /** Give each mapped profile the qualities, cutoff and upgrade setting of its Radarr profile. */
+  importProfileQualities?: boolean
 }
 
 export type RadarrImportState = 'idle' | 'queued' | 'running' | 'completed' | 'failed'
@@ -1449,6 +1451,7 @@ export type RadarrImportStatus = {
   customFormatsAdded: number
   customFormatsUpdated: number
   profilesScored: number
+  profileQualitiesCopied: number
   current: string | null
   error: string | null
   issues: RadarrImportIssue[]

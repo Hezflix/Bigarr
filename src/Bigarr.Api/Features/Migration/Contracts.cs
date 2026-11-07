@@ -56,7 +56,12 @@ public sealed record RadarrImportRequest(
     /// Shadow mode: once the import is done, keep following this Radarr with the same mapping (its grabs for the
     /// comparison, the films and files it adds) instead of leaving it as a one-time import.
     /// </summary>
-    bool Follow = false);
+    bool Follow = false,
+    /// <summary>
+    /// Give each mapped Bigarr profile the qualities of the Radarr profile mapped to it: which are allowed, their order
+    /// and groups, the cutoff and whether upgrades are allowed. Several Radarr profiles on one: the one with most films wins.
+    /// </summary>
+    bool ImportProfileQualities = true);
 
 /// <summary>What one pass of the follow reads from a Radarr, handed to the import's per-film rules.</summary>
 public sealed record RadarrFollowData(
@@ -101,4 +106,6 @@ public sealed record RadarrImportStatusResponse(
     int ProfilesScored,
     string? Current,
     string? Error,
-    List<RadarrImportIssue> Issues);
+    List<RadarrImportIssue> Issues,
+    /// <summary>Bigarr profiles that took the qualities and cutoff of a Radarr profile.</summary>
+    int ProfileQualitiesCopied = 0);
