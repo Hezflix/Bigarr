@@ -45,6 +45,15 @@ public sealed class RadarrFollower(
     /// <summary>Each pass reads from this long before the checkpoint: a line written late, with an earlier date, is not missed.</summary>
     public static readonly TimeSpan Overlap = TimeSpan.FromMinutes(5);
 
+    /// <summary>Radarr's own RSS default: a pass every quarter of an hour, and within seconds when its webhook calls.</summary>
+    public static readonly TimeSpan Interval = TimeSpan.FromMinutes(15);
+
+    /// <summary>A Radarr list importing hundreds of films at once must not turn into hundreds of searches on the trackers.</summary>
+    public const int SearchesOnAddPerPass = 25;
+
+    /// <summary>Bigarr's newest picks shown to Radarr's <c>/parse</c> per pass.</summary>
+    public const int PicksShownPerPass = 50;
+
     /// <summary>A manual pass and the scheduled one never run at the same time.</summary>
     private static readonly SemaphoreSlim Gate = new(1, 1);
 
@@ -179,7 +188,7 @@ public sealed class RadarrFollower(
     /// </summary>
     private async Task<int> SearchOnAddAsync(FollowedRadarr follow, List<int> tmdbIds, CancellationToken ct)
     {
-        if (tmdbIds.Count == 0 || !options.Value.Enabled || !options.Value.SearchOnAdd)
+        if (tmdbIds.Count == 0 || !options.Value.Enabled)
         {
             return 0;
         }
@@ -189,13 +198,12 @@ public sealed class RadarrFollower(
             .OrderBy(v => v.Id)
             .Select(v => v.Id)
             .ToListAsync(ct);
-        var bound = Math.Max(0, options.Value.SearchOnAddPerPass);
-        if (versionIds.Count > bound)
+        if (versionIds.Count > SearchesOnAddPerPass)
         {
-            logger.LogWarning("Following {Name}: {Count} films added to Radarr, Bigarr searches the first {Bound}", follow.Name, versionIds.Count, bound);
+            logger.LogWarning("Following {Name}: {Count} films added to Radarr, Bigarr searches the first {Bound}", follow.Name, versionIds.Count, SearchesOnAddPerPass);
         }
 
-        var results = await search.SearchAsync(versionIds.Take(bound).ToList(), SearchTrigger.Added, ct);
+        var results = await search.SearchAsync(versionIds.Take(SearchesOnAddPerPass).ToList(), SearchTrigger.Added, ct);
         db.ChangeTracker.Clear();
         return results.Count;
     }
@@ -369,7 +377,7 @@ public sealed class RadarrFollower(
         var picks = await db.ShadowPicks
             .Where(p => p.VersionName == follow.VersionName && p.RadarrViewAt == null)
             .OrderByDescending(p => p.PickedAt)
-            .Take(Math.Max(0, options.Value.RadarrViewsPerPass))
+            .Take(PicksShownPerPass)
             .ToListAsync(ct);
         if (picks.Count == 0)
         {
@@ -441,8 +449,8 @@ public sealed class RadarrFollower(
     private static string? Truncate(string? value, int max) => value is null ? null : value.Length <= max ? value : value[..max];
 }
 
-/// <summary>The follow as a scheduled task: every followed Radarr, one after the other, every <see cref="ShadowOptions.FollowInterval"/>.</summary>
-public sealed class RadarrFollowJob(RadarrFollower follower, IOptions<ShadowOptions> options) : IScheduledJob
+/// <summary>The follow as a scheduled task: every followed Radarr, one after the other, every <see cref="RadarrFollower.Interval"/>.</summary>
+public sealed class RadarrFollowJob(RadarrFollower follower) : IScheduledJob
 {
     public const string JobName = "radarrFollow";
 
@@ -450,7 +458,7 @@ public sealed class RadarrFollowJob(RadarrFollower follower, IOptions<ShadowOpti
 
     public string DisplayName => "Follow Radarr";
 
-    public TimeSpan Interval => options.Value.FollowInterval;
+    public TimeSpan Interval => RadarrFollower.Interval;
 
     public bool Enabled => true;
 

@@ -16,12 +16,7 @@ using static Bigarr.Api.Tests.Import.ImportTestHelpers;
 namespace Bigarr.Api.Tests.Shadow;
 
 /// <summary>Boots the app with <c>Bigarr:Shadow:Enabled=true</c>, the way it runs next to Radarr.</summary>
-public sealed class ShadowApiFactory() : BigarrApiFactory(null, new Dictionary<string, string>
-{
-    ["Bigarr:Shadow:Enabled"] = "true",
-    // A webhook wakes its pass at once in the tests.
-    ["Bigarr:Shadow:WebhookDebounceSeconds"] = "0",
-});
+public sealed class ShadowApiFactory() : BigarrApiFactory(null, new Dictionary<string, string> { ["Bigarr:Shadow:Enabled"] = "true" });
 
 /// <summary>
 /// Shadow mode: every grab path records Bigarr's pick (one row per version and release) and no download client is ever

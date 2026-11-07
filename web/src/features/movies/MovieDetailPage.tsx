@@ -243,7 +243,8 @@ export function MovieDetailPage() {
 
 /**
  * Shadow mode, for this film: what the followed Radarrs grabbed next to what Bigarr would have grabbed, the rows of
- * Activity → Compare without the film column. Shown when shadow mode is on, or when there is something to compare.
+ * Activity → Compare without the film column. Only shown when there is something to compare: a film whose history
+ * predates the follow has no Radarr grab here (that history is in the journal below), so no section at all.
  */
 function MovieComparison({ tmdbId }: { tmdbId: number }) {
   const { t } = useTranslation()
@@ -252,7 +253,7 @@ function MovieComparison({ tmdbId }: { tmdbId: number }) {
     queryFn: () => shadow.compare({ tmdbId, days: 0, windowHours: 24, page: 1, pageSize: 100 }),
   })
   const data = compare.data
-  if (!data || (!data.shadowEnabled && data.rows.length === 0)) return null
+  if (!data || data.rows.length === 0) return null
 
   return (
     <section className="flex flex-col gap-3" data-testid="movie-compare">
@@ -263,7 +264,7 @@ function MovieComparison({ tmdbId }: { tmdbId: number }) {
         </Link>
       </div>
       <p className="max-w-3xl text-sm text-muted-foreground">{t('compare.filmHint')}</p>
-      {data.rows.length === 0 ? <p className="text-sm text-muted-foreground">{t('compare.filmEmpty')}</p> : <CompareTable rows={data.rows} showMovie={false} />}
+      <CompareTable rows={data.rows} showMovie={false} />
     </section>
   )
 }

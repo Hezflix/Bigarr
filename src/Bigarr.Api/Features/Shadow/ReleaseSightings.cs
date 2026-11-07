@@ -14,6 +14,9 @@ namespace Bigarr.Api.Features.Shadow;
 /// </summary>
 public sealed class ReleaseSightings(BigarrDbContext db, IOptions<ShadowOptions> options, ILogger<ReleaseSightings> logger)
 {
+    /// <summary>A month of sightings: well past any pairing window, small enough to stay cheap.</summary>
+    public static readonly TimeSpan Retention = TimeSpan.FromDays(30);
+
     public bool Enabled => options.Value.Enabled;
 
     /// <param name="seen">Each release of the pass with its verdicts and the TMDB id of the film it was matched to.</param>
@@ -53,7 +56,7 @@ public sealed class ReleaseSightings(BigarrDbContext db, IOptions<ShadowOptions>
 
         await db.SaveChangesAsync(ct);
 
-        var cutoff = now.AddDays(-Math.Max(1, options.Value.SightingRetentionDays));
+        var cutoff = now - Retention;
         var pruned = await db.ReleaseSightings.Where(s => s.SeenAt < cutoff).ExecuteDeleteAsync(ct);
         if (pruned > 0)
         {
