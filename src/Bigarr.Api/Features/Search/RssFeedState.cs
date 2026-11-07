@@ -112,7 +112,8 @@ public sealed class RssFeedState
                 _releases.Count(r => r.Movie is not null),
                 _releases.Count(r => r.AttributedVersionId is not null),
                 _indexers.Values.OrderBy(i => i.Indexer).ToList(),
-                _releases.Count(r => r.GrabId is not null));
+                _releases.Count(r => r.GrabId is not null),
+                _releases.Count(r => r.ShadowPickId is not null));
         }
     }
 }

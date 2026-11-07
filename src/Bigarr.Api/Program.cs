@@ -18,6 +18,7 @@ using Bigarr.Api.Features.Server;
 using Bigarr.Api.Features.Server.Backup;
 using Bigarr.Api.Features.Server.Health;
 using Bigarr.Api.Features.Server.Tasks;
+using Bigarr.Api.Features.Shadow;
 using Bigarr.Api.Features.Tags;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Auth;
@@ -82,6 +83,12 @@ builder.Services.AddScoped<NotificationService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<LibraryScanRunner>());
 builder.Services.AddScoped<DownloadClientService>();
 builder.Services.AddScoped<GrabService>();
+
+// Shadow mode (next to Radarr): picks instead of grabs, sightings of what the RSS pass saw.
+builder.Services.Configure<ShadowOptions>(builder.Configuration.GetSection(ShadowOptions.Section));
+builder.Services.AddScoped<ShadowPickRecorder>();
+builder.Services.AddScoped<ReleaseSightings>();
+builder.Services.AddScoped<ShadowJudge>();
 builder.Services.AddScoped<QueueService>();
 builder.Services.AddScoped<QueuePoller>();
 builder.Services.AddSingleton<QueueState>();
@@ -123,6 +130,14 @@ builder.Services.AddSingleton<RadarrClient>();
 builder.Services.AddScoped<RadarrImportService>();
 builder.Services.AddSingleton<RadarrImportRunner>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<RadarrImportRunner>());
+
+// Shadow mode: the Radarrs Bigarr follows (history, grabs, library) to compare its picks with what they grab.
+builder.Services.AddScoped<RadarrFollower>();
+builder.Services.AddScoped<FollowedRadarrService>();
+builder.Services.AddSingleton<RadarrFollowWakeups>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<RadarrFollowWakeups>());
+builder.Services.AddScoped<CompareService>();
+builder.Services.AddScoped<IScheduledJob, RadarrFollowJob>();
 
 // Media servers (M8): Plex, Jellyfin and Emby hear about changed folders from the outbox.
 builder.Services.AddBigarrMediaServers();
@@ -172,6 +187,7 @@ app.MapBackups();
 app.MapTags();
 app.MapMigration();
 app.MapMediaServers();
+app.MapShadow();
 app.MapRadarrCompat();
 
 // The SPA is built into wwwroot by `bun run build`; anything that is not API falls back to index.html.

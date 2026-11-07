@@ -161,9 +161,9 @@ public sealed class ExtraFilesTests(BigarrApiFactory factory) : IClassFixture<Bi
             // 1. The release ships two subtitles and an .nfo that is not in the list.
             var webdl = search.Releases.Single(r => r.Title.Contains("1080p.WEB-DL.DDP5.1.H.264-NTb", StringComparison.Ordinal));
             var grab = await GrabAsync(client, webdl, version.Id);
-            var content = Prepare(state, grab.DownloadId, ".en.srt", ".fr.forced.srt", ".nfo");
+            var content = Prepare(state, grab.DownloadId!, ".en.srt", ".fr.forced.srt", ".nfo");
             await RefreshAsync(client);
-            await CompleteAsync(client, grab.DownloadId);
+            await CompleteAsync(client, grab.DownloadId!);
             await RefreshAsync(client);
 
             var imported = await WaitForFileAsync(client, movie.Id, version.Id);
@@ -211,9 +211,9 @@ public sealed class ExtraFilesTests(BigarrApiFactory factory) : IClassFixture<Bi
             // 3. The upgrade: the old extras go to the recycle bin with the old file, the new release brings its own.
             var bluray = search.Releases.Single(r => r.Title.EndsWith("1080p.BluRay.x264-SPARKS", StringComparison.Ordinal) && !r.Title.Contains("REPACK", StringComparison.Ordinal));
             var upgradeGrab = await GrabAsync(client, bluray, version.Id);
-            Prepare(state, upgradeGrab.DownloadId, ".eng.srt");
+            Prepare(state, upgradeGrab.DownloadId!, ".eng.srt");
             await RefreshAsync(client);
-            await CompleteAsync(client, upgradeGrab.DownloadId);
+            await CompleteAsync(client, upgradeGrab.DownloadId!);
             await RefreshAsync(client);
 
             var upgraded = await WaitForFileAsync(client, movie.Id, version.Id, v => v.File!.Quality == "Bluray-1080p");

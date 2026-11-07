@@ -1,3 +1,4 @@
+using Bigarr.Api.Features.Shadow;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Decision;
 using Bigarr.Api.Infrastructure.Events;
@@ -10,15 +11,26 @@ using Bigarr.Domain.History;
 using Bigarr.Domain.Movies;
 using Bigarr.Parsing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Bigarr.Api.Features.Downloads;
 
 /// <summary>
 /// Grab (blueprint §5): send the release to a download client, then write the durable mapping (<see cref="Grab"/> +
 /// <see cref="GrabTarget"/>) and the journal entry in one transaction. Interactive: the user decided, the engine's
-/// verdict is not re-checked here; only "one active download per target" is.
+/// verdict is not re-checked here; only "one active download per target" is. In shadow mode every path ends in a
+/// recorded pick instead (<see cref="ShadowPickRecorder"/>): no client is called, whatever is configured.
 /// </summary>
-public sealed class GrabService(BigarrDbContext db, DownloadClientResolver resolver, QueueState queue, OutboxWriter outbox, CustomFormatScorer scorer, TimeProvider time, ILogger<GrabService> logger)
+public sealed class GrabService(
+    BigarrDbContext db,
+    DownloadClientResolver resolver,
+    QueueState queue,
+    OutboxWriter outbox,
+    CustomFormatScorer scorer,
+    ShadowPickRecorder picks,
+    IOptions<ShadowOptions> shadow,
+    TimeProvider time,
+    ILogger<GrabService> logger)
 {
     /// <summary>The user picked the release in the interactive search.</summary>
     public const string InteractiveTrigger = "interactive";
@@ -50,6 +62,12 @@ public sealed class GrabService(BigarrDbContext db, DownloadClientResolver resol
         if (await db.GrabTargets.AnyAsync(t => t.TargetId == version.Id && t.Active, ct))
         {
             return Failure.Conflict("Already downloading", $"Version {version.Name} of {version.Movie.Title} already has an active download. Remove it from the queue first.");
+        }
+
+        if (shadow.Value.Enabled)
+        {
+            var pick = await picks.RecordAsync(version, request, trigger, ct);
+            return Result<GrabResponse>.Ok(new GrabResponse(null, null, null, null, null, pick.PickedAt, pick.Id));
         }
 
         var clients = await db.DownloadClients.AsNoTracking().Where(c => c.Enabled).OrderBy(c => c.Priority).ThenBy(c => c.Id).ToListAsync(ct);

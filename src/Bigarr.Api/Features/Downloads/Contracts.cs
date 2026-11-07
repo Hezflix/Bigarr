@@ -55,17 +55,26 @@ public sealed record GrabRequest(
     IndexerFlags Flags = IndexerFlags.None,
     DownloadProtocol Protocol = DownloadProtocol.Torrent,
     /// <summary>Indexer name as displayed, kept when the indexer row is gone.</summary>
-    string? Indexer = null)
+    string? Indexer = null,
+    /// <summary>When the indexer published it; shadow mode keeps it with the pick.</summary>
+    DateTimeOffset? PublishDate = null)
 {
     /// <summary>What the automatic paths (RSS, searches) send: the release as the indexer returned it.</summary>
     public static GrabRequest From(ReleaseInfo release, int versionId)
     {
         ArgumentNullException.ThrowIfNull(release);
-        return new GrabRequest(versionId, release.IndexerId, release.Guid, release.Title, release.DownloadUrl, release.MagnetUrl, release.InfoHash, release.Size, release.Seeders, release.Flags, release.Protocol, release.IndexerName);
+        return new GrabRequest(versionId, release.IndexerId, release.Guid, release.Title, release.DownloadUrl, release.MagnetUrl, release.InfoHash, release.Size, release.Seeders, release.Flags, release.Protocol, release.IndexerName, release.PublishDate);
     }
 }
 
-public sealed record GrabResponse(int GrabId, string DownloadId, int DownloadClientId, string DownloadClient, GrabState State, DateTime GrabbedAt);
+/// <summary>
+/// A grab sent to a download client, or, in shadow mode, the pick recorded in its place: then only
+/// <see cref="ShadowPickId"/> and <see cref="GrabbedAt"/> are set.
+/// </summary>
+public sealed record GrabResponse(int? GrabId, string? DownloadId, int? DownloadClientId, string? DownloadClient, GrabState? State, DateTime GrabbedAt, int? ShadowPickId = null)
+{
+    public bool Shadow => ShadowPickId is not null;
+}
 
 /// <summary>One line of the queue: a tracked grab joined to what its client reports, or an untracked torrent of our category.</summary>
 public sealed record QueueItemResponse(

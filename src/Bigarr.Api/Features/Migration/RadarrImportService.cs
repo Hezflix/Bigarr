@@ -13,6 +13,7 @@ using Bigarr.Domain.Library;
 using Bigarr.Domain.Metadata;
 using Bigarr.Domain.Movies;
 using Bigarr.Domain.Quality;
+using Bigarr.Domain.Shadow;
 using Bigarr.Domain.Tags;
 using Bigarr.Parsing;
 using System.Text.Json;
@@ -27,7 +28,8 @@ namespace Bigarr.Api.Features.Migration;
 /// Radarr's own payload, so the import needs no TMDB round trip; the film is flagged for a refresh. Radarr's history of
 /// each imported film is copied into the journal, so the film page still says where its file came from, and its blocklist
 /// onto the version, so a release Radarr rejected is not grabbed again. Custom formats come along, and each mapped
-/// profile takes the format scores of the Radarr profile mapped to it.
+/// profile takes the format scores of the Radarr profile mapped to it. In shadow mode the same per-film rules follow a
+/// Radarr afterwards (<see cref="FollowAsync"/>), files included.
 /// </summary>
 public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr, IMetadataProvider metadata, OutboxWriter outbox, TimeProvider time, ILogger<RadarrImportService> logger)
 {
@@ -135,6 +137,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
 
         var request = progress.Request;
         var connection = Connection(request.Url, request.ApiKey) ?? throw new InvalidOperationException("Radarr URL and API key are required.");
+        var startedAt = time.GetUtcNow().UtcDateTime;
         var snapshot = await LoadAsync(connection, request.ImportHistory, request.ImportBlocklist, ct);
         var context = await ContextAsync(request, snapshot, progress, ct);
 
@@ -176,8 +179,200 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
             await ImportExclusionsAsync(snapshot, progress, ct);
         }
 
+        if (request.Follow)
+        {
+            await KeepFollowingAsync(request, startedAt, ct);
+        }
+
         progress.Current = null;
     }
+
+    /// <summary>
+    /// "Keep following this Radarr": the import's mapping becomes a followed Radarr whose history is read from the moment
+    /// the import loaded it, so nothing between the import and the first pass is lost. A Radarr already followed under the
+    /// same URL and version keeps its checkpoint and takes the new mapping.
+    /// </summary>
+    private async Task KeepFollowingAsync(RadarrImportRequest request, DateTime startedAt, CancellationToken ct)
+    {
+        var url = request.Url.Trim();
+        var versionName = request.VersionName.Trim();
+        var follow = await db.FollowedRadarrs.FirstOrDefaultAsync(f => f.Url == url && f.VersionName == versionName, ct);
+        if (follow is null)
+        {
+            var name = $"Radarr {versionName}";
+            for (var n = 2; await db.FollowedRadarrs.AnyAsync(f => f.Name == name, ct); n++)
+            {
+                name = $"Radarr {versionName} {n}";
+            }
+
+            follow = new FollowedRadarr { Name = name, Url = url, ApiKey = request.ApiKey.Trim(), VersionName = versionName, HistoryCheckpoint = startedAt, CreatedAt = time.GetUtcNow().UtcDateTime };
+            db.FollowedRadarrs.Add(follow);
+        }
+
+        follow.ApiKey = request.ApiKey.Trim();
+        follow.ProfileMap = new Dictionary<int, int>(request.ProfileMap ?? []);
+        follow.RootFolderMap = new Dictionary<string, int>(request.RootFolderMap ?? [], StringComparer.Ordinal);
+        follow.ImportTags = request.ImportTags;
+        follow.KeepMonitored = request.KeepMonitored;
+        follow.IncludeMoviesWithoutFile = request.IncludeMoviesWithoutFile;
+        follow.Enabled = true;
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+        logger.LogInformation("Radarr at {Url} is now followed as {Name} ({Version})", url, follow.Name, versionName);
+    }
+
+    /// <summary>
+    /// One pass of the follow (shadow mode): the films of a followed Radarr that differ from their Bigarr version, or that
+    /// have history since the last pass, go through the import's per-film rules again (Radarr's settings win, new films
+    /// and versions come in, history and blocklist are copied without duplicates), plus what a plain import leaves alone:
+    /// the version's file follows Radarr's (imported, upgraded, renamed, deleted), in the database only. Custom formats,
+    /// profiles and exclusions are not touched.
+    /// </summary>
+    public Task<RadarrImportProgress> FollowAsync(RadarrImportRequest request, RadarrFollowData data, CancellationToken ct) =>
+        FollowCoreAsync(request, data, newFilmsOnly: false, ct);
+
+    /// <summary>
+    /// The first step of a pass: the films (or versions) Radarr has and Bigarr does not, brought in without their file nor
+    /// their history. Radarr's grabs of them are then judged, and searched for, against the film as it was before Radarr's
+    /// download; <see cref="FollowAsync"/> brings the files and the history right after.
+    /// </summary>
+    public Task<RadarrImportProgress> AddNewFilmsAsync(RadarrImportRequest request, RadarrFollowData data, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return FollowCoreAsync(request with { ImportHistory = false, ImportBlocklist = false }, data, newFilmsOnly: true, ct);
+    }
+
+    private async Task<RadarrImportProgress> FollowCoreAsync(RadarrImportRequest request, RadarrFollowData data, bool newFilmsOnly, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(data);
+
+        var progress = new RadarrImportProgress(request) { State = RadarrImportState.Running, StartedAt = time.GetUtcNow().UtcDateTime };
+        var movies = data.Movies.Where(m => m.TmdbId > 0 && !string.IsNullOrWhiteSpace(m.Title)).ToList();
+        var snapshot = new Snapshot(
+            new RadarrSystemStatus(null, null, null), data.Profiles, [], data.Tags, movies, [], EmptyFormats,
+            data.History.ToLookup(h => h.MovieId), data.History.Count, data.Blocklist.ToLookup(b => b.MovieId), data.Blocklist.Count);
+
+        var changed = await ChangedAsync(snapshot, request, newFilmsOnly, ct);
+        progress.Total = changed.Count;
+        if (changed.Count == 0)
+        {
+            return progress;
+        }
+
+        var context = await ContextAsync(request, snapshot with { Movies = changed }, progress, ct) with { Follow = true, SkipFiles = newFilmsOnly };
+        foreach (var item in changed)
+        {
+            ct.ThrowIfCancellationRequested();
+            progress.Current = item.Title;
+            try
+            {
+                await ImportOneAsync(item, context, progress, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Following {Title} (TMDB {TmdbId}) from Radarr failed", item.Title, item.TmdbId);
+                db.ChangeTracker.Clear();
+                progress.Failed();
+                progress.Issue(item.Title, item.TmdbId, ex.Message, await MovieIdAsync(item.TmdbId, ct));
+            }
+            finally
+            {
+                db.ChangeTracker.Clear();
+                progress.MovieDone();
+            }
+        }
+
+        progress.Current = null;
+        return progress;
+    }
+
+    /// <summary>
+    /// The Radarr films the follow has to look at: not in Bigarr yet as this version, or with a monitored flag, profile,
+    /// availability, tags, folder or file that differs, or with history lines in this pass. Only the first kind when
+    /// <paramref name="newFilmsOnly"/>.
+    /// </summary>
+    private async Task<List<RadarrMovie>> ChangedAsync(Snapshot snapshot, RadarrImportRequest request, bool newFilmsOnly, CancellationToken ct)
+    {
+        var versionName = request.VersionName.Trim();
+        var bigarr = (await db.MovieVersions.AsNoTracking()
+                .Where(v => v.Name == versionName)
+                .Select(v => new
+                {
+                    v.Movie.TmdbId,
+                    v.Monitored,
+                    v.QualityProfileId,
+                    v.MinimumAvailability,
+                    v.FolderName,
+                    Tags = v.Tags.Select(t => t.Label).ToList(),
+                    File = v.File == null ? null : new { v.File.RelativePath, v.File.Size, v.File.QualityId },
+                })
+                .ToListAsync(ct))
+            .GroupBy(v => v.TmdbId)
+            .ToDictionary(g => g.Key, g => g.First());
+        var qualityIds = (await db.QualityDefinitions.AsNoTracking().Select(q => q.Id).ToListAsync(ct)).ToHashSet();
+        var tagLabels = snapshot.Tags.ToDictionary(t => t.Id, t => TagService.NormalizeLabel(t.Label));
+        var profileMap = request.ProfileMap ?? [];
+
+        var changed = new List<RadarrMovie>();
+        foreach (var item in snapshot.Movies)
+        {
+            var file = item.HasFile ? item.MovieFile : null;
+            if (!bigarr.TryGetValue(item.TmdbId, out var version))
+            {
+                if (file is not null || request.IncludeMoviesWithoutFile)
+                {
+                    changed.Add(item);
+                }
+
+                continue;
+            }
+
+            if (newFilmsOnly)
+            {
+                continue;
+            }
+
+            if (snapshot.History[item.Id].Any())
+            {
+                changed.Add(item);
+                continue;
+            }
+
+            var tags = request.ImportTags
+                ? (item.Tags ?? []).Select(id => tagLabels.GetValueOrDefault(id) ?? string.Empty).Where(l => l.Length is > 0 and <= TagService.MaxLabelLength).ToHashSet(StringComparer.Ordinal)
+                : null;
+            var relative = file is null ? null : RelativePathOf(file, item);
+            var sameFile = version.File is null
+                ? file is null
+                : file is not null && relative is not null && SameFile(version.File.RelativePath, version.File.Size, version.File.QualityId, relative, file, qualityIds);
+            var settingsDiffer = version.Monitored != (request.KeepMonitored && item.Monitored)
+                || (profileMap.TryGetValue(item.QualityProfileId, out var profileId) && profileId != version.QualityProfileId)
+                || version.MinimumAvailability != Availability(item.MinimumAvailability)
+                || (LastSegment(item.Path) is { } folder && folder != version.FolderName)
+                || (tags is not null && !tags.SetEquals(version.Tags));
+            if (settingsDiffer || !sameFile)
+            {
+                changed.Add(item);
+            }
+        }
+
+        return changed;
+    }
+
+    /// <summary>Radarr's file path below the film's folder, with this host's separators; null when Radarr gives none.</summary>
+    private static string? RelativePathOf(RadarrMovieFile file, RadarrMovie item) =>
+        (file.RelativePath ?? RelativeTo(file.Path, item.Path))?.Replace('\\', '/').TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+
+    /// <summary>Same path, same size, same quality (when Radarr's quality is one Bigarr knows): the file Bigarr already has.</summary>
+    private static bool SameFile(string relativePath, long size, int qualityId, string relative, RadarrMovieFile file, HashSet<int> qualityIds) =>
+        string.Equals(relativePath, relative, StringComparison.Ordinal)
+        && (file.Size <= 0 || size == file.Size)
+        && (file.Quality?.Quality is not { } quality || !qualityIds.Contains(quality.Id) || quality.Id == qualityId);
 
     private async Task ImportOneAsync(RadarrMovie item, ImportContext context, RadarrImportProgress progress, CancellationToken ct)
     {
@@ -216,6 +411,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         MovieVersion version;
         var newMovie = false;
         var newVersion = false;
+        var settingsChanged = false;
         if (movie is null)
         {
             var found = Metadata(item) ?? await FetchAsync(item.TmdbId, ct);
@@ -239,6 +435,10 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         {
             // The film already has this version (a previous import, or the library scan): Radarr's settings win, the folder stays.
             version = existing;
+            settingsChanged = version.Monitored != monitored
+                || version.QualityProfileId != profileId
+                || version.MinimumAvailability != availability
+                || (context.Request.ImportTags && !version.Tags.Select(t => t.Id).ToHashSet().SetEquals(tags.Select(t => t.Id)));
             version.Monitored = monitored;
             version.QualityProfileId = profileId;
             version.MinimumAvailability = availability;
@@ -250,6 +450,13 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
                     version.Tags.Add(tag);
                 }
             }
+
+            if (context.Follow && version.FolderName != folderName)
+            {
+                // Radarr moved the film to another folder: the version follows, in the database only.
+                version.FolderName = folderName;
+                settingsChanged = true;
+            }
         }
         else
         {
@@ -258,31 +465,59 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
             newVersion = true;
         }
 
+        // Radarr's history of this pass starts from the version's file as it was.
+        var hadFile = version.File is not null;
+        var previousQuality = version.File is { } before ? QualityName(before.QualityId) : null;
+
         // Reported once the film is saved, so the report can link to it.
         var notes = new List<string>();
-        if (file is not null && version.File is null)
+        if (file is not null && !context.SkipFiles && (version.File is null || context.Follow))
         {
-            var relative = file.RelativePath ?? RelativeTo(file.Path, item.Path);
+            var relative = RelativePathOf(file, item);
             if (relative is null)
             {
-                progress.FileMissing();
-                notes.Add("Radarr lists a file without a path.");
-            }
-            else
-            {
-                relative = relative.Replace('\\', '/').TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
-                var full = Path.Combine(root.Path, version.FolderName, relative);
-                if (File.Exists(full))
+                if (version.File is null)
                 {
-                    version.File = BuildFile(file, relative, full, context, now);
-                    progress.FileAdded();
+                    progress.FileMissing();
+                    notes.Add("Radarr lists a file without a path.");
                 }
-                else
+            }
+            else if (version.File is not { } current || !SameFile(current.RelativePath, current.Size, current.QualityId, relative, file, context.QualityIds))
+            {
+                var full = Path.Combine(context.RootPaths.GetValueOrDefault(version.RootFolderId) ?? root.Path, version.FolderName, relative);
+                if (!File.Exists(full))
                 {
                     progress.FileMissing();
                     notes.Add($"File not found: {full}");
                 }
+                else if (version.File is { } renamed && renamed.Size == file.Size && renamed.QualityId == QualityIdOf(file, full, context.QualityIds))
+                {
+                    renamed.RelativePath = relative;
+                    progress.FileRenamed();
+                }
+                else
+                {
+                    if (version.File is { } replaced)
+                    {
+                        // Radarr upgraded or replaced it: a new record, the journal keeps pointing at the old one's lines.
+                        db.MediaFiles.Remove(replaced);
+                        progress.FileReplaced();
+                    }
+                    else
+                    {
+                        progress.FileAdded();
+                    }
+
+                    version.File = BuildFile(file, relative, full, context, now);
+                }
             }
+        }
+        else if (context.Follow && file is null && version.File is { } gone)
+        {
+            // Radarr has no file any more: the record goes. The disk is Radarr's, never touched from here.
+            db.MediaFiles.Remove(gone);
+            version.File = null;
+            progress.FileRemoved();
         }
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
@@ -291,7 +526,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         await db.SaveChangesAsync(ct);
 
         // Ids exist now: the history lines can point at the film, the version and the file.
-        var historyAdded = context.Request.ImportHistory ? await AddHistoryAsync(item, movie, version, context, ct) : 0;
+        var historyAdded = context.Request.ImportHistory ? await AddHistoryAsync(item, movie, version, context, context.Follow && hadFile, context.Follow ? previousQuality : null, ct) : 0;
         var blocklistAdded = context.Request.ImportBlocklist ? await AddBlocklistAsync(item, movie, version, context, ct) : 0;
 
         var movieRef = MovieRef.From(movie);
@@ -307,8 +542,9 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
             outbox.Publish(new VersionAdded(movieRef, versionRef));
             progress.VersionAdded();
         }
-        else
+        else if (!context.Follow || settingsChanged)
         {
+            // Following a Radarr, a new file or a journal line is no settings change: Radarr already told whoever listens.
             outbox.Publish(new VersionUpdated(movieRef, versionRef));
             progress.VersionUpdated();
         }
@@ -436,7 +672,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
     /// Radarr's lines about one film, as journal lines of the version it became. A line already copied by an earlier run
     /// (same type, date and release) is not copied twice, so the import can be re-run.
     /// </summary>
-    private async Task<int> AddHistoryAsync(RadarrMovie item, Movie movie, MovieVersion version, ImportContext context, CancellationToken ct)
+    private async Task<int> AddHistoryAsync(RadarrMovie item, Movie movie, MovieVersion version, ImportContext context, bool hadFile, string? previousQuality, CancellationToken ct)
     {
         var records = context.Snapshot.History[item.Id].OrderBy(r => r.Date).ThenBy(r => r.Id).ToList();
         if (records.Count == 0)
@@ -444,19 +680,21 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
             return 0;
         }
 
-        var known = (await db.History.AsNoTracking()
-                .Where(h => h.TargetId == version.Id)
-                .Select(h => new { h.EventType, h.CreatedAt, h.SourceTitle })
-                .ToListAsync(ct))
-            .Select(h => (h.EventType, h.CreatedAt.Ticks, h.SourceTitle ?? string.Empty))
-            .ToHashSet();
+        var lines = await db.History.AsNoTracking()
+            .Where(h => h.TargetId == version.Id)
+            .Select(h => new { h.EventType, h.CreatedAt, h.SourceTitle, h.Data })
+            .ToListAsync(ct);
+        var known = lines.Select(h => (h.EventType, h.CreatedAt.Ticks, h.SourceTitle ?? string.Empty)).ToHashSet();
+        // The follow reads a little before its checkpoint: a line copied by the previous pass is known by its Radarr id,
+        // even when the upgrade rule now types it differently.
+        var knownIds = lines.Select(h => h.Data.GetValueOrDefault(RadarrHistoryIdKey)).OfType<string>().ToHashSet(StringComparer.Ordinal);
 
         var fileId = item.HasFile && item.MovieFile is { } radarrFile ? radarrFile.Id.ToString(System.Globalization.CultureInfo.InvariantCulture) : null;
         var added = 0;
-        foreach (var line in HistoryLines(records))
+        foreach (var line in HistoryLines(records, hadFile, previousQuality))
         {
             var sourceTitle = Truncate(line.Record.SourceTitle, 1024);
-            if (!known.Add((line.Type, line.Date.Ticks, sourceTitle ?? string.Empty)))
+            if (knownIds.Contains(line.Data[RadarrHistoryIdKey]) || !known.Add((line.Type, line.Date.Ticks, sourceTitle ?? string.Empty)))
             {
                 continue;
             }
@@ -527,20 +765,24 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         return added;
     }
 
+    /// <summary>Radarr's id of a copied history line, so a line is never copied twice.</summary>
+    public const string RadarrHistoryIdKey = "radarrHistoryId";
+
     /// <summary>A Radarr history line translated: its Bigarr type, UTC date and the data keys the history page reads.</summary>
     public sealed record HistoryLine(RadarrHistoryItem Record, HistoryEventType Type, DateTime Date, Dictionary<string, string> Data);
 
     /// <summary>
     /// Radarr's lines of one film, oldest first, in Bigarr's terms. Radarr has no upgrade event: an import that follows an
     /// earlier import, with no deletion in between other than the upgrade's own, becomes <see cref="HistoryEventType.Upgraded"/>.
-    /// Events Bigarr has no counterpart for (<c>downloadIgnored</c>, <c>unknown</c>) are left out.
+    /// Events Bigarr has no counterpart for (<c>downloadIgnored</c>, <c>unknown</c>) are left out. A partial history (the
+    /// follow's lines since its checkpoint) starts from the file the version had: <paramref name="hadFile"/>.
     /// </summary>
-    public static IEnumerable<HistoryLine> HistoryLines(IEnumerable<RadarrHistoryItem> records)
+    public static IEnumerable<HistoryLine> HistoryLines(IEnumerable<RadarrHistoryItem> records, bool hadFile = false, string? fileQuality = null)
     {
         ArgumentNullException.ThrowIfNull(records);
 
-        string? currentQuality = null;
-        var hasFile = false;
+        string? currentQuality = fileQuality;
+        var hasFile = hadFile;
         foreach (var record in records)
         {
             if (HistoryType(record.EventType) is not { } type)
@@ -551,7 +793,11 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
             var raw = new Dictionary<string, string?>(record.Data ?? [], StringComparer.OrdinalIgnoreCase);
             string? Raw(string key) => raw.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value) ? value.Trim() : null;
 
-            var data = new Dictionary<string, string>(StringComparer.Ordinal) { ["importedFrom"] = "radarr" };
+            var data = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["importedFrom"] = "radarr",
+                [RadarrHistoryIdKey] = record.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            };
             void Put(string key, string? value)
             {
                 if (!string.IsNullOrWhiteSpace(value))
@@ -710,7 +956,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
             db.ChangeTracker.Clear();
         }
 
-        return new ImportContext(request, snapshot, versionName, profiles, roots, tagMap, qualityIds, indexers);
+        return new ImportContext(request, snapshot, versionName, profiles, roots, tagMap, qualityIds, indexers, rootRows.ToDictionary(r => r.Id, r => r.Path));
     }
 
     private async Task<List<Tag>> TagsForAsync(List<int>? radarrTagIds, ImportContext context, CancellationToken ct)
@@ -1016,6 +1262,22 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
 
     private static DateOnly? DateOf(DateTime? value) => value is { } d ? DateOnly.FromDateTime(d) : null;
 
+    private static readonly JsonElement EmptyFormats = JsonDocument.Parse("[]").RootElement.Clone();
+
+    /// <summary>The parser's name of a quality id, as Radarr's history names it.</summary>
+    private static string? QualityName(int qualityId)
+    {
+        try
+        {
+            var name = Bigarr.Parsing.Qualities.Quality.FindById(qualityId)?.Name;
+            return string.IsNullOrEmpty(name) || name == "Unknown" ? null : name;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     private static string? NullIfBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static RadarrConnection? Connection(string? url, string? apiKey) =>
@@ -1030,5 +1292,8 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
     /// <param name="Roots">Normalized Radarr root path → Bigarr root folder.</param>
     /// <param name="Tags">Radarr tag id → Bigarr tag id.</param>
     /// <param name="Indexers">Bigarr indexer name → id, to link a grab or a blocklisted release to the indexer that still exists.</param>
-    private sealed record ImportContext(RadarrImportRequest Request, Snapshot Snapshot, string VersionName, Dictionary<int, int> Profiles, Dictionary<string, RootFolder> Roots, Dictionary<int, int> Tags, HashSet<int> QualityIds, Dictionary<string, int> Indexers);
+    /// <param name="RootPaths">Bigarr root folder id → path: an existing version's file lives under its own root.</param>
+    /// <param name="Follow">A pass of the follow rather than the import: files and folders follow Radarr's.</param>
+    /// <param name="SkipFiles">The follow's first step: films come in without their file, which the next step brings.</param>
+    private sealed record ImportContext(RadarrImportRequest Request, Snapshot Snapshot, string VersionName, Dictionary<int, int> Profiles, Dictionary<string, RootFolder> Roots, Dictionary<int, int> Tags, HashSet<int> QualityIds, Dictionary<string, int> Indexers, Dictionary<int, string> RootPaths, bool Follow = false, bool SkipFiles = false);
 }

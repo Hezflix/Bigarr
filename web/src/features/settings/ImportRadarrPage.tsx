@@ -3,26 +3,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import {
-  ApiError,
-  migration,
-  quality,
-  rootFolders,
-  type RadarrImportPreview,
-  type RadarrImportRequest,
-  type RadarrImportStatus,
-} from '@/api/client'
+import { ApiError, migration, type RadarrImportPreview, type RadarrImportRequest, type RadarrImportStatus } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-
-const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+import { mappingComplete, ProfileMappingTable, RootFolderMappingTable, slugPattern, suggestedMapping, Toggle } from '@/features/settings/RadarrMapping'
 
 type Step = 'connect' | 'map' | 'run'
 
@@ -128,16 +117,9 @@ export function ImportRadarrPage() {
 
 function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: RadarrImportPreview; url: string; apiKey: string; onBack: () => void; onStarted: () => void }) {
   const { t } = useTranslation()
-  const profiles = useQuery({ queryKey: ['qualityProfiles'], queryFn: quality.profiles })
-  const roots = useQuery({ queryKey: ['rootFolders'], queryFn: rootFolders.list })
-
   const [versionName, setVersionName] = useState(preview.suggestedVersionName)
-  const [profileMap, setProfileMap] = useState<Record<number, number>>(() =>
-    Object.fromEntries(preview.profiles.filter((p) => p.suggestedProfileId !== null).map((p) => [p.id, p.suggestedProfileId as number])),
-  )
-  const [rootFolderMap, setRootFolderMap] = useState<Record<string, number>>(() =>
-    Object.fromEntries(preview.rootFolders.filter((r) => r.suggestedRootFolderId !== null).map((r) => [r.path, r.suggestedRootFolderId as number])),
-  )
+  const [profileMap, setProfileMap] = useState<Record<number, number>>(() => suggestedMapping(preview).profileMap)
+  const [rootFolderMap, setRootFolderMap] = useState<Record<string, number>>(() => suggestedMapping(preview).rootFolderMap)
   const [importTags, setImportTags] = useState(true)
   const [importExclusions, setImportExclusions] = useState(true)
   const [importHistory, setImportHistory] = useState(true)
@@ -145,15 +127,11 @@ function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: Rad
   const [importCustomFormats, setImportCustomFormats] = useState(true)
   const [keepMonitored, setKeepMonitored] = useState(true)
   const [includeWithoutFile, setIncludeWithoutFile] = useState(true)
+  const [follow, setFollow] = useState(false)
 
   const versionValid = slugPattern.test(versionName.trim())
-  const mappingComplete = useMemo(
-    () =>
-      preview.profiles.filter((p) => p.movies > 0).every((p) => profileMap[p.id] !== undefined) &&
-      preview.rootFolders.filter((r) => r.movies > 0).every((r) => rootFolderMap[r.path] !== undefined),
-    [preview, profileMap, rootFolderMap],
-  )
-  const canStart = versionValid && mappingComplete
+  const mapped = useMemo(() => mappingComplete(preview, { profileMap, rootFolderMap }), [preview, profileMap, rootFolderMap])
+  const canStart = versionValid && mapped
 
   const start = useMutation({
     mutationFn: () => {
@@ -170,6 +148,7 @@ function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: Rad
         importCustomFormats,
         keepMonitored,
         includeMoviesWithoutFile: includeWithoutFile,
+        follow,
       }
       return migration.start(body)
     },
@@ -204,95 +183,12 @@ function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: Rad
 
       <section className="flex flex-col gap-3">
         <h2 className="text-xl font-semibold tracking-tight">{t('importRadarr.profiles')}</h2>
-        <div className="overflow-x-auto rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('importRadarr.radarrProfile')}</TableHead>
-                <TableHead>{t('importRadarr.movies')}</TableHead>
-                <TableHead className="w-[40%]">{t('importRadarr.bigarrProfile')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {preview.profiles.map((profile) => (
-                <TableRow key={profile.id}>
-                  <TableCell className="font-medium">{profile.name}</TableCell>
-                  <TableCell>{profile.movies}</TableCell>
-                  <TableCell>
-                    <Select
-                      value={profileMap[profile.id] !== undefined ? String(profileMap[profile.id]) : ''}
-                      onValueChange={(value) => setProfileMap((m) => ({ ...m, [profile.id]: Number(value) }))}
-                    >
-                      <SelectTrigger className="w-full" aria-label={t('importRadarr.bigarrProfile')}>
-                        <SelectValue placeholder={t('importRadarr.chooseProfile')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {profiles.data?.map((p) => (
-                          <SelectItem key={p.id} value={String(p.id)}>
-                            {p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <ProfileMappingTable preview={preview} value={profileMap} onChange={setProfileMap} />
       </section>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-xl font-semibold tracking-tight">{t('importRadarr.rootFolders')}</h2>
-        <div className="overflow-x-auto rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('importRadarr.radarrPath')}</TableHead>
-                <TableHead>{t('importRadarr.movies')}</TableHead>
-                <TableHead className="w-[40%]">{t('importRadarr.bigarrRootFolder')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {preview.rootFolders.map((root) => (
-                <TableRow key={root.path}>
-                  <TableCell>
-                    <span className="flex flex-wrap items-center gap-2">
-                      <code className="rounded bg-muted px-1.5 py-0.5 text-xs break-all">{root.path}</code>
-                      {root.reachable ? (
-                        <Badge variant="outline" className="border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300">
-                          {t('importRadarr.reachable')}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="border-amber-600/30 bg-amber-500/15 text-amber-700 dark:border-amber-400/30 dark:text-amber-300">
-                          {t('importRadarr.notReachable')}
-                        </Badge>
-                      )}
-                    </span>
-                  </TableCell>
-                  <TableCell>{root.movies}</TableCell>
-                  <TableCell>
-                    <Select
-                      value={rootFolderMap[root.path] !== undefined ? String(rootFolderMap[root.path]) : ''}
-                      onValueChange={(value) => setRootFolderMap((m) => ({ ...m, [root.path]: Number(value) }))}
-                    >
-                      <SelectTrigger className="w-full" aria-label={t('importRadarr.bigarrRootFolder')}>
-                        <SelectValue placeholder={t('importRadarr.chooseRootFolder')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {roots.data?.map((r) => (
-                          <SelectItem key={r.id} value={String(r.id)}>
-                            {r.path}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <RootFolderMappingTable preview={preview} value={rootFolderMap} onChange={setRootFolderMap} />
         <p className="max-w-3xl text-xs text-muted-foreground">
           {t('importRadarr.rootFoldersHint')}{' '}
           <Link to="/settings/library" className="underline underline-offset-4">
@@ -331,6 +227,7 @@ function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: Rad
         <Toggle id="radarr-import-blocklist" label={t('importRadarr.importBlocklist')} checked={importBlocklist} onChange={setImportBlocklist} disabled={preview.blocklist === 0} />
         <Toggle id="radarr-keep-monitored" label={t('importRadarr.keepMonitored')} checked={keepMonitored} onChange={setKeepMonitored} />
         <Toggle id="radarr-include-without-file" label={t('importRadarr.includeWithoutFile')} checked={includeWithoutFile} onChange={setIncludeWithoutFile} />
+        <Toggle id="radarr-follow" label={t('importRadarr.follow')} hint={t('importRadarr.followHint')} checked={follow} onChange={setFollow} />
       </section>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -443,17 +340,6 @@ function RunStep({ status, onAgain }: { status: RadarrImportStatus; onAgain: () 
           </Button>
         </div>
       )}
-    </div>
-  )
-}
-
-function Toggle({ id, label, checked, onChange, disabled }: { id: string; label: string; checked: boolean; onChange: (value: boolean) => void; disabled?: boolean }) {
-  return (
-    <div className="flex items-center gap-2">
-      <Checkbox id={id} checked={checked} disabled={disabled} onCheckedChange={(value) => onChange(value === true)} />
-      <Label htmlFor={id} className="font-normal">
-        {label}
-      </Label>
     </div>
   )
 }

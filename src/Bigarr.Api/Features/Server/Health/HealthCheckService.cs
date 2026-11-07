@@ -3,6 +3,7 @@ using Bigarr.Api.Features.Import;
 using Bigarr.Api.Features.Movies;
 using Bigarr.Api.Features.Search;
 using Bigarr.Api.Features.Server.Tasks;
+using Bigarr.Api.Features.Shadow;
 using Bigarr.Api.Infrastructure.Indexers;
 using Bigarr.Api.Infrastructure.Media;
 using Bigarr.Api.Infrastructure.Persistence;
@@ -31,6 +32,7 @@ public sealed class HealthCheckService(
     SchedulerState scheduler,
     IOptions<RssSyncOptions> rss,
     IOptions<SchedulerOptions> schedulerOptions,
+    IOptions<ShadowOptions> shadow,
     TimeProvider time)
 {
     private static readonly DateTime StartedAt = DateTime.UtcNow;
@@ -71,7 +73,12 @@ public sealed class HealthCheckService(
         }
 
         var clients = await db.DownloadClients.AsNoTracking().ToListAsync(ct);
-        if (!clients.Any(c => c.Enabled))
+        if (shadow.Value.Enabled)
+        {
+            // A choice, not a fault: no badge, no notification, and the missing client is expected.
+            issues.Add(new HealthIssue("shadow", HealthIssueType.Notice, "Shadow mode: Bigarr records what it would grab (Activity → Compare) and sends nothing to a download client. Set Bigarr__Shadow__Enabled=false to grab for real."));
+        }
+        else if (!clients.Any(c => c.Enabled))
         {
             issues.Add(new HealthIssue("downloadClients", HealthIssueType.Warning, "No download client is enabled: releases cannot be grabbed. Add one in Settings → Download clients."));
         }

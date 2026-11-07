@@ -6,6 +6,8 @@ import {
   FilmIcon,
   FolderCogIcon,
   FolderOpenIcon,
+  GitCompareArrowsIcon,
+  GitCompareIcon,
   HardDriveDownloadIcon,
   HeartPulseIcon,
   HistoryIcon,
@@ -56,6 +58,7 @@ type NavItem = {
     | '/activity/releases'
     | '/activity/history'
     | '/activity/blocklist'
+    | '/activity/compare'
     | '/settings/library'
     | '/settings/mediamanagement'
     | '/settings/indexers'
@@ -66,6 +69,7 @@ type NavItem = {
     | '/settings/connect'
     | '/settings/mediaservers'
     | '/settings/import-radarr'
+    | '/settings/followed-radarrs'
     | '/system/status'
   label: string
   icon: React.ComponentType<{ className?: string }>
@@ -95,6 +99,7 @@ function useSections(): NavSection[] {
         { to: '/activity/releases', label: t('nav.releases'), icon: RssIcon },
         { to: '/activity/history', label: t('nav.history'), icon: HistoryIcon },
         { to: '/activity/blocklist', label: t('nav.blocklist'), icon: BanIcon },
+        { to: '/activity/compare', label: t('nav.compare'), icon: GitCompareIcon },
       ],
     },
     {
@@ -110,6 +115,7 @@ function useSections(): NavSection[] {
         { to: '/settings/mediaservers', label: t('nav.settingsMediaServers'), icon: MonitorPlayIcon },
         { to: '/settings/connect', label: t('nav.settingsConnect'), icon: PlugIcon },
         { to: '/settings/import-radarr', label: t('nav.settingsImportRadarr'), icon: ImportIcon },
+        { to: '/settings/followed-radarrs', label: t('nav.settingsFollowedRadarrs'), icon: GitCompareArrowsIcon },
       ],
     },
     {

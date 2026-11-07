@@ -22,6 +22,9 @@ export function toastSearchResults(t: TFunction, results: AutomaticSearchResult[
       case 'failed':
         toast.error(t('search.autoFailed', { label, detail: r.detail ?? '' }))
         break
+      case 'picked':
+        toast.success(t('search.autoPicked', { label, title: r.releaseTitle ?? '' }))
+        break
     }
   }
 }

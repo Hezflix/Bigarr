@@ -112,6 +112,7 @@ public sealed class AutomaticSearchService(
 
                 var result = await GrabBestAsync(movie, version, ranked, rejections, releases.Count, errors, triggerName, ct);
                 results.Add(result);
+                // A shadow pick leaves the version wanted: it backs off like an empty search rather than search every hour.
                 await RecordSearchAsync(version.Id, result.Outcome == AutomaticSearchOutcome.Grabbed, ct);
             }
         }
@@ -146,6 +147,11 @@ public sealed class AutomaticSearchService(
         foreach (var (release, _, _) in ranked.Take(MaxGrabAttempts))
         {
             var grab = await grabs.GrabAsync(GrabRequest.From(release, version.Id), trigger, ct);
+            if (grab.IsSuccess && grab.Value!.Shadow)
+            {
+                return new AutomaticSearchResult(movie.Id, movie.Title, version.Id, version.Name, AutomaticSearchOutcome.Picked, release.Title, null, "Shadow mode: recorded as Bigarr's pick, nothing was sent to a download client.", releases, ranked.Count, errors);
+            }
+
             if (grab.IsSuccess)
             {
                 return new AutomaticSearchResult(movie.Id, movie.Title, version.Id, version.Name, AutomaticSearchOutcome.Grabbed, release.Title, grab.Value!.GrabId, null, releases, ranked.Count, errors);

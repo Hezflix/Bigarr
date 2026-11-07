@@ -53,9 +53,17 @@ export function HistoryTable({ events, showMovie = true }: { events: HistoryEven
             <TableRow key={event.id} data-event={event.eventType}>
               <TableCell className="align-top whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(event.createdAt)}</TableCell>
               <TableCell className="align-top">
-                <Badge variant="outline" className={eventStyles[event.eventType]}>
-                  {t(`history.events.${event.eventType}`)}
-                </Badge>
+                <span className="flex flex-wrap items-center gap-1">
+                  <Badge variant="outline" className={eventStyles[event.eventType]}>
+                    {t(`history.events.${event.eventType}`)}
+                  </Badge>
+                  {/* Copied from Radarr by the import or the follow (shadow mode): Radarr did it, not Bigarr. */}
+                  {event.data.importedFrom === 'radarr' && (
+                    <Badge variant="outline" className="border-border bg-muted text-muted-foreground" data-testid="history-from-radarr">
+                      {t('history.fromRadarr')}
+                    </Badge>
+                  )}
+                </span>
               </TableCell>
               {showMovie && (
                 <TableCell className="align-top">

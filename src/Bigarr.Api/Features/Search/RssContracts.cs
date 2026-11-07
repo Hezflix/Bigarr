@@ -55,7 +55,9 @@ public sealed record RssReleaseResponse(
     /// <summary>Set when this pass sent the release to a download client.</summary>
     int? GrabId = null,
     /// <summary>Why the attributed release was not grabbed after all: another release of the pass was better, or the client refused it.</summary>
-    string? GrabError = null);
+    string? GrabError = null,
+    /// <summary>Shadow mode: the pick recorded in place of a grab.</summary>
+    int? ShadowPickId = null);
 
 public sealed record RssIndexerStatusResponse(int IndexerId, string Indexer, DateTime? LastRunAt, string? LastError, int LastFetched, int LastNew);
 
@@ -73,6 +75,8 @@ public sealed record RssStatusResponse(
     int Matched,
     int WouldGrab,
     List<RssIndexerStatusResponse> Indexers,
-    int Grabbed = 0);
+    int Grabbed = 0,
+    /// <summary>Shadow mode: releases recorded as picks instead of grabs.</summary>
+    int Picked = 0);
 
-public sealed record RssSyncResponse(int Indexers, int Fetched, int New, int Matched, int WouldGrab, List<IndexerErrorResponse> IndexerErrors, int Grabbed = 0);
+public sealed record RssSyncResponse(int Indexers, int Fetched, int New, int Matched, int WouldGrab, List<IndexerErrorResponse> IndexerErrors, int Grabbed = 0, int Picked = 0);

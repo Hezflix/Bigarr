@@ -29,6 +29,9 @@ public enum AutomaticSearchOutcome
 
     /// <summary>A release passed but no download client took it.</summary>
     Failed = 5,
+
+    /// <summary>Shadow mode: the best approved release was recorded as a pick; nothing was sent.</summary>
+    Picked = 6,
 }
 
 public sealed record AutomaticSearchResult(

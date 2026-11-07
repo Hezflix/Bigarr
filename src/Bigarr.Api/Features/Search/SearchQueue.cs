@@ -41,7 +41,7 @@ public sealed class SearchRunner(SearchQueue queue, IServiceScopeFactory scopeFa
                     {
                         logger.LogInformation("Automatic search ({Trigger}) for {Movie} [{Version}]: {Outcome}{Detail}",
                             AutomaticSearchService.TriggerName(request.Trigger), result.MovieTitle, result.VersionName, result.Outcome,
-                            result.Outcome == AutomaticSearchOutcome.Grabbed ? $" → {result.ReleaseTitle}" : result.Detail is null ? string.Empty : $" ({result.Detail})");
+                            result.Outcome is AutomaticSearchOutcome.Grabbed or AutomaticSearchOutcome.Picked ? $" → {result.ReleaseTitle}" : result.Detail is null ? string.Empty : $" ({result.Detail})");
                     }
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

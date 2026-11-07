@@ -51,7 +51,20 @@ public sealed record RadarrImportRequest(
     /// <summary>Keep Radarr's monitored flag; false imports everything unmonitored.</summary>
     bool KeepMonitored = true,
     /// <summary>Films without a file in Radarr become fileless versions; false leaves them out.</summary>
-    bool IncludeMoviesWithoutFile = true);
+    bool IncludeMoviesWithoutFile = true,
+    /// <summary>
+    /// Shadow mode: once the import is done, keep following this Radarr with the same mapping (its grabs for the
+    /// comparison, the films and files it adds) instead of leaving it as a one-time import.
+    /// </summary>
+    bool Follow = false);
+
+/// <summary>What one pass of the follow reads from a Radarr, handed to the import's per-film rules.</summary>
+public sealed record RadarrFollowData(
+    List<Infrastructure.RadarrImport.RadarrProfile> Profiles,
+    List<Infrastructure.RadarrImport.RadarrTag> Tags,
+    List<Infrastructure.RadarrImport.RadarrMovie> Movies,
+    List<Infrastructure.RadarrImport.RadarrHistoryItem> History,
+    List<Infrastructure.RadarrImport.RadarrBlocklistItem> Blocklist);
 
 public enum RadarrImportState
 {

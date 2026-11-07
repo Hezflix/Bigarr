@@ -118,9 +118,13 @@ export function InteractiveSearch({ movie }: { movie: Movie }) {
         flags: release.flags,
         protocol: release.protocol,
         indexer: release.indexer,
+        publishDate: release.publishDate,
       }),
     onSuccess: async (result, { release, versionId }) => {
-      toast.success(t('search.grabbed', { title: release.title, version: versionById.get(versionId)?.name ?? '', client: result.downloadClient }))
+      const version = versionById.get(versionId)?.name ?? ''
+      // Shadow mode: the release is recorded as Bigarr's pick, nothing reaches a client.
+      if (result.shadow) toast.success(t('search.picked', { title: release.title, version }))
+      else toast.success(t('search.grabbed', { title: release.title, version, client: result.downloadClient ?? '' }))
       await queryClient.invalidateQueries({ queryKey: ['movie', movie.id] })
       await queryClient.invalidateQueries({ queryKey: ['movies'] })
       await queryClient.invalidateQueries({ queryKey: ['queue'] })
