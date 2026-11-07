@@ -141,10 +141,10 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         var snapshot = await LoadAsync(connection, request.ImportHistory, request.ImportBlocklist, ct);
         var context = await ContextAsync(request, snapshot, progress, ct);
 
-        if (request.ImportCustomFormats)
+        if (request.ImportCustomFormats || request.ImportProfileQualities)
         {
-            progress.Current = "Custom formats";
-            await ImportCustomFormatsAsync(snapshot, request, progress, ct);
+            progress.Current = "Custom formats and profiles";
+            await ImportProfilesAsync(snapshot, request, progress, ct);
         }
 
         progress.Total = snapshot.Movies.Count;
@@ -560,10 +560,165 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
     }
 
     /// <summary>
-    /// Radarr's custom formats, then the scores of every mapped profile. A format is matched on its name and takes Radarr's
-    /// definition. When several Radarr profiles map to one Bigarr profile, the one holding the most films gives the scores.
+    /// Radarr's custom formats, then every mapped profile: the scores of the formats and their thresholds, and the qualities
+    /// (which are allowed, their order and groups, the cutoff, upgrades). A format is matched on its name and takes Radarr's
+    /// definition. When several Radarr profiles map to one Bigarr profile, the one holding the most films gives its settings.
     /// </summary>
-    private async Task ImportCustomFormatsAsync(Snapshot snapshot, RadarrImportRequest request, RadarrImportProgress progress, CancellationToken ct)
+    private async Task ImportProfilesAsync(Snapshot snapshot, RadarrImportRequest request, RadarrImportProgress progress, CancellationToken ct)
+    {
+        var byName = request.ImportCustomFormats
+            ? await ImportCustomFormatsAsync(snapshot, progress, ct)
+            : new Dictionary<string, CustomFormat>(StringComparer.OrdinalIgnoreCase);
+        var qualityIds = await db.QualityDefinitions.AsNoTracking().Select(q => q.Id).ToListAsync(ct);
+        var films = snapshot.Movies.GroupBy(m => m.QualityProfileId).ToDictionary(g => g.Key, g => g.Count());
+        foreach (var group in (request.ProfileMap ?? []).GroupBy(kv => kv.Value))
+        {
+            var sources = Sources(group.Select(kv => kv.Key), snapshot.Profiles, films);
+            if (sources.Count == 0 || await db.QualityProfiles.Include(p => p.FormatScores).FirstOrDefaultAsync(p => p.Id == group.Key, ct) is not { } profile)
+            {
+                continue;
+            }
+
+            if (request.ImportCustomFormats && sources.FirstOrDefault(p => p.FormatItems is not null) is { } scored)
+            {
+                ApplyScores(profile, scored, byName);
+                progress.ProfileScored();
+                var differing = sources.Where(other => other != scored && other.FormatItems is not null && ScoreKey(other) != ScoreKey(scored)).Select(other => $"'{other.Name}'").ToList();
+                if (differing.Count > 0)
+                {
+                    progress.Issue(profile.Name, null, $"Radarr profiles '{scored.Name}' and {string.Join(", ", differing)} all map to '{profile.Name}' with different scores: '{scored.Name}' holds the most films, its scores were kept.");
+                }
+            }
+
+            if (request.ImportProfileQualities && sources.FirstOrDefault(p => p.Items is not null) is { } shaped)
+            {
+                if (RadarrProfileQualities.Translate(shaped, qualityIds) is { } qualities)
+                {
+                    RadarrProfileQualities.Apply(profile, qualities);
+                    progress.ProfileQualitiesCopied();
+                }
+                else
+                {
+                    progress.Issue(profile.Name, null, $"The qualities of Radarr profile '{shaped.Name}' could not be copied (nothing allowed, or a cutoff that is not allowed): '{profile.Name}' keeps its own.");
+                }
+
+                var differing = sources.Where(other => other != shaped && other.Items is not null && QualityKey(other) != QualityKey(shaped)).Select(other => $"'{other.Name}'").ToList();
+                if (differing.Count > 0)
+                {
+                    progress.Issue(profile.Name, null, $"Radarr profiles '{shaped.Name}' and {string.Join(", ", differing)} all map to '{profile.Name}' with different qualities: '{shaped.Name}' holds the most films, its qualities were kept.");
+                }
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+    }
+
+    /// <summary>
+    /// Shadow mode, on every pass of the follow: each Bigarr profile a followed Radarr's films map to takes that Radarr
+    /// profile's qualities, cutoff, score thresholds and format scores (formats matched by name; none is created here), so
+    /// Bigarr judges with Radarr's settings and the comparison stays fair. Returns the names of the profiles that changed.
+    /// </summary>
+    public async Task<List<string>> AlignProfilesAsync(RadarrImportRequest request, RadarrFollowData data, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(data);
+
+        var formats = (await db.CustomFormats.ToListAsync(ct))
+            .GroupBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        var qualityIds = await db.QualityDefinitions.AsNoTracking().Select(q => q.Id).ToListAsync(ct);
+        var films = data.Movies.GroupBy(m => m.QualityProfileId).ToDictionary(g => g.Key, g => g.Count());
+        var changed = new List<string>();
+        foreach (var group in (request.ProfileMap ?? []).GroupBy(kv => kv.Value))
+        {
+            var sources = Sources(group.Select(kv => kv.Key), data.Profiles, films);
+            if (sources.Count == 0 || await db.QualityProfiles.Include(p => p.FormatScores).FirstOrDefaultAsync(p => p.Id == group.Key, ct) is not { } profile)
+            {
+                continue;
+            }
+
+            var before = ProfileKey(profile);
+            if (sources.FirstOrDefault(p => p.Items is not null) is { } shaped && RadarrProfileQualities.Translate(shaped, qualityIds) is { } qualities)
+            {
+                RadarrProfileQualities.Apply(profile, qualities);
+            }
+
+            if (sources.FirstOrDefault(p => p.FormatItems is not null) is { } scored)
+            {
+                ApplyScores(profile, scored, formats);
+            }
+
+            if (ProfileKey(profile) != before)
+            {
+                changed.Add(profile.Name);
+            }
+        }
+
+        if (changed.Count > 0)
+        {
+            await db.SaveChangesAsync(ct);
+            logger.LogInformation("Profiles aligned with Radarr: {Profiles}", string.Join(", ", changed));
+        }
+
+        db.ChangeTracker.Clear();
+        return changed;
+    }
+
+    /// <summary>The Radarr profiles mapped to one Bigarr profile, the one holding the most films first.</summary>
+    private static List<RadarrProfile> Sources(IEnumerable<int> radarrProfileIds, List<RadarrProfile> profiles, Dictionary<int, int> films) =>
+        radarrProfileIds
+            .Select(id => profiles.FirstOrDefault(p => p.Id == id))
+            .OfType<RadarrProfile>()
+            .OrderByDescending(p => films.GetValueOrDefault(p.Id))
+            .ThenBy(p => p.Id)
+            .ToList();
+
+    /// <summary>The format scores of a Radarr profile (formats matched by name) and its score thresholds.</summary>
+    private static void ApplyScores(QualityProfile profile, RadarrProfile source, IReadOnlyDictionary<string, CustomFormat> formatsByName)
+    {
+        foreach (var item in source.FormatItems ?? [])
+        {
+            if (item.Name is null || !formatsByName.TryGetValue(item.Name, out var format))
+            {
+                continue;
+            }
+
+            var entry = profile.FormatScores.FirstOrDefault(s => s.CustomFormatId == format.Id);
+            if (entry is not null)
+            {
+                entry.Score = item.Score;
+            }
+            else if (item.Score != 0)
+            {
+                profile.FormatScores.Add(new ProfileFormatScore { CustomFormatId = format.Id, Score = item.Score });
+            }
+        }
+
+        profile.MinFormatScore = source.MinFormatScore ?? profile.MinFormatScore;
+        profile.CutoffFormatScore = source.CutoffFormatScore ?? profile.CutoffFormatScore;
+        profile.MinUpgradeFormatScore = source.MinUpgradeFormatScore ?? profile.MinUpgradeFormatScore;
+    }
+
+    /// <summary>Everything the follow may change on a profile, as one comparable string.</summary>
+    private static string ProfileKey(QualityProfile profile) =>
+        JsonSerializer.Serialize(new
+        {
+            profile.Items,
+            profile.Cutoff,
+            profile.UpgradeAllowed,
+            profile.MinFormatScore,
+            profile.CutoffFormatScore,
+            profile.MinUpgradeFormatScore,
+            Scores = profile.FormatScores.Where(s => s.Score != 0).OrderBy(s => s.CustomFormatId).Select(s => $"{s.CustomFormatId}={s.Score}"),
+        });
+
+    /// <summary>A Radarr profile's qualities as one comparable string.</summary>
+    private static string QualityKey(RadarrProfile profile) =>
+        JsonSerializer.Serialize(new { profile.Items, profile.Cutoff, profile.UpgradeAllowed });
+
+    /// <summary>Radarr's custom formats, matched on their name: Radarr's definition wins. Returns them by name.</summary>
+    private async Task<Dictionary<string, CustomFormat>> ImportCustomFormatsAsync(Snapshot snapshot, RadarrImportProgress progress, CancellationToken ct)
     {
         var existing = await db.CustomFormats.ToListAsync(ct);
         var byName = new Dictionary<string, CustomFormat>(StringComparer.OrdinalIgnoreCase);
@@ -606,55 +761,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         }
 
         await db.SaveChangesAsync(ct);
-
-        var films = snapshot.Movies.GroupBy(m => m.QualityProfileId).ToDictionary(g => g.Key, g => g.Count());
-        foreach (var group in (request.ProfileMap ?? []).GroupBy(kv => kv.Value))
-        {
-            var sources = group
-                .Select(kv => snapshot.Profiles.FirstOrDefault(p => p.Id == kv.Key))
-                .OfType<RadarrProfile>()
-                .Where(p => p.FormatItems is not null)
-                .OrderByDescending(p => films.GetValueOrDefault(p.Id))
-                .ThenBy(p => p.Id)
-                .ToList();
-            if (sources.Count == 0 || await db.QualityProfiles.Include(p => p.FormatScores).FirstOrDefaultAsync(p => p.Id == group.Key, ct) is not { } profile)
-            {
-                continue;
-            }
-
-            var source = sources[0];
-            foreach (var item in source.FormatItems!)
-            {
-                if (item.Name is null || !byName.TryGetValue(item.Name, out var format))
-                {
-                    continue;
-                }
-
-                var entry = profile.FormatScores.FirstOrDefault(s => s.CustomFormatId == format.Id);
-                if (entry is not null)
-                {
-                    entry.Score = item.Score;
-                }
-                else if (item.Score != 0)
-                {
-                    profile.FormatScores.Add(new ProfileFormatScore { CustomFormatId = format.Id, Score = item.Score });
-                }
-            }
-
-            profile.MinFormatScore = source.MinFormatScore ?? profile.MinFormatScore;
-            profile.CutoffFormatScore = source.CutoffFormatScore ?? profile.CutoffFormatScore;
-            profile.MinUpgradeFormatScore = source.MinUpgradeFormatScore ?? profile.MinUpgradeFormatScore;
-            progress.ProfileScored();
-
-            var differing = sources.Skip(1).Where(other => ScoreKey(other) != ScoreKey(source)).Select(other => $"'{other.Name}'").ToList();
-            if (differing.Count > 0)
-            {
-                progress.Issue(profile.Name, null, $"Radarr profiles '{source.Name}' and {string.Join(", ", differing)} all map to '{profile.Name}' with different scores: '{source.Name}' holds the most films, its scores were kept.");
-            }
-        }
-
-        await db.SaveChangesAsync(ct);
-        db.ChangeTracker.Clear();
+        return byName;
     }
 
     /// <summary>A profile's non-zero scores and thresholds as one comparable string.</summary>

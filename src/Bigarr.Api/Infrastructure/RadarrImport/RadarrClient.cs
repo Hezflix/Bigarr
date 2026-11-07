@@ -26,8 +26,24 @@ public sealed record RadarrSystemStatus(string? AppName, string? Version, string
 /// <summary>A custom format's score in a profile; Radarr lists every format, scored 0 when unused.</summary>
 public sealed record RadarrFormatItem(int Format, string? Name, int Score);
 
-/// <summary>A quality profile. The format scores are absent on a Radarr older than v4, <c>MinUpgradeFormatScore</c> before v5.</summary>
-public sealed record RadarrProfile(int Id, string Name, List<RadarrFormatItem>? FormatItems = null, int? MinFormatScore = null, int? CutoffFormatScore = null, int? MinUpgradeFormatScore = null);
+/// <summary>
+/// A quality profile. The format scores are absent on a Radarr older than v4, <c>MinUpgradeFormatScore</c> before v5.
+/// <paramref name="Items"/> lists every quality from lowest to highest, single or in groups; <paramref name="Cutoff"/> is a
+/// quality id or a group id.
+/// </summary>
+public sealed record RadarrProfile(
+    int Id,
+    string Name,
+    List<RadarrFormatItem>? FormatItems = null,
+    int? MinFormatScore = null,
+    int? CutoffFormatScore = null,
+    int? MinUpgradeFormatScore = null,
+    List<RadarrProfileItem>? Items = null,
+    int? Cutoff = null,
+    bool? UpgradeAllowed = null);
+
+/// <summary>One entry of a profile: a quality (<paramref name="Quality"/> set) or a group (<paramref name="Id"/> from 1000, <paramref name="Items"/> its qualities).</summary>
+public sealed record RadarrProfileItem(int? Id, string? Name, RadarrQualityDefinition? Quality, List<RadarrProfileItem>? Items, bool Allowed);
 
 public sealed record RadarrRootFolder(int Id, string Path);
 

@@ -22,6 +22,7 @@ public sealed class RadarrImportProgress(RadarrImportRequest request)
     private int _customFormatsAdded;
     private int _customFormatsUpdated;
     private int _profilesScored;
+    private int _profileQualitiesCopied;
     private int _filesReplaced;
     private int _filesRenamed;
     private int _filesRemoved;
@@ -72,6 +73,8 @@ public sealed class RadarrImportProgress(RadarrImportRequest request)
 
     public void ProfileScored() => Interlocked.Increment(ref _profilesScored);
 
+    public void ProfileQualitiesCopied() => Interlocked.Increment(ref _profileQualitiesCopied);
+
     /// <summary>Following a Radarr: its file replaced the version's (an upgrade, a new download).</summary>
     public void FileReplaced() => Interlocked.Increment(ref _filesReplaced);
 
@@ -109,7 +112,7 @@ public sealed class RadarrImportProgress(RadarrImportRequest request)
 
         return new RadarrImportStatusResponse(
             State, StartedAt, FinishedAt, Total, _processed, _moviesAdded, _versionsAdded, _versionsUpdated, _filesAdded, _filesMissing,
-            _skipped, _failed, _tagsAdded, _exclusionsAdded, _historyAdded, _blocklistAdded, _customFormatsAdded, _customFormatsUpdated, _profilesScored, Current, Error, issues);
+            _skipped, _failed, _tagsAdded, _exclusionsAdded, _historyAdded, _blocklistAdded, _customFormatsAdded, _customFormatsUpdated, _profilesScored, Current, Error, issues, _profileQualitiesCopied);
     }
 
     public static RadarrImportStatusResponse Idle { get; } =

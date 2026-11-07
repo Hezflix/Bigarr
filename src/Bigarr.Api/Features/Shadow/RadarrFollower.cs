@@ -21,6 +21,7 @@ public sealed record RadarrFollowPass(int FollowedRadarrId, string Name, bool Su
 /// One pass over a followed Radarr (shadow mode), reading only, in this order so that Bigarr judges what Radarr did
 /// against the library as it was before Radarr's download:
 /// <list type="number">
+/// <item>the Bigarr profiles its films map to take its profiles' qualities, cutoff and scores;</item>
 /// <item>films Radarr has and Bigarr does not come in, without their file;</item>
 /// <item>Radarr's grabs since the checkpoint (read from a few minutes before it, lines already read are recognised)
 /// become <see cref="RadarrGrab"/> rows judged by Bigarr's engine on the spot; imports and failures close them;</item>
@@ -132,6 +133,9 @@ public sealed class RadarrFollower(
             follow.KeepMonitored,
             follow.IncludeMoviesWithoutFile);
 
+        // 0. Radarr's profile settings, so Bigarr judges everything below the way Radarr would.
+        var aligned = await imports.AlignProfilesAsync(request, data, ct);
+
         // 1. New films, without their file: what Radarr grabbed for them is judged against a film that had none.
         var addedSinceFollowing = await AddedSinceFollowingAsync(follow, movies, ct);
         var added = await imports.AddNewFilmsAsync(request, data, ct);
@@ -153,7 +157,7 @@ public sealed class RadarrFollower(
 
         var now = time.GetUtcNow().UtcDateTime;
         var checkpoint = history.Count > 0 ? new[] { follow.HistoryCheckpoint, history.Max(h => Utc(h.Date)) }.Max() : follow.HistoryCheckpoint;
-        var summary = Summary(grabs, resolved, added, library, searched, shown);
+        var summary = Summary(grabs, resolved, added, library, searched, shown, aligned.Count);
         await db.FollowedRadarrs.Where(f => f.Id == follow.Id).ExecuteUpdateAsync(s => s
             .SetProperty(f => f.HistoryCheckpoint, checkpoint)
             .SetProperty(f => f.LastSyncAt, now)
@@ -208,7 +212,7 @@ public sealed class RadarrFollower(
         return results.Count;
     }
 
-    private static string Summary(int grabs, int resolved, RadarrImportProgress added, RadarrImportProgress library, int searched, int shown)
+    private static string Summary(int grabs, int resolved, RadarrImportProgress added, RadarrImportProgress library, int searched, int shown, int profilesAligned)
     {
         var first = added.ToResponse();
         var report = library.ToResponse();
@@ -221,6 +225,7 @@ public sealed class RadarrFollower(
             }
         }
 
+        Add(profilesAligned, "profile(s) aligned with Radarr");
         Add(resolved, "grab(s) imported or failed");
         Add(first.MoviesAdded + report.MoviesAdded, "film(s) added");
         Add(first.VersionsAdded + report.VersionsAdded, "version(s) added");
