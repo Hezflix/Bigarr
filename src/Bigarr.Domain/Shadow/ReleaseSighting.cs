@@ -1,7 +1,7 @@
 namespace Bigarr.Domain.Shadow;
 
 /// <summary>
-/// A release the RSS pass saw in shadow mode, with what the library made of it, kept a few weeks so the comparison can
+/// A release the RSS pass saw in shadow mode, with what the library made of it, kept with no expiry so the comparison can
 /// say whether Bigarr ever saw a release Radarr grabbed, and what it thought of it then. One row per indexer and guid.
 /// </summary>
 public sealed class ReleaseSighting

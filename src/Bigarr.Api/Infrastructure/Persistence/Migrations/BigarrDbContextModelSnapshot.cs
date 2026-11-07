@@ -1465,7 +1465,7 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("InfoHash");
 
-                    b.HasIndex("SeenAt");
+                    b.HasIndex("Title");
 
                     b.HasIndex("IndexerName", "Guid")
                         .IsUnique();
