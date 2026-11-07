@@ -1,15 +1,23 @@
+using System.Linq.Expressions;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.History;
+using Bigarr.Domain.Movies;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bigarr.Api.Features.History;
 
-/// <summary>What to read from the journal. Every filter is optional; <paramref name="MovieIds"/> and <paramref name="MovieId"/> combine as an OR.</summary>
+/// <summary>
+/// What to read from the journal. Every filter is optional; <paramref name="MovieIds"/> and <paramref name="MovieId"/> combine as an OR.
+/// <paramref name="VersionIds"/> narrows to those targets, <paramref name="TargetVersions"/> to the events whose target satisfies
+/// the predicate (events without a target never do): the database evaluates both, no list of ids is shipped for a whole library.
+/// </summary>
 public sealed record HistoryFilter(
     int? MovieId = null,
     IReadOnlyCollection<int>? MovieIds = null,
     int? VersionId = null,
-    IReadOnlyCollection<HistoryEventType>? EventTypes = null);
+    IReadOnlyCollection<HistoryEventType>? EventTypes = null,
+    IReadOnlyCollection<int>? VersionIds = null,
+    Expression<Func<MovieVersion, bool>>? TargetVersions = null);
 
 public sealed record HistoryPage(List<HistoryEvent> Events, int Total);
 
@@ -54,6 +62,17 @@ public sealed class HistoryService(BigarrDbContext db)
         if (filter.VersionId is { } versionId)
         {
             query = query.Where(h => h.TargetId == versionId);
+        }
+
+        if (filter.VersionIds is { Count: > 0 } versionIds)
+        {
+            var list = versionIds.ToList();
+            query = query.Where(h => h.TargetId != null && list.Contains(h.TargetId.Value));
+        }
+
+        if (filter.TargetVersions is { } targets)
+        {
+            query = query.Where(h => db.MovieVersions.Where(targets).Any(v => v.Id == h.TargetId));
         }
 
         if (filter.EventTypes is { Count: > 0 } types)
