@@ -37,6 +37,7 @@ public sealed class RadarrFollower(
     BigarrDbContext db,
     RadarrClient radarr,
     RadarrImportService imports,
+    RadarrFollowMemory memory,
     ShadowJudge judge,
     AutomaticSearchService search,
     IOptions<ShadowOptions> options,
@@ -48,6 +49,16 @@ public sealed class RadarrFollower(
 
     /// <summary>Radarr's own RSS default: a pass every quarter of an hour, and within seconds when its webhook calls.</summary>
     public static readonly TimeSpan Interval = TimeSpan.FromMinutes(15);
+
+    /// <summary>
+    /// How often a pass reads Radarr's whole film list (27 MB on a library of five thousand films, 6 MB gzipped): what is
+    /// not in its history (a film added or deleted, a monitored flag, a profile, a folder) is caught within this time, or at
+    /// once when Radarr's webhook says so. Between two, a pass reads only the films its history names.
+    /// </summary>
+    public static readonly TimeSpan FullListInterval = TimeSpan.FromHours(1);
+
+    /// <summary>History naming more films than this (a big import, a bulk rename) is cheaper as one list than as one request per film.</summary>
+    public const int FilmsFetchedOneByOneMax = 50;
 
     /// <summary>A Radarr list importing hundreds of films at once must not turn into hundreds of searches on the trackers.</summary>
     public const int SearchesOnAddPerPass = 25;
@@ -70,7 +81,7 @@ public sealed class RadarrFollower(
         return passes;
     }
 
-    public async Task<RadarrFollowPass> SyncAsync(int id, CancellationToken ct)
+    public async Task<RadarrFollowPass> SyncAsync(int id, CancellationToken ct, bool fullList = false)
     {
         await Gate.WaitAsync(ct);
         try
@@ -80,11 +91,13 @@ public sealed class RadarrFollower(
                 ?? throw new InvalidOperationException($"Followed Radarr {id} does not exist.");
             try
             {
-                return await SyncCoreAsync(follow, ct);
+                return await SyncCoreAsync(follow, fullList, ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
                 db.ChangeTracker.Clear();
+                // A pass that failed may have missed a film: the next one reads the whole list.
+                memory.Forget(id);
                 var now = time.GetUtcNow().UtcDateTime;
                 var message = ex is RadarrUnavailableException ? ex.Message : $"The pass failed: {ex.Message}";
                 if (ex is not RadarrUnavailableException)
@@ -108,11 +121,16 @@ public sealed class RadarrFollower(
         }
     }
 
-    private async Task<RadarrFollowPass> SyncCoreAsync(FollowedRadarr follow, CancellationToken ct)
+    private async Task<RadarrFollowPass> SyncCoreAsync(FollowedRadarr follow, bool fullList, CancellationToken ct)
     {
         var connection = new RadarrConnection(follow.Url, follow.ApiKey);
         var history = await radarr.HistorySinceAsync(connection, follow.HistoryCheckpoint - Overlap, ct);
-        var movies = await radarr.MoviesAsync(connection, ct);
+        var started = time.GetUtcNow().UtcDateTime;
+        var remembered = memory.Get(follow.Id);
+        var historyFilms = history.Select(h => h.MovieId).Distinct().ToList();
+        var wholeList = fullList || remembered is null || started - remembered.ListReadAt >= FullListInterval || historyFilms.Count > FilmsFetchedOneByOneMax;
+        var movies = wholeList ? await radarr.MoviesAsync(connection, ct) : await FilmsAsync(connection, historyFilms, ct);
+        var filmsPerProfile = wholeList ? RadarrImportService.FilmsPerProfile(movies) : remembered!.FilmsPerProfile;
         var profiles = await radarr.ProfilesAsync(connection, ct);
         var tags = await radarr.TagsAsync(connection, ct);
         // Radarr blocklists on a failed download: the blocklist is only worth reading when one happened.
@@ -134,7 +152,7 @@ public sealed class RadarrFollower(
             follow.IncludeMoviesWithoutFile);
 
         // 0. Radarr's profile settings, so Bigarr judges everything below the way Radarr would.
-        var aligned = await imports.AlignProfilesAsync(request, data, ct);
+        var aligned = await imports.AlignProfilesAsync(request, data, filmsPerProfile, ct);
 
         // 1. New films, without their file: what Radarr grabbed for them is judged against a film that had none.
         var addedSinceFollowing = await AddedSinceFollowingAsync(follow, movies, ct);
@@ -158,6 +176,7 @@ public sealed class RadarrFollower(
         var now = time.GetUtcNow().UtcDateTime;
         var checkpoint = history.Count > 0 ? new[] { follow.HistoryCheckpoint, history.Max(h => Utc(h.Date)) }.Max() : follow.HistoryCheckpoint;
         var summary = Summary(grabs, resolved, added, library, searched, shown, aligned.Count);
+        memory.Remember(follow.Id, wholeList ? new RadarrFollowMemory.Entry(started, filmsPerProfile) : remembered!);
         await db.FollowedRadarrs.Where(f => f.Id == follow.Id).ExecuteUpdateAsync(s => s
             .SetProperty(f => f.HistoryCheckpoint, checkpoint)
             .SetProperty(f => f.LastSyncAt, now)
@@ -167,6 +186,21 @@ public sealed class RadarrFollower(
 
         logger.LogInformation("Following {Name}: {Summary}", follow.Name, summary);
         return new RadarrFollowPass(follow.Id, follow.Name, true, summary, grabs, resolved, shown, searched);
+    }
+
+    /// <summary>The films a pass between two full lists looks at: those its history names, one request each; a film Radarr no longer has is skipped.</summary>
+    private async Task<List<RadarrMovie>> FilmsAsync(RadarrConnection connection, List<int> ids, CancellationToken ct)
+    {
+        var films = new List<RadarrMovie>();
+        foreach (var id in ids)
+        {
+            if (await radarr.MovieAsync(connection, id, ct) is { } film)
+            {
+                films.Add(film);
+            }
+        }
+
+        return films;
     }
 
     /// <summary>
@@ -398,6 +432,13 @@ public sealed class RadarrFollower(
             try
             {
                 var parse = await radarr.ParseAsync(connection, pick.ReleaseTitle, ct);
+                if (film is null && parse.Movie is { TmdbId: > 0 } found && found.TmdbId == pick.TmdbId)
+                {
+                    // Not among the films this pass read: ask Radarr for that one.
+                    film = await radarr.MovieAsync(connection, found.Id, ct) ?? found;
+                    file = film.HasFile ? film.MovieFile : null;
+                }
+
                 var quality = parse.ParsedMovieInfo?.Quality?.Quality?.Name;
                 pick.RadarrView = new RadarrView(
                     parse.Movie is { TmdbId: > 0 } mapped ? mapped.TmdbId : null,

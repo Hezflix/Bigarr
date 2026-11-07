@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.IO.Compression;
+using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -17,13 +19,21 @@ public sealed class FakeHttpServer : IAsyncDisposable
 
     public sealed record Received(string Method, string Path, string Query, IReadOnlyDictionary<string, string> Headers, string Body);
 
-    /// <summary>An answer: status code, an optional JSON body and optional headers (<c>Retry-After</c>…).</summary>
-    public sealed record Answer(int StatusCode, string? Json = null, IReadOnlyDictionary<string, string>? Headers = null);
+    /// <summary>
+    /// An answer: status code, an optional JSON body and optional headers (<c>Retry-After</c>…). With <paramref name="Gzip"/>
+    /// the body is gzipped when the request accepts it, like a Radarr behind its own compression does.
+    /// </summary>
+    public sealed record Answer(int StatusCode, string? Json = null, IReadOnlyDictionary<string, string>? Headers = null, bool Gzip = false);
 
     private FakeHttpServer(WebApplication app)
     {
         _app = app;
     }
+
+    private long _bytesSent;
+
+    /// <summary>Bytes of response bodies sent so far, as they went over the wire (gzipped when they were).</summary>
+    public long BytesSent => Interlocked.Read(ref _bytesSent);
 
     public ConcurrentQueue<Received> Requests { get; } = new();
 
@@ -56,7 +66,21 @@ public sealed class FakeHttpServer : IAsyncDisposable
             if (answer.Json is not null)
             {
                 context.Response.ContentType = "application/json";
-                await context.Response.WriteAsync(answer.Json);
+                var payload = Encoding.UTF8.GetBytes(answer.Json);
+                if (answer.Gzip && headers.TryGetValue("Accept-Encoding", out var accepted) && accepted.Contains("gzip", StringComparison.OrdinalIgnoreCase))
+                {
+                    using var packed = new MemoryStream();
+                    await using (var gzip = new GZipStream(packed, CompressionLevel.Fastest, leaveOpen: true))
+                    {
+                        await gzip.WriteAsync(payload);
+                    }
+
+                    payload = packed.ToArray();
+                    context.Response.Headers.ContentEncoding = "gzip";
+                }
+
+                Interlocked.Add(ref server._bytesSent, payload.Length);
+                await context.Response.Body.WriteAsync(payload);
             }
         });
         await app.StartAsync();

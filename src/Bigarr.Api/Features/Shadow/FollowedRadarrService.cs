@@ -137,7 +137,7 @@ public sealed class FollowedRadarrService(
         return follow is null ? Failure.NotFound("Followed Radarr") : await imports.PreviewAsync(new RadarrImportPreviewRequest(follow.Url, follow.ApiKey), ct);
     }
 
-    /// <summary>A pass now, whatever the schedule says.</summary>
+    /// <summary>A pass now, whatever the schedule says: it reads the whole film list too.</summary>
     public async Task<Result<RadarrFollowPass>> SyncAsync(int id, CancellationToken ct)
     {
         if (!await db.FollowedRadarrs.AnyAsync(f => f.Id == id, ct))
@@ -145,13 +145,14 @@ public sealed class FollowedRadarrService(
             return Failure.NotFound("Followed Radarr");
         }
 
-        var pass = await follower.SyncAsync(id, ct);
+        var pass = await follower.SyncAsync(id, ct, fullList: true);
         return pass.Success ? Result<RadarrFollowPass>.Ok(pass) : new Failure(StatusCodes.Status502BadGateway, $"{pass.Name} could not be followed", pass.Summary);
     }
 
     /// <summary>
     /// Radarr's webhook called (Radarr → Settings → Connect → Webhook): the event is noted, and anything but Radarr's
-    /// <c>Test</c> wakes a pass. The body is not trusted for anything else: the pass reads Radarr's history as always.
+    /// <c>Test</c> wakes a pass. A film added or deleted is not in Radarr's history: those two events ask the pass to read the
+    /// whole film list. The body is not trusted for anything else: the pass reads Radarr's history as always.
     /// </summary>
     public async Task<Result<bool>> WebhookAsync(int id, string? eventType, CancellationToken ct)
     {
@@ -169,12 +170,16 @@ public sealed class FollowedRadarrService(
         var wakes = follow.Enabled && !string.Equals(name, "Test", StringComparison.OrdinalIgnoreCase);
         if (wakes)
         {
-            wakeups.Wake(id);
+            wakeups.Wake(id, fullList: ReadsFilmList(name));
         }
 
         logger.LogInformation("Radarr webhook {Event} for {Name}{Wakes}", name, follow.Name, wakes ? ": a pass follows" : string.Empty);
         return Result<bool>.Ok(wakes);
     }
+
+    /// <summary>The events that change which films Radarr has, which its history does not say.</summary>
+    private static bool ReadsFilmList(string eventType) =>
+        eventType.Equals("MovieAdded", StringComparison.OrdinalIgnoreCase) || eventType.Equals("MovieDelete", StringComparison.OrdinalIgnoreCase);
 
     private async Task<RadarrConnection?> ConnectionAsync(FollowedRadarrRequest? request, int? id, CancellationToken ct)
     {

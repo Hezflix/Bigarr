@@ -62,12 +62,17 @@ internal sealed class FakeRadarr : IAsyncDisposable
 
     public bool Down { get; set; }
 
+    /// <summary>Answer gzipped to a client that accepts it.</summary>
+    public bool Gzip { get; set; }
+
     /// <summary>The quality profiles <c>/qualityprofile</c> returns, in Radarr's shape; two bare ones by default.</summary>
     public List<object> Profiles { get; } = [new { id = 1, name = "HD-1080p" }, new { id = 2, name = "Ultra-HD" }];
 
     public string Url => _server.Url;
 
     public IEnumerable<FakeHttpServer.Received> Requests => _server.Requests;
+
+    public long BytesSent => _server.BytesSent;
 
     public static async Task<FakeRadarr> StartAsync() => new(await FakeHttpServer.StartAsync());
 
@@ -91,6 +96,11 @@ internal sealed class FakeRadarr : IAsyncDisposable
         }
 
         var query = QueryHelpers.ParseQuery(request.Query);
+        if (request.Path.StartsWith("/api/v3/movie/", StringComparison.Ordinal) && int.TryParse(request.Path["/api/v3/movie/".Length..], out var filmId))
+        {
+            return Films.FirstOrDefault(f => f.Id == filmId) is { } one ? Json(MovieJson(one)) : new FakeHttpServer.Answer(404);
+        }
+
         return request.Path switch
         {
             "/api/v3/system/status" => Json(new { appName = "Radarr", version = "5.14.0.9383" }),
@@ -180,5 +190,5 @@ internal sealed class FakeRadarr : IAsyncDisposable
         },
     };
 
-    private static FakeHttpServer.Answer Json(object body) => new(200, JsonSerializer.Serialize(body, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+    private FakeHttpServer.Answer Json(object body) => new(200, JsonSerializer.Serialize(body, new JsonSerializerOptions(JsonSerializerDefaults.Web)), Gzip: Gzip);
 }
