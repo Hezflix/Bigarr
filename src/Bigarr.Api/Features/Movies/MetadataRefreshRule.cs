@@ -47,7 +47,7 @@ public static class MetadataRefreshRule
     public static readonly TimeSpan RecentRelease = TimeSpan.FromDays(30);
 
     /// <summary>Radarr counts a film with no digital or physical date as released this long after its cinema release.</summary>
-    public static readonly TimeSpan CinemaRun = TimeSpan.FromDays(90);
+    public static readonly TimeSpan CinemaRun = TimeSpan.FromDays(Availability.CinemaRunDays);
 
     public static bool IsDue(MetadataRefreshCandidate film, DateTime now)
     {
@@ -72,8 +72,8 @@ public static class MetadataRefreshRule
     }
 
     /// <summary>
-    /// Radarr's status, worked out from the dates (its SkyHookProxy). Not <see cref="Availability.EffectiveStatus"/>:
-    /// without the 90-day rule, every old film with no disc date would stay "in cinemas" and be refreshed daily.
+    /// Radarr's status, worked out from the dates only (its SkyHookProxy). Not <see cref="Availability.EffectiveStatus"/>,
+    /// which falls back on the TMDB status when a film has no date at all.
     /// </summary>
     private static MovieStatus ReleaseStatus(MetadataRefreshCandidate film, DateTime now)
     {

@@ -18,6 +18,12 @@ public enum VersionStatus
 /// <summary>Where a film stands in its release cycle, and whether a version may be searched (blueprint §3.3, §5).</summary>
 public static class Availability
 {
+    /// <summary>
+    /// Radarr's cinema run: a film with neither a digital nor a physical date counts as released this many days after its
+    /// cinema release. TMDB often has no home-release date for older or foreign films.
+    /// </summary>
+    public const int CinemaRunDays = 90;
+
     /// <summary>Dates win over the TMDB status when they exist: TMDB flips to "Released" at the first theatrical release.</summary>
     public static MovieStatus EffectiveStatus(Movie movie, DateOnly today)
     {
@@ -29,6 +35,12 @@ public static class Availability
         }
 
         if (movie.PhysicalReleaseDate <= today || movie.DigitalReleaseDate <= today)
+        {
+            return MovieStatus.Released;
+        }
+
+        // Like Radarr: with no home-release date at all, the cinema run stands for one.
+        if (movie.PhysicalReleaseDate is null && movie.DigitalReleaseDate is null && movie.InCinemasDate?.AddDays(CinemaRunDays) <= today)
         {
             return MovieStatus.Released;
         }
