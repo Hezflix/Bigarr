@@ -38,14 +38,19 @@ public sealed class WantedService(BigarrDbContext db, CustomFormatScorer scorer,
         var now = time.GetUtcNow().UtcDateTime;
         var settings = options.Value;
         var list = await ListAsync(null, ct);
-        return list.Versions
-            .Where(w => SearchBackoff.IsDue(w.Row.LastSearchAt, w.Row.SearchAttempts, settings, now))
-            .OrderBy(w => w.Row.LastSearchAt ?? DateTime.MinValue)
-            .ThenBy(w => w.Row.MovieId)
+        return LeastRecentlySearchedFirst(list.Versions.Where(w => SearchBackoff.IsDue(w.Row.LastSearchAt, w.Row.SearchAttempts, settings, now)))
             .Take(Math.Max(1, batchSize))
             .Select(w => w.Row.VersionId)
             .ToList();
     }
+
+    /// <summary>Every wanted version, the least recently searched first: the order of Radarr's missing and cutoff-unmet searches.</summary>
+    public async Task<List<int>> LeastRecentlySearchedAsync(WantedFilter? filter, CancellationToken ct) =>
+        LeastRecentlySearchedFirst((await ListAsync(filter, ct)).Versions).Select(w => w.Row.VersionId).ToList();
+
+    /// <summary>Never searched first, then the oldest search; the film id breaks ties, the list order the rest (default version first).</summary>
+    private static IEnumerable<WantedVersion> LeastRecentlySearchedFirst(IEnumerable<WantedVersion> versions) =>
+        versions.OrderBy(w => w.Row.LastSearchAt ?? DateTime.MinValue).ThenBy(w => w.Row.MovieId);
 
     public static string CutoffName(QualityProfile profile, IReadOnlyDictionary<int, QualityDefinition> definitions)
     {

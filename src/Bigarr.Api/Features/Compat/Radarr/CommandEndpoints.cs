@@ -37,7 +37,8 @@ public sealed class CompatCommandLog
 
 /// <summary>
 /// <c>POST /command</c> (§7.2, §7.3): Seerr sends <c>MoviesSearch</c> after an add and <c>RefreshMonitoredDownloads</c>, Bazarr
-/// <c>RescanMovie</c> after a subtitle. Movie ids are version ids and are filtered by the key's view like everything else.
+/// <c>RescanMovie</c> after a subtitle; dashboards and mobile apps send the Wanted page's "search all" commands. Movie ids
+/// are version ids and are filtered by the key's view like everything else.
 /// </summary>
 public static class CommandEndpoints
 {
@@ -91,12 +92,10 @@ public static class CommandEndpoints
             }
 
             case "missingmoviessearch":
-            {
-                var visible = await library.VisibleVersionIdsAsync(view, ct);
-                var page = await wanted.PageAsync(WantedFilter.Missing, 1, 1000, ct);
-                var queued = page.Items.Count(item => visible.Contains(item.VersionId) && searches.TryEnqueue(item.VersionId, SearchTrigger.User));
-                return RadarrCompat.Created(log.Record("MissingMoviesSearch", body, "queued", $"{queued} version(s) queued for search", now));
-            }
+                return RadarrCompat.Created(log.Record("MissingMoviesSearch", body, "queued", await SearchWantedAsync(WantedFilter.Missing), now));
+
+            case "cutoffunmetmoviessearch":
+                return RadarrCompat.Created(log.Record("CutoffUnmetMoviesSearch", body, "queued", await SearchWantedAsync(WantedFilter.CutoffUnmet), now));
 
             case "refreshmovie":
             {
@@ -127,6 +126,16 @@ public static class CommandEndpoints
 
             default:
                 return RadarrCompat.BadRequest("Name", $"Unknown command '{name}'.");
+        }
+
+        // Like Radarr's: every wanted version the key sees, the least recently searched first, with no cap. The runner
+        // searches one at a time within each indexer's rate limit, so a long list is a slow trickle, not a burst.
+        async Task<string> SearchWantedAsync(WantedFilter filter)
+        {
+            var visible = await library.VisibleVersionIdsAsync(view, ct);
+            var versionIds = await wanted.LeastRecentlySearchedAsync(filter, ct);
+            var queued = versionIds.Count(id => visible.Contains(id) && searches.TryEnqueue(id, SearchTrigger.User));
+            return $"{queued} version(s) queued for search";
         }
     }
 }
