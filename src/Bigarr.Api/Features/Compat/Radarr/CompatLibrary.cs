@@ -43,7 +43,8 @@ public sealed class CompatLibrary(MovieService movies)
         };
     }
 
-    private static Expression<Func<MovieVersion, bool>> Predicate(CompatView view) => view.Kind switch
+    /// <summary>The versions the view shows, as a predicate the database evaluates.</summary>
+    public static Expression<Func<MovieVersion, bool>> Predicate(CompatView view) => view.Kind switch
     {
         CompatViewKind.Default => v => v.IsDefault,
         CompatViewKind.All => v => true,

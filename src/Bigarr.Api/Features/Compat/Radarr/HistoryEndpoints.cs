@@ -19,24 +19,22 @@ public static class HistoryEndpoints
     }
 
     private static async Task<JsonHttpResult<RadarrPage<RadarrHistoryRecord>>> PageAsync(
-        HttpRequest http, ClaimsPrincipal user, CompatLibrary library, HistoryService history, CancellationToken ct,
+        HttpRequest http, ClaimsPrincipal user, HistoryService history, CancellationToken ct,
         int page = 1, int pageSize = 20, string sortKey = "date", string sortDirection = "descending")
     {
-        var visible = await library.VisibleVersionIdsAsync(user.CompatView(), ct);
-        var movieIds = Ints(http.Query["movieIds"]).Concat(Ints(http.Query["movieId"])).Where(visible.Contains).ToList();
-        var types = Types(http.Query["eventType"]);
+        // The journal is per target: the key's view and the requested ids both land on the event's version, and the database
+        // counts and pages. A request for ids the key does not see matches nothing (it does not widen to the whole view).
+        var requested = Ints(http.Query["movieIds"]).Concat(Ints(http.Query["movieId"])).ToList();
+        var filter = new HistoryFilter(
+            VersionIds: requested.Count == 0 ? null : requested,
+            EventTypes: EnumTypes(Types(http.Query["eventType"])),
+            TargetVersions: CompatLibrary.Predicate(user.CompatView()));
 
-        // Every version the key sees: the journal filter is per target, so one query per page of versions would not do.
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 1000);
-        var events = await history.ListAsync(new HistoryFilter(), int.MaxValue, ct);
-        var rows = events
-            .Where(h => h.TargetId is { } target && visible.Contains(target) && (movieIds.Count == 0 || movieIds.Contains(target)))
-            .Select(ToResource)
-            .Where(r => types.Count == 0 || types.Contains(r.EventType))
-            .ToList();
-        var ordered = sortDirection.StartsWith("asc", StringComparison.OrdinalIgnoreCase) ? rows.OrderBy(r => r.Date).ThenBy(r => r.Id).ToList() : rows.OrderByDescending(r => r.Date).ThenByDescending(r => r.Id).ToList();
-        return RadarrCompat.Ok(new RadarrPage<RadarrHistoryRecord>(page, pageSize, sortKey, sortDirection, ordered.Count, ordered.Skip((page - 1) * pageSize).Take(pageSize).ToList()));
+        var ascending = sortDirection.StartsWith("asc", StringComparison.OrdinalIgnoreCase);
+        var result = await history.PageAsync(filter, page, pageSize, ascending, ct);
+        return RadarrCompat.Ok(new RadarrPage<RadarrHistoryRecord>(page, pageSize, sortKey, sortDirection, result.Total, result.Events.Select(ToResource).ToList()));
     }
 
     /// <summary>Radarr's unpaged variant: the whole history of one movie (version), newest first.</summary>
@@ -49,10 +47,13 @@ public static class HistoryEndpoints
             return TypedResults.NotFound();
         }
 
-        var types = Types(http.Query["eventType"]);
-        var events = await history.ListAsync(new HistoryFilter(VersionId: movieId), 500, ct);
-        return RadarrCompat.Ok(events.Select(ToResource).Where(r => types.Count == 0 || types.Contains(r.EventType)).ToList());
+        var events = await history.ListAsync(new HistoryFilter(VersionId: movieId, EventTypes: EnumTypes(Types(http.Query["eventType"]))), 500, ct);
+        return RadarrCompat.Ok(events.Select(ToResource).ToList());
     }
+
+    /// <summary>The journal's event types behind Radarr's names, or null for "no filter". Names nobody maps to match nothing.</summary>
+    private static List<HistoryEventType>? EnumTypes(HashSet<string> names) =>
+        names.Count == 0 ? null : Enum.GetValues<HistoryEventType>().Where(t => names.Contains(EventType(t))).ToList();
 
     private static IEnumerable<int> Ints(Microsoft.Extensions.Primitives.StringValues values) =>
         values.SelectMany(v => (v ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)).Select(v => int.TryParse(v, out var i) ? i : (int?)null).Where(i => i is not null).Select(i => i!.Value);
