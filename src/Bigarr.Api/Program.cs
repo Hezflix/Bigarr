@@ -33,7 +33,6 @@ using Bigarr.Api.Infrastructure.MediaServers;
 using Bigarr.Api.Infrastructure.RadarrImport;
 using Bigarr.Api.Infrastructure.Media;
 using Bigarr.Api.Infrastructure.Metadata;
-using Bigarr.Api.Infrastructure.Http;
 using Bigarr.Api.Infrastructure.Persistence;
 using Microsoft.AspNetCore.HttpOverrides;
 
