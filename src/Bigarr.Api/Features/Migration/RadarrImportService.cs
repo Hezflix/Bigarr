@@ -619,7 +619,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
     /// profile's qualities, cutoff, score thresholds and format scores (formats matched by name; none is created here), so
     /// Bigarr judges with Radarr's settings and the comparison stays fair. Returns the names of the profiles that changed.
     /// </summary>
-    public async Task<List<string>> AlignProfilesAsync(RadarrImportRequest request, RadarrFollowData data, CancellationToken ct)
+    public async Task<List<string>> AlignProfilesAsync(RadarrImportRequest request, RadarrFollowData data, Dictionary<int, int>? filmsPerProfile, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(data);
@@ -628,7 +628,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
             .GroupBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
         var qualityIds = await db.QualityDefinitions.AsNoTracking().Select(q => q.Id).ToListAsync(ct);
-        var films = data.Movies.GroupBy(m => m.QualityProfileId).ToDictionary(g => g.Key, g => g.Count());
+        var films = filmsPerProfile ?? FilmsPerProfile(data.Movies);
         var changed = new List<string>();
         foreach (var group in (request.ProfileMap ?? []).GroupBy(kv => kv.Value))
         {
@@ -664,6 +664,10 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         db.ChangeTracker.Clear();
         return changed;
     }
+
+    /// <summary>How many films each Radarr profile holds, which tells the profile of most films apart when several map to one.</summary>
+    public static Dictionary<int, int> FilmsPerProfile(IEnumerable<RadarrMovie> movies) =>
+        movies.GroupBy(m => m.QualityProfileId).ToDictionary(g => g.Key, g => g.Count());
 
     /// <summary>The Radarr profiles mapped to one Bigarr profile, the one holding the most films first.</summary>
     private static List<RadarrProfile> Sources(IEnumerable<int> radarrProfileIds, List<RadarrProfile> profiles, Dictionary<int, int> films) =>

@@ -32,6 +32,7 @@ using Bigarr.Api.Infrastructure.MediaServers;
 using Bigarr.Api.Infrastructure.RadarrImport;
 using Bigarr.Api.Infrastructure.Media;
 using Bigarr.Api.Infrastructure.Metadata;
+using Bigarr.Api.Infrastructure.Http;
 using Bigarr.Api.Infrastructure.Persistence;
 using Microsoft.AspNetCore.HttpOverrides;
 
@@ -124,6 +125,9 @@ builder.Services.AddScoped<IScheduledJob, BackupJob>();
 // The Radarr-compatible surface (blueprint §7): /api/v3 behind API keys, /signalr/messages, /MediaCover.
 builder.Services.AddRadarrCompat();
 
+// Every outgoing HttpClient accepts gzip/deflate/brotli answers.
+builder.Services.AddOutgoingDecompression();
+
 // Moving in from Radarr (M8): one background import at a time, reading Radarr's v3 API.
 builder.Services.AddHttpClient(RadarrClient.HttpClientName, http => http.Timeout = TimeSpan.FromSeconds(120));
 builder.Services.AddSingleton<RadarrClient>();
@@ -132,6 +136,7 @@ builder.Services.AddSingleton<RadarrImportRunner>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<RadarrImportRunner>());
 
 // Shadow mode: the Radarrs Bigarr follows (history, grabs, library) to compare its picks with what they grab.
+builder.Services.AddSingleton<RadarrFollowMemory>();
 builder.Services.AddScoped<RadarrFollower>();
 builder.Services.AddScoped<FollowedRadarrService>();
 builder.Services.AddSingleton<RadarrFollowWakeups>();

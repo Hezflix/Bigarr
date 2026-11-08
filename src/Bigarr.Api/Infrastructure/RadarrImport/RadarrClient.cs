@@ -184,6 +184,19 @@ public sealed class RadarrClient(IHttpClientFactory httpClientFactory)
     public Task<List<RadarrMovie>> MoviesAsync(RadarrConnection connection, CancellationToken ct) =>
         GetAsync<List<RadarrMovie>>(connection, "/movie", ct);
 
+    /// <summary>One film of the library, or null when Radarr no longer has it.</summary>
+    public async Task<RadarrMovie?> MovieAsync(RadarrConnection connection, int id, CancellationToken ct)
+    {
+        try
+        {
+            return await GetAsync<RadarrMovie>(connection, $"/movie/{id}", ct);
+        }
+        catch (RadarrUnavailableException ex) when (ex.Message.Contains("404", StringComparison.Ordinal))
+        {
+            return null;
+        }
+    }
+
     /// <summary>Import exclusions; an older Radarr without the route answers with an empty list rather than a failure.</summary>
     public async Task<List<RadarrExclusion>> ExclusionsAsync(RadarrConnection connection, CancellationToken ct)
     {
