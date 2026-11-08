@@ -339,7 +339,7 @@ public sealed class RadarrFollower(
                 CustomFormats = (record.CustomFormats ?? []).Select(f => f.Name).Where(n => !string.IsNullOrWhiteSpace(n)).Cast<string>().ToList(),
                 // The score Radarr gave when it grabbed; the resource's own field is recomputed with today's profile.
                 CustomFormatScore = int.TryParse(Raw("customFormatScore"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var score) ? score : record.CustomFormatScore,
-                BigarrVerdict = await judge.JudgeAsync(movie.TmdbId, follow.VersionName, release, ct),
+                BigarrVerdict = await judge.JudgeAsync(movie.TmdbId, follow.VersionName, release, grabbedAt, ct),
             });
             added++;
         }

@@ -5,8 +5,9 @@ namespace Bigarr.Domain.Shadow;
 
 /// <summary>
 /// What Bigarr would have sent to a download client while it runs in shadow mode next to Radarr: one row per version
-/// and release, however often the release is picked again. A pick changes nothing about the version: the version only
-/// moves when the Radarr it follows grabs and imports. The film and version are snapshotted (TMDB id, title, version
+/// and release, however often the release is picked again. A pick changes nothing stored about the version: the version
+/// only moves when the Radarr it follows grabs and imports. Grab decisions, though, take a version's latest pick as the
+/// file it would have become, so a later release is only picked when it upgrades it. The film and version are snapshotted (TMDB id, title, version
 /// name) so the row keeps its meaning, and its pairing with Radarr's grabs, after a deletion.
 /// </summary>
 public sealed class ShadowPick

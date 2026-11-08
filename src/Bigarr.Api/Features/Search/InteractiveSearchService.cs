@@ -56,7 +56,7 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
         logger.LogInformation("Interactive search for {Movie}{Query}: {Releases} release(s) from {Indexers} indexer(s) in {Elapsed} ms",
             movie.Title, query is null ? string.Empty : $" by text '{query}'", results.Sum(r => r.Releases.Count), indexers.Count, stopwatch.ElapsedMilliseconds);
 
-        var targets = await contexts.BuildAsync(movie, versions, ct);
+        var targets = await contexts.BuildForGrabAsync(movie, versions, ct);
         var calculator = await scorer.CalculatorAsync(ct);
         var minimumSeeders = indexers.ToDictionary(i => i.Id, i => i.MinimumSeeders);
 

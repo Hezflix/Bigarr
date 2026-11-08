@@ -91,11 +91,13 @@ public sealed class ShadowModeTests(ShadowApiFactory factory) : IClassFixture<Sh
             Assert.Null(recorded.GrabId);
             Assert.Equal(picked.Single(p => p.Movie!.Id == matrix.Id).ShadowPickId, recorded.ShadowPickId);
 
-            // An automatic search: the version is still wanted (a pick changes nothing), its best release is picked again.
+            // An automatic search: the version is still wanted (a pick changes nothing stored), and what the search finds is
+            // judged against the RSS pick, the file Bigarr would have had: only a release better than it is picked.
             var searched = (await (await client.PostAsync($"/api/v1/movies/{inception.Id}/search", null)).Content.ReadFromJsonAsync<List<AutomaticSearchResult>>(Json))!;
             var outcome = Assert.Single(searched);
             Assert.Equal(AutomaticSearchOutcome.Picked, outcome.Outcome);
             Assert.Null(outcome.GrabId);
+            Assert.NotEqual(picked.Single(p => p.Movie!.Id == inception.Id).Title, outcome.ReleaseTitle);
 
             using (var scope = factory.Services.CreateScope())
             {

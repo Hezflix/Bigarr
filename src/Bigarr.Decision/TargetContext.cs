@@ -8,6 +8,12 @@ public sealed record ExistingFile(int QualityId, int RevisionVersion, int Revisi
 {
     /// <summary>Custom formats the file matches, evaluated at read time like a release's.</summary>
     public IReadOnlyList<int> CustomFormatIds { get; init; } = [];
+
+    /// <summary>
+    /// Shadow mode: not a file on disk but a release Bigarr picked, standing in for the file it would have become had it
+    /// been grabbed. Only changes how the reasons name it.
+    /// </summary>
+    public bool IsPick { get; init; }
 }
 
 /// <summary>
