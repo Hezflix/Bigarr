@@ -40,7 +40,7 @@ public sealed class FileFormatMatchesTests
     }
 
     [Fact]
-    public void Retain_forgets_the_files_no_longer_judged()
+    public void Retain_forgets_the_files_not_listed()
     {
         var matches = new FileFormatMatches();
         foreach (var id in new[] { 1, 2, 3 })

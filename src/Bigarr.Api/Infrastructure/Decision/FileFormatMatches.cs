@@ -35,7 +35,11 @@ public sealed class FileFormatMatches
         return ids;
     }
 
-    /// <summary>Forgets every file but these: called with all the files a full pass judged, it drops deleted and replaced ones.</summary>
+    /// <summary>
+    /// Forgets every file but these. Callers pass every file that still exists, not only the files they judged: the
+    /// Wanted list and the library list share these entries and each judges files the other skips. So the cache never
+    /// holds more than one entry per file in the library.
+    /// </summary>
     public void Retain(IReadOnlySet<int> fileIds)
     {
         ArgumentNullException.ThrowIfNull(fileIds);
