@@ -1,8 +1,8 @@
 using Bigarr.Api.Features.Server.Tasks;
 using Bigarr.Api.Infrastructure.Decision;
-using Bigarr.Api.Infrastructure.Matching;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Decision;
+using Bigarr.Decision.CustomFormats;
 using Bigarr.Domain.Movies;
 using Bigarr.Domain.Quality;
 using Microsoft.EntityFrameworkCore;
@@ -13,99 +13,37 @@ namespace Bigarr.Api.Features.Search;
 /// <summary>
 /// What the library still wants (blueprint §5, job cutoff unmet): managed monitored versions, available, without an
 /// active download, that have no file or a file below their profile's cutoff. Computed, not stored (§8).
+/// SQL keeps the versions that can be wanted, as light rows; availability and the cutoff are judged in memory. A file's
+/// custom formats are matched only when its score decides the verdict or is shown, and remembered between requests
+/// (<see cref="FileFormatMatches"/>): judging every file again for each page made the list slow on a large library.
 /// </summary>
-public sealed class WantedService(BigarrDbContext db, TargetContextFactory contexts, CustomFormatScorer scorer, IOptions<SearchOptions> options, TimeProvider time)
+public sealed class WantedService(BigarrDbContext db, CustomFormatScorer scorer, FileFormatMatches matches, IOptions<SearchOptions> options, TimeProvider time)
 {
-    public async Task<List<WantedItemResponse>> AllAsync(WantedFilter? filter, CancellationToken ct)
-    {
-        var movies = await contexts.MoviesWithVersions().ToListAsync(ct);
-        var active = (await db.GrabTargets.AsNoTracking().Where(t => t.Active).Select(t => t.TargetId).ToListAsync(ct)).ToHashSet();
-        var definitions = await db.QualityDefinitions.AsNoTracking().ToDictionaryAsync(q => q.Id, ct);
-        var calculator = await scorer.CalculatorAsync(ct);
-        var today = DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime);
-        var settings = options.Value;
-
-        var items = new List<WantedItemResponse>();
-        foreach (var movie in movies.OrderBy(m => m.SortTitle).ThenBy(m => m.Year))
-        {
-            foreach (var version in movie.Versions.OrderByDescending(v => v.IsDefault).ThenBy(v => v.Id))
-            {
-                if (version.Mode != VersionMode.Managed || !version.Monitored || active.Contains(version.Id) || !Availability.IsAvailable(movie, version.MinimumAvailability, today))
-                {
-                    continue;
-                }
-
-                var profile = version.QualityProfile;
-                WantedFilter kind;
-                string? currentQuality = null;
-                int? currentScore = null;
-                if (version.File is null)
-                {
-                    kind = WantedFilter.Missing;
-                }
-                else
-                {
-                    if (!profile.UpgradeAllowed)
-                    {
-                        continue;
-                    }
-
-                    var file = version.File;
-                    var matched = calculator.Match(CustomFormatScorer.FileInput(file.OriginalReleaseTitle, file.RelativePath, file.Size, file.IndexerFlags, file.Quality, file.Languages, file.Edition, file.ReleaseGroup, movie.Year, movie.OriginalLanguage));
-                    currentScore = ProfileRanking.FormatScore(profile, matched.Select(m => m.Id));
-                    currentQuality = file.Quality?.Name ?? definitions.GetValueOrDefault(file.QualityId)?.Name;
-                    if (ProfileRanking.CutoffMet(profile, file.QualityId) && currentScore >= profile.CutoffFormatScore)
-                    {
-                        continue;
-                    }
-
-                    kind = WantedFilter.CutoffUnmet;
-                }
-
-                if (filter is not null && filter != kind)
-                {
-                    continue;
-                }
-
-                items.Add(new WantedItemResponse(
-                    movie.Id,
-                    movie.Title,
-                    movie.Year,
-                    movie.Images.FirstOrDefault(i => i.Type == ImageType.Poster)?.RemoteUrl,
-                    version.Id,
-                    version.Name,
-                    profile.Name,
-                    kind,
-                    currentQuality,
-                    currentScore,
-                    CutoffName(profile, definitions),
-                    version.LastSearchAt,
-                    version.SearchAttempts,
-                    SearchBackoff.NextAllowed(version.LastSearchAt, version.SearchAttempts, settings)));
-            }
-        }
-
-        return items;
-    }
-
     public async Task<WantedPageResponse> PageAsync(WantedFilter? filter, int page, int pageSize, CancellationToken ct)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
-        var all = await AllAsync(filter, ct);
-        return new WantedPageResponse(all.Skip((page - 1) * pageSize).Take(pageSize).ToList(), all.Count, page, pageSize);
+        var list = await ListAsync(filter, ct);
+        var items = await ItemsAsync(list, list.Versions.Skip((page - 1) * pageSize).Take(pageSize).ToList(), ct);
+        return new WantedPageResponse(items, list.Versions.Count, page, pageSize);
     }
 
+    /// <summary>Every wanted version, in the list's order.</summary>
+    public async Task<List<int>> VersionIdsAsync(WantedFilter? filter, CancellationToken ct) =>
+        (await ListAsync(filter, ct)).Versions.Select(w => w.Row.VersionId).ToList();
+
     /// <summary>The versions the cutoff-unmet job searches this pass: due ones, the longest-unsearched first, bounded.</summary>
-    public async Task<List<WantedItemResponse>> DueAsync(int batchSize, CancellationToken ct)
+    public async Task<List<int>> DueAsync(int batchSize, CancellationToken ct)
     {
         var now = time.GetUtcNow().UtcDateTime;
-        var all = await AllAsync(null, ct);
-        return all
-            .Where(w => w.NextSearchAt is null || w.NextSearchAt <= now)
-            .OrderBy(w => w.LastSearchAt ?? DateTime.MinValue)
-            .ThenBy(w => w.MovieId)
+        var settings = options.Value;
+        var list = await ListAsync(null, ct);
+        return list.Versions
+            .Where(w => SearchBackoff.IsDue(w.Row.LastSearchAt, w.Row.SearchAttempts, settings, now))
+            .OrderBy(w => w.Row.LastSearchAt ?? DateTime.MinValue)
+            .ThenBy(w => w.Row.MovieId)
             .Take(Math.Max(1, batchSize))
+            .Select(w => w.Row.VersionId)
             .ToList();
     }
 
@@ -119,6 +57,192 @@ public sealed class WantedService(BigarrDbContext db, TargetContextFactory conte
         }
 
         return definitions.GetValueOrDefault(profile.Cutoff)?.Name ?? $"#{profile.Cutoff}";
+    }
+
+    /// <summary>The whole list in order: films by sort title then year, the default version first.</summary>
+    private async Task<WantedList> ListAsync(WantedFilter? filter, CancellationToken ct)
+    {
+        var versions = db.MovieVersions.AsNoTracking()
+            .Where(v => v.Mode == VersionMode.Managed && v.Monitored)
+            .Where(v => !db.GrabTargets.Any(t => t.Active && t.TargetId == v.Id))
+            .Where(v => v.File == null || v.QualityProfile.UpgradeAllowed);
+        versions = filter switch
+        {
+            WantedFilter.Missing => versions.Where(v => v.File == null),
+            WantedFilter.CutoffUnmet => versions.Where(v => v.File != null),
+            _ => versions,
+        };
+
+        var rows = await versions
+            .Select(v => new VersionRow(
+                v.Id,
+                v.MovieId,
+                v.Name,
+                v.IsDefault,
+                v.MinimumAvailability,
+                v.QualityProfileId,
+                v.LastSearchAt,
+                v.SearchAttempts,
+                v.Movie.SortTitle,
+                v.Movie.Year,
+                v.Movie.TmdbStatus,
+                v.Movie.InCinemasDate,
+                v.Movie.DigitalReleaseDate,
+                v.Movie.PhysicalReleaseDate,
+                v.File == null
+                    ? null
+                    : new FileRow(
+                        v.File.Id,
+                        new FileFormatInput(
+                            v.File.OriginalReleaseTitle,
+                            v.File.RelativePath,
+                            v.File.Size,
+                            v.File.IndexerFlags,
+                            v.File.QualityId,
+                            v.File.Languages,
+                            v.File.Edition,
+                            v.File.ReleaseGroup,
+                            v.Movie.Year,
+                            v.Movie.OriginalLanguage))))
+            .ToListAsync(ct);
+
+        var profiles = await db.QualityProfiles.AsNoTracking().Include(p => p.FormatScores).ToDictionaryAsync(p => p.Id, ct);
+        var definitions = await db.QualityDefinitions.AsNoTracking().ToDictionaryAsync(q => q.Id, ct);
+        var formats = rows.Any(r => r.File is not null) ? new Formats(await scorer.CalculatorAsync(ct), await scorer.SignatureAsync(ct)) : null;
+        var list = new WantedList([], profiles, definitions, formats, matches);
+        var ranges = profiles.Values.ToDictionary(p => p.Id, ScoreRange);
+        var today = DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime);
+
+        // In memory, with the comparer the list always sorted with (SQLite's would order accents and spaces differently);
+        // films sharing a sort title and a year keep the id order the full load gave them.
+        foreach (var row in rows.OrderBy(r => r.SortTitle).ThenBy(r => r.Year).ThenBy(r => r.MovieId).ThenByDescending(r => r.IsDefault).ThenBy(r => r.VersionId))
+        {
+            // The availability rules only read the status and the release dates.
+            var movie = new Movie
+            {
+                Title = string.Empty,
+                SortTitle = row.SortTitle,
+                TmdbStatus = row.TmdbStatus,
+                InCinemasDate = row.InCinemasDate,
+                DigitalReleaseDate = row.DigitalReleaseDate,
+                PhysicalReleaseDate = row.PhysicalReleaseDate,
+            };
+            if (!Availability.IsAvailable(movie, row.MinimumAvailability, today))
+            {
+                continue;
+            }
+
+            if (row.File is null)
+            {
+                list.Versions.Add(new WantedVersion(row, WantedFilter.Missing, null));
+                continue;
+            }
+
+            var profile = profiles[row.QualityProfileId];
+            int? score = null;
+            if (ProfileRanking.CutoffMet(profile, row.File.Input.QualityId))
+            {
+                // At the cutoff quality the score decides, unless no score this profile gives can fall on the other side.
+                var (lowest, highest) = ranges[profile.Id];
+                if (profile.CutoffFormatScore <= lowest)
+                {
+                    continue;
+                }
+
+                if (profile.CutoffFormatScore <= highest)
+                {
+                    score = list.Score(row.File, profile);
+                    if (score >= profile.CutoffFormatScore)
+                    {
+                        continue;
+                    }
+                }
+            }
+
+            list.Versions.Add(new WantedVersion(row, WantedFilter.CutoffUnmet, score));
+        }
+
+        if (filter != WantedFilter.Missing)
+        {
+            // Every file a version could be wanted for was judged: the others were deleted, replaced or stopped counting.
+            matches.Retain(rows.Where(r => r.File is not null).Select(r => r.File!.Id).ToHashSet());
+        }
+
+        return list;
+    }
+
+    private async Task<List<WantedItemResponse>> ItemsAsync(WantedList list, List<WantedVersion> versions, CancellationToken ct)
+    {
+        var movieIds = versions.Select(w => w.Row.MovieId).Distinct().ToList();
+        var movies = await db.Movies.AsNoTracking()
+            .Where(m => movieIds.Contains(m.Id))
+            .Select(m => new { m.Id, m.Title, m.Images })
+            .ToDictionaryAsync(m => m.Id, ct);
+        var settings = options.Value;
+
+        return versions.Select(w =>
+        {
+            var row = w.Row;
+            var movie = movies[row.MovieId];
+            var profile = list.Profiles[row.QualityProfileId];
+            return new WantedItemResponse(
+                row.MovieId,
+                movie.Title,
+                row.Year,
+                movie.Images.FirstOrDefault(i => i.Type == ImageType.Poster)?.RemoteUrl,
+                row.VersionId,
+                row.VersionName,
+                profile.Name,
+                w.Kind,
+                row.File is null ? null : list.Definitions.GetValueOrDefault(row.File.Input.QualityId)?.Name,
+                row.File is null ? null : w.Score ?? list.Score(row.File, profile),
+                CutoffName(profile, list.Definitions),
+                row.LastSearchAt,
+                row.SearchAttempts,
+                SearchBackoff.NextAllowed(row.LastSearchAt, row.SearchAttempts, settings));
+        }).ToList();
+    }
+
+    /// <summary>The lowest and highest score a file can get from the profile: every negative format matched, or every positive one.</summary>
+    private static (int Lowest, int Highest) ScoreRange(QualityProfile profile) =>
+        (profile.FormatScores.Where(s => s.Score < 0).Sum(s => s.Score), profile.FormatScores.Where(s => s.Score > 0).Sum(s => s.Score));
+
+    private sealed record VersionRow(
+        int VersionId,
+        int MovieId,
+        string VersionName,
+        bool IsDefault,
+        MinimumAvailability MinimumAvailability,
+        int QualityProfileId,
+        DateTime? LastSearchAt,
+        int SearchAttempts,
+        string SortTitle,
+        int? Year,
+        MovieStatus TmdbStatus,
+        DateOnly? InCinemasDate,
+        DateOnly? DigitalReleaseDate,
+        DateOnly? PhysicalReleaseDate,
+        FileRow? File);
+
+    private sealed record FileRow(int Id, FileFormatInput Input);
+
+    /// <summary>A wanted version; the score is there when the verdict needed it.</summary>
+    private sealed record WantedVersion(VersionRow Row, WantedFilter Kind, int? Score);
+
+    private sealed record Formats(CustomFormatCalculator Calculator, string Signature);
+
+    private sealed record WantedList(
+        List<WantedVersion> Versions,
+        Dictionary<int, QualityProfile> Profiles,
+        Dictionary<int, QualityDefinition> Definitions,
+        Formats? Formats,
+        FileFormatMatches Matches)
+    {
+        public int Score(FileRow file, QualityProfile profile)
+        {
+            var matched = Matches.Match(file.Id, file.Input, Definitions.GetValueOrDefault(file.Input.QualityId), Formats!.Calculator, Formats.Signature);
+            return ProfileRanking.FormatScore(profile, matched);
+        }
     }
 }
 
@@ -145,7 +269,7 @@ public sealed class CutoffUnmetSearchJob(WantedService wanted, AutomaticSearchSe
             return "Nothing due";
         }
 
-        var results = await search.SearchAsync(due.Select(d => d.VersionId).ToList(), SearchTrigger.CutoffUnmet, ct);
+        var results = await search.SearchAsync(due, SearchTrigger.CutoffUnmet, ct);
         var grabbed = results.Count(r => r.Outcome == AutomaticSearchOutcome.Grabbed);
         var picked = results.Count(r => r.Outcome == AutomaticSearchOutcome.Picked);
         var noIndexer = results.Count(r => r.Outcome == AutomaticSearchOutcome.NoIndexer);
