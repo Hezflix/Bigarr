@@ -128,7 +128,7 @@ public sealed class WantedEquivalenceTests
     }
 
     /// <summary>Both algorithms on every filter: pages walked to the end, the ids the search-all queues, the job's batch.</summary>
-    private static async Task<List<WantedItemResponse>> AssertSameAsync(ConfiguredBigarrApiFactory factory)
+    internal static async Task<List<WantedItemResponse>> AssertSameAsync(ConfiguredBigarrApiFactory factory)
     {
         // A scope per check: its scorer reads the formats again, as a new request does.
         using var scope = factory.Services.CreateScope();
@@ -248,7 +248,7 @@ public sealed class WantedEquivalenceTests
         return items;
     }
 
-    private static async Task EditAsync(ConfiguredBigarrApiFactory factory, Func<BigarrDbContext, Task> edit)
+    internal static async Task EditAsync(ConfiguredBigarrApiFactory factory, Func<BigarrDbContext, Task> edit)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
@@ -261,7 +261,7 @@ public sealed class WantedEquivalenceTests
     /// reach or cannot miss the cutoff, upgrades not allowed, unmonitored and one-shot versions, active and finished grabs,
     /// several versions per film, accented and tied sort titles, a film without a year.
     /// </summary>
-    private static async Task SeedAsync(ConfiguredBigarrApiFactory factory)
+    internal static async Task SeedAsync(ConfiguredBigarrApiFactory factory)
     {
         var random = new Random(20261108);
         await EditAsync(factory, async db =>
@@ -413,5 +413,5 @@ public sealed class WantedEquivalenceTests
     private static IEnumerable<int> Scored(List<WantedItemResponse> listed) =>
         listed.Where(i => i.Kind == WantedFilter.CutoffUnmet && i.QualityProfile == "HD scored").Select(i => i.VersionId);
 
-    private static string Specifications(string json) => CustomFormatJson.SerializeSpecifications(CustomFormatJson.ParseMany(json)[0].Specifications);
+    internal static string Specifications(string json) => CustomFormatJson.SerializeSpecifications(CustomFormatJson.ParseMany(json)[0].Specifications);
 }

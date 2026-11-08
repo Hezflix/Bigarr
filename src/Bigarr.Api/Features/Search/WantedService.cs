@@ -169,8 +169,8 @@ public sealed class WantedService(BigarrDbContext db, CustomFormatScorer scorer,
 
         if (filter != WantedFilter.Missing)
         {
-            // Every file a version could be wanted for was judged: the others were deleted, replaced or stopped counting.
-            matches.Retain(rows.Where(r => r.File is not null).Select(r => r.File!.Id).ToHashSet());
+            // Only files that no longer exist are forgotten: the library list remembers files this list never judges.
+            matches.Retain((await db.MediaFiles.AsNoTracking().Select(f => f.Id).ToListAsync(ct)).ToHashSet());
         }
 
         return list;
