@@ -17,7 +17,9 @@ public sealed record BigarrVerdict(
     string? AttributedVersion,
     /// <summary>The version's file when the release was judged, and its score.</summary>
     string? CurrentQuality,
-    int? CurrentScore);
+    int? CurrentScore,
+    /// <summary>The "file" was Bigarr's own latest pick, made before Radarr grabbed: the file Bigarr would have had.</summary>
+    bool CurrentIsPick = false);
 
 /// <summary>
 /// What a Radarr made of a release Bigarr picked: its own parse (<c>GET /api/v3/parse</c>: the film it maps the title

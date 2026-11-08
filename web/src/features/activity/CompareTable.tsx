@@ -313,7 +313,9 @@ function VerdictText({ grab, versionName }: { grab: CompareGrab; versionName: st
       </span>
       {verdict.customFormats.length > 0 && <Formats names={verdict.customFormats} score={null} />}
       <span className="text-muted-foreground">
-        {verdict.currentQuality ? t('compare.fileThen', { quality: verdict.currentQuality, score: verdict.currentScore ?? 0 }) : t('compare.noFileThen')}
+        {verdict.currentQuality
+          ? t(verdict.currentIsPick ? 'compare.pickThen' : 'compare.fileThen', { quality: verdict.currentQuality, score: verdict.currentScore ?? 0 })
+          : t('compare.noFileThen')}
       </span>
     </span>
   )

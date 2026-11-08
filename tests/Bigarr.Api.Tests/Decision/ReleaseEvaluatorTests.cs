@@ -205,6 +205,18 @@ public sealed class ReleaseEvaluatorTests
     }
 
     [Fact]
+    public void A_pick_standing_in_for_the_file_is_judged_the_same_and_named_as_a_pick()
+    {
+        var picked = new ExistingFile(ParserQuality.Bluray1080p.Id, 1, 0, false) { IsPick = true };
+
+        Assert.Contains(Evaluator.Evaluate(Candidate("The.Matrix.1999.1080p.WEB-DL.H.264-GRP"), Context(file: picked)).Rejections, r => r.Reason == "WEBDL-1080p is lower than the picked Bluray-1080p");
+        Assert.Contains(Evaluator.Evaluate(Candidate("The.Matrix.1999.1080p.BluRay.x264-GRP"), Context(file: picked)).Rejections, r => r.Reason == "Not an upgrade over the picked Bluray-1080p");
+        Assert.Contains(Evaluator.Evaluate(Candidate("The.Matrix.1999.1080p.BluRay.REMUX.AVC-GRP"), Context(file: picked)).Rejections, r => r.Reason == "Picked Bluray-1080p already meets the profile cutoff");
+        Assert.True(Evaluator.Evaluate(Candidate("The.Matrix.1999.PROPER.1080p.BluRay.x264-GRP"), Context(file: picked)).Approved);
+        Assert.Equal("One-shot version already has a pick", Assert.Single(Evaluator.Evaluate(Candidate("The.Matrix.1999.1080p.BluRay.x264-GRP"), Context(Version(VersionMode.OneShot), file: picked)).Rejections).Reason);
+    }
+
+    [Fact]
     public void One_shot_versions_and_frozen_profiles_never_upgrade()
     {
         var file = new ExistingFile(ParserQuality.WEBDL1080p.Id, 1, 0, false);

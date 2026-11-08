@@ -75,7 +75,7 @@ public sealed class AutomaticSearchService(
                 .Where(r => r.Parsed is not null && r.Mismatch is null)
                 .ToList();
 
-            var targets = await contexts.BuildAsync(movie, wanted, ct);
+            var targets = await contexts.BuildForGrabAsync(movie, wanted, ct);
             foreach (var context in targets)
             {
                 var version = (MovieVersion)context.Target;

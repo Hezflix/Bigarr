@@ -1531,6 +1531,8 @@ export type BigarrVerdict = {
   attributedVersion: string | null
   currentQuality: string | null
   currentScore: number | null
+  /** The version's "file" then was Bigarr's own latest pick: the file Bigarr would have had. */
+  currentIsPick: boolean
 }
 
 /** Radarr's parse of a release Bigarr picked, and the film's state in Radarr then. */

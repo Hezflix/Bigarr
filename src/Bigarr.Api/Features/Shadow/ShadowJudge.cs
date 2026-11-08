@@ -13,14 +13,15 @@ namespace Bigarr.Api.Features.Shadow;
 /// <summary>
 /// Runs a release Radarr grabbed through Bigarr's own parser, film matching and decision engine (the automatic rules,
 /// those of the RSS pass) for the version that follows that Radarr, against the library as it is now. Called when the
-/// grab is read, before the follow brings in Radarr's file, so the version is judged with the file it had then.
+/// grab is read, before the follow brings in Radarr's file, so the version is judged with the file it had then; or
+/// with Bigarr's own latest pick made before Radarr grabbed, the file Bigarr would have had by then.
 /// </summary>
 public sealed class ShadowJudge(BigarrDbContext db, TargetContextFactory contexts, CustomFormatScorer scorer)
 {
     private readonly ReleaseEvaluator _evaluator = ReleaseEvaluator.Automatic();
     private CustomFormatCalculator? _calculator;
 
-    public async Task<BigarrVerdict> JudgeAsync(int tmdbId, string versionName, ReleaseInfo release, CancellationToken ct)
+    public async Task<BigarrVerdict> JudgeAsync(int tmdbId, string versionName, ReleaseInfo release, DateTime grabbedAt, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(release);
 
@@ -47,7 +48,7 @@ public sealed class ShadowJudge(BigarrDbContext db, TargetContextFactory context
 
         var minimumSeeders = await db.Indexers.AsNoTracking().Where(i => i.Name == release.IndexerName).Select(i => (int?)i.MinimumSeeders).FirstOrDefaultAsync(ct) ?? 0;
         var candidate = new ReleaseCandidate(release, parsed, minimumSeeders) { CustomFormatIds = formats.Select(f => f.Id).ToList() };
-        var decisions = (await contexts.BuildAsync([movie], ct))[movie.Id].Select(context => _evaluator.Evaluate(candidate, context)).ToList();
+        var decisions = (await contexts.BuildForGrabAsync([movie], grabbedAt, ct))[movie.Id].Select(context => _evaluator.Evaluate(candidate, context)).ToList();
         var decision = decisions.First(d => ((MovieVersion)d.Target.Target).Name == versionName);
         var attributed = VersionAttribution.Choose(decisions);
 
@@ -61,7 +62,8 @@ public sealed class ShadowJudge(BigarrDbContext db, TargetContextFactory context
             quality,
             attributed is null ? null : ((MovieVersion)attributed.Target.Target).Name,
             file is null ? null : Bigarr.Parsing.Qualities.Quality.FindById(file.QualityId)?.Name,
-            file is null ? null : ProfileRanking.FormatScore(decision.Target.Profile, file.CustomFormatIds));
+            file is null ? null : ProfileRanking.FormatScore(decision.Target.Profile, file.CustomFormatIds),
+            file?.IsPick ?? false);
     }
 
     private static BigarrVerdict Unmatched(string reason) => new(reason, false, [], 0, [], null, null, null, null);

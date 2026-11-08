@@ -1368,6 +1368,7 @@
     "approved": "Bigarr would take it",
     "approvedElsewhere": "Bigarr would take it, for {{version}}",
     "fileThen": "The version had {{quality}} (score {{score}}) when Radarr grabbed.",
+    "pickThen": "Bigarr had already picked {{quality}} (score {{score}}) when Radarr grabbed: judged against that pick, the file Bigarr would have had.",
     "noFileThen": "The version had no file when Radarr grabbed.",
     "radarrSays": "Radarr's view",
     "notAskedYet": "Not shown to Radarr yet: the next pass of the follow asks it.",

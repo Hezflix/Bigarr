@@ -103,7 +103,7 @@ public sealed class RssSyncService(
         {
             var movies = await contexts.MoviesWithVersions().ToListAsync(ct);
             var library = LibraryIndex.Build(movies);
-            var targets = await contexts.BuildAsync(movies, ct);
+            var targets = await contexts.BuildForGrabAsync(movies, now, ct);
             var calculator = await scorer.CalculatorAsync(ct);
 
             // Oldest first so the newest ends up on top of the list.

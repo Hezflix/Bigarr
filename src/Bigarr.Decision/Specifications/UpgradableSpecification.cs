@@ -5,7 +5,8 @@ namespace Bigarr.Decision.Specifications;
 /// <summary>
 /// Is the release better than the file in place? Quality rank first, then proper/repack revision, then custom format
 /// score at equal rank, where the gain must reach <c>MinUpgradeFormatScore</c>. A file at the quality cutoff with a
-/// score at <c>CutoffFormatScore</c> wants nothing more, a proper or repack excepted (blueprint §3.6, §5).
+/// score at <c>CutoffFormatScore</c> wants nothing more, a proper or repack excepted (blueprint §3.6, §5). In shadow
+/// mode the "file" may be Bigarr's own pick, and the reasons say so.
 /// </summary>
 public sealed class UpgradableSpecification : IReleaseSpecification
 {
@@ -17,9 +18,12 @@ public sealed class UpgradableSpecification : IReleaseSpecification
             return null;
         }
 
+        var noun = file.IsPick ? "picked" : "existing";
+        var nounAtStart = file.IsPick ? "Picked" : "Existing";
+
         if (!target.Target.UpgradesAllowed)
         {
-            return new Rejection("One-shot version already has its file");
+            return new Rejection(file.IsPick ? "One-shot version already has a pick" : "One-shot version already has its file");
         }
 
         var newQuality = candidate.Parsed.Quality?.Quality;
@@ -35,7 +39,7 @@ public sealed class UpgradableSpecification : IReleaseSpecification
 
         if (newRank < currentRank)
         {
-            return new Rejection($"{newQuality.Name} is lower than the existing {currentName}");
+            return new Rejection($"{newQuality.Name} is lower than the {noun} {currentName}");
         }
 
         var currentRevision = new Revision(file.RevisionVersion, file.RevisionReal, file.IsRepack);
@@ -50,32 +54,32 @@ public sealed class UpgradableSpecification : IReleaseSpecification
         {
             if (revisionCompare < 0)
             {
-                return new Rejection($"Existing {currentName} is a newer revision");
+                return new Rejection($"{nounAtStart} {currentName} is a newer revision");
             }
 
             if (newScore == currentScore)
             {
                 return new Rejection(newScore == 0
-                    ? $"Not an upgrade over the existing {currentName}"
-                    : $"Not an upgrade over the existing {currentName}: same custom format score {currentScore}");
+                    ? $"Not an upgrade over the {noun} {currentName}"
+                    : $"Not an upgrade over the {noun} {currentName}: same custom format score {currentScore}");
             }
 
             if (newScore < currentScore)
             {
-                return new Rejection($"Custom format score {newScore} is lower than the existing {currentScore}");
+                return new Rejection($"Custom format score {newScore} is lower than the {noun} {currentScore}");
             }
         }
 
         if (!isRevisionUpgrade && ProfileRanking.CutoffMet(profile, file.QualityId) && currentScore >= profile.CutoffFormatScore)
         {
             return new Rejection(profile.CutoffFormatScore > 0 || currentScore != 0
-                ? $"Existing {currentName} already meets the profile cutoff (custom format score {currentScore})"
-                : $"Existing {currentName} already meets the profile cutoff");
+                ? $"{nounAtStart} {currentName} already meets the profile cutoff (custom format score {currentScore})"
+                : $"{nounAtStart} {currentName} already meets the profile cutoff");
         }
 
         if (!profile.UpgradeAllowed && !isRevisionUpgrade)
         {
-            return new Rejection($"Profile {profile.Name} does not allow upgrades and the version already has a file");
+            return new Rejection($"Profile {profile.Name} does not allow upgrades and the version already has {(file.IsPick ? "a pick" : "a file")}");
         }
 
         if (newRank > currentRank || isRevisionUpgrade)
