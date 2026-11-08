@@ -2,8 +2,9 @@ namespace Bigarr.Api.Features.Search;
 
 /// <summary>
 /// What the RSS loop has seen, in memory (blueprint §3.5 keeps the queue as a projection too): the last few hundred
-/// releases with their verdicts, the guids already processed so a release is judged once, and per-indexer health.
-/// Lost on restart on purpose; grabs and history will be the durable trace from M4 on.
+/// releases with their latest verdicts (one entry per release, however many passes judged it), the guids already
+/// seen so a pass can tell what is new, and per-indexer health. Lost on restart on purpose; grabs and history are the
+/// durable trace.
 /// </summary>
 public sealed class RssFeedState
 {
@@ -14,6 +15,7 @@ public sealed class RssFeedState
     private readonly Lock _lock = new();
     private readonly SemaphoreSlim _run = new(1, 1);
     private readonly LinkedList<RssReleaseResponse> _releases = [];
+    private readonly Dictionary<string, LinkedListNode<RssReleaseResponse>> _byKey = [];
     private readonly Dictionary<string, DateTime> _seen = [];
     private readonly Dictionary<int, RssIndexerStatusResponse> _indexers = [];
 
@@ -43,17 +45,46 @@ public sealed class RssFeedState
         }
     }
 
-    public void Add(RssReleaseResponse release)
+    /// <summary>
+    /// A release judged by this pass: a new one goes on top of the list; one already listed keeps its place and when it
+    /// was first seen, takes its new verdicts, and keeps the grab or pick an earlier pass made of it.
+    /// </summary>
+    public void Upsert(RssReleaseResponse release)
     {
+        ArgumentNullException.ThrowIfNull(release);
+
         lock (_lock)
         {
-            _releases.AddFirst(release);
+            var key = Key(release);
+            if (_byKey.TryGetValue(key, out var node))
+            {
+                node.Value = Merge(node.Value, release);
+                return;
+            }
+
+            _byKey[key] = _releases.AddFirst(release);
             while (_releases.Count > MaxReleases)
             {
+                _byKey.Remove(Key(_releases.Last!.Value));
                 _releases.RemoveLast();
             }
         }
     }
+
+    private static RssReleaseResponse Merge(RssReleaseResponse listed, RssReleaseResponse judged)
+    {
+        var sent = judged.GrabId is not null || judged.ShadowPickId is not null;
+        var sentBefore = listed.GrabId is not null || listed.ShadowPickId is not null;
+        return judged with
+        {
+            SeenAt = listed.SeenAt,
+            GrabId = sent ? judged.GrabId : listed.GrabId,
+            ShadowPickId = sent ? judged.ShadowPickId : listed.ShadowPickId,
+            GrabError = !sent && sentBefore ? null : judged.GrabError,
+        };
+    }
+
+    private static string Key(RssReleaseResponse release) => $"{release.IndexerId}:{release.Guid}";
 
     public void Prune(DateTime now)
     {

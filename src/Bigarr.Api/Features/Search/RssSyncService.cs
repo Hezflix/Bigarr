@@ -17,10 +17,13 @@ using ParserQuality = Bigarr.Parsing.Qualities.Quality;
 namespace Bigarr.Api.Features.Search;
 
 /// <summary>
-/// The main loop (blueprint §5): one feed request per indexer, every new release parsed, matched to a film of the
-/// library and judged by each of its versions with the automatic rules, attributed to one version, and the best
-/// release of the pass for each version sent to a download client. This is what fills the library day to day. In shadow
-/// mode the winner is recorded as a pick instead, and every release of the pass is kept as a sighting for the comparison.
+/// The main loop (blueprint §5): one feed request per indexer, every release of the feed parsed, matched to a film of
+/// the library and judged by each of its versions with the automatic rules, attributed to one version, and the best
+/// release of the pass for each version sent to a download client. This is what fills the library day to day. Like
+/// Radarr, a pass judges the whole feed again, not only what is new: a release turned down while its film was not
+/// available yet, unmonitored or had another file is taken as soon as that changes, as long as the feed still carries
+/// it. In shadow mode the winner is recorded as a pick instead, and every release is kept once as a sighting for the
+/// comparison.
 /// </summary>
 public sealed class RssSyncService(
     BigarrDbContext db,
@@ -79,18 +82,28 @@ public sealed class RssSyncService(
 
         var results = await IndexerQueries.RunAsync(indexers, (indexer, token) => gateway.FetchRecentAsync(indexer, token), ct);
 
-        var fresh = new List<(Indexer Indexer, ReleaseInfo Release)>();
+        // Every release of the feed is judged; "new" only says what this pass brought for the first time.
+        var feed = new List<(Indexer Indexer, ReleaseInfo Release)>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var fresh = 0;
         foreach (var result in results)
         {
             var newCount = 0;
             foreach (var release in result.Releases)
             {
+                if (!seen.Add($"{result.Indexer.Id}:{release.Guid}"))
+                {
+                    continue; // a feed that lists a release twice
+                }
+
+                feed.Add((result.Indexer, release));
                 if (state.MarkSeen(result.Indexer.Id, release.Guid, now))
                 {
-                    fresh.Add((result.Indexer, release));
                     newCount++;
                 }
             }
+
+            fresh += newCount;
 
             state.RecordIndexer(new RssIndexerStatusResponse(result.Indexer.Id, result.Indexer.Name, now, result.Error?.Message, result.Releases.Count, newCount));
         }
@@ -99,7 +112,7 @@ public sealed class RssSyncService(
         var wouldGrab = 0;
         var grabbed = 0;
         var picked = 0;
-        if (fresh.Count > 0)
+        if (feed.Count > 0)
         {
             var movies = await contexts.MoviesWithVersions().ToListAsync(ct);
             var library = LibraryIndex.Build(movies);
@@ -108,7 +121,7 @@ public sealed class RssSyncService(
 
             // Oldest first so the newest ends up on top of the list.
             var judged = new List<(RssReleaseResponse Entry, ReleaseInfo Release, int Score)>();
-            foreach (var (indexer, release) in fresh.OrderBy(f => f.Release.PublishDate))
+            foreach (var (indexer, release) in feed.OrderBy(f => f.Release.PublishDate))
             {
                 var (entry, score) = Judge(indexer, release, library, targets, calculator, now);
                 if (entry.Movie is not null)
@@ -164,7 +177,7 @@ public sealed class RssSyncService(
                         : entry with { GrabError = $"A better release of this pass was {(picked > 0 ? "picked" : "grabbed")} for {entry.AttributedVersionName}" };
                 }
 
-                state.Add(stored);
+                state.Upsert(stored);
             }
 
             if (sightings.Enabled)
@@ -179,9 +192,9 @@ public sealed class RssSyncService(
             .ToList();
 
         logger.LogInformation("RSS sync: {Indexers} indexer(s), {Fetched} release(s), {New} new, {Matched} matched, {WouldGrab} attributed, {Grabbed} grabbed, {Picked} picked in shadow mode, {Errors} error(s)",
-            indexers.Count, results.Sum(r => r.Releases.Count), fresh.Count, matched, wouldGrab, grabbed, picked, errors.Count);
+            indexers.Count, results.Sum(r => r.Releases.Count), fresh, matched, wouldGrab, grabbed, picked, errors.Count);
 
-        return new RssSyncResponse(indexers.Count, results.Sum(r => r.Releases.Count), fresh.Count, matched, wouldGrab, errors, grabbed, picked);
+        return new RssSyncResponse(indexers.Count, results.Sum(r => r.Releases.Count), fresh, matched, wouldGrab, errors, grabbed, picked);
     }
 
     private static string Key(RssReleaseResponse entry) => $"{entry.IndexerId}:{entry.Guid}";
