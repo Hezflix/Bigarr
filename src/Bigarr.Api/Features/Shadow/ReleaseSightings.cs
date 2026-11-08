@@ -27,7 +27,7 @@ public sealed class ReleaseSightings(BigarrDbContext db, IOptions<ShadowOptions>
             .Select(s => (s.IndexerName, s.Guid))
             .ToHashSet();
 
-        // A restart forgets which guids the feed already brought: the same release then comes back, and is not added twice.
+        // Every pass judges the whole feed again: a release is written down once, with the verdict of the first pass that saw it.
         foreach (var (entry, release, tmdbId) in batch)
         {
             if (!known.Add((entry.Indexer, entry.Guid)))

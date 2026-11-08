@@ -608,8 +608,8 @@
   },
   "rss": {
     "title": "Releases",
-    "hint": "Every release the RSS feeds bring in is matched to the library and judged by each version of the film. The first pass runs a minute after startup.",
-    "hintManual": "Every release the RSS feeds bring in is matched to the library and judged by each version of the film. No pass runs on its own: click Sync now.",
+    "hint": "Every release in the RSS feeds is matched to the library and judged by each version of the film, again at every pass while the feed carries it. The first pass runs a minute after startup.",
+    "hintManual": "Every release in the RSS feeds is matched to the library and judged by each version of the film, again at every pass while the feed carries it. No pass runs on its own: click Sync now.",
     "schedule": "RSS sync every {{minutes}} min",
     "schedulerOff": "Automatic RSS sync off (scheduler disabled): a pass runs when you click Sync now",
     "disabled": "RSS sync disabled",

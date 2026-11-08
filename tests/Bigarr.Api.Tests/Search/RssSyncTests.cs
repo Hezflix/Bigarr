@@ -13,7 +13,7 @@ using Bigarr.Domain.Indexers;
 
 namespace Bigarr.Api.Tests.Search;
 
-/// <summary>The RSS loop on the mock feed: fetch, dedupe, match to the library, judge with the automatic rules, attribute.</summary>
+/// <summary>The RSS loop on the mock feed: fetch, match to the library, judge with the automatic rules (the whole feed at every pass), attribute.</summary>
 public sealed class RssSyncTests(BigarrApiFactory factory) : IClassFixture<BigarrApiFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
@@ -22,7 +22,7 @@ public sealed class RssSyncTests(BigarrApiFactory factory) : IClassFixture<Bigar
     };
 
     [Fact]
-    public async Task A_pass_judges_new_releases_once_and_reports_per_indexer()
+    public async Task A_pass_judges_the_whole_feed_and_reports_what_is_new_per_indexer()
     {
         var client = await ClientAsync();
         var (profileId, rootId) = await SetupAsync(client);
@@ -96,12 +96,15 @@ public sealed class RssSyncTests(BigarrApiFactory factory) : IClassFixture<Bigar
             Assert.True(all[0].PublishDate >= all[^1].PublishDate, "newest first");
             Assert.All(all, r => Assert.Equal(mock.Id, r.IndexerId));
 
-            // Same feed again: nothing new, nothing re-judged.
+            // Same feed again: nothing new, but every release judged again, and still listed once.
             var second = await SyncAsync(client);
             Assert.Equal(15, second.Fetched);
             Assert.Equal(0, second.New);
-            Assert.Equal(0, second.Matched);
-            Assert.Equal(15, (await client.GetFromJsonAsync<List<RssReleaseResponse>>("/api/v1/rss/releases", Json))!.Count);
+            Assert.Equal(6, second.Matched);
+            Assert.Equal(4, second.WouldGrab);
+            var relisted = (await client.GetFromJsonAsync<List<RssReleaseResponse>>("/api/v1/rss/releases", Json))!;
+            Assert.Equal(15, relisted.Count);
+            Assert.Equal(all.Select(r => (r.Guid, r.SeenAt)), relisted.Select(r => (r.Guid, r.SeenAt))); // same order, first seen kept
 
             var status = (await client.GetFromJsonAsync<RssStatusResponse>("/api/v1/rss", Json))!;
             Assert.NotNull(status.LastRunAt);
@@ -114,7 +117,8 @@ public sealed class RssSyncTests(BigarrApiFactory factory) : IClassFixture<Bigar
             Assert.Equal(0, indexerStatus.LastNew);
             Assert.Null(indexerStatus.LastError);
 
-            // Unmonitor The Matrix, add a second feed (new guids): its Matrix releases are refused, Inception still goes.
+            // Unmonitor The Matrix, add a second feed (new guids): its Matrix releases are refused on both feeds, the ones
+            // already listed included, and Inception still goes.
             var version = matrix.Versions.Single();
             var unmonitor = await client.PutAsJsonAsync($"/api/v1/movies/{matrix.Id}/versions/{version.Id}", new UpdateVersionRequest(Monitored: false), Json);
             Assert.Equal(HttpStatusCode.OK, unmonitor.StatusCode);
@@ -124,17 +128,29 @@ public sealed class RssSyncTests(BigarrApiFactory factory) : IClassFixture<Bigar
                 var third = await SyncAsync(client);
                 Assert.Equal(2, third.Indexers);
                 Assert.Equal(15, third.New);
-                Assert.Equal(6, third.Matched);
-                Assert.Equal(2, third.WouldGrab); // Inception only, minus its 2160p release
+                Assert.Equal(12, third.Matched);
+                Assert.Equal(4, third.WouldGrab); // Inception only on both feeds, minus its 2160p releases
 
                 var refused = (await client.GetFromJsonAsync<List<RssReleaseResponse>>("/api/v1/rss/releases?matched=true", Json))!
-                    .Where(r => r.IndexerId == second_feed.Id && r.Movie!.Id == matrix.Id).ToList();
-                Assert.Equal(3, refused.Count);
+                    .Where(r => r.Movie!.Id == matrix.Id).ToList();
+                Assert.Equal(6, refused.Count);
                 Assert.All(refused, r =>
                 {
                     Assert.Null(r.AttributedVersionId);
                     Assert.Contains(Assert.Single(r.Versions).Rejections, x => x.Reason == "Version is not monitored");
                 });
+
+                // Monitored again: the releases still in the feeds are taken at the next pass, though none is new.
+                var monitor = await client.PutAsJsonAsync($"/api/v1/movies/{matrix.Id}/versions/{version.Id}", new UpdateVersionRequest(Monitored: true), Json);
+                Assert.Equal(HttpStatusCode.OK, monitor.StatusCode);
+                var fourth = await SyncAsync(client);
+                Assert.Equal(0, fourth.New);
+                Assert.Equal(8, fourth.WouldGrab);
+                var taken = (await client.GetFromJsonAsync<List<RssReleaseResponse>>("/api/v1/rss/releases?matched=true", Json))!
+                    .Where(r => r.Movie!.Id == matrix.Id && r.Quality != "WEBDL-2160p").ToList();
+                Assert.Equal(4, taken.Count);
+                Assert.All(taken, r => Assert.Equal(version.Id, r.AttributedVersionId));
+                Assert.Equal(30, (await client.GetFromJsonAsync<RssStatusResponse>("/api/v1/rss", Json))!.Stored);
             }
             finally
             {
