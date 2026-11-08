@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Decision;
 using Bigarr.Decision.CustomFormats;
@@ -23,6 +25,8 @@ public sealed class CustomFormatScorer(BigarrDbContext db, ILogger<CustomFormatS
 {
     private CustomFormatCalculator? _calculator;
     private Dictionary<int, string>? _names;
+    private List<CustomFormat>? _formats;
+    private string? _signature;
 
     public async Task<CustomFormatCalculator> CalculatorAsync(CancellationToken ct)
     {
@@ -48,6 +52,7 @@ public sealed class CustomFormatScorer(BigarrDbContext db, ILogger<CustomFormatS
 
         _calculator = new CustomFormatCalculator(definitions);
         _names = definitions.ToDictionary(d => d.Id, d => d.Name);
+        _formats = formats;
         return _calculator;
     }
 
@@ -55,6 +60,27 @@ public sealed class CustomFormatScorer(BigarrDbContext db, ILogger<CustomFormatS
     {
         await CalculatorAsync(ct);
         return _names!;
+    }
+
+    /// <summary>
+    /// Identifies the custom formats as matched: their ids and specifications. Adding, removing or editing a format
+    /// changes it, a rename does not (a match never depends on the name). <see cref="FileFormatMatches"/> checks it.
+    /// </summary>
+    public async Task<string> SignatureAsync(CancellationToken ct)
+    {
+        await CalculatorAsync(ct);
+        if (_signature is null)
+        {
+            var text = new StringBuilder();
+            foreach (var format in _formats!)
+            {
+                text.Append(format.Id).Append('\u001f').Append(format.SpecificationsJson).Append('\u001e');
+            }
+
+            _signature = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString())));
+        }
+
+        return _signature;
     }
 
     public async Task<IReadOnlyList<CustomFormatDefinition>> MatchAsync(CustomFormatInput input, CancellationToken ct) =>

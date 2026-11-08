@@ -64,6 +64,7 @@ builder.Services.AddScoped<TagService>();
 builder.Services.AddScoped<HistoryService>();
 builder.Services.AddScoped<RootFolderService>();
 builder.Services.AddScoped<CustomFormatScorer>();
+builder.Services.AddSingleton<FileFormatMatches>();
 builder.Services.AddScoped<QualityProfileService>();
 builder.Services.AddScoped<CustomFormatService>();
 builder.Services.AddScoped<LibraryScanner>();

@@ -66,8 +66,8 @@ public static class SearchEndpoints
                 return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["filter"] = [$"Unknown filter '{filter}'."] });
             }
 
-            var items = await service.AllAsync(kind, ct);
-            var queued = items.Count(i => queue.TryEnqueue(i.VersionId, SearchTrigger.User));
+            var versionIds = await service.VersionIdsAsync(kind, ct);
+            var queued = versionIds.Count(id => queue.TryEnqueue(id, SearchTrigger.User));
             return TypedResults.Accepted("/api/v1/wanted", new WantedSearchResponse(queued));
         });
 
