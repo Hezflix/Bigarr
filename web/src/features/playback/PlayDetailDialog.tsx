@@ -2,35 +2,35 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { playback, type Play } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDateTime } from '@/i18n'
 import { DecisionBadge, formatOffset, formatPlayed, itemLabel } from './format'
 import { StreamTracks } from './StreamTracks'
 
 /** A play and the sessions it was made of: player, network, what happened to each track, the file. */
-export function PlayDetailSheet({ play, onClose }: { play: Play | null; onClose: () => void }) {
+export function PlayDetailDialog({ play, onClose }: { play: Play | null; onClose: () => void }) {
   const { t } = useTranslation()
   const streams = useQuery({ queryKey: ['playback', 'streams', play?.id], queryFn: () => playback.streams(play!.id), enabled: play !== null })
 
   return (
-    <Sheet open={play !== null} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-xl" data-testid="play-detail">
+    <Dialog open={play !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl" data-testid="play-detail">
         {play && (
           <>
-            <SheetHeader>
-              <SheetTitle className="pr-6">{itemLabel(play.item)}</SheetTitle>
-              <SheetDescription>
+            <DialogHeader>
+              <DialogTitle className="pr-6">{itemLabel(play.item)}</DialogTitle>
+              <DialogDescription>
                 {play.user.name} · {formatDateTime(play.startedAt)}
-              </SheetDescription>
+              </DialogDescription>
               <div className="flex flex-wrap items-center gap-1.5 pt-1">
                 {play.versionName && <Badge variant="secondary">{play.versionName}</Badge>}
                 <Badge variant="outline">{formatPlayed(play.playedSeconds)}</Badge>
                 {play.pausedSeconds > 0 && <Badge variant="outline">{t('playback.pausedFor', { time: formatPlayed(play.pausedSeconds) })}</Badge>}
                 {play.watched && <Badge variant="outline">{t('playback.watched')}</Badge>}
               </div>
-            </SheetHeader>
-            <div className="flex flex-col gap-4 px-4 pb-6">
+            </DialogHeader>
+            <div className="flex flex-col gap-4">
               {streams.isPending && <Skeleton className="h-40 w-full" />}
               {streams.data?.map((stream, index) => {
                 const d = stream.details
@@ -87,7 +87,7 @@ export function PlayDetailSheet({ play, onClose }: { play: Play | null; onClose:
             </div>
           </>
         )}
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   )
 }

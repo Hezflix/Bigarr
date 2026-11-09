@@ -5,7 +5,7 @@ import { playback, type Play } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatDateTime } from '@/i18n'
-import { PlayDetailSheet } from './PlayDetailSheet'
+import { PlayDetailDialog } from './PlayDetailDialog'
 import { PlaysTable } from './PlaysTable'
 
 /** How much each version of this film is played: is the 4K worth its disk? Hidden until someone played the film. */
@@ -44,7 +44,7 @@ export function MoviePlays({ movieId }: { movieId: number }) {
         </Table>
       </div>
       {recent.data && recent.data.records.length > 0 && <PlaysTable plays={recent.data.records} showItem={false} onSelect={setSelected} />}
-      <PlayDetailSheet play={selected} onClose={() => setSelected(null)} />
+      <PlayDetailDialog play={selected} onClose={() => setSelected(null)} />
     </section>
   )
 }

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { PlayDetailSheet } from './PlayDetailSheet'
+import { PlayDetailDialog } from './PlayDetailDialog'
 import { PlaysTable, type PlaySort } from './PlaysTable'
 import { UserPicker } from './UserPicker'
 
@@ -93,7 +93,7 @@ export function PlaysPage() {
           </div>
         </>
       )}
-      <PlayDetailSheet play={selected} onClose={() => setSelected(null)} />
+      <PlayDetailDialog play={selected} onClose={() => setSelected(null)} />
     </>
   )
 }
