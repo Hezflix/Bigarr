@@ -12,6 +12,7 @@ using Bigarr.Domain.Quality;
 using Bigarr.Domain.Scheduling;
 using Bigarr.Domain.Shadow;
 using Bigarr.Domain.Tags;
+using Bigarr.Domain.Tv;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bigarr.Api.Infrastructure.Persistence;
@@ -33,6 +34,20 @@ public sealed class BigarrDbContext(DbContextOptions<BigarrDbContext> options) :
     public DbSet<MediaFile> MediaFiles => Set<MediaFile>();
 
     public DbSet<ExtraFile> ExtraFiles => Set<ExtraFile>();
+
+    public DbSet<Series> Series => Set<Series>();
+
+    public DbSet<Season> Seasons => Set<Season>();
+
+    public DbSet<SeriesVersion> SeriesVersions => Set<SeriesVersion>();
+
+    public DbSet<SeriesVersionSeason> SeriesVersionSeasons => Set<SeriesVersionSeason>();
+
+    public DbSet<Episode> Episodes => Set<Episode>();
+
+    public DbSet<EpisodeTarget> EpisodeTargets => Set<EpisodeTarget>();
+
+    public DbSet<EpisodeFile> EpisodeFiles => Set<EpisodeFile>();
 
     public DbSet<Grab> Grabs => Set<Grab>();
 

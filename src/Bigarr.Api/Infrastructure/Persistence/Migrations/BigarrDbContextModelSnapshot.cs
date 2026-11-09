@@ -1611,6 +1611,376 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("Tags", (string)null);
                 });
 
+            modelBuilder.Entity("Bigarr.Domain.Tv.Episode", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("AbsoluteEpisodeNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly?>("AirDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("AirDateUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("EpisodeNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Overview")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("Runtime")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SeasonId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SeasonNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("TmdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("TvdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SeasonId");
+
+                    b.HasIndex("TmdbId");
+
+                    b.HasIndex("TvdbId")
+                        .IsUnique()
+                        .HasFilter("\"TvdbId\" IS NOT NULL");
+
+                    b.HasIndex("SeriesId", "AbsoluteEpisodeNumber");
+
+                    b.HasIndex("SeriesId", "AirDate");
+
+                    b.HasIndex("SeriesId", "SeasonNumber", "EpisodeNumber");
+
+                    b.ToTable("Episodes", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.EpisodeFile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("DateAdded")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("IndexerFlags")
+                        .HasColumnType("INTEGER");
+
+                    b.PrimitiveCollection<string>("Languages")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MediaInfo")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OriginalReleaseTitle")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("QualityId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RelativePath")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReleaseGroup")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SeasonNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("VersionId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QualityId");
+
+                    b.HasIndex("VersionId", "RelativePath")
+                        .IsUnique();
+
+                    b.ToTable("EpisodeFiles", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.Season", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Images")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Overview")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SeasonNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SeriesId", "SeasonNumber")
+                        .IsUnique();
+
+                    b.ToTable("Seasons", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.Series", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("AddedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AirTime")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AlternativeTitles")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DefaultRootFolderId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly?>("FirstAired")
+                        .HasColumnType("TEXT");
+
+                    b.PrimitiveCollection<string>("Genres")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Images")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImdbId")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly?>("LastAired")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastMetadataRefreshAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Network")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Ordering")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OriginalCountry")
+                        .HasMaxLength(8)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OriginalLanguage")
+                        .HasMaxLength(8)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OriginalTitle")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Overview")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("Runtime")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SeriesType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SortTitle")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("TmdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("TvdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Year")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DefaultRootFolderId");
+
+                    b.HasIndex("SortTitle");
+
+                    b.HasIndex("TmdbId")
+                        .IsUnique()
+                        .HasFilter("\"TmdbId\" IS NOT NULL");
+
+                    b.HasIndex("TvdbId")
+                        .IsUnique()
+                        .HasFilter("\"TvdbId\" IS NOT NULL");
+
+                    b.ToTable("Series", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.SeriesTag", b =>
+                {
+                    b.Property<int>("SeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TagId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("SeriesId", "TagId");
+
+                    b.HasIndex("TagId");
+
+                    b.ToTable("SeriesTags", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.SeriesVersion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Constraints")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FolderName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Mode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MonitorNewItems")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Monitored")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("QualityProfileId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RootFolderId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("SeasonFolder")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QualityProfileId");
+
+                    b.HasIndex("RootFolderId");
+
+                    b.HasIndex("SeriesId", "Name")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "SeriesId" }, "IX_SeriesVersions_SeriesId_IsDefault")
+                        .IsUnique()
+                        .HasFilter("\"IsDefault\" = 1");
+
+                    b.ToTable("SeriesVersions", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.SeriesVersionSeason", b =>
+                {
+                    b.Property<int>("VersionId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SeasonId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Monitored")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("VersionId", "SeasonId");
+
+                    b.HasIndex("SeasonId");
+
+                    b.ToTable("SeriesVersionSeasons", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.SeriesVersionTag", b =>
+                {
+                    b.Property<int>("VersionId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TagId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("VersionId", "TagId");
+
+                    b.HasIndex("TagId");
+
+                    b.ToTable("SeriesVersionTags", (string)null);
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Movies.MovieVersion", b =>
                 {
                     b.HasBaseType("Bigarr.Domain.Acquisition.AcquisitionTarget");
@@ -1658,6 +2028,29 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasFilter("\"IsDefault\" = 1");
 
                     b.ToTable("MovieVersions", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.EpisodeTarget", b =>
+                {
+                    b.HasBaseType("Bigarr.Domain.Acquisition.AcquisitionTarget");
+
+                    b.Property<int?>("EpisodeFileId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("EpisodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("VersionId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasIndex("EpisodeFileId");
+
+                    b.HasIndex("EpisodeId");
+
+                    b.HasIndex("VersionId", "EpisodeId")
+                        .IsUnique();
+
+                    b.ToTable("EpisodeTargets", (string)null);
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Acquisition.BlocklistEntry", b =>
@@ -1983,6 +2376,178 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Version");
                 });
 
+            modelBuilder.Entity("Bigarr.Domain.Tv.Episode", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Tv.Season", "Season")
+                        .WithMany()
+                        .HasForeignKey("SeasonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Bigarr.Domain.Tv.Series", "Series")
+                        .WithMany("Episodes")
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Season");
+
+                    b.Navigation("Series");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.EpisodeFile", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Quality.QualityDefinition", "Quality")
+                        .WithMany()
+                        .HasForeignKey("QualityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Bigarr.Domain.Tv.SeriesVersion", "Version")
+                        .WithMany("Files")
+                        .HasForeignKey("VersionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsOne("Bigarr.Domain.Movies.Revision", "Revision", b1 =>
+                        {
+                            b1.Property<int>("EpisodeFileId")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<bool>("IsRepack")
+                                .HasColumnType("INTEGER")
+                                .HasColumnName("IsRepack");
+
+                            b1.Property<int>("Real")
+                                .HasColumnType("INTEGER")
+                                .HasColumnName("RevisionReal");
+
+                            b1.Property<int>("Version")
+                                .HasColumnType("INTEGER")
+                                .HasColumnName("RevisionVersion");
+
+                            b1.HasKey("EpisodeFileId");
+
+                            b1.ToTable("EpisodeFiles");
+
+                            b1.WithOwner()
+                                .HasForeignKey("EpisodeFileId");
+                        });
+
+                    b.Navigation("Quality");
+
+                    b.Navigation("Revision")
+                        .IsRequired();
+
+                    b.Navigation("Version");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.Season", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Tv.Series", "Series")
+                        .WithMany("Seasons")
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Series");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.Series", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Library.RootFolder", "DefaultRootFolder")
+                        .WithMany()
+                        .HasForeignKey("DefaultRootFolderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DefaultRootFolder");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.SeriesTag", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Tv.Series", "Series")
+                        .WithMany()
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Bigarr.Domain.Tags.Tag", "Tag")
+                        .WithMany()
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Series");
+
+                    b.Navigation("Tag");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.SeriesVersion", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Quality.QualityProfile", "QualityProfile")
+                        .WithMany()
+                        .HasForeignKey("QualityProfileId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Bigarr.Domain.Library.RootFolder", "RootFolder")
+                        .WithMany()
+                        .HasForeignKey("RootFolderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Bigarr.Domain.Tv.Series", "Series")
+                        .WithMany("Versions")
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("QualityProfile");
+
+                    b.Navigation("RootFolder");
+
+                    b.Navigation("Series");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.SeriesVersionSeason", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Tv.Season", "Season")
+                        .WithMany()
+                        .HasForeignKey("SeasonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Bigarr.Domain.Tv.SeriesVersion", "Version")
+                        .WithMany("Seasons")
+                        .HasForeignKey("VersionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Season");
+
+                    b.Navigation("Version");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.SeriesVersionTag", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Tags.Tag", "Tag")
+                        .WithMany()
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Bigarr.Domain.Tv.SeriesVersion", "Version")
+                        .WithMany()
+                        .HasForeignKey("VersionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tag");
+
+                    b.Navigation("Version");
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Movies.MovieVersion", b =>
                 {
                     b.HasOne("Bigarr.Domain.Acquisition.AcquisitionTarget", null)
@@ -2014,6 +2579,38 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("QualityProfile");
 
                     b.Navigation("RootFolder");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.EpisodeTarget", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Tv.EpisodeFile", "EpisodeFile")
+                        .WithMany("Episodes")
+                        .HasForeignKey("EpisodeFileId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Bigarr.Domain.Tv.Episode", "Episode")
+                        .WithMany("Targets")
+                        .HasForeignKey("EpisodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Bigarr.Domain.Acquisition.AcquisitionTarget", null)
+                        .WithOne()
+                        .HasForeignKey("Bigarr.Domain.Tv.EpisodeTarget", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Bigarr.Domain.Tv.SeriesVersion", "Version")
+                        .WithMany("Episodes")
+                        .HasForeignKey("VersionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Episode");
+
+                    b.Navigation("EpisodeFile");
+
+                    b.Navigation("Version");
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Acquisition.AcquisitionTarget", b =>
@@ -2049,6 +2646,34 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Bigarr.Domain.Quality.QualityProfile", b =>
                 {
                     b.Navigation("FormatScores");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.Episode", b =>
+                {
+                    b.Navigation("Targets");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.EpisodeFile", b =>
+                {
+                    b.Navigation("Episodes");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.Series", b =>
+                {
+                    b.Navigation("Episodes");
+
+                    b.Navigation("Seasons");
+
+                    b.Navigation("Versions");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.SeriesVersion", b =>
+                {
+                    b.Navigation("Episodes");
+
+                    b.Navigation("Files");
+
+                    b.Navigation("Seasons");
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Movies.MovieVersion", b =>
