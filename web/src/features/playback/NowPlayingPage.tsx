@@ -95,7 +95,7 @@ export function NowPlayingPage() {
       {data?.servers.map((server) => <ServerLine key={server.id} server={server} />)}
       {data && data.servers.length > 0 && data.sessions.length === 0 && <p className="text-sm text-muted-foreground">{t('playback.nothingPlaying')}</p>}
       {data && data.sessions.length > 0 && view === 'cards' && (
-        <div className="grid gap-4 xl:grid-cols-2" data-testid="now-playing">
+        <div className="flex flex-col gap-4" data-testid="now-playing">
           {data.sessions.map((session) => (
             <SessionCard key={session.id} session={session} />
           ))}
