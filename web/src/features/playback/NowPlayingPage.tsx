@@ -13,7 +13,7 @@ import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatDateTime, formatTime } from '@/i18n'
-import { DecisionBadge, formatOffset, itemLabel } from './format'
+import { DecisionBadge, formatCodec, formatOffset, itemLabel } from './format'
 import { StreamTracks } from './StreamTracks'
 
 type View = 'cards' | 'rows'
@@ -191,8 +191,10 @@ function FactsGrid({ session }: { session: PlaybackSession }) {
   const tr = session.transcode
   const videoConverted = converted(d.videoDecision)
   const audioConverted = converted(d.audioDecision)
-  const video = join(d.sourceVideoCodec, d.sourceVideoResolution, d.sourceDynamicRange) + (videoConverted ? ` → ${join(d.streamVideoCodec, d.streamVideoResolution)}${d.hardwareTranscode ? ` (${t('playback.hw')})` : ''}` : '')
-  const audio = join(d.sourceAudioCodec, channelsOf(d.sourceAudioChannels)) + (audioConverted ? ` → ${join(d.streamAudioCodec, channelsOf(d.streamAudioChannels))}` : '')
+  const video =
+    join(formatCodec(d.sourceVideoCodec), formatCodec(d.sourceVideoResolution), d.sourceDynamicRange) +
+    (videoConverted ? ` → ${join(formatCodec(d.streamVideoCodec), formatCodec(d.streamVideoResolution))}${d.hardwareTranscode ? ` (${t('playback.hw')})` : ''}` : '')
+  const audio = join(formatCodec(d.sourceAudioCodec), channelsOf(d.sourceAudioChannels)) + (audioConverted ? ` → ${join(formatCodec(d.streamAudioCodec), channelsOf(d.streamAudioChannels))}` : '')
   const container = d.streamContainer && d.sourceContainer && d.streamContainer !== d.sourceContainer ? `${d.sourceContainer.toUpperCase()} → ${d.streamContainer.toUpperCase()}` : (d.sourceContainer ?? d.streamContainer ?? '').toUpperCase()
   const behind = severity(session) === 2
   const transcoder = tr

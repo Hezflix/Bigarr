@@ -2,6 +2,11 @@ import { useTranslation } from 'react-i18next'
 import type { PlaybackItemRef, StreamDecision } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 
+/** Codecs and resolutions as players show them: HEVC, EAC3, H264, 4K. Plex sends them in lower case. */
+export function formatCodec(value: string | null | undefined): string | null {
+  return value ? value.toUpperCase() : null
+}
+
 /** 1 h 05 min, 42 min, 30 s. */
 export function formatPlayed(seconds: number): string {
   const minutes = Math.floor(seconds / 60)

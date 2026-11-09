@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import type { StreamDetails } from '@/api/client'
+import { formatCodec } from './format'
 
 const join = (...parts: (string | number | null | undefined)[]) => parts.filter((p) => p !== null && p !== undefined && p !== '').join(' ')
 
@@ -17,10 +18,10 @@ export function StreamTracks({ details }: { details: StreamDetails }) {
   const decision = (value: string | null) => (value ? t(`playback.trackDecisions.${value.toLowerCase()}`, { defaultValue: value }) : null)
   const converted = (value: string | null) => value?.toLowerCase() === 'transcode'
 
-  const videoSource = join(details.sourceVideoResolution, details.sourceVideoCodec, details.sourceDynamicRange)
-  const videoStream = join(details.streamVideoResolution, details.streamVideoCodec)
-  const audioSource = join(details.sourceAudioCodec, channels(details.sourceAudioChannels))
-  const audioStream = join(details.streamAudioCodec, channels(details.streamAudioChannels))
+  const videoSource = join(formatCodec(details.sourceVideoResolution), formatCodec(details.sourceVideoCodec), details.sourceDynamicRange)
+  const videoStream = join(formatCodec(details.streamVideoResolution), formatCodec(details.streamVideoCodec))
+  const audioSource = join(formatCodec(details.sourceAudioCodec), channels(details.sourceAudioChannels))
+  const audioStream = join(formatCodec(details.streamAudioCodec), channels(details.streamAudioChannels))
 
   const rows = [
     {
