@@ -96,6 +96,10 @@ public sealed class BigarrDbContext(DbContextOptions<BigarrDbContext> options) :
 
     public DbSet<ShadowPick> ShadowPicks => Set<ShadowPick>();
 
+    public DbSet<SeriesShadowPick> SeriesShadowPicks => Set<SeriesShadowPick>();
+
+    public DbSet<SeriesShadowPickEpisode> SeriesShadowPickEpisodes => Set<SeriesShadowPickEpisode>();
+
     public DbSet<ReleaseSighting> ReleaseSightings => Set<ReleaseSighting>();
 
     public DbSet<FollowedRadarr> FollowedRadarrs => Set<FollowedRadarr>();

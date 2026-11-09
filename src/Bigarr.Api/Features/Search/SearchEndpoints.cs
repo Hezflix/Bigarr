@@ -30,6 +30,27 @@ public static class SearchEndpoints
             return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
         });
 
+        // Interactive search for a series: an episode (episodeId), a season (season) or the whole series (neither), judged
+        // by every version of the series (or one). A query replaces the show's ids and titles with the user's own text.
+        app.MapGet("/api/v1/series/{id:int}/search", async Task<Results<Ok<SeriesSearchResponse>, ValidationProblem, ProblemHttpResult>> (
+                int id, int? episodeId, int? season, int? versionId, string? query, SeriesSearchService search, CancellationToken ct) =>
+            {
+                if (query?.Trim().Length > MaxQueryLength)
+                {
+                    return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["query"] = [$"The search text is limited to {MaxQueryLength} characters."] });
+                }
+
+                if (episodeId is not null && season is not null)
+                {
+                    return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["season"] = ["Search an episode or a season, not both."] });
+                }
+
+                var result = await search.SearchAsync(id, episodeId, season, versionId, query, ct);
+                return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
+            })
+            .WithTags("Search")
+            .RequireAuthorization(AuthPolicies.Api);
+
         // Automatic search asked by the user: the best approved release is grabbed, one per version, and the outcome comes back.
         app.MapPost("/api/v1/movies/{id:int}/search", async Task<Results<Ok<List<AutomaticSearchResult>>, NotFound>> (
                 int id, int? versionId, MovieQueries movies, AutomaticSearchService search, CancellationToken ct) =>
