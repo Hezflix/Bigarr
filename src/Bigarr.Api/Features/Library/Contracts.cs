@@ -9,9 +9,13 @@ public sealed record RootFolderResponse(
     long? FreeSpace,
     long? TotalSpace,
     int VersionCount,
-    int UnmappedFolderCount);
+    int UnmappedFolderCount,
+    /// <summary>Films or series. The scan, the add pages and the Radarr API only see roots of their kind.</summary>
+    MediaKind Kind = MediaKind.Movies);
 
-public sealed record AddRootFolderRequest(string Path);
+public sealed record AddRootFolderRequest(string Path, MediaKind Kind = MediaKind.Movies);
+
+public sealed record UpdateRootFolderRequest(MediaKind Kind);
 
 public sealed record UnmappedFolderResponse(
     int Id,
@@ -22,7 +26,9 @@ public sealed record UnmappedFolderResponse(
     UnmappedReason Reason,
     string? Detail,
     DateTime DiscoveredAt,
-    DateTime LastSeenAt);
+    DateTime LastSeenAt,
+    /// <summary>The root's kind: a film folder goes through the manual import, a series folder is mapped to a show.</summary>
+    MediaKind Kind = MediaKind.Movies);
 
 public enum ScanState
 {
@@ -45,4 +51,9 @@ public sealed record ScanStatusResponse(
     int FilesAdded,
     int Unmapped,
     string? CurrentFolder,
-    string? Error);
+    string? Error,
+    int SeriesAdded = 0,
+    /// <summary>Video files inside a series folder the scan could not attach to episodes (kept, listed per series).</summary>
+    int UnmatchedFiles = 0,
+    /// <summary>Set on a single-series rescan.</summary>
+    int? SeriesId = null);

@@ -1,5 +1,6 @@
 namespace Bigarr.Api.Features.Series;
 
+using Bigarr.Api.Features.Library;
 using Bigarr.Domain.Movies;
 using Bigarr.Domain.Tv;
 
@@ -33,7 +34,9 @@ public sealed record AddSeriesRequest(
     /// <summary>Name of the default version. Defaults to the profile's slug.</summary>
     string? VersionName = null,
     bool Monitored = true,
-    List<int>? TagIds = null);
+    List<int>? TagIds = null,
+    /// <summary>An existing folder in the root (library import); defaults to "Title (Year)".</summary>
+    string? FolderName = null);
 
 public sealed record AddSeriesVersionRequest(
     string Name,
@@ -184,3 +187,42 @@ public sealed record EpisodeResponse(
     bool IsSpecial,
     bool HasAired,
     List<EpisodeVersionState> Versions);
+
+/// <summary>A file of one version, with the episodes it holds (several for a multi-episode file).</summary>
+public sealed record EpisodeFileResponse(
+    int Id,
+    int VersionId,
+    string RelativePath,
+    string Path,
+    int SeasonNumber,
+    long Size,
+    DateTime DateAdded,
+    int QualityId,
+    string Quality,
+    int RevisionVersion,
+    bool IsRepack,
+    string? ReleaseGroup,
+    List<string> Languages,
+    string? OriginalReleaseTitle,
+    MediaInfo? MediaInfo,
+    List<int> EpisodeIds,
+    /// <summary>"S01E01", "S01E02-E03": the episodes in TVDB numbering.</summary>
+    string Episodes);
+
+public sealed record UnmatchedEpisodeFileResponse(
+    int Id,
+    int VersionId,
+    string RelativePath,
+    string Path,
+    long Size,
+    UnmatchedFileReason Reason,
+    string? Detail,
+    DateTime DiscoveredAt,
+    DateTime LastSeenAt);
+
+public sealed record SeriesFilesResponse(List<EpisodeFileResponse> Files, List<UnmatchedEpisodeFileResponse> Unmatched);
+
+/// <summary>Maps an unmapped folder of a series root to a show: a library series (<see cref="SeriesId"/>) or one to add.</summary>
+public sealed record MapSeriesFolderRequest(int? SeriesId = null, int? TvdbId = null, int? TmdbId = null, int? QualityProfileId = null);
+
+public sealed record MapSeriesFolderResponse(int SeriesId, int VersionId, ScanStatusResponse Scan);

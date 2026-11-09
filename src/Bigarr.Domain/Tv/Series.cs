@@ -71,6 +71,12 @@ public sealed class Series
 
     public DateTime? LastMetadataRefreshAt { get; set; }
 
+    /// <summary>TheXEM has a scene ↔ TVDB mapping for this show: releases may number episodes differently from TVDB.</summary>
+    public bool UseSceneNumbering { get; set; }
+
+    /// <summary>Last time the XEM mapping was fetched (successfully, mapping or not).</summary>
+    public DateTime? SceneNumberingRefreshedAt { get; set; }
+
     public ICollection<SeriesVersion> Versions { get; set; } = [];
 
     public ICollection<Season> Seasons { get; set; } = [];

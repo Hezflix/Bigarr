@@ -1,8 +1,8 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { cn } from 'cn'
-import { BookmarkIcon, ChevronRightIcon, ListChecksIcon, PlusIcon, RefreshCwIcon, StarIcon, Trash2Icon } from 'lucide-react'
+import { BookmarkIcon, ChevronRightIcon, FolderSearchIcon, ListChecksIcon, PlusIcon, RefreshCwIcon, StarIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -12,10 +12,12 @@ import {
   series as seriesApi,
   slugify,
   type Episode,
+  type EpisodeFile,
   type MonitoringOption,
   type Season,
   type Series,
   type SeriesVersion,
+  type UnmatchedEpisodeFile,
 } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import {
@@ -51,14 +53,36 @@ export function SeriesDetailPage() {
   const queryClient = useQueryClient()
   const detail = useQuery({ queryKey: ['seriesDetail', id], queryFn: () => seriesApi.get(id) })
   const episodes = useQuery({ queryKey: ['seriesEpisodes', id], queryFn: () => seriesApi.episodes(id) })
+  const files = useQuery({ queryKey: ['seriesFiles', id], queryFn: () => seriesApi.files(id) })
   const [chosenVersion, setChosenVersion] = useState<number | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['seriesDetail', id] })
     void queryClient.invalidateQueries({ queryKey: ['seriesEpisodes', id] })
+    void queryClient.invalidateQueries({ queryKey: ['seriesFiles', id] })
     void queryClient.invalidateQueries({ queryKey: ['series'] })
   }
+
+  // The rescan runs in the background; poll while it is queued or running, refresh what it changed once it ends.
+  const rescanStatus = useQuery({
+    queryKey: ['seriesRescan', id],
+    queryFn: () => seriesApi.rescanStatus(id),
+    refetchInterval: (query) => (query.state.data?.state === 'running' || query.state.data?.state === 'queued' ? 1000 : false),
+  })
+  const rescan = useMutation({
+    mutationFn: () => seriesApi.rescan(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['seriesRescan', id] }),
+    onError: (error) => toast.error(errorMessage(error, t('common.unexpectedError'))),
+  })
+  const rescanState = rescanStatus.data?.state
+  const rescanning = rescanState === 'running' || rescanState === 'queued'
+  useEffect(() => {
+    if (rescanState !== 'completed' || !rescanStatus.data?.finishedAt) return
+    void queryClient.invalidateQueries({ queryKey: ['seriesDetail', id] })
+    void queryClient.invalidateQueries({ queryKey: ['seriesEpisodes', id] })
+    void queryClient.invalidateQueries({ queryKey: ['seriesFiles', id] })
+  }, [rescanState, rescanStatus.data?.finishedAt, id, queryClient])
 
   const refresh = useMutation({
     mutationFn: () => seriesApi.refresh(id),
@@ -153,6 +177,10 @@ export function SeriesDetailPage() {
               <RefreshCwIcon className={refresh.isPending ? 'animate-spin' : undefined} />
               {t('seriesDetail.refresh')}
             </Button>
+            <Button type="button" variant="outline" onClick={() => rescan.mutate()} disabled={rescanning || rescan.isPending} data-testid="series-rescan">
+              <FolderSearchIcon className={rescanning ? 'animate-pulse' : undefined} />
+              {rescanning ? t('seriesDetail.rescanning') : t('seriesDetail.rescan')}
+            </Button>
             <Button type="button" variant="destructive" onClick={() => setDeleteOpen(true)} disabled={remove.isPending}>
               <Trash2Icon />
               {t('seriesDetail.delete')}
@@ -183,10 +211,13 @@ export function SeriesDetailPage() {
           series={s}
           version={version}
           episodes={episodes.data}
+          files={files.data?.files.filter((f) => f.versionId === version.id)}
           loading={episodes.isPending}
           onChanged={invalidate}
         />
       )}
+
+      {version && files.data && <UnmatchedFiles files={files.data.unmatched.filter((f) => f.versionId === version.id)} />}
     </>
   )
 }
@@ -479,7 +510,27 @@ function seasonOrder(a: Season, b: Season) {
   return b.seasonNumber - a.seasonNumber
 }
 
-function SeasonList({ series: s, version, episodes, loading, onChanged }: { series: Series; version: SeriesVersion; episodes: Episode[] | undefined; loading: boolean; onChanged: () => void }) {
+function SeasonList({
+  series: s,
+  version,
+  episodes,
+  files,
+  loading,
+  onChanged,
+}: {
+  series: Series
+  version: SeriesVersion
+  episodes: Episode[] | undefined
+  files: EpisodeFile[] | undefined
+  loading: boolean
+  onChanged: () => void
+}) {
+  // Episode id → the version's file holding it (a multi-episode file sits on several rows).
+  const fileByEpisode = useMemo(() => {
+    const map = new Map<number, EpisodeFile>()
+    for (const file of files ?? []) for (const episodeId of file.episodeIds) map.set(episodeId, file)
+    return map
+  }, [files])
   const seasons = useMemo(() => [...s.seasons].sort(seasonOrder), [s.seasons])
   // Open on the latest season that has episodes (TVDB lists announced seasons before their episodes).
   const latest = (seasons.find((season) => season.seasonNumber > 0 && season.episodeCount > 0) ?? seasons.find((season) => season.seasonNumber > 0))?.seasonNumber
@@ -501,6 +552,7 @@ function SeasonList({ series: s, version, episodes, loading, onChanged }: { seri
           season={season}
           version={version}
           episodes={bySeason.get(season.seasonNumber) ?? []}
+          files={fileByEpisode}
           loading={loading}
           showAbsolute={showAbsolute}
           open={open.has(season.seasonNumber)}
@@ -524,6 +576,7 @@ type SeasonBlockProps = {
   season: Season
   version: SeriesVersion
   episodes: Episode[]
+  files: Map<number, EpisodeFile>
   loading: boolean
   showAbsolute: boolean
   open: boolean
@@ -531,7 +584,7 @@ type SeasonBlockProps = {
   onChanged: () => void
 }
 
-function SeasonBlock({ series: s, season, version, episodes, loading, showAbsolute, open, onToggleOpen, onChanged }: SeasonBlockProps) {
+function SeasonBlock({ series: s, season, version, episodes, files, loading, showAbsolute, open, onToggleOpen, onChanged }: SeasonBlockProps) {
   const { t } = useTranslation()
   const state = season.versions.find((v) => v.versionId === version.id)
   const monitored = state?.monitored ?? false
@@ -569,7 +622,7 @@ function SeasonBlock({ series: s, season, version, episodes, loading, showAbsolu
           ) : episodes.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">{t('seriesDetail.noEpisodes')}</p>
           ) : (
-            <EpisodeTable series={s} version={version} episodes={episodes} showAbsolute={showAbsolute} onChanged={onChanged} />
+            <EpisodeTable series={s} version={version} episodes={episodes} files={files} showAbsolute={showAbsolute} onChanged={onChanged} />
           )}
         </div>
       )}
@@ -577,7 +630,21 @@ function SeasonBlock({ series: s, season, version, episodes, loading, showAbsolu
   )
 }
 
-function EpisodeTable({ series: s, version, episodes, showAbsolute, onChanged }: { series: Series; version: SeriesVersion; episodes: Episode[]; showAbsolute: boolean; onChanged: () => void }) {
+function EpisodeTable({
+  series: s,
+  version,
+  episodes,
+  files,
+  showAbsolute,
+  onChanged,
+}: {
+  series: Series
+  version: SeriesVersion
+  episodes: Episode[]
+  files: Map<number, EpisodeFile>
+  showAbsolute: boolean
+  onChanged: () => void
+}) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const toggle = useMutation({
@@ -601,6 +668,7 @@ function EpisodeTable({ series: s, version, episodes, showAbsolute, onChanged }:
           {showAbsolute && <TableHead className="w-14 text-right">{t('seriesDetail.columns.absolute')}</TableHead>}
           <TableHead>{t('seriesDetail.columns.title')}</TableHead>
           <TableHead className="w-32">{t('seriesDetail.columns.airDate')}</TableHead>
+          <TableHead className="w-56 pr-4">{t('seriesDetail.columns.file')}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -627,11 +695,85 @@ function EpisodeTable({ series: s, version, episodes, showAbsolute, onChanged }:
               <TableCell className="tabular-nums" title={episode.hasAired ? undefined : t('seriesDetail.unaired')}>
                 {episode.airDate ? formatDate(episode.airDate) : t('seriesDetail.tba')}
               </TableCell>
+              <TableCell className="pr-4">
+                <EpisodeFileCell file={files.get(episode.id)} episode={episode} />
+              </TableCell>
             </TableRow>
           )
         })}
       </TableBody>
     </Table>
+  )
+}
+
+/** The version's file for an episode: quality, size and group, the path on hover; "missing" once aired without one. */
+function EpisodeFileCell({ file, episode }: { file: EpisodeFile | undefined; episode: Episode }) {
+  const { t } = useTranslation()
+  if (!file) {
+    return episode.hasAired ? <span className="text-xs text-muted-foreground">{t('seriesDetail.missing')}</span> : null
+  }
+
+  const shared = file.episodeIds.length > 1
+  return (
+    <span className="flex min-w-0 items-center gap-1.5" title={file.path} data-testid="episode-file">
+      <Badge variant="outline" className="border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300">
+        {file.quality}
+      </Badge>
+      <span className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">{formatBytes(file.size)}</span>
+      {file.releaseGroup && <span className="truncate text-xs text-muted-foreground">{file.releaseGroup}</span>}
+      {shared && (
+        <Badge variant="secondary" className="shrink-0" title={t('seriesDetail.multiEpisodeHint')}>
+          {file.episodes}
+        </Badge>
+      )}
+    </span>
+  )
+}
+
+/** Files of the version folder the scan could not attach to episodes: listed with the reason, never touched. */
+function UnmatchedFiles({ files }: { files: UnmatchedEpisodeFile[] }) {
+  const { t } = useTranslation()
+  if (files.length === 0) return null
+
+  return (
+    <section className="flex flex-col gap-2" data-testid="unmatched-files">
+      <h2 className="text-lg font-semibold tracking-tight">{t('seriesDetail.unmatched.title', { count: files.length })}</h2>
+      <p className="max-w-3xl text-xs text-muted-foreground">{t('seriesDetail.unmatched.hint')}</p>
+      <div className="overflow-x-auto rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="pl-4">{t('seriesDetail.unmatched.file')}</TableHead>
+              <TableHead className="w-24 text-right">{t('seriesDetail.unmatched.size')}</TableHead>
+              <TableHead className="w-48">{t('seriesDetail.unmatched.reason')}</TableHead>
+              <TableHead className="pr-4">{t('seriesDetail.unmatched.detail')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {files.map((file) => (
+              <TableRow key={file.id}>
+                <TableCell className="max-w-0 pl-4">
+                  <span className="block truncate font-mono text-xs" title={file.path}>
+                    {file.relativePath}
+                  </span>
+                </TableCell>
+                <TableCell className="text-right text-xs text-muted-foreground tabular-nums">{formatBytes(file.size)}</TableCell>
+                <TableCell>
+                  <Badge variant="outline" className="border-amber-600/30 bg-amber-500/15 text-amber-700 dark:border-amber-400/30 dark:text-amber-300">
+                    {t(`seriesDetail.unmatched.reasons.${file.reason}`)}
+                  </Badge>
+                </TableCell>
+                <TableCell className="max-w-0 pr-4 text-xs text-muted-foreground">
+                  <span className="block truncate" title={file.detail ?? undefined}>
+                    {file.detail}
+                  </span>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </section>
   )
 }
 

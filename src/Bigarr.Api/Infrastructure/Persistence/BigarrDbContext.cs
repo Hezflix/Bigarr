@@ -49,6 +49,10 @@ public sealed class BigarrDbContext(DbContextOptions<BigarrDbContext> options) :
 
     public DbSet<EpisodeFile> EpisodeFiles => Set<EpisodeFile>();
 
+    public DbSet<UnmatchedEpisodeFile> UnmatchedEpisodeFiles => Set<UnmatchedEpisodeFile>();
+
+    public DbSet<SceneName> SceneNames => Set<SceneName>();
+
     public DbSet<Grab> Grabs => Set<Grab>();
 
     public DbSet<GrabTarget> GrabTargets => Set<GrabTarget>();

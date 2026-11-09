@@ -3,7 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Loader2Icon, SearchIcon } from 'lucide-react'
 import { Trans, useTranslation } from 'react-i18next'
-import { ApiError, movies, quality, rootFolders, slugify, type MinimumAvailability, type MovieLookupResult } from '@/api/client'
+import { ApiError, movies, quality, rootFolders, rootsOfKind, slugify, type MinimumAvailability, type MovieLookupResult } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -112,7 +112,7 @@ export function AddMoviePage() {
 function AddForm({ movie, onCancel, onAdded }: { movie: MovieLookupResult; onCancel: () => void; onAdded: (id: number) => void }) {
   const { t } = useTranslation()
   const profiles = useQuery({ queryKey: ['qualityProfiles'], queryFn: quality.profiles })
-  const roots = useQuery({ queryKey: ['rootFolders'], queryFn: rootFolders.list })
+  const roots = useQuery({ queryKey: ['rootFolders'], queryFn: rootFolders.list, select: rootsOfKind('movies') })
   const [profileId, setProfileId] = useState<number | ''>('')
   const [rootId, setRootId] = useState<number | ''>('')
   const [versionName, setVersionName] = useState('')

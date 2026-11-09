@@ -30,6 +30,16 @@ public sealed class Episode
     public int? AbsoluteEpisodeNumber { get; set; }
 
     /// <summary>Local air date as published (Sonarr's <c>airDate</c>); what daily releases are named after.</summary>
+    /// <summary>Scene numbering from TheXEM (null when XEM has no mapping): how releases number this episode.</summary>
+    public int? SceneSeasonNumber { get; set; }
+
+    public int? SceneEpisodeNumber { get; set; }
+
+    public int? SceneAbsoluteEpisodeNumber { get; set; }
+
+    /// <summary>Set by the XEM extrapolation (Sonarr's rule): the scene number is a guess past the mapped range.</summary>
+    public bool UnverifiedSceneNumbering { get; set; }
+
     public DateOnly? AirDate { get; set; }
 
     /// <summary>Air date and time in UTC, from the series' air time and country (Sonarr's <c>airDateUtc</c>).</summary>

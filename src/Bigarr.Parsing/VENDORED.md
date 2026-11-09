@@ -1,6 +1,7 @@
-# Code vendored from Radarr — `Bigarr.Parsing`
+# Code vendored from Radarr and Sonarr — `Bigarr.Parsing`
 
-This document is the **sync contract** between Bigarr and Radarr. It lists exactly what was copied,
+This document is the **sync contract** between Bigarr and Radarr (film parser) and Sonarr (episode
+parser, see "Episode parser — vendored from Sonarr" at the end). It lists exactly what was copied,
 from which version, and which modifications were applied. Every quarterly comparison with upstream
 must start from this file.
 
@@ -303,3 +304,159 @@ Source: `src/NzbDrone.Core.Test/ParserTests/`. NUnit → xUnit v2 conversion.
    must stay 100% green.
 6. If a `Quality` or `Language` id changes upstream: **do not follow blindly**, Bigarr's
    `QualityDefinition` table is seeded from these ids and a migration would be needed.
+
+---
+
+# Episode parser — vendored from Sonarr
+
+The episode side (`Bigarr.Parsing.Episodes`) turns a release title or an episode file path into a
+`ParsedEpisodeInfo`: series title, season/episode numbers, multi-episode, season and multi-season
+packs, absolute numbers (anime), air dates (daily shows), specials, mini-series, anime sub groups,
+hashes and versions. It sits next to the film parser, which is **not touched**: the 1,065 film test
+cases above run unchanged.
+
+## Source
+
+| | |
+|---|---|
+| Upstream project | [Sonarr/Sonarr](https://github.com/Sonarr/Sonarr) |
+| License | GPL-3.0 (same as Bigarr) |
+| Branch | `develop` (Sonarr's release branch is cut from it) |
+| Commit SHA | `c018578e4b79ee048575c02d7a8aa2b929e4b837` |
+| Commit date | 2026-11-02 |
+| Vendoring date | 2026-11-09 |
+
+```bash
+git clone --branch develop https://github.com/Sonarr/Sonarr.git /tmp/sonarr
+git -C /tmp/sonarr checkout c018578e4b79ee048575c02d7a8aa2b929e4b837
+```
+
+## Why a separate namespace instead of one merged parser
+
+Sonarr's `QualityParser`, `LanguageParser`, `ReleaseGroupParser`, `SceneChecker`, `ParserCommon`,
+`IsoLanguages` and `MediaFileExtensions` all differ from Radarr's (TV sources, anime groups, a
+different `.mkv` default quality, different language tokens). Merging them would change film results.
+So each Sonarr file keeps **its upstream class name** in `Bigarr.Parsing.Episodes`. C# resolves names
+from the innermost namespace outwards, so inside `Bigarr.Parsing.Episodes` the call `QualityParser.X`
+binds to Sonarr's copy without a single call-site edit, and the film code in `Bigarr.Parsing` keeps
+binding to Radarr's.
+
+What **is** shared, because it is identical upstream or because Bigarr needs one catalogue:
+
+| Shared item | Why |
+|---|---|
+| `Qualities.Quality`, `QualityModel`, `Revision`, `QualityDetectionSource` | one quality catalogue for films and episodes (profiles, definitions, sizes). Ids stay Radarr's. |
+| `Languages.Language` | one language catalogue. Ids stay Radarr's (see modification E3). |
+| `RegexReplace`, `InvalidDateException`, `Model.SubtitleTitleInfo` | byte-identical between the two upstreams |
+| `Internal.FileExtensions.RemoveFileExtension`, `StringExtensions`, `EnumerableExtensions`, `PathExtensions`, `Iso639BTMap` | same behaviour upstream |
+
+Consumers that need both parsers use an alias:
+`using EpisodeParser = Bigarr.Parsing.Episodes.Parser;`.
+
+## Public entry points
+
+| API | Role |
+|---|---|
+| `Episodes.Parser.ParseTitle(string title)` | release name → `ParsedEpisodeInfo` (`null` when not parsable) |
+| `Episodes.Parser.ParsePath(string path)` | file path; combines season folder + bare episode file names (`Season 1/05.mkv`) |
+| `Episodes.Parser.ParseSeasonTitle`, `ParseSeasonFolder`, `ParseSeriesName` | anime season-title packs, season folders, series name |
+| `Episodes.Parser.CleanSeriesTitle()`, `NormalizeEpisodeTitle`, `NormalizeTitle`, `SimplifyTitle` | normalisations used for title matching |
+| `Episodes.QualityParser.ParseQuality`, `Episodes.LanguageParser.ParseLanguages`, `Episodes.ReleaseGroupParser.ParseReleaseGroup` | Sonarr's flavours, returning the shared `QualityModel` / `Language` |
+| `Episodes.Model.ParsedEpisodeInfo`, `SeriesTitleInfo`, `ReleaseType` | parse result |
+
+## Vendored files (15 files + 2 adapted)
+
+Each file carries a header with the commit SHA, original path and license.
+
+| Bigarr file (`src/Bigarr.Parsing/…`) | Original path (`src/NzbDrone.Core/…`) |
+|---|---|
+| `Episodes/Parser.cs` | `Parser/Parser.cs` |
+| `Episodes/ParserCommon.cs` | `Parser/ParserCommon.cs` |
+| `Episodes/QualityParser.cs` | `Parser/QualityParser.cs` (contains Sonarr's `Resolution` enum) |
+| `Episodes/LanguageParser.cs` | `Parser/LanguageParser.cs` |
+| `Episodes/ReleaseGroupParser.cs` | `Parser/ReleaseGroupParser.cs` |
+| `Episodes/SceneChecker.cs` | `Parser/SceneChecker.cs` |
+| `Episodes/IsoLanguage.cs`, `Episodes/IsoLanguages.cs` | `Parser/IsoLanguage.cs`, `Parser/IsoLanguages.cs` |
+| `Episodes/InvalidSeasonException.cs` | `Parser/InvalidSeasonException.cs` |
+| `Episodes/SeasonNumbersFormatter.cs` | `Parser/SeasonNumbersFormatter.cs` |
+| `Episodes/MediaFileExtensions.cs` | `MediaFiles/MediaFileExtensions.cs` |
+| `Episodes/QualitySource.cs` | `Qualities/QualitySource.cs` (Sonarr's source enum: Television, Web, WebRip, BlurayRaw…) |
+| `Episodes/Model/ParsedEpisodeInfo.cs`, `SeriesTitleInfo.cs`, `ReleaseType.cs` | `Parser/Model/…` |
+| `Internal/RegexExtensions.cs` | `src/NzbDrone.Common/Extensions/RegexExtensions.cs` (`EndIndex`) |
+| `Episodes/QualityFinder.cs` (**adapted**) | `Qualities/QualityFinder.cs` + the quality table of `Qualities/Quality.cs` |
+| `Internal/DiacriticsExtensions.cs` (**written for Bigarr**) | replaces the Diacritical.Net package behind `RemoveDiacritics()` |
+
+## Modifications applied
+
+No regex was touched. Everything below is mechanical.
+
+- **E1. Namespaces / usings.** `NzbDrone.Core.Parser` → `Bigarr.Parsing.Episodes`,
+  `NzbDrone.Core.Parser.Model` → `Bigarr.Parsing.Episodes.Model`; `NzbDrone.Core.MediaFiles` and
+  `NzbDrone.Core.Qualities` (for `QualitySource`/`QualityFinder`) → `Bigarr.Parsing.Episodes`;
+  `NzbDrone.Common.Extensions` → `Bigarr.Parsing.Internal`; `NzbDrone.Core.Qualities` /
+  `NzbDrone.Core.Languages` → the shared `Bigarr.Parsing.Qualities` / `Bigarr.Parsing.Languages`.
+  `using NzbDrone.Core.Tv`, `NzbDrone.Core.Annotations`, `NzbDrone.Core.Organizer` dropped.
+  `LanguageParser` gains `using Bigarr.Parsing.Model` (shared `SubtitleTitleInfo`).
+- **E2. Logging.** Same `ParserLog` swap as the film side (declaration line only).
+- **E3. Shared catalogue names.** `Quality.Bluray1080pRemux` → `Quality.Remux1080p`,
+  `Quality.Bluray2160pRemux` → `Quality.Remux2160p`, `Language.PortugueseBrazil` →
+  `Language.PortugueseBR` (source and tests). Sonarr detects four languages Radarr's catalogue lacks;
+  they were **added to `Languages/Language.cs`** (and to `Language.All`) with ids from 1001 up so a
+  future Radarr id cannot collide: Azerbaijani 1001, Uzbek 1002, Malay 1003, Irish 1004. This is the
+  only change on the film side; it adds catalogue entries and changes no film parse.
+- **E4. `QualityFinder`.** Sonarr's lookup runs on Sonarr's `Quality.All` (source + resolution). The
+  adapted file keeps Sonarr's algorithm line for line over a copy of Sonarr's table whose rows point
+  at the shared qualities, and adds `SourceOf(Quality)` for the one place `QualityParser` read
+  `quality.Source` (file-extension fallback): `source = quality.Source;` →
+  `source = QualityFinder.SourceOf(quality);`.
+- **E5. `Episode.AIR_DATE_FORMAT`** (a constant of Sonarr's series model) → a private
+  `AirDateFormat = "yyyy-MM-dd"` constant in `Episodes/Parser.cs`.
+- **E6. Base classes.** `InvalidSeasonException : NzbDroneException` → `: Exception` with
+  `string.Format(message, args)`, as for `InvalidDateException`. `ReleaseType`'s `[FieldOption]`
+  attributes (UI labels) removed.
+- **E7. Visibility.** `Episodes.MediaFileExtensions` is `internal`, like the film one.
+- **E8. `RemoveDiacritics()`.** Upstream calls Diacritical.Net. Bigarr.Parsing takes no package, so
+  `Internal/DiacriticsExtensions` decomposes with FormD (as `RemoveAccent`) and maps the letters FormD
+  leaves alone (`ð ø đ ł ħ ı`). All of Sonarr's normalisation cases pass with it.
+
+## Not vendored
+
+| Upstream item | Reason |
+|---|---|
+| `Parser/ParsingService.cs` | series lookup + episode mapping against Sonarr's database; Bigarr's own mapper lives in the API's shared kernel (`Shared/Tv/EpisodeMapper`) |
+| `Parser/ValidateParsedEpisodeInfo.cs` | takes a Sonarr `Series`; the rule (daily parse on a standard series is rejected) is in the mapper |
+| `Parser/ReleaseComparer.cs`, `Model/{LocalEpisode,RemoteEpisode,ReleaseInfo,…}` | decision / import models (S3, S5) |
+| Scene mapping (`DataAugmentation/Scene`, services.sonarr.tv) | Bigarr uses thexem.de directly (see the XEM client) and never calls Sonarr's services |
+
+## Ported tests — `tests/Bigarr.Parsing.Tests/Episodes`
+
+Source: `src/NzbDrone.Core.Test/ParserTests/`, namespace `Bigarr.Parsing.Episodes.Tests` (so that
+`Parser`, `QualityParser`… bind to the episode side the same way the source does).
+
+**28 fixtures, 1,691 test cases, all passing.** With the film side: 2,756 in the project.
+
+Same NUnit → xUnit conversion as the film fixtures, plus:
+
+- `Parser.Parser.X` → `Parser.X`, `Parser.ReleaseGroupParser.X` → `ReleaseGroupParser.X`.
+- `Episode.AIR_DATE_FORMAT` → `"yyyy-MM-dd"`; E3 renames.
+- `title.Expand(new { … })` (Expansive package) and `XmlCleaner.ReplaceUnicode` (Sonarr's indexer
+  helper) are provided by `tests/Bigarr.Parsing.Tests/SonarrTestHelpers.cs`.
+- `QualityParserFixture.parsing_our_own_quality_enum_name` feeds Sonarr's remux names
+  ("Bluray-1080p Remux") instead of the shared catalogue's ("Remux-1080p"): the episode parser
+  recognises Sonarr's naming, which is what episode files and releases carry.
+- 12 duplicated `TestCase`s removed (xUnit rejects duplicates, `xUnit1025`): 1 in
+  `AbsoluteEpisodeNumberParserFixture`, 8 in `AnimeMetadataParserFixture`, 1 in
+  `LanguageParserFixture`, 1 in `QualityParserFixture`, 1 in `SeasonParserFixture`. No coverage lost.
+
+Not ported: `ReleaseComparerFixture` (`ReleaseComparer` not vendored), `ValidateParsedEpisodeInfoFixture`
+(Sonarr `Series`), `ParsingServiceTests/*` (database + mocks; Bigarr's mapper has its own tests).
+
+## Diff procedure (episode side)
+
+1. `git -C /tmp/sonarr log -1 develop`, then diff each file of the table above against its original
+   path. Expected differences: header, E1–E8.
+2. Diff `src/NzbDrone.Core.Test/ParserTests/*` too: a new `TestCase` usually means a regex fix.
+3. If Sonarr adds a quality, add its row to `Episodes/QualityFinder.cs` (pointing at the shared
+   catalogue) and check `MediaFileExtensions`; if it adds a language, map it to the shared catalogue
+   or add it with an id from the 1001+ range.
+4. Update SHA / dates above; `dotnet test tests/Bigarr.Parsing.Tests` stays 100% green.

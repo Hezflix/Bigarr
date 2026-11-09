@@ -1,10 +1,11 @@
 import { useDeferredValue, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { cn } from 'cn'
-import { LayoutGridIcon, PlusIcon, SearchIcon, TableIcon } from 'lucide-react'
+import { FolderSearchIcon, LayoutGridIcon, PlusIcon, SearchIcon, TableIcon } from 'lucide-react'
 import { Trans, useTranslation } from 'react-i18next'
-import { series as seriesApi, type SeriesSummary } from '@/api/client'
+import { toast } from 'sonner'
+import { ApiError, series as seriesApi, type SeriesSummary } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -74,6 +75,7 @@ export function SeriesLibraryPage() {
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">
+          <RescanAllButton />
           <Button asChild>
             <Link to="/series/add">
               <PlusIcon />
@@ -226,5 +228,29 @@ function SeriesTable({ items }: { items: SeriesSummary[] }) {
         </TableBody>
       </Table>
     </Card>
+  )
+}
+
+/** Queues a scan of every series root folder; progress shows in Settings → Library. */
+function RescanAllButton() {
+  const { t } = useTranslation()
+  const rescan = useMutation({
+    mutationFn: seriesApi.rescanAll,
+    onSuccess: (queued) =>
+      toast.success(t('seriesLibrary.rescanQueued', { count: queued.length }), {
+        action: (
+          <Link to="/settings/library" className="text-sm underline underline-offset-4">
+            {t('seriesLibrary.rescanProgress')}
+          </Link>
+        ),
+      }),
+    onError: (error) => toast.error(error instanceof ApiError ? error.message : t('common.unexpectedError')),
+  })
+
+  return (
+    <Button type="button" variant="outline" onClick={() => rescan.mutate()} disabled={rescan.isPending} data-testid="series-rescan-all">
+      <FolderSearchIcon />
+      {t('seriesLibrary.rescanAll')}
+    </Button>
   )
 }

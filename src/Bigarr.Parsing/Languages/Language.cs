@@ -132,6 +132,13 @@ namespace Bigarr.Parsing.Languages
         public static Language Romansh => new Language(55, "Romansh");
         public static Language Mongolian => new Language(56, "Mongolian");
         public static Language Georgian => new Language(57, "Georgian");
+
+        // Bigarr: languages Sonarr's episode parser detects that Radarr's catalogue lacks. Ids from
+        // 1001 up so they never collide with a future Radarr id. See VENDORED.md.
+        public static Language Azerbaijani => new Language(1001, "Azerbaijani");
+        public static Language Uzbek => new Language(1002, "Uzbek");
+        public static Language Malay => new Language(1003, "Malay");
+        public static Language Irish => new Language(1004, "Irish");
         public static Language Any => new Language(-1, "Any");
         public static Language Original => new Language(-2, "Original");
 
@@ -199,6 +206,10 @@ namespace Bigarr.Parsing.Languages
                     Romansh,
                     Mongolian,
                     Georgian,
+                    Azerbaijani,
+                    Uzbek,
+                    Malay,
+                    Irish,
                     Any,
                     Original
                 };

@@ -106,7 +106,7 @@ public sealed class SeriesModelTests : IDisposable
 
     private static async Task<(Series Series, SeriesVersion Version, Episode Episode)> SeedAsync(Bigarr.Api.Infrastructure.Persistence.BigarrDbContext db)
     {
-        var root = db.RootFolders.Add(new RootFolder { Path = "/data/tv" }).Entity;
+        var root = db.RootFolders.Add(new RootFolder { Path = "/data/tv", Kind = MediaKind.Series }).Entity;
         var profile = db.QualityProfiles.Add(new QualityProfile { Name = "1080p", PreferredLanguage = "en", Cutoff = TestData.BlurayQualityId }).Entity;
         if (!await db.QualityDefinitions.AnyAsync(q => q.Id == TestData.BlurayQualityId))
         {

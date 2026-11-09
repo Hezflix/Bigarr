@@ -58,7 +58,8 @@
     "close": "Close",
     "previous": "Previous",
     "next": "Next",
-    "page": "Page {{page}} of {{pages}}"
+    "page": "Page {{page}} of {{pages}}",
+    "search": "Search"
   },
   "library": {
     "title": "Library",
@@ -330,7 +331,7 @@
     "choose": "Choose"
   },
   "addMovie": {
-    "noRootFolder": "No root folder yet. <link>Add one</link> before adding a movie.",
+    "noRootFolder": "No film root folder yet. <link>Add one</link> before adding a movie.",
     "qualityProfile": "Quality profile",
     "rootFolder": "Root folder",
     "versionName": "Version name",
@@ -381,12 +382,16 @@
       "episodes": "Episodes",
       "versions": "Versions",
       "nextAiring": "Next airing"
-    }
+    },
+    "rescanAll": "Rescan library",
+    "rescanQueued_one": "Scanning {{count}} series root folder.",
+    "rescanQueued_other": "Scanning {{count}} series root folders.",
+    "rescanProgress": "Progress"
   },
   "addSeries": {
     "title": "Add a series",
     "placeholder": "Title, tvdb:81189 or tmdb:1396…",
-    "noRootFolder": "No root folder yet. <link>Add one</link> before adding a series.",
+    "noRootFolder": "No series root folder yet. <link>Add one</link> (kind “Series”) before adding a series.",
     "seriesType": "Series type",
     "seriesTypeHint": "Anime: absolute numbering. Daily: episodes named by air date.",
     "suggested": "suggested",
@@ -461,7 +466,8 @@
       "absolute": "Abs.",
       "title": "Title",
       "airDate": "Air date",
-      "monitored": "Monitored"
+      "monitored": "Monitored",
+      "file": "File"
     },
     "ids": {
       "tvdb": "TVDB {{id}}",
@@ -469,7 +475,28 @@
       "imdb": "IMDb {{id}}"
     },
     "firstAired": "First aired {{date}}",
-    "airs": "Airs {{time}}"
+    "airs": "Airs {{time}}",
+    "rescan": "Rescan files",
+    "rescanning": "Scanning…",
+    "missing": "Missing",
+    "multiEpisodeHint": "One file holds these episodes",
+    "unmatched": {
+      "title_one": "{{count}} unmatched file",
+      "title_other": "{{count}} unmatched files",
+      "hint": "Video files in this version’s folder the scan could not attach to an episode. They stay where they are; rename or move them, then rescan.",
+      "file": "File",
+      "size": "Size",
+      "reason": "Reason",
+      "detail": "Detail",
+      "reasons": {
+        "notParsable": "Name not recognised",
+        "episodeNotFound": "No such episode",
+        "ambiguous": "Several possible episodes",
+        "wrongSeriesType": "Date in a non-daily show",
+        "duplicate": "Episode already has a file",
+        "notAnEpisode": "Not a single episode"
+      }
+    }
   },
   "status": {
     "pending": "Pending",
@@ -551,7 +578,7 @@
     "path": "Path",
     "freeSpace": "Free space",
     "versions": "Versions",
-    "versionsHint": "Film versions stored in this folder, with or without a file yet. A folder can't be removed while any point at it.",
+    "versionsHint": "Film or series versions stored in this folder, with or without files yet. A folder can't be removed while any point at it.",
     "versionFiles": "{{count}} with a file",
     "unmapped": "Unmapped",
     "scan": "Scan",
@@ -561,7 +588,7 @@
     "pathPlaceholder": "/data/movies",
     "removeFailed": "The root folder could not be removed.",
     "addFailed": "The root folder could not be added.",
-    "scanHint": "The scan is read-only: one top-level folder is one movie, one video file is one version on the “Any” profile, unmonitored. Nothing is moved or renamed.",
+    "scanHint": "The scan is read-only. In a film root, one top-level folder is one movie and one video file one version, unmonitored. In a series root, one top-level folder is one series version: its files are attached to the episodes they hold, the rest is listed. Nothing is moved or renamed.",
     "storage": {
       "title": "Storage",
       "used_one": "{{size}} in {{count}} file",
@@ -577,7 +604,7 @@
       "segment_other": "{{path}}: {{size}} in {{count}} files, {{share}} of the space used"
     },
     "unmappedFolders": "Unmapped folders",
-    "unmappedEmpty": "None. Everything scanned found its movie.",
+    "unmappedEmpty": "None. Every scanned folder found its movie or series.",
     "folder": "Folder",
     "files": "Files",
     "reason": "Reason",
@@ -593,7 +620,20 @@
     "scanUnmapped_other": "{{count}} unmapped",
     "removeRootTitle": "Remove this root folder?",
     "importFolder": "Import…",
-    "unmappedHint": "Import by hand moves the files into a movie already in the library; add the movie first if it is not there yet."
+    "unmappedHint": "A film folder is imported by hand into a movie already in the library (add the movie first). A series folder is mapped to a show: one in the library gets it as a version, another one is added, unmonitored.",
+    "kind": "Holds",
+    "kinds": {
+      "movies": "Films",
+      "series": "Series"
+    },
+    "kindLocked": "Versions live here: the kind cannot change any more.",
+    "scanSeries_one": "{{count}} series",
+    "scanSeries_other": "{{count}} series",
+    "scanEpisodeFiles_one": "{{count}} episode file",
+    "scanEpisodeFiles_other": "{{count}} episode files",
+    "scanUnmatchedFiles_one": "{{count}} unmatched file",
+    "scanUnmatchedFiles_other": "{{count}} unmatched files",
+    "mapSeries": "Map to series…"
   },
   "pathPicker": {
     "browse": "Browse…",
@@ -607,8 +647,8 @@
   "unmappedReason": {
     "noVideoFiles": "No video files",
     "notParsable": "Name not recognised",
-    "noMatch": "No matching movie",
-    "ambiguousMatch": "Several possible movies",
+    "noMatch": "No match found",
+    "ambiguousMatch": "Several possible matches",
     "metadataError": "Metadata provider error"
   },
   "indexers": {
@@ -1684,5 +1724,16 @@
     "refreshing": "Refreshing…",
     "refreshOk": "{{name}} is scanning its movie libraries.",
     "refreshFailed": "The server refused the refresh."
+  },
+  "mapSeries": {
+    "title": "Map {{folder}}",
+    "hint": "Pick the show this folder holds. A show already in the library gets the folder as a new version; another one is added, unmonitored. The files are then scanned; nothing is moved.",
+    "placeholder": "Series title, tvdb:81189 or tmdb:1396",
+    "noResult": "No show found.",
+    "inLibrary": "In the library",
+    "addVersion": "Add as version",
+    "add": "Add series",
+    "done": "{{folder}} mapped to {{title}}, scanning its files.",
+    "open": "Open"
   }
 }

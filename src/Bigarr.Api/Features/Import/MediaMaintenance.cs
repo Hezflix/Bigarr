@@ -13,7 +13,9 @@ public sealed class MediaMaintenance(BigarrDbContext db, MediaManagementService 
 {
     public async Task<BackfillResponse> BackfillAsync(int? batchSize, CancellationToken ct)
     {
-        var remaining = await db.MediaFiles.CountAsync(f => f.MediaInfo == null, ct);
+        // Film files first, then episode files: one batch budget shared by both.
+        var remaining = await db.MediaFiles.CountAsync(f => f.MediaInfo == null, ct)
+                        + await db.EpisodeFiles.CountAsync(f => f.MediaInfo == null, ct);
         if (!probe.IsAvailable || remaining == 0)
         {
             return new BackfillResponse(probe.IsAvailable, 0, remaining);
@@ -31,20 +33,33 @@ public sealed class MediaMaintenance(BigarrDbContext db, MediaManagementService 
         foreach (var file in files)
         {
             ct.ThrowIfCancellationRequested();
-            var path = Path.Combine(file.Version.RootFolder.Path, file.Version.FolderName, file.RelativePath);
-            if (!File.Exists(path))
+            var info = await ProbeAsync(Path.Combine(file.Version.RootFolder.Path, file.Version.FolderName, file.RelativePath), file.OriginalReleaseTitle, ct);
+            if (info is not null)
             {
-                continue;
+                file.MediaInfo = info;
+                probed++;
             }
+        }
 
-            var info = await probe.ReadAsync(path, file.OriginalReleaseTitle, ct);
-            if (info is null)
+        if (files.Count < take)
+        {
+            var episodeFiles = await db.EpisodeFiles
+                .Include(f => f.Version).ThenInclude(v => v.RootFolder)
+                .Where(f => f.MediaInfo == null)
+                .OrderBy(f => f.Id)
+                .Take(take - files.Count)
+                .ToListAsync(ct);
+
+            foreach (var file in episodeFiles)
             {
-                continue;
+                ct.ThrowIfCancellationRequested();
+                var info = await ProbeAsync(Path.Combine(file.Version.RootFolder.Path, file.Version.FolderName, file.RelativePath), file.OriginalReleaseTitle, ct);
+                if (info is not null)
+                {
+                    file.MediaInfo = info;
+                    probed++;
+                }
             }
-
-            file.MediaInfo = info;
-            probed++;
         }
 
         if (probed > 0)
@@ -55,6 +70,9 @@ public sealed class MediaMaintenance(BigarrDbContext db, MediaManagementService 
 
         return new BackfillResponse(true, probed, remaining - probed);
     }
+
+    private async Task<Domain.Movies.MediaInfo?> ProbeAsync(string path, string? releaseTitle, CancellationToken ct) =>
+        File.Exists(path) ? await probe.ReadAsync(path, releaseTitle, ct) : null;
 
     public async Task<int> EmptyRecycleBinAsync(CancellationToken ct)
     {

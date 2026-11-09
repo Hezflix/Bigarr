@@ -8,6 +8,7 @@ import {
   monitoringOptions,
   quality,
   rootFolders,
+  rootsOfKind,
   series as seriesApi,
   seriesTypes,
   slugify,
@@ -122,7 +123,7 @@ function AddForm({ show, onCancel, onAdded }: { show: SeriesLookupResult; onCanc
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const profiles = useQuery({ queryKey: ['qualityProfiles'], queryFn: quality.profiles })
-  const roots = useQuery({ queryKey: ['rootFolders'], queryFn: rootFolders.list })
+  const roots = useQuery({ queryKey: ['rootFolders'], queryFn: rootFolders.list, select: rootsOfKind('series') })
   const [profileId, setProfileId] = useState<number | ''>('')
   const [rootId, setRootId] = useState<number | ''>('')
   const [versionName, setVersionName] = useState('')

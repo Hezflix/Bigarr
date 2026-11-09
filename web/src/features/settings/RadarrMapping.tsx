@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { quality, rootFolders, type RadarrImportPreview } from '@/api/client'
+import { quality, rootFolders, rootsOfKind, type RadarrImportPreview } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
@@ -73,7 +73,7 @@ export function ProfileMappingTable({ preview, value, onChange }: { preview: Rad
 
 export function RootFolderMappingTable({ preview, value, onChange }: { preview: RadarrImportPreview; value: Record<string, number>; onChange: (value: Record<string, number>) => void }) {
   const { t } = useTranslation()
-  const roots = useQuery({ queryKey: ['rootFolders'], queryFn: rootFolders.list })
+  const roots = useQuery({ queryKey: ['rootFolders'], queryFn: rootFolders.list, select: rootsOfKind('movies') })
   return (
     <div className="overflow-x-auto rounded-lg border">
       <Table>

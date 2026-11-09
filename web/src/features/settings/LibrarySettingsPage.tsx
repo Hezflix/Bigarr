@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FolderInputIcon, Trash2Icon } from 'lucide-react'
+import { FolderInputIcon, LinkIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, movies, rootFolders, type RootFolder, type UnmappedFolder } from '@/api/client'
+import { ApiError, movies, rootFolders, type MediaKind, type RootFolder, type UnmappedFolder } from '@/api/client'
 import { PathPicker } from '@/components/PathPicker'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -21,7 +21,9 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ManualImportDialog } from '@/features/import/ManualImportDialog'
+import { MapSeriesFolderDialog } from '@/features/series/MapSeriesFolderDialog'
 import { formatBytes } from '@/i18n'
 import { StorageBar, usagePerRootFolder } from './StorageBar'
 
@@ -37,11 +39,13 @@ export function LibrarySettingsPage() {
     [library.data, roots.data],
   )
   const [path, setPath] = useState('')
+  const [kind, setKind] = useState<MediaKind>('movies')
   const [pendingRemove, setPendingRemove] = useState<RootFolder | null>(null)
   const [importing, setImporting] = useState<UnmappedFolder | null>(null)
+  const [mapping, setMapping] = useState<UnmappedFolder | null>(null)
 
   const add = useMutation({
-    mutationFn: () => rootFolders.add(path.trim()),
+    mutationFn: () => rootFolders.add(path.trim(), kind),
     onSuccess: async () => {
       setPath('')
       await queryClient.invalidateQueries({ queryKey: ['rootFolders'] })
@@ -78,6 +82,7 @@ export function LibrarySettingsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>{t('settings.path')}</TableHead>
+                <TableHead>{t('settings.kind')}</TableHead>
                 <TableHead>{t('settings.freeSpace')}</TableHead>
                 <TableHead>
                   <Tooltip>
@@ -98,7 +103,7 @@ export function LibrarySettingsPage() {
               ))}
               {roots.data?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-muted-foreground">
+                  <TableCell colSpan={7} className="text-muted-foreground">
                     {t('settings.noRootFolders')}
                   </TableCell>
                 </TableRow>
@@ -115,6 +120,15 @@ export function LibrarySettingsPage() {
             placeholder={t('settings.pathPlaceholder')}
             testId="rootfolder-path"
           />
+          <Select value={kind} onValueChange={(value) => setKind(value as MediaKind)}>
+            <SelectTrigger className="w-32" aria-label={t('settings.kind')} data-testid="rootfolder-kind">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="movies">{t('settings.kinds.movies')}</SelectItem>
+              <SelectItem value="series">{t('settings.kinds.series')}</SelectItem>
+            </SelectContent>
+          </Select>
           <Button type="submit" disabled={add.isPending || !path.trim()}>
             {t('settings.addRootFolder')}
           </Button>
@@ -147,15 +161,27 @@ export function LibrarySettingsPage() {
               <TableBody>
                 {unmapped.data.map((u) => (
                   <TableRow key={u.id}>
-                    <TableCell title={u.path}>{u.relativePath}</TableCell>
+                    <TableCell title={u.path}>
+                      <span className="flex flex-wrap items-center gap-2">
+                        {u.relativePath}
+                        <Badge variant="outline">{t(`settings.kinds.${u.kind}`)}</Badge>
+                      </span>
+                    </TableCell>
                     <TableCell>{u.fileCount}</TableCell>
                     <TableCell>{t(`unmappedReason.${u.reason}`)}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{u.detail}</TableCell>
                     <TableCell className="text-right">
-                      <Button type="button" variant="outline" size="sm" onClick={() => setImporting(u)} disabled={u.fileCount === 0} data-testid="unmapped-import">
-                        <FolderInputIcon />
-                        {t('settings.importFolder')}
-                      </Button>
+                      {u.kind === 'series' ? (
+                        <Button type="button" variant="outline" size="sm" onClick={() => setMapping(u)} disabled={u.fileCount === 0} data-testid="unmapped-map-series">
+                          <LinkIcon />
+                          {t('settings.mapSeries')}
+                        </Button>
+                      ) : (
+                        <Button type="button" variant="outline" size="sm" onClick={() => setImporting(u)} disabled={u.fileCount === 0} data-testid="unmapped-import">
+                          <FolderInputIcon />
+                          {t('settings.importFolder')}
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -165,6 +191,7 @@ export function LibrarySettingsPage() {
         )}
       </section>
 
+      {mapping && <MapSeriesFolderDialog folder={mapping} onClose={() => setMapping(null)} />}
       {importing && <ManualImportDialog path={importing.path} title={importing.relativePath} onClose={() => setImporting(null)} />}
 
       <AlertDialog open={pendingRemove !== null} onOpenChange={(open) => !open && setPendingRemove(null)}>
@@ -212,9 +239,19 @@ function RootFolderRow({ root, files, onRequestRemove }: { root: RootFolder; fil
   useEffect(() => {
     if (scanState !== 'completed') return
     void queryClient.invalidateQueries({ queryKey: ['movies'] })
+    void queryClient.invalidateQueries({ queryKey: ['series'] })
     void queryClient.invalidateQueries({ queryKey: ['rootFolders'] })
     void queryClient.invalidateQueries({ queryKey: ['unmapped'] })
   }, [scanState, queryClient])
+
+  const setKind = useMutation({
+    mutationFn: (kind: MediaKind) => rootFolders.setKind(root.id, kind),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['rootFolders'] })
+      void queryClient.invalidateQueries({ queryKey: ['unmapped'] })
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : t('common.unexpectedError')),
+  })
 
   const progress = busy && s && s.foldersTotal > 0 ? Math.round((s.foldersProcessed / s.foldersTotal) * 100) : 0
 
@@ -230,12 +267,23 @@ function RootFolderRow({ root, files, onRequestRemove }: { root: RootFolder; fil
           )}
         </span>
       </TableCell>
+      <TableCell className="align-top">
+        <Select value={root.kind} onValueChange={(value) => setKind.mutate(value as MediaKind)} disabled={setKind.isPending || root.versionCount > 0}>
+          <SelectTrigger size="sm" className="w-28" aria-label={t('settings.kind')} title={root.versionCount > 0 ? t('settings.kindLocked') : undefined}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="movies">{t('settings.kinds.movies')}</SelectItem>
+            <SelectItem value="series">{t('settings.kinds.series')}</SelectItem>
+          </SelectContent>
+        </Select>
+      </TableCell>
       <TableCell className="align-top whitespace-nowrap">
         {formatBytes(root.freeSpace)} <span className="text-muted-foreground">/ {formatBytes(root.totalSpace)}</span>
       </TableCell>
       <TableCell className="align-top whitespace-nowrap" data-testid="rootfolder-versions">
         {root.versionCount}
-        {files !== null && <span className="text-muted-foreground"> · {t('settings.versionFiles', { count: files })}</span>}
+        {files !== null && root.kind === 'movies' && <span className="text-muted-foreground"> · {t('settings.versionFiles', { count: files })}</span>}
       </TableCell>
       <TableCell className="align-top">{root.unmappedFolderCount}</TableCell>
       <TableCell className="align-top">
@@ -248,10 +296,16 @@ function RootFolderRow({ root, files, onRequestRemove }: { root: RootFolder; fil
             </span>
           </div>
         )}
-        {s?.state === 'completed' && (
+        {s?.state === 'completed' && root.kind === 'movies' && (
           <span className="text-xs text-muted-foreground">
             {t('settings.scanMovies', { count: s.moviesAdded })}, {t('settings.scanVersions', { count: s.versionsAdded })},{' '}
             {t('settings.scanUnmapped', { count: s.unmapped })}
+          </span>
+        )}
+        {s?.state === 'completed' && root.kind === 'series' && (
+          <span className="text-xs text-muted-foreground" data-testid="series-scan-summary">
+            {t('settings.scanSeries', { count: s.seriesAdded })}, {t('settings.scanEpisodeFiles', { count: s.filesAdded })},{' '}
+            {t('settings.scanUnmatchedFiles', { count: s.unmatchedFiles })}, {t('settings.scanUnmapped', { count: s.unmapped })}
           </span>
         )}
         {s?.state === 'failed' && <span className="text-xs text-destructive">{s.error}</span>}

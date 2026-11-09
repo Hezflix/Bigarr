@@ -230,7 +230,8 @@ public sealed class SeriesQueries(BigarrDbContext db, TimeProvider time)
         var regular = mine.Where(s => s.Key.SeasonNumber > 0).Select(s => s.Value).ToList();
         return new EpisodeStatistics(
             regular.Sum(s => s.EpisodeCount),
-            mine.Sum(s => s.Value.EpisodeFileCount),
+            // Like Sonarr's series progress: specials stay out of both counts (they are in the size).
+            regular.Sum(s => s.EpisodeFileCount),
             regular.Sum(s => s.MonitoredEpisodeCount),
             regular.Sum(s => s.TotalEpisodeCount),
             mine.Sum(s => s.Value.SizeOnDisk));
