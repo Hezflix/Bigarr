@@ -34,6 +34,18 @@ public sealed record EpisodeCoverage(
     int? SeriesRuntimeMinutes,
     DateTime Now)
 {
+    /// <summary>Sonarr's season-pack upgrade mode: how many of a pack's episodes must be upgraded.</summary>
+    public Bigarr.Domain.Library.SeasonPackUpgrade SeasonPackUpgrade { get; init; } = Bigarr.Domain.Library.SeasonPackUpgrade.All;
+
+    /// <summary>Percent, for the threshold mode.</summary>
+    public double SeasonPackUpgradeThreshold { get; init; } = 100;
+
+    /// <summary>The series' first regular season, for Sonarr's runtime guess on a new show.</summary>
+    public int? FirstSeasonNumber { get; init; }
+
+    /// <summary>Air date of that season's first episode (the pilot), when known.</summary>
+    public DateTime? PilotAirDateUtc { get; init; }
+
     public string Describe() => Describe(Slots);
 
     public static string Describe(IReadOnlyCollection<EpisodeSlot> slots)

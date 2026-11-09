@@ -53,10 +53,35 @@ public sealed class UpgradableSpecification : IReleaseSpecification
             return refused[0].Rejection;
         }
 
+        var upgradedCount = episodes.Slots.Count - refused.Count;
+        if (candidate.ParsedEpisode?.FullSeason == true)
+        {
+            // Sonarr's season-pack modes: all (default), a percentage, or any one episode.
+            var percent = 100.0 * upgradedCount / episodes.Slots.Count;
+            var accepted = episodes.SeasonPackUpgrade switch
+            {
+                Bigarr.Domain.Library.SeasonPackUpgrade.Any => upgradedCount > 0,
+                Bigarr.Domain.Library.SeasonPackUpgrade.Threshold => percent >= episodes.SeasonPackUpgradeThreshold,
+                _ => false,
+            };
+            if (accepted)
+            {
+                return null;
+            }
+
+            if (episodes.SeasonPackUpgrade != Bigarr.Domain.Library.SeasonPackUpgrade.All)
+            {
+                var rule = episodes.SeasonPackUpgrade == Bigarr.Domain.Library.SeasonPackUpgrade.Any
+                    ? "at least one"
+                    : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{episodes.SeasonPackUpgradeThreshold:0.##}%");
+                return new Rejection(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                    $"Season pack does not upgrade enough episodes: {upgradedCount}/{episodes.Slots.Count} ({percent:0.##}%), {rule} required"));
+            }
+        }
+
         var first = refused.OrderBy(r => r.Slot.SeasonNumber).ThenBy(r => r.Slot.EpisodeNumber).First();
-        var upgraded = episodes.Slots.Count - refused.Count;
         return new Rejection(
-            $"Not an upgrade for every episode it would replace ({upgraded}/{episodes.Slots.Count} upgradable): {first.Slot.Label}: {first.Rejection.Reason}"
+            $"Not an upgrade for every episode it would replace ({upgradedCount}/{episodes.Slots.Count} upgradable): {first.Slot.Label}: {first.Rejection.Reason}"
             + (refused.Count > 1 ? $" (and {refused.Count - 1} more)" : string.Empty));
     }
 

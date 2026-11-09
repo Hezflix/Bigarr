@@ -556,6 +556,12 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<bool>("RenameFiles")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("SeasonPackUpgrade")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("SeasonPackUpgradeThreshold")
+                        .HasColumnType("REAL");
+
                     b.Property<int>("TransferMode")
                         .HasColumnType("INTEGER");
 

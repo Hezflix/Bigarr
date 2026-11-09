@@ -1089,11 +1089,26 @@ export type MediaManagement = {
   fileNamePreview: string
   folderNamePreview: string
   tokens: NamingToken[]
+  /** Sonarr's "Season Pack Upgrade": how many of a pack's episodes must be upgraded for the pack to be. */
+  seasonPackUpgrade: SeasonPackUpgrade
+  /** Percent, for the threshold mode. */
+  seasonPackUpgradeThreshold: number
 }
+
+export type SeasonPackUpgrade = 'all' | 'threshold' | 'any'
 
 export type MediaManagementRequest = Pick<
   MediaManagement,
-  'renameFiles' | 'fileNameTemplate' | 'folderNameTemplate' | 'transferMode' | 'recycleBinPath' | 'recycleBinRetentionDays' | 'importExtraFiles' | 'extraFileExtensions'
+  | 'renameFiles'
+  | 'fileNameTemplate'
+  | 'folderNameTemplate'
+  | 'transferMode'
+  | 'recycleBinPath'
+  | 'recycleBinRetentionDays'
+  | 'importExtraFiles'
+  | 'extraFileExtensions'
+  | 'seasonPackUpgrade'
+  | 'seasonPackUpgradeThreshold'
 >
 
 export type NamingPreview = { fileName: string | null; fileErrors: string[]; folderName: string | null; folderErrors: string[] }

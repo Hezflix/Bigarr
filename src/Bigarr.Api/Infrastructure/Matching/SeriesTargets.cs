@@ -25,6 +25,7 @@ public sealed class SeriesTargets
     private readonly IReadOnlyDictionary<int, QualityDefinition> _definitions;
     private readonly IReadOnlyDictionary<int, string> _formatNames;
     private readonly DateTime _now;
+    private readonly Bigarr.Domain.Library.MediaManagementConfig _media;
 
     internal SeriesTargets(
         Series series,
@@ -33,8 +34,10 @@ public sealed class SeriesTargets
         ILookup<int, BlocklistEntry> blocklist,
         IReadOnlyDictionary<int, QualityDefinition> definitions,
         IReadOnlyDictionary<int, string> formatNames,
-        DateTime now)
+        DateTime now,
+        Bigarr.Domain.Library.MediaManagementConfig? media = null)
     {
+        _media = media ?? Bigarr.Domain.Library.MediaManagementConfig.Default();
         Series = series;
         SceneNames = sceneNames;
         _slots = slots;
@@ -44,7 +47,14 @@ public sealed class SeriesTargets
         _now = now;
         Episodes = series.Episodes.ToList();
         Mappable = MappableSeries.From(series);
+        FirstSeasonNumber = Episodes.Where(e => e.SeasonNumber > 0).Select(e => (int?)e.SeasonNumber).Min();
+        var pilot = Episodes.Where(e => e.SeasonNumber == FirstSeasonNumber).OrderBy(e => e.EpisodeNumber).FirstOrDefault();
+        PilotAirDateUtc = pilot?.AirDateUtc ?? pilot?.AirDate?.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
     }
+
+    public int? FirstSeasonNumber { get; }
+
+    public DateTime? PilotAirDateUtc { get; }
 
     public Series Series { get; }
 
@@ -106,7 +116,13 @@ public sealed class SeriesTargets
                 version.IsDefault)
             {
                 CustomFormatNames = _formatNames,
-                Episodes = new EpisodeCoverage(present, Series.SeriesType == SeriesType.Anime, version.Monitored, Series.Runtime, _now),
+                Episodes = new EpisodeCoverage(present, Series.SeriesType == SeriesType.Anime, version.Monitored, Series.Runtime, _now)
+                {
+                    SeasonPackUpgrade = _media.SeasonPackUpgrade,
+                    SeasonPackUpgradeThreshold = _media.SeasonPackUpgradeThreshold,
+                    FirstSeasonNumber = FirstSeasonNumber,
+                    PilotAirDateUtc = PilotAirDateUtc,
+                },
             });
         }
 
@@ -160,6 +176,7 @@ public sealed class SeriesTargetsFactory(BigarrDbContext db, CustomFormatScorer 
             .Select(n => new SceneAlias(n.TvdbId, n.Title, n.SceneSeasonNumber))
             .ToLookup(n => n.TvdbId);
         var now = time.GetUtcNow().UtcDateTime;
+        var media = await db.MediaManagement.AsNoTracking().FirstOrDefaultAsync(c => c.Id == Bigarr.Domain.Library.MediaManagementConfig.SingletonId, ct);
 
         foreach (var show in series)
         {
@@ -216,7 +233,8 @@ public sealed class SeriesTargetsFactory(BigarrDbContext db, CustomFormatScorer 
                 blocklist,
                 definitions,
                 formatNames,
-                now);
+                now,
+                media);
         }
 
         return result;

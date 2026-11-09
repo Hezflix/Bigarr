@@ -1177,7 +1177,16 @@
     "backfillDone_one": "{{count}} file probed, {{remaining}} left.",
     "backfillDone_other": "{{count}} files probed, {{remaining}} left.",
     "saved": "Media management saved.",
-    "saveFailed": "The settings could not be saved."
+    "saveFailed": "The settings could not be saved.",
+    "seasonPacks": "Season packs",
+    "seasonPackUpgrade": "Season pack upgrade",
+    "seasonPackUpgradeModes": {
+      "all": "Every episode",
+      "threshold": "A share of the episodes",
+      "any": "Any one episode"
+    },
+    "seasonPackUpgradeThreshold": "Threshold (%)",
+    "seasonPackUpgradeHint": "When a season pack counts as an upgrade over the episode files it would replace, as in Sonarr. Episodes without a file always count as upgraded. “Any one episode” may replace better files with worse ones."
   },
   "wanted": {
     "title": "Wanted",

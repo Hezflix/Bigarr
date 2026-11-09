@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, mediaManagement, type MediaManagement, type MediaManagementRequest, type TransferMode } from '@/api/client'
+import { ApiError, mediaManagement, type MediaManagement, type MediaManagementRequest, type SeasonPackUpgrade, type TransferMode } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -65,6 +65,8 @@ function toRequest(config: MediaManagement): MediaManagementRequest {
     recycleBinRetentionDays: config.recycleBinRetentionDays,
     importExtraFiles: config.importExtraFiles,
     extraFileExtensions: config.extraFileExtensions,
+    seasonPackUpgrade: config.seasonPackUpgrade,
+    seasonPackUpgradeThreshold: config.seasonPackUpgradeThreshold,
   }
 }
 
@@ -222,6 +224,42 @@ function MediaManagementForm({ initial }: { initial: MediaManagement }) {
           />
           <span className="text-xs text-muted-foreground">{t('mediaManagement.extraFileExtensionsHint')}</span>
         </div>
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="text-xl font-semibold tracking-tight">{t('mediaManagement.seasonPacks')}</h2>
+        <div className="grid max-w-xl gap-4 sm:grid-cols-[minmax(0,1fr)_10rem]">
+          <div className="grid gap-2">
+            <Label htmlFor="mm-pack-upgrade">{t('mediaManagement.seasonPackUpgrade')}</Label>
+            <Select value={form.seasonPackUpgrade} onValueChange={(v) => setForm({ ...form, seasonPackUpgrade: v as SeasonPackUpgrade })}>
+              <SelectTrigger id="mm-pack-upgrade" className="w-full" data-testid="mm-pack-upgrade">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(['all', 'threshold', 'any'] as const).map((mode) => (
+                  <SelectItem key={mode} value={mode}>
+                    {t(`mediaManagement.seasonPackUpgradeModes.${mode}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {form.seasonPackUpgrade === 'threshold' && (
+            <div className="grid gap-2">
+              <Label htmlFor="mm-pack-threshold">{t('mediaManagement.seasonPackUpgradeThreshold')}</Label>
+              <Input
+                id="mm-pack-threshold"
+                type="number"
+                min={0}
+                max={100}
+                value={form.seasonPackUpgradeThreshold}
+                onChange={(e) => setForm({ ...form, seasonPackUpgradeThreshold: e.target.value === '' ? 100 : Number(e.target.value) })}
+                data-testid="mm-pack-threshold"
+              />
+            </div>
+          )}
+        </div>
+        <span className="max-w-3xl text-xs text-muted-foreground">{t('mediaManagement.seasonPackUpgradeHint')}</span>
       </section>
 
       <section className="flex flex-col gap-4">

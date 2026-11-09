@@ -235,4 +235,51 @@ public sealed class EpisodeDecisionTests
         Assert.Contains(Interactive.Evaluate(Candidate("Show.S01E05.1080p.WEB-DL.sample-NTb", 0.03), Context(Version(), [new Ep(1, 5)])).Rejections,
             r => r.Reason == "Sample");
     }
+
+    [Fact]
+    public void Season_pack_upgrade_follows_the_configured_mode()
+    {
+        var lower = new ExistingFile(ParserQuality.Bluray720p.Id, 1, 0, false);
+        var atCutoff = new ExistingFile(ParserQuality.Bluray1080p.Id, 1, 0, false);
+        var pack = Candidate("Show.S01.1080p.BluRay.x264-GRP", 30);
+        TargetContext Pack(Bigarr.Domain.Library.SeasonPackUpgrade mode, double threshold = 100, int keep = 1)
+        {
+            var c = Context(Version(), Season(10, n => new Ep(1, n, File: n <= keep ? atCutoff : lower)));
+            return c with { Episodes = c.Episodes! with { SeasonPackUpgrade = mode, SeasonPackUpgradeThreshold = threshold } };
+        }
+
+        Assert.False(Interactive.Evaluate(pack, Pack(Bigarr.Domain.Library.SeasonPackUpgrade.All)).Approved);
+        Assert.True(Interactive.Evaluate(pack, Pack(Bigarr.Domain.Library.SeasonPackUpgrade.Threshold, 90)).Approved);
+
+        var short1 = Interactive.Evaluate(pack, Pack(Bigarr.Domain.Library.SeasonPackUpgrade.Threshold, 90, keep: 2));
+        Assert.Contains(short1.Rejections, r => r.Reason == "Season pack does not upgrade enough episodes: 8/10 (80%), 90% required");
+
+        Assert.True(Interactive.Evaluate(pack, Pack(Bigarr.Domain.Library.SeasonPackUpgrade.Any, keep: 9)).Approved);
+        Assert.Contains(Interactive.Evaluate(pack, Pack(Bigarr.Domain.Library.SeasonPackUpgrade.Any, keep: 10)).Rejections,
+            r => r.Reason == "Season pack does not upgrade enough episodes: 0/10 (0%), at least one required");
+
+        // A multi-episode release that is not a pack keeps the "every episode" rule.
+        var twoEpisodes = Context(Version(), [new Ep(1, 1, File: atCutoff), new Ep(1, 2, File: lower)]);
+        var anyMode = twoEpisodes with { Episodes = twoEpisodes.Episodes! with { SeasonPackUpgrade = Bigarr.Domain.Library.SeasonPackUpgrade.Any } };
+        Assert.False(Interactive.Evaluate(Candidate("Show.S01E01E02.1080p.BluRay.x264-GRP", 6), anyMode).Approved);
+    }
+
+    [Fact]
+    public void A_new_show_without_a_runtime_is_taken_to_run_45_minutes_around_its_pilot()
+    {
+        var pilot = Now.AddDays(-1);
+        var context = Context(Version(), [new Ep(1, 1, pilot, Runtime: null)]);
+        var unknown = context with { Episodes = context.Episodes! with { SeriesRuntimeMinutes = null, FirstSeasonNumber = 1, PilotAirDateUtc = pilot } };
+
+        // 45 min at 20–200 MB/min: 0.9 GB to 8.8 GB.
+        Assert.True(Interactive.Evaluate(Candidate("Show.S01E01.1080p.BluRay.x264-GRP", 3), unknown).Approved);
+        Assert.Contains(Interactive.Evaluate(Candidate("Show.S01E01.1080p.BluRay.x264-GRP", 12), unknown).Rejections,
+            r => r.Reason == "12 GB is larger than the maximum 8.8 GB for Bluray-1080p (45 min)");
+
+        // Past the pilot's first day, or outside the first season, Sonarr no longer guesses.
+        var later = Context(Version(), [new Ep(1, 2, pilot.AddDays(7), Runtime: null)]);
+        var laterUnknown = later with { Episodes = later.Episodes! with { SeriesRuntimeMinutes = null, FirstSeasonNumber = 1, PilotAirDateUtc = pilot } };
+        Assert.Contains(Interactive.Evaluate(Candidate("Show.S01E02.1080p.BluRay.x264-GRP", 3), laterUnknown).Rejections,
+            r => r.Reason.StartsWith("Runtime of the episodes is unknown", StringComparison.Ordinal));
+    }
 }

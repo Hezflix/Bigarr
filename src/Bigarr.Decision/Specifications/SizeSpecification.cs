@@ -29,7 +29,13 @@ public sealed class SizeSpecification : IReleaseSpecification
                 return null;
             }
 
-            runtime = episodes.Slots.Sum(s => s.RuntimeMinutes is > 0 ? s.RuntimeMinutes.Value : episodes.SeriesRuntimeMinutes ?? 0);
+            var seriesRuntime = episodes.SeriesRuntimeMinutes ?? 0;
+            if (seriesRuntime == 0 && GuessNewShowRuntime(candidate, episodes))
+            {
+                seriesRuntime = NewShowRuntimeMinutes;
+            }
+
+            runtime = episodes.Slots.Sum(s => s.RuntimeMinutes is > 0 ? s.RuntimeMinutes.Value : seriesRuntime);
             if (runtime == 0)
             {
                 return new Rejection("Runtime of the episodes is unknown: the size cannot be checked until it is available");
@@ -57,6 +63,25 @@ public sealed class SizeSpecification : IReleaseSpecification
         }
 
         return null;
+    }
+
+    /// <summary>Sonarr's guess for a show whose runtime is not known yet.</summary>
+    public const int NewShowRuntimeMinutes = 45;
+
+    /// <summary>
+    /// Sonarr's <c>AcceptableSizeSpecification</c>: a new show often has no runtime yet. For releases of its first season
+    /// whose episodes air (or have no air date) before 24 hours after the pilot (or after the release's publication
+    /// when the pilot has no date), the series is taken to run 45 minutes.
+    /// </summary>
+    private static bool GuessNewShowRuntime(ReleaseCandidate candidate, EpisodeCoverage episodes)
+    {
+        if (episodes.FirstSeasonNumber is not { } firstSeason || episodes.Slots.Count == 0 || episodes.Slots[0].SeasonNumber != firstSeason)
+        {
+            return false;
+        }
+
+        var graceEnd = (episodes.PilotAirDateUtc ?? candidate.Release.PublishDate.UtcDateTime).AddHours(24);
+        return episodes.Slots.All(s => s.AirDateUtc is null || s.AirDateUtc.Value < graceEnd);
     }
 
     private static string Format(long bytes) => bytes switch

@@ -19,7 +19,10 @@ public sealed record MediaManagementResponse(
     string? FfprobePath,
     string FileNamePreview,
     string FolderNamePreview,
-    List<NamingTokenResponse> Tokens);
+    List<NamingTokenResponse> Tokens,
+    /// <summary>Sonarr's "Season Pack Upgrade": all, threshold or any.</summary>
+    SeasonPackUpgrade SeasonPackUpgrade = SeasonPackUpgrade.All,
+    double SeasonPackUpgradeThreshold = 100);
 
 public sealed record MediaManagementRequest(
     bool RenameFiles,
@@ -31,7 +34,11 @@ public sealed record MediaManagementRequest(
     /// <summary>Null leaves the setting as it is.</summary>
     bool? ImportExtraFiles = null,
     /// <summary>Comma list (<c>srt,ass</c>); null leaves it as it is, empty imports no extra.</summary>
-    string? ExtraFileExtensions = null);
+    string? ExtraFileExtensions = null,
+    /// <summary>Null leaves the setting as it is.</summary>
+    SeasonPackUpgrade? SeasonPackUpgrade = null,
+    /// <summary>Percent, 0 to 100; null leaves it as it is.</summary>
+    double? SeasonPackUpgradeThreshold = null);
 
 public sealed record NamingPreviewRequest(string? FileNameTemplate, string? FolderNameTemplate);
 

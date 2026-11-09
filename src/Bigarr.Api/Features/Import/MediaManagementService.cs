@@ -85,7 +85,19 @@ public sealed class MediaManagementService(BigarrDbContext db, IMediaInfoReader 
             }
         }
 
+        if (request.SeasonPackUpgrade is { } mode && !Enum.IsDefined(mode))
+        {
+            return Failure.Invalid("Invalid season pack upgrade", "All, threshold or any.");
+        }
+
+        if (request.SeasonPackUpgradeThreshold is < 0 or > 100)
+        {
+            return Failure.Invalid("Invalid season pack threshold", "A percentage between 0 and 100.");
+        }
+
         var config = await GetAsync(ct);
+        config.SeasonPackUpgrade = request.SeasonPackUpgrade ?? config.SeasonPackUpgrade;
+        config.SeasonPackUpgradeThreshold = request.SeasonPackUpgradeThreshold ?? config.SeasonPackUpgradeThreshold;
         config.RenameFiles = request.RenameFiles;
         config.FileNameTemplate = request.FileNameTemplate.Trim();
         config.FolderNameTemplate = request.FolderNameTemplate.Trim();
@@ -114,7 +126,9 @@ public sealed class MediaManagementService(BigarrDbContext db, IMediaInfoReader 
             probe is FfprobeMediaInfoReader ffprobe ? ffprobe.ExecutablePath : null,
             SafeRender(config.FileNameTemplate) + ".mkv",
             SafeRender(config.FolderNameTemplate),
-            NamingTemplate.Tokens.Select(t => new NamingTokenResponse(t.Name, t.Description, t.Example, t.Folder)).ToList());
+            NamingTemplate.Tokens.Select(t => new NamingTokenResponse(t.Name, t.Description, t.Example, t.Folder)).ToList(),
+            config.SeasonPackUpgrade,
+            config.SeasonPackUpgradeThreshold);
     }
 
     /// <summary>Renders a draft template on the sample film, with the errors that would refuse it.</summary>
