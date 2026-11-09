@@ -16,6 +16,15 @@ public sealed class ReleaseEvaluator
         new BlocklistSpecification(),
         new QueueSpecification(),
         new UpgradableSpecification(),
+
+        // Episode-only rules: silent for a film release.
+        new EpisodeRequestedSpecification(),
+        new FullSeasonSpecification(),
+        new MultiSeasonSpecification(),
+        new SplitEpisodeSpecification(),
+        new NotSampleSpecification(),
+        new SameEpisodesGrabSpecification(),
+        new AnimeVersionUpgradeSpecification(),
     ];
 
     /// <summary>What RSS and automatic search apply: the defaults plus monitoring and availability.</summary>

@@ -51,6 +51,33 @@ public sealed record CustomFormatInput(
             year);
     }
 
+    /// <summary>An episode release or file (Sonarr's parser): no edition, the series' year and original language.</summary>
+    public static CustomFormatInput FromEpisode(
+        Bigarr.Parsing.Episodes.Model.ParsedEpisodeInfo parsed,
+        string? fileName,
+        long size,
+        IndexerFlags indexerFlags,
+        int? year,
+        Language? seriesOriginalLanguage)
+    {
+        ArgumentNullException.ThrowIfNull(parsed);
+
+        var quality = parsed.Quality?.Quality;
+        return new CustomFormatInput(
+            parsed.ReleaseTitle,
+            fileName,
+            quality?.Source ?? QualitySource.UNKNOWN,
+            quality?.Resolution ?? 0,
+            quality?.Modifier ?? Modifier.NONE,
+            EffectiveLanguages(parsed.Languages, seriesOriginalLanguage),
+            seriesOriginalLanguage,
+            null,
+            string.IsNullOrWhiteSpace(parsed.ReleaseGroup) ? null : parsed.ReleaseGroup,
+            size,
+            indexerFlags,
+            year);
+    }
+
     /// <summary>A release naming no language is in the film's original language, as Radarr assumes.</summary>
     public static IReadOnlyList<Language> EffectiveLanguages(IEnumerable<Language>? parsed, Language? movieOriginalLanguage)
     {

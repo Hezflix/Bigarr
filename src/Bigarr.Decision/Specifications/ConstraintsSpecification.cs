@@ -13,9 +13,17 @@ public sealed class ConstraintsSpecification : IReleaseSpecification
             return null;
         }
 
-        if (!string.IsNullOrWhiteSpace(constraints.Edition))
+        if (!string.IsNullOrWhiteSpace(constraints.Edition) && candidate.IsEpisode)
         {
-            var edition = candidate.Parsed.Edition ?? string.Empty;
+            // Episode names carry no parsed edition: the pattern is matched on the release title.
+            if (!SafeIsMatch(constraints.Edition, candidate.Release.Title))
+            {
+                return new Rejection($"Release title does not match '{constraints.Edition}'");
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(constraints.Edition))
+        {
+            var edition = candidate.Edition ?? string.Empty;
             if (!SafeIsMatch(constraints.Edition, edition))
             {
                 return new Rejection(edition.Length == 0
@@ -26,7 +34,7 @@ public sealed class ConstraintsSpecification : IReleaseSpecification
 
         if (!string.IsNullOrWhiteSpace(constraints.ReleaseGroup))
         {
-            var group = candidate.Parsed.ReleaseGroup ?? string.Empty;
+            var group = candidate.ReleaseGroup ?? string.Empty;
             if (!string.Equals(group, constraints.ReleaseGroup, StringComparison.OrdinalIgnoreCase))
             {
                 return new Rejection(group.Length == 0
