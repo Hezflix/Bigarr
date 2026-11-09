@@ -1,27 +1,39 @@
+import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { CheckIcon } from 'lucide-react'
+import { ArrowDownIcon, ArrowUpIcon, CheckIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { Play } from '@/api/client'
+import type { Play, PlaySortKey } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatDateTime } from '@/i18n'
 import { DecisionBadge, formatPlayed, itemLabel } from './format'
 
-export function PlaysTable({ plays, showItem = true }: { plays: Play[]; showItem?: boolean }) {
+export type PlaySort = { key: PlaySortKey; direction: 'asc' | 'desc' }
+
+/** Plays, one row each. With a sort the headers sort; a click on a row opens its streams. */
+export function PlaysTable({ plays, showItem = true, sort, onSort, onSelect }: { plays: Play[]; showItem?: boolean; sort?: PlaySort; onSort?: (key: PlaySortKey) => void; onSelect?: (play: Play) => void }) {
   const { t } = useTranslation()
+  const head = (key: PlaySortKey, label: string, className?: string) =>
+    sort && onSort ? (
+      <SortableHead column={key} sort={sort} onSort={onSort} className={className}>
+        {label}
+      </SortableHead>
+    ) : (
+      <TableHead className={className}>{label}</TableHead>
+    )
 
   return (
     <div className="overflow-x-auto rounded-lg border">
       <Table data-testid="plays-table">
         <TableHeader>
           <TableRow>
-            <TableHead>{t('playback.started')}</TableHead>
-            <TableHead>{t('playback.user')}</TableHead>
-            {showItem && <TableHead>{t('playback.title')}</TableHead>}
-            <TableHead>{t('playback.version')}</TableHead>
+            {head('startedAt', t('playback.started'))}
+            {head('user', t('playback.user'))}
+            {showItem && head('title', t('playback.title'))}
+            {head('version', t('playback.version'))}
             <TableHead>{t('playback.player')}</TableHead>
             <TableHead>{t('playback.decision')}</TableHead>
-            <TableHead className="text-right">{t('playback.played')}</TableHead>
+            {head('played', t('playback.played'), 'text-right')}
             <TableHead className="text-right">{t('playback.progressColumn')}</TableHead>
           </TableRow>
         </TableHeader>
@@ -29,7 +41,12 @@ export function PlaysTable({ plays, showItem = true }: { plays: Play[]; showItem
           {plays.map((play) => {
             const progress = play.durationMs ? Math.min(100, Math.round((play.maxOffsetMs / play.durationMs) * 100)) : null
             return (
-              <TableRow key={play.id}>
+              <TableRow
+                key={play.id}
+                data-play={play.id}
+                className={onSelect ? 'cursor-pointer' : undefined}
+                onClick={onSelect ? (e) => !(e.target as HTMLElement).closest('a') && onSelect(play) : undefined}
+              >
                 <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(play.startedAt)}</TableCell>
                 <TableCell className="whitespace-nowrap">{play.user.name}</TableCell>
                 {showItem && (
@@ -73,5 +90,17 @@ export function PlaysTable({ plays, showItem = true }: { plays: Play[]; showItem
         </TableBody>
       </Table>
     </div>
+  )
+}
+
+function SortableHead({ column, sort, onSort, className, children }: { column: PlaySortKey; sort: PlaySort; onSort: (key: PlaySortKey) => void; className?: string; children: ReactNode }) {
+  const active = sort.key === column
+  return (
+    <TableHead className={className} aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button type="button" className={`inline-flex items-center gap-1 hover:text-foreground ${className?.includes('text-right') ? 'flex-row-reverse' : ''}`} onClick={() => onSort(column)} data-testid={`sort-${column}`}>
+        {children}
+        {active && (sort.direction === 'asc' ? <ArrowUpIcon className="size-3" /> : <ArrowDownIcon className="size-3" />)}
+      </button>
+    </TableHead>
   )
 }

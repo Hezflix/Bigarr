@@ -54,6 +54,27 @@ public sealed record PlayResponse(
     string? Platform,
     bool? Local);
 
+public enum PlaySort
+{
+    StartedAt = 1,
+    User = 2,
+    Title = 3,
+    Version = 4,
+    Played = 5,
+}
+
+public sealed record PlayStreamResponse(
+    int Id,
+    DateTime StartedAt,
+    DateTime StoppedAt,
+    long StartOffsetMs,
+    long EndOffsetMs,
+    int PausedSeconds,
+    string? FilePath,
+    int? VersionId,
+    string? VersionName,
+    StreamDetails Details);
+
 public sealed record PlaysPageResponse(int Page, int PageSize, int TotalRecords, List<PlayResponse> Records);
 
 public sealed record PlaybackUserResponse(int Id, string Name, string? ThumbUrl, bool IsOwner, int Plays, DateTime LastSeenAt);

@@ -249,6 +249,37 @@ public sealed class PlaybackTrackerTests : IAsyncLifetime, IDisposable
     }
 
     [Fact]
+    public async Task Plays_sort_by_any_column_both_ways_and_keep_newest_first_as_the_default()
+    {
+        await using (var db = _database.CreateContext())
+        {
+            var alice = db.MediaServerUsers.Add(new MediaServerUser { MediaServerId = _server.Id, ExternalId = "1", Name = "alice" }).Entity;
+            var bob = db.MediaServerUsers.Add(new MediaServerUser { MediaServerId = _server.Id, ExternalId = "2", Name = "bob" }).Entity;
+            var film = db.MediaServerItems.Add(new MediaServerItem { MediaServerId = _server.Id, RatingKey = "100", Title = "Zeta" }).Entity;
+            var other = db.MediaServerItems.Add(new MediaServerItem { MediaServerId = _server.Id, RatingKey = "200", Title = "Alpha" }).Entity;
+            var at = _time.GetUtcNow().UtcDateTime;
+            db.Plays.AddRange(
+                new Play { User = bob, Item = film, StartedAt = at.AddHours(-1), StoppedAt = at, PlayedSeconds = 600, VersionName = "4k" },
+                new Play { User = alice, Item = other, StartedAt = at.AddHours(-3), StoppedAt = at, PlayedSeconds = 6000, VersionName = "1080p" },
+                new Play { User = alice, Item = film, StartedAt = at.AddHours(-2), StoppedAt = at, PlayedSeconds = 60 });
+            await db.SaveChangesAsync();
+        }
+
+        await using var read = _database.CreateContext();
+        var service = new PlaybackService(read, null!);
+        async Task<List<int>> Order(PlaySort sort, bool ascending) =>
+            (await service.PlaysAsync(1, 50, null, null, null, null, sort, ascending, CancellationToken.None)).Records.Select(r => r.PlayedSeconds).ToList();
+
+        Assert.Equal([600, 60, 6000], await Order(PlaySort.StartedAt, false));
+        Assert.Equal([6000, 60, 600], await Order(PlaySort.StartedAt, true));
+        Assert.Equal([60, 6000, 600], await Order(PlaySort.User, true));
+        Assert.Equal([6000, 600, 60], await Order(PlaySort.Title, true));
+        Assert.Equal([6000, 600, 60], await Order(PlaySort.Played, false));
+        Assert.Equal([60, 600, 6000], await Order(PlaySort.Played, true));
+        Assert.Equal([600, 6000, 60], await Order(PlaySort.Version, false));
+    }
+
+    [Fact]
     public void Play_rules_follow_tautulli()
     {
         var rules = new PlayRules(new PlaybackSettings());

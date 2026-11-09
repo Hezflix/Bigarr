@@ -1807,6 +1807,26 @@
     },
     "watchedPercent": "Watched at (%)",
     "rulesSaved": "Play rules saved.",
-    "rulesFailed": "Could not save the play rules."
+    "rulesFailed": "Could not save the play rules.",
+    "searchUser": "Search a user",
+    "noUserFound": "No user matches.",
+    "playsCount_one": "{{count}} play",
+    "playsCount_other": "{{count}} plays",
+    "video": "Video",
+    "audio": "Audio",
+    "subtitles": "Subtitles",
+    "trackDecisions": {
+      "directplay": "Direct play",
+      "copy": "Copy",
+      "transcode": "Transcode",
+      "burn": "Burned in"
+    },
+    "sessionN": "Session {{n}}",
+    "relayed": "Relayed",
+    "insecure": "Not secure",
+    "when": "When",
+    "position": "Position",
+    "file": "File",
+    "pausedFor": "paused {{time}}"
   }
 }

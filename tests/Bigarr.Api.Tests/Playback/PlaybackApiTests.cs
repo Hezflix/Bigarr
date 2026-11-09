@@ -72,6 +72,17 @@ public sealed class PlaybackApiTests(BigarrApiFactory factory) : IClassFixture<B
         Assert.Equal(versionId, play.GetProperty("versionId").GetInt32());
         Assert.Equal("Living room TV", play.GetProperty("player").GetString());
 
+        var streams = await (await session.GetAsync($"/api/v1/playback/plays/{play.GetProperty("id").GetInt32()}/streams")).ReadJsonAsync();
+        var stream = streams.EnumerateArray().Single();
+        Assert.Equal("198.51.100.7", stream.GetProperty("details").GetProperty("ipAddress").GetString());
+        Assert.Equal("eac3", stream.GetProperty("details").GetProperty("sourceAudioCodec").GetString());
+        Assert.Equal("/data/movies/The Matrix (1999)/Invented.Film.2020.1080p.mkv", stream.GetProperty("filePath").GetString());
+        Assert.Equal("1080p", stream.GetProperty("versionName").GetString());
+        Assert.Equal(HttpStatusCode.NotFound, (await session.GetAsync("/api/v1/playback/plays/999999/streams")).StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK, (await session.GetAsync("/api/v1/playback/plays?sort=played&direction=asc")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await session.GetAsync("/api/v1/playback/plays?sort=nonsense")).StatusCode);
+
         var perVersion = await (await session.GetAsync($"/api/v1/playback/movies/{movieId}")).ReadJsonAsync();
         var row = perVersion.EnumerateArray().Single();
         Assert.Equal(versionId, row.GetProperty("versionId").GetInt32());

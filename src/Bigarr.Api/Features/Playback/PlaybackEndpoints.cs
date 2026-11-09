@@ -13,8 +13,21 @@ public static class PlaybackEndpoints
         group.MapGet("/sessions", async Task<Ok<NowPlayingResponse>> (PlaybackService playback, CancellationToken ct) =>
             TypedResults.Ok(await playback.NowPlayingAsync(ct)));
 
-        group.MapGet("/plays", async Task<Ok<PlaysPageResponse>> (int? page, int? pageSize, int? userId, int? movieId, int? versionId, MediaItemKind? kind, PlaybackService playback, CancellationToken ct) =>
-            TypedResults.Ok(await playback.PlaysAsync(page ?? 1, pageSize ?? 50, userId, movieId, versionId, kind, ct)));
+        // sort is matched by name, case-insensitive (startedAt, user, title, version, played); newest first by default.
+        group.MapGet("/plays", async Task<Results<Ok<PlaysPageResponse>, ProblemHttpResult>> (int? page, int? pageSize, int? userId, int? movieId, int? versionId, MediaItemKind? kind, string? sort, string? direction, PlaybackService playback, CancellationToken ct) =>
+        {
+            var key = PlaySort.StartedAt;
+            if (sort is not null && (!Enum.TryParse(sort, ignoreCase: true, out key) || !Enum.IsDefined(key)))
+            {
+                return TypedResults.Problem(title: "Unknown sort", detail: "Expected startedAt, user, title, version or played.", statusCode: StatusCodes.Status400BadRequest);
+            }
+
+            var ascending = string.Equals(direction, "asc", StringComparison.OrdinalIgnoreCase);
+            return TypedResults.Ok(await playback.PlaysAsync(page ?? 1, pageSize ?? 50, userId, movieId, versionId, kind, key, ascending, ct));
+        });
+
+        group.MapGet("/plays/{id:int}/streams", async Task<Results<Ok<List<PlayStreamResponse>>, NotFound>> (int id, PlaybackService playback, CancellationToken ct) =>
+            await playback.StreamsAsync(id, ct) is { } streams ? TypedResults.Ok(streams) : TypedResults.NotFound());
 
         group.MapGet("/users", async Task<Ok<List<PlaybackUserResponse>>> (PlaybackService playback, CancellationToken ct) =>
             TypedResults.Ok(await playback.UsersAsync(ct)));

@@ -41,7 +41,7 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor)
         return new NowPlayingResponse(statuses, sessions);
     }
 
-    public async Task<PlaysPageResponse> PlaysAsync(int page, int pageSize, int? userId, int? movieId, int? versionId, MediaItemKind? kind, CancellationToken ct)
+    public async Task<PlaysPageResponse> PlaysAsync(int page, int pageSize, int? userId, int? movieId, int? versionId, MediaItemKind? kind, PlaySort sort, bool ascending, CancellationToken ct)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
@@ -68,8 +68,7 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor)
         }
 
         var total = await query.CountAsync(ct);
-        var records = await query
-            .OrderByDescending(p => p.StartedAt).ThenByDescending(p => p.Id)
+        var records = await Order(query, sort, ascending)
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(p => new PlayResponse(
                 p.Id,
@@ -94,6 +93,36 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor)
             .ToListAsync(ct);
         return new PlaysPageResponse(page, pageSize, total, records);
     }
+
+    /// <summary>The sessions a play was made of, oldest first, with everything the server said about each.</summary>
+    public async Task<List<PlayStreamResponse>?> StreamsAsync(int playId, CancellationToken ct)
+    {
+        if (!await db.Plays.AnyAsync(p => p.Id == playId, ct))
+        {
+            return null;
+        }
+
+        return await db.PlayStreams.AsNoTracking()
+            .Where(s => s.PlayId == playId)
+            .OrderBy(s => s.StartedAt).ThenBy(s => s.Id)
+            .Select(s => new PlayStreamResponse(s.Id, s.StartedAt, s.StoppedAt, s.StartOffsetMs, s.EndOffsetMs, s.PausedSeconds, s.FilePath, s.VersionId, s.Version != null ? s.Version.Name : null, s.Details))
+            .ToListAsync(ct);
+    }
+
+    /// <summary>Newest first by default; ties keep a stable order by id.</summary>
+    private static IOrderedQueryable<Play> Order(IQueryable<Play> query, PlaySort sort, bool ascending) => (sort, ascending) switch
+    {
+        (PlaySort.User, true) => query.OrderBy(p => p.User.DisplayName ?? p.User.Name).ThenByDescending(p => p.StartedAt).ThenByDescending(p => p.Id),
+        (PlaySort.User, false) => query.OrderByDescending(p => p.User.DisplayName ?? p.User.Name).ThenByDescending(p => p.StartedAt).ThenByDescending(p => p.Id),
+        (PlaySort.Title, true) => query.OrderBy(p => p.Item.ShowTitle ?? p.Item.Title).ThenBy(p => p.Item.SeasonNumber).ThenBy(p => p.Item.EpisodeNumber).ThenByDescending(p => p.StartedAt).ThenByDescending(p => p.Id),
+        (PlaySort.Title, false) => query.OrderByDescending(p => p.Item.ShowTitle ?? p.Item.Title).ThenByDescending(p => p.Item.SeasonNumber).ThenByDescending(p => p.Item.EpisodeNumber).ThenByDescending(p => p.StartedAt).ThenByDescending(p => p.Id),
+        (PlaySort.Version, true) => query.OrderBy(p => p.VersionName).ThenByDescending(p => p.StartedAt).ThenByDescending(p => p.Id),
+        (PlaySort.Version, false) => query.OrderByDescending(p => p.VersionName).ThenByDescending(p => p.StartedAt).ThenByDescending(p => p.Id),
+        (PlaySort.Played, true) => query.OrderBy(p => p.PlayedSeconds).ThenByDescending(p => p.StartedAt).ThenByDescending(p => p.Id),
+        (PlaySort.Played, false) => query.OrderByDescending(p => p.PlayedSeconds).ThenByDescending(p => p.StartedAt).ThenByDescending(p => p.Id),
+        (_, true) => query.OrderBy(p => p.StartedAt).ThenBy(p => p.Id),
+        _ => query.OrderByDescending(p => p.StartedAt).ThenByDescending(p => p.Id),
+    };
 
     public async Task<List<PlaybackUserResponse>> UsersAsync(CancellationToken ct) =>
         await db.MediaServerUsers.AsNoTracking()

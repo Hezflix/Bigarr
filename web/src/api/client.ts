@@ -1820,7 +1820,32 @@ export type VersionPlays = { versionId: number | null; versionName: string | nul
 
 export type PlaybackSettings = { minimumPlay: number; minimumPlayUnit: MinimumPlayUnit; watchedPercent: number }
 
-export type PlaysQuery = { page?: number; pageSize?: number; userId?: number; movieId?: number; versionId?: number; kind?: MediaItemKind }
+export type PlaySortKey = 'startedAt' | 'user' | 'title' | 'version' | 'played'
+
+export type PlaysQuery = {
+  page?: number
+  pageSize?: number
+  userId?: number
+  movieId?: number
+  versionId?: number
+  kind?: MediaItemKind
+  sort?: PlaySortKey
+  direction?: 'asc' | 'desc'
+}
+
+/** One session of a play, with everything the server said about it. */
+export type PlayStream = {
+  id: number
+  startedAt: string
+  stoppedAt: string
+  startOffsetMs: number
+  endOffsetMs: number
+  pausedSeconds: number
+  filePath: string | null
+  versionId: number | null
+  versionName: string | null
+  details: StreamDetails
+}
 
 export const playback = {
   nowPlaying: () => api<NowPlaying>('/api/v1/playback/sessions'),
@@ -1829,6 +1854,7 @@ export const playback = {
     for (const [key, value] of Object.entries(query)) if (value !== undefined) params.set(key, String(value))
     return api<PlaysPage>(`/api/v1/playback/plays?${params}`)
   },
+  streams: (playId: number) => api<PlayStream[]>(`/api/v1/playback/plays/${playId}/streams`),
   users: () => api<PlaybackUser[]>('/api/v1/playback/users'),
   moviePlays: (movieId: number) => api<VersionPlays[]>(`/api/v1/playback/movies/${movieId}`),
   settings: () => api<PlaybackSettings>('/api/v1/playback/settings'),
