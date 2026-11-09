@@ -1828,22 +1828,20 @@
     "pausedFor": "paused {{time}}",
     "transcoder": "Transcoder",
     "speed": "{{value}}×",
-    "throttled": "throttled (ahead enough)",
+    "throttled": "throttled",
     "transcodeComplete": "whole file transcoded",
     "cannotKeepUp": "slower than real time",
-    "buffered": "Buffer",
     "ahead": "{{time}} ahead",
-    "protocol": "Protocol",
     "view": "View",
     "viewCards": "Cards",
     "viewRows": "Rows",
     "ends": "ends {{time}}",
     "left": "{{time}} left",
-    "sinceTime": "since {{time}}",
     "severity": {
       "fine": "Fine: nothing is transcoded",
       "transcoding": "Transcoding, keeping up",
       "slow": "Transcoding slower than real time: the player will buffer"
-    }
+    },
+    "startedAt": "Started {{time}}"
   }
 }

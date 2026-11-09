@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
-import i18n, { formatDateTime } from '@/i18n'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { formatDateTime, formatTime } from '@/i18n'
 import { DecisionBadge, formatOffset, itemLabel } from './format'
 import { StreamTracks } from './StreamTracks'
 
@@ -39,7 +40,6 @@ const severityKeys = ['fine', 'transcoding', 'slow'] as const
 
 const remainingMs = (s: PlaybackSession) => Math.max(0, (s.item.durationMs ?? 0) - s.viewOffsetMs)
 const progressOf = (s: PlaybackSession) => (s.item.durationMs ? Math.min(100, (s.viewOffsetMs / s.item.durationMs) * 100) : 0)
-const clock = (ms: number) => new Intl.DateTimeFormat(i18n.language, { timeStyle: 'short' }).format(new Date(ms))
 /** TMDB serves smaller files under the same path: a blurred backdrop needs no more than w300. */
 const tmdbSize = (url: string, width: number) => url.replace('/original/', `/w${width}/`)
 
@@ -95,7 +95,7 @@ export function NowPlayingPage() {
       {data?.servers.map((server) => <ServerLine key={server.id} server={server} />)}
       {data && data.servers.length > 0 && data.sessions.length === 0 && <p className="text-sm text-muted-foreground">{t('playback.nothingPlaying')}</p>}
       {data && data.sessions.length > 0 && view === 'cards' && (
-        <div className="grid gap-4 lg:grid-cols-2" data-testid="now-playing">
+        <div className="grid gap-4 xl:grid-cols-2" data-testid="now-playing">
           {data.sessions.map((session) => (
             <SessionCard key={session.id} session={session} />
           ))}
@@ -149,6 +149,23 @@ function Stripe({ session }: { session: PlaybackSession }) {
   return <div className={cn('absolute inset-y-0 left-0 w-1.5', stripes[level])} title={t(`playback.severity.${severityKeys[level]}`)} data-severity={severityKeys[level]} />
 }
 
+/** "Started 09/11/2026, 21:05 · ends 23:51" on hover of the position or the time left. */
+function Times({ session, children, className }: { session: PlaybackSession; children: React.ReactNode; className?: string }) {
+  const { t } = useTranslation()
+  const ends = session.state !== 'paused' && session.item.durationMs ? formatTime(Date.now() + remainingMs(session)) : null
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={cn('cursor-default', className)}>{children}</span>
+      </TooltipTrigger>
+      <TooltipContent>
+        {t('playback.startedAt', { time: formatDateTime(session.startedAt) })}
+        {ends ? ` · ${t('playback.ends', { time: ends })}` : session.state === 'paused' ? ` · ${t('playback.states.paused')}` : ''}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
 function SessionCard({ session }: { session: PlaybackSession }) {
   const { t } = useTranslation()
   const d = session.details
@@ -159,39 +176,38 @@ function SessionCard({ session }: { session: PlaybackSession }) {
       {session.fanartUrl && <img src={tmdbSize(session.fanartUrl, 300)} alt="" aria-hidden="true" className="absolute inset-0 size-full scale-125 object-cover blur-2xl" />}
       <div className="absolute inset-0 bg-card/85" />
       <Stripe session={session} />
-      <div className="relative flex gap-4 py-4 pr-4 pl-6">
-        <PosterImage session={session} width={342} className="w-24 self-start sm:w-28" />
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <div>
-            <div className="flex items-start gap-1.5 leading-snug font-semibold">
-              <StateIcon session={session} className="mt-0.5 size-4" />
-              <Title session={session} />
+      <div className="relative flex h-full flex-col gap-3 py-4 pr-4 pl-6">
+        <div className="flex gap-4">
+          <PosterImage session={session} width={342} className="w-20 self-start sm:w-24" />
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <div>
+              <div className="flex items-start gap-1.5 leading-snug font-semibold">
+                <StateIcon session={session} className="mt-0.5 size-4" />
+                <Title session={session} />
+              </div>
+              <div className="truncate text-sm text-muted-foreground">
+                {session.user.name} · {d.playerTitle ?? d.playerProduct ?? t('common.none')}
+                {d.playerPlatform ? ` (${d.playerPlatform})` : ''}
+              </div>
             </div>
-            <div className="text-sm text-muted-foreground">
-              {session.user.name} · {d.playerTitle ?? d.playerProduct ?? t('common.none')}
-              {d.playerPlatform ? ` (${d.playerPlatform})` : ''}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <DecisionBadge decision={d.decision} />
+              {session.versionName && <Badge variant="secondary">{session.versionName}</Badge>}
+              <Badge variant="outline">{d.local ? t('playback.lan') : t('playback.wan')}</Badge>
             </div>
+            <StreamTracks details={d} />
+            {session.transcode && <TranscodeLine transcode={session.transcode} />}
           </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <DecisionBadge decision={d.decision} />
-            {session.versionName && <Badge variant="secondary">{session.versionName}</Badge>}
-            <Badge variant="outline">{d.local ? t('playback.lan') : t('playback.wan')}</Badge>
-          </div>
-          <StreamTracks details={d} />
-          {session.transcode && <TranscodeLine transcode={session.transcode} />}
-          <div className="mt-auto flex flex-col gap-1 pt-1">
-            <Progress value={progressOf(session)} aria-label={t('playback.progress')} />
-            <div className="flex flex-wrap justify-between gap-x-3 text-xs tabular-nums text-muted-foreground">
-              <span>
-                {formatOffset(session.viewOffsetMs)} / {session.item.durationMs ? formatOffset(session.item.durationMs) : '?'}
-                {session.state !== 'paused' && session.item.durationMs ? ` · ${t('playback.ends', { time: clock(Date.now() + remainingMs(session)) })}` : ''}
-              </span>
-              <span>
-                {d.bandwidth !== null && t('playback.mbps', { value: (d.bandwidth / 1000).toFixed(1) })}
-                {d.ipAddress && ` · ${d.ipAddress}`}
-                {` · ${t('playback.sinceTime', { time: formatDateTime(session.startedAt) })}`}
-              </span>
-            </div>
+        </div>
+        {/* Under the poster too, pinned to the bottom: no empty column beside a short poster or a tall card. */}
+        <div className="mt-auto flex flex-col gap-1">
+          <Progress value={progressOf(session)} aria-label={t('playback.progress')} />
+          <div className="flex flex-wrap justify-between gap-x-3 text-xs tabular-nums text-muted-foreground">
+            <Times session={session}>
+              {formatOffset(session.viewOffsetMs)} / {session.item.durationMs ? formatOffset(session.item.durationMs) : '?'}
+              {session.state !== 'paused' && session.item.durationMs ? ` · ${t('playback.ends', { time: formatTime(Date.now() + remainingMs(session)) })}` : ''}
+            </Times>
+            <span>{[d.bandwidth !== null ? t('playback.mbps', { value: (d.bandwidth / 1000).toFixed(1) }) : null, d.ipAddress].filter(Boolean).join(' · ')}</span>
           </div>
         </div>
       </div>
@@ -212,16 +228,25 @@ function SessionRows({ sessions }: { sessions: PlaybackSession[] }) {
         return (
           <div key={session.id} className="relative" data-session={session.id}>
             <Stripe session={session} />
-            <button
-              type="button"
-              onClick={() => setOpen(expanded ? null : session.id)}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={(e) => !(e.target as HTMLElement).closest('a') && setOpen(expanded ? null : session.id)}
+              onKeyDown={(e) => {
+                if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
+                  e.preventDefault()
+                  setOpen(expanded ? null : session.id)
+                }
+              }}
               aria-expanded={expanded}
-              className="flex w-full items-center gap-3 py-2 pr-3 pl-5 text-left text-sm hover:bg-muted/50"
+              className="flex w-full cursor-pointer items-center gap-3 py-2 pr-3 pl-5 text-left text-sm hover:bg-muted/50"
             >
               <PosterImage session={session} width={92} className="w-7 rounded-sm" />
               <StateIcon session={session} className="size-3.5" />
               <span className="w-24 shrink-0 truncate">{session.user.name}</span>
-              <span className="min-w-0 flex-1 truncate font-medium">{itemLabel(session.item)}</span>
+              <span className="min-w-0 flex-1 truncate font-medium">
+                <Title session={session} />
+              </span>
               {session.versionName && <Badge variant="secondary">{session.versionName}</Badge>}
               <span className="hidden w-28 sm:block">
                 <DecisionBadge decision={d.decision} />
@@ -229,10 +254,12 @@ function SessionRows({ sessions }: { sessions: PlaybackSession[] }) {
               <span className="hidden w-36 lg:block">
                 <Progress value={progressOf(session)} className="h-1.5" aria-label={t('playback.progress')} />
               </span>
-              <span className="hidden w-24 text-right text-xs tabular-nums text-muted-foreground md:block">{t('playback.left', { time: formatOffset(remainingMs(session)) })}</span>
+              <Times session={session} className="hidden w-24 text-right text-xs tabular-nums text-muted-foreground md:block">
+                {t('playback.left', { time: formatOffset(remainingMs(session)) })}
+              </Times>
               <span className="hidden w-20 text-right text-xs tabular-nums text-muted-foreground md:block">{d.bandwidth !== null && t('playback.mbps', { value: (d.bandwidth / 1000).toFixed(1) })}</span>
               <ChevronDownIcon className={cn('size-4 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-180')} />
-            </button>
+            </div>
             {expanded && (
               <div className="grid gap-4 bg-muted/30 py-3 pr-4 pl-14 md:grid-cols-2">
                 <div className="flex flex-col gap-2">
@@ -267,43 +294,31 @@ function SessionRows({ sessions }: { sessions: PlaybackSession[] }) {
 }
 
 /**
- * Plex's transcoder for this stream: speed (below 1× and not throttled, the player will soon buffer), how far ahead
- * it is, and the hardware on each side.
+ * Plex's transcoder for this stream, on one line: speed (below 1× and not throttled, the player will soon buffer), how
+ * far ahead it is, the hardware and the protocol.
  */
 function TranscodeLine({ transcode }: { transcode: PlexTranscode }) {
   const { t } = useTranslation()
   const behind = transcode.speed !== null && transcode.speed < 1 && !transcode.throttled && !transcode.complete
-  const hardware = [transcode.hardwareDecoding, transcode.hardwareEncoding].filter(Boolean)
+  const hardware =
+    transcode.hardwareDecoding && transcode.hardwareEncoding && transcode.hardwareDecoding !== transcode.hardwareEncoding
+      ? `${transcode.hardwareDecoding} → ${transcode.hardwareEncoding}`
+      : (transcode.hardwareEncoding ?? transcode.hardwareDecoding)
+  const rest = [
+    transcode.complete ? t('playback.transcodeComplete') : transcode.throttled ? t('playback.throttled') : null,
+    transcode.bufferedMs !== null && !transcode.complete ? t('playback.ahead', { time: formatOffset(transcode.bufferedMs) }) : null,
+    hardware,
+    transcode.protocol,
+  ].filter(Boolean)
+
   return (
-    <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-md bg-muted/50 px-2 py-1.5 text-xs" data-testid="transcoder">
-      <dt className="text-muted-foreground">{t('playback.transcoder')}</dt>
-      <dd className="flex flex-wrap gap-x-2">
+    <div className="flex flex-wrap items-baseline gap-x-3 text-xs" data-testid="transcoder">
+      <span className="text-muted-foreground">{t('playback.transcoder')}</span>
+      <span>
         {transcode.speed !== null && <span className={behind ? 'font-medium text-amber-700 dark:text-amber-300' : 'tabular-nums'}>{t('playback.speed', { value: transcode.speed.toFixed(1) })}</span>}
-        {transcode.complete ? (
-          <span className="text-muted-foreground">{t('playback.transcodeComplete')}</span>
-        ) : (
-          transcode.throttled && <span className="text-muted-foreground">{t('playback.throttled')}</span>
-        )}
-        {behind && <span className="text-amber-700 dark:text-amber-300">{t('playback.cannotKeepUp')}</span>}
-      </dd>
-      {transcode.bufferedMs !== null && !transcode.complete && (
-        <>
-          <dt className="text-muted-foreground">{t('playback.buffered')}</dt>
-          <dd className="tabular-nums">{t('playback.ahead', { time: formatOffset(transcode.bufferedMs) })}</dd>
-        </>
-      )}
-      {hardware.length > 0 && (
-        <>
-          <dt className="text-muted-foreground">{t('playback.hardware')}</dt>
-          <dd>{transcode.hardwareDecoding && transcode.hardwareEncoding && transcode.hardwareDecoding !== transcode.hardwareEncoding ? `${transcode.hardwareDecoding} → ${transcode.hardwareEncoding}` : hardware[0]}</dd>
-        </>
-      )}
-      {transcode.protocol && (
-        <>
-          <dt className="text-muted-foreground">{t('playback.protocol')}</dt>
-          <dd>{transcode.protocol}</dd>
-        </>
-      )}
-    </dl>
+        {behind && <span className="text-amber-700 dark:text-amber-300"> · {t('playback.cannotKeepUp')}</span>}
+        {rest.length > 0 && <span className="text-muted-foreground"> · {rest.join(' · ')}</span>}
+      </span>
+    </div>
   )
 }

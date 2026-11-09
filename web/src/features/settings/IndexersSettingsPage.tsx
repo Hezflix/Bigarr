@@ -5,6 +5,7 @@ import { cn } from 'cn'
 import { FlaskConicalIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
+import { formatTime } from '@/i18n'
 import { toast } from 'sonner'
 import { ApiError, indexers, type Indexer, type IndexerImplementation, type IndexerRequest, type IndexerTestResult } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -79,7 +80,6 @@ function testSummary(t: TFunction, result: IndexerTestResult): string {
   return t('indexers.testOk', { categories: result.categoryCount, releases: result.recentReleases, ids: ids || t('indexers.textSearchOnly') })
 }
 
-const formatTime = (iso: string) => new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
 
 export function IndexersSettingsPage() {
   const { t } = useTranslation()

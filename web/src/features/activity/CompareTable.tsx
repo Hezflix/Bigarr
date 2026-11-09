@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import i18n, { formatAge, formatBytes, formatDateTime } from '@/i18n'
+import { formatAge, formatBytes, formatDateTime } from '@/i18n'
 
 export const outcomeStyles: Record<CompareOutcome, string> = {
   same: 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300',
@@ -167,9 +167,9 @@ export function CompareTable({ rows, showMovie = true }: { rows: CompareRow[]; s
   )
 }
 
-/** "Nov 6, 19:00": when each side chose, in the cell, so the faster one shows without reading the When column. */
+/** "06/11, 19:00": when each side chose, in the cell, so the faster one shows without reading the When column. */
 function shortDateTime(iso: string): string {
-  return new Intl.DateTimeFormat(i18n.language, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso))
+  return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso))
 }
 
 function ReleaseCell({ title, quality, score, at, first }: { title: string; quality: string | null; score: number | null; at: string; first: boolean }) {

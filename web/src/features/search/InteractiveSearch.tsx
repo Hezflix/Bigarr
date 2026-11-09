@@ -21,7 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { OneShotGrabDialog } from '@/features/search/OneShotGrabDialog'
-import { formatAge, formatBytes } from '@/i18n'
+import { formatAge, formatBytes, formatDateTime } from '@/i18n'
 
 const approvedStyle = 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300'
 const temporaryStyle = 'border-amber-600/30 bg-amber-500/15 text-amber-700 dark:border-amber-400/30 dark:text-amber-300'
@@ -344,7 +344,7 @@ function ReleaseRow({
           <TooltipTrigger asChild>
             <span>{formatAge(release.publishDate)}</span>
           </TooltipTrigger>
-          <TooltipContent>{new Date(release.publishDate).toLocaleString()}</TooltipContent>
+          <TooltipContent>{formatDateTime(release.publishDate)}</TooltipContent>
         </Tooltip>
       </TableCell>
       <TableCell className="min-w-[24rem] align-top whitespace-normal">
