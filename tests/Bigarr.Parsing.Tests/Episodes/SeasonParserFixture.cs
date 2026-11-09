@@ -1,0 +1,163 @@
+// Vendored from Sonarr develop (c018578e4b79ee048575c02d7a8aa2b929e4b837)
+// Original path: src/NzbDrone.Core.Test/ParserTests/SeasonParserFixture.cs — GPL-3.0
+// Sonarr is Copyright (C) Sonarr contributors, licensed under the GNU General Public License v3.0.
+// Bigarr modifications: NUnit -> xUnit v2, namespaces, CoreTest base removed. See VENDORED.md
+
+using FluentAssertions;
+
+namespace Bigarr.Parsing.Episodes.Tests
+{
+    public class SeasonParserFixture
+    {
+        [Theory]
+        [InlineData("30.Series.Season.04.HDTV.XviD-DIMENSION", "30 Series", 4)]
+        [InlineData("Sonarr.and.Series.S02.720p.x264-DIMENSION", "Sonarr and Series", 2)]
+        [InlineData("The.Series.US.S03.720p.x264-DIMENSION", "The Series US", 3)]
+        [InlineData(@"Series.of.Sonarr.S03.720p.BluRay-CLUE\REWARD", "Series of Sonarr", 3)]
+        [InlineData("Series Time S02 720p HDTV x264 CRON", "Series Time", 2)]
+        [InlineData("Series.2021.S04.iNTERNAL.DVDRip.XviD-VCDVaULT", "Series 2021", 4)]
+        [InlineData("Series Five 0 S01 720p WEB DL DD5 1 H 264 NT", "Series Five 0", 1)]
+        [InlineData("30 Series S03 WS PDTV XviD FUtV", "30 Series", 3)]
+        [InlineData("The Series Season 4 WS PDTV XviD FUtV", "The Series", 4)]
+        [InlineData("Series Season 1 720p WEB DL DD 5 1 h264 TjHD", "Series", 1)]
+        [InlineData("The Series Season4 WS PDTV XviD FUtV", "The Series", 4)]
+        [InlineData("Series S 01 720p WEB DL DD 5 1 h264 TjHD", "Series", 1)]
+        [InlineData("Series Confidential   Season 3", "Series Confidential", 3)]
+        [InlineData("Series.S01.720p.WEBDL.DD5.1.H.264-NTb", "Series", 1)]
+        [InlineData("Series.Makes.It.Right.S02.720p.HDTV.AAC5.1.x265-NOGRP", "Series Makes It Right", 2)]
+        [InlineData("Series Title S01 4K 2160p WEB-DL x265-GRP", "Series Title", 1)]
+        [InlineData("Series Title S01 S01 4K 2160p WEB-DL x265-GRP", "Series Title", 1)]
+        [InlineData("Series Title S01 2K WEB-DL x265-GRP", "Series Title", 1)]
+        [InlineData("Series 10K Title S01 WEB-DL x265-GRP", "Series 10K Title", 1)]
+        [InlineData("My.Series.S2014.720p.HDTV.x264-ME", "My Series", 2014)]
+        [InlineData("Series.Saison3.VOSTFR.HDTV.XviD-NOTAG", "Series", 3)]
+        [InlineData("Series.SAISON.1.VFQ.PDTV.H264-ACC-ROLLED", "Series", 1)]
+        [InlineData("Series Title - Series 1 (1970) DivX", "Series Title", 1)]
+        [InlineData("SeriesTitle.S03.540p.AMZN.WEB-DL.DD+2.0.x264-RTN", "SeriesTitle", 3)]
+        [InlineData("Series.Title.S01.576p.BluRay.DD5.1.x264-HiSD", "Series Title", 1)]
+        [InlineData("Series.Stagione.3.HDTV.XviD-NOTAG", "Series", 3)]
+        [InlineData("Series No More S01 2023 1080p WEB-DL AVC AC3 2.0 Dual Audio -ZR-", "Series No More", 1)]
+        [InlineData("Series Title / S1E1-8 of 8 [2024, WEB-DL 1080p] + Original + RUS", "Series Title", 1)]
+        [InlineData("Series Title / S2E1-16 of 16 [2022, WEB-DL] RUS", "Series Title", 2)]
+        [InlineData("[hchcsen] Mobile Series 00 S01 [BD Remux Dual Audio 1080p AVC 2xFLAC] (Kidou Senshi Gundam 00 Season 1)", "Mobile Series 00", 1)]
+        [InlineData("[HorribleRips] Mobile Series 00 S1 [1080p]", "Mobile Series 00", 1)]
+        [InlineData("[Zoombie] Series 100: Bucket List S01 [Web][MKV][h265 10-bit][1080p][AC3 2.0][Softsubs (Zoombie)]", "Series 100: Bucket List", 1)]
+        [InlineData("[GROUP] Series: Title (2023) (Season 1) [BDRip] [1080p Dual Audio HEVC 10 bits DDP] (serie) (Batch)", "Series: Title (2023)", 1)]
+        [InlineData("[GROUP] Series: Title (2023) (Season 1) [BDRip] [1080p Dual Audio HEVC 10-bits DDP] (serie) (Batch)", "Series: Title (2023)", 1)]
+        [InlineData("[GROUP] Series: Title (2023) (Season 1) [BDRip] [1080p Dual Audio HEVC 10-bit DDP] (serie) (Batch)", "Series: Title (2023)", 1)]
+        [InlineData("Seriesless (2016/S01/WEB-DL/1080p/AC3 5.1/DUAL/SUB)", "Seriesless (2016)", 1)]
+        [InlineData("Series (1994) - Temporada 10", "Series (1994)", 10)]
+        [InlineData("Series S01 1080p HMAX WEB-DL DD+ 5.1 H.265", "Series", 1)]
+        [InlineData("Series S01 1440p HMAX WEB-DL DD+ 5.1 H.265", "Series", 1)]
+        [InlineData("[Judas] Series E (Series J) (Season 04) [1080p][HEVC x265 10bit][Dual-Audio][Multi-Subs] (Batch)", "Series E (Series J)", 4)]
+        [InlineData("1234 [Sezon 3] [1080p] [NF] [WEB-DL] [H264] [DDP5.1.Atmos-K83] [Serial Polski]", "1234", 3)]
+        [InlineData("1234 [Season 3] [1080p] [NF] [WEB-DL] [H264] [DDP5.1.Atmos-K83] [Serial Polski]", "1234", 3)]
+        [InlineData("1234 (2026) (S03) [MULTi] [1080p] [NF] [WEB-DL] [H.264] [DD5.1-RX] [Serial polski]", "1234 (2026)", 3)]
+        public void should_parse_full_season_release(string postTitle, string title, int season)
+        {
+            var result = Parser.ParseTitle(postTitle);
+            result.SeasonNumbers.Should().Equal(season);
+            result.SeriesTitle.Should().Be(title);
+            result.EpisodeNumbers.Should().BeEmpty();
+            result.AbsoluteEpisodeNumbers.Should().BeEmpty();
+            result.FullSeason.Should().BeTrue();
+        }
+
+        [Theory]
+        [InlineData("Acropolis Series S05 EXTRAS DVDRip XviD RUNNER", "Acropolis Series", 5)]
+        [InlineData("Punky Series S01 EXTRAS DVDRip XviD RUNNER", "Punky Series", 1)]
+        [InlineData("Instant Series S03 EXTRAS DVDRip XviD OSiTV", "Instant Series", 3)]
+        [InlineData("The.Series.S03.Extras.01.Deleted.Scenes.720p", "The Series", 3)]
+        [InlineData("The.Series.S03.Extras.02.720p", "The Series", 3)]
+        public void should_parse_season_extras(string postTitle, string title, int season)
+        {
+            var result = Parser.ParseTitle(postTitle);
+            result.SeasonNumbers.Should().Equal(season);
+            result.SeriesTitle.Should().Be(title);
+            result.EpisodeNumbers.Should().BeEmpty();
+            result.AbsoluteEpisodeNumbers.Should().BeEmpty();
+            result.FullSeason.Should().BeTrue();
+            result.IsSeasonExtra.Should().BeTrue();
+        }
+
+        [Theory]
+        [InlineData("Series.to.Me.S03.SUBPACK.DVDRip.XviD-REWARD", "Series to Me", 3)]
+        [InlineData("The.Series.S02.SUBPACK.DVDRip.XviD-REWARD", "The Series", 2)]
+        [InlineData("Series.S11.SUBPACK.DVDRip.XviD-REWARD", "Series", 11)]
+        public void should_parse_season_subpack(string postTitle, string title, int season)
+        {
+            var result = Parser.ParseTitle(postTitle);
+            result.SeasonNumbers.Should().Equal(season);
+            result.SeriesTitle.Should().Be(title);
+            result.EpisodeNumbers.Should().BeEmpty();
+            result.AbsoluteEpisodeNumbers.Should().BeEmpty();
+            result.FullSeason.Should().BeTrue();
+            result.IsSeasonExtra.Should().BeTrue();
+        }
+
+        [Theory]
+        [InlineData("The.Series.2016.S02.Part.1.1080p.NF.WEBRip.DD5.1.x264-NTb", "The Series 2016", 2, 1)]
+        [InlineData("The.Series.S07.Vol.1.1080p.NF.WEBRip.DD5.1.x264-NTb", "The Series", 7, 1)]
+        [InlineData("The.Series.S06.P1.1080p.Blu-Ray.10-Bit.Dual-Audio.TrueHD.x265-iAHD", "The Series", 6, 1)]
+        [InlineData("[Group] Series Title S03 - Vol.02 [BD 1080p FLAC]", "Series Title", 3, 2)]
+        [InlineData("[Group] Series Title S03 Vol.02 [BD 1080p FLAC]", "Series Title", 3, 2)]
+        [InlineData("[Group] Series Title S03 Part 2 [1080p]", "Series Title", 3, 2)]
+        public void should_parse_partial_season_release(string postTitle, string title, int season, int seasonPart)
+        {
+            var result = Parser.ParseTitle(postTitle);
+            result.SeasonNumbers.Should().Equal(season);
+            result.SeriesTitle.Should().Be(title);
+            result.EpisodeNumbers.Should().BeEmpty();
+            result.AbsoluteEpisodeNumbers.Should().BeEmpty();
+            result.FullSeason.Should().BeFalse();
+            result.IsPartialSeason.Should().BeTrue();
+            result.SeasonPart.Should().Be(seasonPart);
+        }
+
+        [Theory]
+        [InlineData("The Series S01-05 WS BDRip X264-REWARD-No Rars", "The Series", new[] { 1, 2, 3, 4, 5 })]
+        [InlineData("Series.Title.S01-S09.1080p.AMZN.WEB-DL.DDP2.0.H.264-NTb", "Series Title", new[] { 1, 2, 3, 4, 5, 6, 7, 8, 9 })]
+        [InlineData("Series Title S01 - S07 BluRay 1080p x264 REPACK -SacReD", "Series Title", new[] { 1, 2, 3, 4, 5, 6, 7 })]
+        [InlineData("Series Title Season 01-07 BluRay 1080p x264 REPACK -SacReD", "Series Title", new[] { 1, 2, 3, 4, 5, 6, 7 })]
+        [InlineData("Series Title Season 01 - Season 07 BluRay 1080p x264 REPACK -SacReD", "Series Title", new[] { 1, 2, 3, 4, 5, 6, 7 })]
+        [InlineData("Series Title Complete Series S01 S04 (1080p BluRay x265 HEVC 10bit AAC 5.1 Vyndros)", "Series Title", new[] { 1, 2, 3, 4 })]
+        [InlineData("Series Title S01 S04 (1080p BluRay x265 HEVC 10bit AAC 5.1 Vyndros)", "Series Title", new[] { 1, 2, 3, 4 })]
+        [InlineData("Series Title S01 04 (1080p BluRay x265 HEVC 10bit AAC 5.1 Vyndros)", "Series Title", new[] { 1, 2, 3, 4 })]
+        [InlineData("Series Title S01 S02 S03 S04", "Series Title", new[] { 1, 2, 3, 4 })]
+        [InlineData("Series Title S01 S03 S04", "Series Title", new[] { 1, 3, 4 })]
+        [InlineData("Series Title S01 S04", "Series Title", new[] { 1, 2, 3, 4 })]
+        [InlineData("[Group] Series Title S01-04 (BD 1080p) [Dual Audio]", "Series Title", new[] { 1, 2, 3, 4 })]
+        [InlineData("[Group] Series Title S01-S04 (BD 1080p)", "Series Title", new[] { 1, 2, 3, 4 })]
+        [InlineData("Series Title S01-S03 4K 2160p WEB-DL x265-GRP", "Series Title", new[] { 1, 2, 3 })]
+        public void should_parse_multi_season_release(string postTitle, string title, int[] expectedSeasons)
+        {
+            var result = Parser.ParseTitle(postTitle);
+            result.SeriesTitle.Should().Be(title);
+            result.EpisodeNumbers.Should().BeEmpty();
+            result.AbsoluteEpisodeNumbers.Should().BeEmpty();
+            result.FullSeason.Should().BeTrue();
+            result.IsPartialSeason.Should().BeFalse();
+            result.IsMultiSeason.Should().BeTrue();
+            result.SeasonNumbers.Should().Equal(expectedSeasons);
+        }
+
+        [Theory]
+        [InlineData("30.Series.Season.04.HDTV.XviD-DIMENSION", 4)]
+        [InlineData("Sonarr.and.Series.S02.720p.x264-DIMENSION", 2)]
+        [InlineData("[Group] Series Title S02 [1080p]", 2)]
+        [InlineData("[Group] Series Title 2 S01 [BD 1080p]", 1)]
+        public void should_not_be_multi_season_for_a_single_season_release(string postTitle, int season)
+        {
+            var result = Parser.ParseTitle(postTitle);
+            result.IsMultiSeason.Should().BeFalse();
+            result.SeasonNumbers.Should().Equal(season);
+        }
+
+        [Fact]
+        public void should_not_parse_season_folders()
+        {
+            var result = Parser.ParseTitle("Season 3");
+            result.Should().BeNull();
+        }
+    }
+}

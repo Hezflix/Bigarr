@@ -1,0 +1,165 @@
+// Vendored from Sonarr develop (c018578e4b79ee048575c02d7a8aa2b929e4b837)
+// Original path: src/NzbDrone.Core.Test/ParserTests/DailyEpisodeParserFixture.cs — GPL-3.0
+// Sonarr is Copyright (C) Sonarr contributors, licensed under the GNU General Public License v3.0.
+// Bigarr modifications: NUnit -> xUnit v2, namespaces, CoreTest base removed. See VENDORED.md
+
+using Bigarr.Parsing.Tests;
+using FluentAssertions;
+
+namespace Bigarr.Parsing.Episodes.Tests
+{
+    public class DailyEpisodeParserFixture
+    {
+        [Fact]
+        public void should_parse_daily_episode_into_season_zero()
+        {
+            var result = Parser.ParseTitle("A.Late.Talk.Show.2010.10.11.Johnny.Knoxville.iTouch-MW");
+
+            result.SeasonNumbers.Should().Equal(0);
+        }
+
+        [Theory]
+        [InlineData("Series Title 2011 04 18 Emma Roberts HDTV XviD BFF", "Series Title", 2011, 04, 18)]
+        [InlineData("A Late Talk Show 2011 04 15 1080i HDTV DD5 1 MPEG2 TrollHD", "A Late Talk Show", 2011, 04, 15)]
+        [InlineData("A.Late.Talk.Show.2010.10.11.Johnny.Knoxville.iTouch-MW", "A Late Talk Show", 2010, 10, 11)]
+        [InlineData("A Late Talk Show - 2011-04-12 - Gov. Deval Patrick", "A Late Talk Show", 2011, 04, 12)]
+        [InlineData("2011.01.10 - A Late Talk Show- HD TV.mkv", "", 2011, 1, 10)]
+        [InlineData("2011.03.13 - A Late Talk Show - HD TV.mkv", "", 2011, 3, 13)]
+        [InlineData("A Late Talk Show - 2011-06-16 - Larry David, \"Bachelorette\" Ashley Hebert, Pitbull with Ne-Yo", "A Late Talk Show", 2011, 6, 16)]
+        [InlineData("2020.A.Late.Talk.Show.2012.16.02.PDTV.XviD-C4TV", "2020 A Late Talk Show", 2012, 2, 16)]
+        [InlineData("2020.A.Late.Talk.Show.2012.13.02.PDTV.XviD-C4TV", "2020 A Late Talk Show", 2012, 2, 13)]
+        [InlineData("2020.A.Late.Talk.Show.2011.12.02.PDTV.XviD-C4TV", "2020 A Late Talk Show", 2011, 12, 2)]
+        [InlineData("Series Title - 2013-10-30 - Episode Title (1) [HDTV-720p]", "Series Title", 2013, 10, 30)]
+        [InlineData("The_Series_US_04.28.2014_hdtv.x264.Poke.mp4", "The Series US", 2014, 4, 28)]
+        [InlineData("A.Late.Talk.Show.140722.720p.HDTV.x264-YesTV", "A Late Talk Show", 2014, 07, 22)]
+        [InlineData("A_Late_Talk_Show_140722_720p_HDTV_x264-YesTV", "A Late Talk Show", 2014, 07, 22)]
+
+        // [TestCase("Corrie.07.01.15", "Corrie", 2015, 1, 7)]
+        [InlineData("The Show Series 2015 02 09 WEBRIP s01e13", "The Show Series", 2015, 2, 9)]
+        [InlineData("Tree_Series_2018_06_22_Seth_Meyers_720p_HEVC_x265-MeGusta", "Tree Series", 2018, 6, 22)]
+        [InlineData("20161024- Exotic Payback.21x41_720.mkv", "", 2016, 10, 24)]
+        [InlineData("2018-11-14.1080.all.mp4", "", 2018, 11, 14)]
+        [InlineData("2019_08_20_1080_all.mp4", "", 2019, 8, 20)]
+        [InlineData("Series and Title 20201013 Ep7432 [720p WebRip (x264)] [SUBS]", "Series and Title", 2020, 10, 13)]
+        [InlineData("Series Title (1955) - 1954-01-23 05 00 00 - Cottage for Sale.ts", "Series Title (1955)", 1954, 1, 23)]
+        [InlineData("Series Title - 30-04-2024 HDTV 1080p H264 AAC", "Series Title", 2024, 4, 30)]
+        [InlineData("Series On TitleClub E76 2024 08 08 1080p WEB H264-RnB96 [TJET]", "Series On TitleClub", 2024, 8, 8)]
+        [InlineData("Series.Title.13.02.2025.1080i.HDTV.MPA2.0.H.264", "Series Title", 2025, 2, 13)]
+        [InlineData("Series.2025.09.01.The.170.Million.Pound.Diamond.Scam.1080p.HDTV.H264-DEADPOOL'", "Series", 2025, 9, 1)]
+        [InlineData("Series.2025.09.01.The.Million.Pound.Diamond.Scam.1080p.HDTV.H264-DEADPOOL'", "Series", 2025, 9, 1)]
+        [InlineData("Series Title - 2026-07-03 - Episode Title 2026 [WEBDL-1080p]-RlsGrp", "Series Title", 2026, 7, 3)]
+        [InlineData("Series Title - 2026-07-03 - Friday July 3 2026 [AMZN][WEBDL-1080p][EAC3 2.0][h264]-RlsGrp", "Series Title", 2026, 7, 3)]
+        [InlineData("Series Title - 2026-07-03 - Recap 2025 Part 2 [WEBDL-1080p]-RlsGrp", "Series Title", 2026, 7, 3)]
+        [InlineData("Series Title - 2026-07-03 - Look Back At 2025 Part.1", "Series Title", 2026, 7, 3)]
+        public void should_parse_daily_episode(string postTitle, string title, int year, int month, int day)
+        {
+            var result = Parser.ParseTitle(postTitle);
+            var airDate = new DateTime(year, month, day);
+            result.Should().NotBeNull();
+            result.SeriesTitle.Should().Be(title);
+            result.AirDate.Should().Be(airDate.ToString("yyyy-MM-dd"));
+            result.EpisodeNumbers.Should().BeEmpty();
+            result.AbsoluteEpisodeNumbers.Should().BeEmpty();
+            result.FullSeason.Should().BeFalse();
+        }
+
+        [Theory]
+        [InlineData("Series.Title.2015.09.07.Part1.720p.HULU.WEBRip.AAC2.0.H.264-Sonarr", "Series Title", 2015, 9, 7, 1)]
+        [InlineData("Series.Title.2015.09.07.Part2.720p.HULU.WEBRip.AAC2.0.H.264-Sonarr", "Series Title", 2015, 9, 7, 2)]
+        [InlineData("Series.Title.2015.09.07.Part.1.720p.HULU.WEBRip.AAC2.0.H.264-Sonarr", "Series Title", 2015, 9, 7, 1)]
+        [InlineData("Series.Title.2015.09.07.Part.2.720p.HULU.WEBRip.AAC2.0.H.264-Sonarr", "Series Title", 2015, 9, 7, 2)]
+        public void should_parse_daily_episode_with_multiple_parts(string postTitle, string title, int year, int month, int day, int part)
+        {
+            var result = Parser.ParseTitle(postTitle);
+            var airDate = new DateTime(year, month, day);
+            result.Should().NotBeNull();
+            result.SeriesTitle.Should().Be(title);
+            result.AirDate.Should().Be(airDate.ToString("yyyy-MM-dd"));
+            result.EpisodeNumbers.Should().BeEmpty();
+            result.AbsoluteEpisodeNumbers.Should().BeEmpty();
+            result.FullSeason.Should().BeFalse();
+            result.DailyPart.Should().Be(part);
+        }
+
+        [Theory]
+        [InlineData("A Late Talk Show {year} {month} {day} Emma Roberts HDTV XviD BFF")]
+        [InlineData("A Late Talk Show {year} {month} {day} 1080i HDTV DD5 1 MPEG2 TrollHD")]
+        [InlineData("A.Late.Talk.Show.{year}.{month}.{day}.Johnny.Knoxville.iTouch-MW")]
+        [InlineData("A Late Talk Show - {year}-{month}-{day} - Gov. Deval Patrick")]
+        [InlineData("{year}.{month}.{day} - A Late Talk Show  - HD TV.mkv")]
+        [InlineData("A Late Talk Show - {year}-{month}-{day} - Larry David, \"Bachelorette\" Ashley Hebert, Pitbull with Ne-Yo")]
+        [InlineData("2020.NZ.{year}.{month}.{day}.PDTV.XviD-C4TV")]
+        public void should_not_accept_ancient_daily_series(string title)
+        {
+            var yearTooLow = title.Expand(new { year = 1950, month = 10, day = 14 });
+            Parser.ParseTitle(yearTooLow).Should().BeNull();
+        }
+
+        [Theory]
+        [InlineData("A Late Talk Show {year} {month} {day} Emma Roberts HDTV XviD BFF")]
+        [InlineData("A Late Talk Show {year} {month} {day} 1080i HDTV DD5 1 MPEG2 TrollHD")]
+        [InlineData("A.Late.Talk.Show.{year}.{month}.{day}.Johnny.Knoxville.iTouch-MW")]
+        [InlineData("A Late Talk Show  - {year}-{month}-{day} - Gov. Deval Patrick")]
+        [InlineData("{year}.{month}.{day} - A Late Talk Show  - HD TV.mkv")]
+        [InlineData("A Late Talk Show - {year}-{month}-{day} - Larry David, \"Bachelorette\" Ashley Hebert, Pitbull with Ne-Yo")]
+        [InlineData("2020.NZ.{year}.{month}.{day}.PDTV.XviD-C4TV")]
+        public void should_accept_dates_within_future_limit(string title)
+        {
+            var twoDaysFromNow = DateTime.Now.AddDays(2);
+
+            var validDate = title.Expand(new { year = twoDaysFromNow.Year, month = twoDaysFromNow.Month.ToString("00"), day = twoDaysFromNow.Day.ToString("00") });
+
+            var result = Parser.ParseTitle(validDate);
+
+            result.Should().NotBeNull();
+            result.AirDate.Should().NotBeNull();
+            result.AirDate.Should().Be(twoDaysFromNow.ToString("yyyy-MM-dd"));
+        }
+
+        [Theory]
+        [InlineData(7)]
+        [InlineData(14)]
+        public void should_parse_episodes_released_before_their_air_date(int days)
+        {
+            var airDate = DateTime.Today.AddDays(days);
+            var title = string.Format("A.Talk.Show.{0:yyyy.MM.dd}.1080p.WEB-DL.H264-Sonarr", airDate);
+
+            Parser.ParseTitle(title).AirDate.Should().Be(airDate.ToString("yyyy-MM-dd"));
+        }
+
+        [Theory]
+        [InlineData(15)]
+        [InlineData(366)]
+        public void should_not_parse_dates_beyond_future_limit(int days)
+        {
+            var airDate = DateTime.Today.AddDays(days);
+            var title = string.Format("A.Talk.Show.{0:yyyy.MM.dd}.1080p.WEB-DL.H264-Sonarr", airDate);
+
+            Parser.ParseTitle(title).Should().BeNull();
+        }
+
+        [Theory]
+        [InlineData("Tmc - Quotidien - 05-06-2024 HDTV 1080p H264 AAC")]
+        [InlineData("Series.Title.12.02.2025.1080i.HDTV.MPA2.0.H.264")]
+        public void should_not_parse_ambiguous_daily_episode(string postTitle)
+        {
+            Parser.ParseTitle(postTitle).Should().BeNull();
+        }
+
+        [Theory]
+        [InlineData("Series 5th Mar 2025 1080 (Deep61)", "Series", 2025, 3, 5)]
+        [InlineData("Series 31st Jan 2025 1080 (Deep61)", "Series", 2025, 1, 31)]
+        [InlineData("Series 23rd Feb 2024 (Deep61)", "Series", 2024, 2, 23)]
+        public void should_parse_daily_episode_using_short_month_format(string postTitle, string title, int year, int month, int day)
+        {
+            var result = Parser.ParseTitle(postTitle);
+            var airDate = new DateTime(year, month, day);
+            result.Should().NotBeNull();
+            result.SeriesTitle.Should().Be(title);
+            result.AirDate.Should().Be(airDate.ToString("yyyy-MM-dd"));
+            result.EpisodeNumbers.Should().BeEmpty();
+            result.AbsoluteEpisodeNumbers.Should().BeEmpty();
+            result.FullSeason.Should().BeFalse();
+        }
+    }
+}
