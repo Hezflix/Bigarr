@@ -82,6 +82,7 @@ builder.Services.AddScoped<TargetContextFactory>();
 builder.Services.AddScoped<InteractiveSearchService>();
 builder.Services.AddScoped<SeriesTargetsFactory>();
 builder.Services.AddScoped<SeriesSearchService>();
+builder.Services.AddScoped<SeriesRssPass>();
 builder.Services.Configure<RssSyncOptions>(builder.Configuration.GetSection(RssSyncOptions.Section));
 builder.Services.Configure<SearchOptions>(builder.Configuration.GetSection(SearchOptions.Section));
 builder.Services.AddSingleton<RssFeedState>();

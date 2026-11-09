@@ -120,7 +120,7 @@ public sealed class RssFeedState
             IEnumerable<RssReleaseResponse> query = _releases;
             if (matched is not null)
             {
-                query = query.Where(r => (r.Movie is not null) == matched.Value);
+                query = query.Where(r => (r.Movie is not null || r.Series is not null) == matched.Value);
             }
 
             return query.Take(Math.Clamp(limit, 1, MaxReleases)).ToList();
@@ -140,7 +140,7 @@ public sealed class RssFeedState
                 LastRunAt,
                 nextRunAt,
                 _releases.Count,
-                _releases.Count(r => r.Movie is not null),
+                _releases.Count(r => r.Movie is not null || r.Series is not null),
                 _releases.Count(r => r.AttributedVersionId is not null),
                 _indexers.Values.OrderBy(i => i.Indexer).ToList(),
                 _releases.Count(r => r.GrabId is not null),

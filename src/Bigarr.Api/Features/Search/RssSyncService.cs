@@ -32,6 +32,7 @@ public sealed class RssSyncService(
     IndexerGateway gateway,
     GrabService grabs,
     ReleaseSightings sightings,
+    SeriesRssPass seriesRss,
     RssFeedState state,
     SchedulerState scheduler,
     IOptions<RssSyncOptions> options,
@@ -82,21 +83,29 @@ public sealed class RssSyncService(
 
         var results = await IndexerQueries.RunAsync(indexers, (indexer, token) => gateway.FetchRecentAsync(indexer, token), ct);
 
+        // Series come from the indexer's TV and anime categories: a second feed request per indexer, only once the
+        // library holds a series, so a films-only library asks exactly what it asked before.
+        var seriesResults = await db.Series.AnyAsync(ct)
+            ? await IndexerQueries.RunAsync(indexers, (indexer, token) => gateway.FetchRecentSeriesAsync(indexer, token), ct)
+            : [];
+
         // Every release of the feed is judged; "new" only says what this pass brought for the first time.
         var feed = new List<(Indexer Indexer, ReleaseInfo Release)>();
+        var seriesFeed = new List<(Indexer Indexer, ReleaseInfo Release)>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var fresh = 0;
         foreach (var result in results)
         {
+            var seriesResult = seriesResults.FirstOrDefault(r => r.Indexer.Id == result.Indexer.Id);
             var newCount = 0;
-            foreach (var release in result.Releases)
+            foreach (var (release, isSeries) in result.Releases.Select(r => (r, false)).Concat((seriesResult?.Releases ?? []).Select(r => (r, true))))
             {
                 if (!seen.Add($"{result.Indexer.Id}:{release.Guid}"))
                 {
                     continue; // a feed that lists a release twice
                 }
 
-                feed.Add((result.Indexer, release));
+                (isSeries ? seriesFeed : feed).Add((result.Indexer, release));
                 if (state.MarkSeen(result.Indexer.Id, release.Guid, now))
                 {
                     newCount++;
@@ -105,7 +114,8 @@ public sealed class RssSyncService(
 
             fresh += newCount;
 
-            state.RecordIndexer(new RssIndexerStatusResponse(result.Indexer.Id, result.Indexer.Name, now, result.Error?.Message, result.Releases.Count, newCount));
+            var error = result.Error?.Message ?? seriesResult?.Error?.Message;
+            state.RecordIndexer(new RssIndexerStatusResponse(result.Indexer.Id, result.Indexer.Name, now, error, result.Releases.Count + (seriesResult?.Releases.Count ?? 0), newCount));
         }
 
         var matched = 0;
@@ -139,7 +149,7 @@ public sealed class RssSyncService(
 
             // One grab per version and pass: the best of what the feed brought (blueprint §5 ranking).
             var winners = new Dictionary<int, (RssReleaseResponse Entry, ReleaseInfo Release)>();
-            foreach (var group in judged.Where(j => j.Entry.AttributedVersionId is not null).GroupBy(j => j.Entry.AttributedVersionId!.Value))
+            foreach (var group in judged.Where(j => j.Entry.AttributedVersionId is not null && j.Entry.Movie is not null).GroupBy(j => j.Entry.AttributedVersionId!.Value))
             {
                 var best = ReleaseRanking.Order(group, j => j.Entry.QualityId, j => j.Score, j => j.Entry.RevisionVersion, j => j.Release.IndexerPriority, j => j.Release.Seeders ?? 0).First();
                 winners[group.Key] = (best.Entry, best.Release);
@@ -183,18 +193,27 @@ public sealed class RssSyncService(
             if (sightings.Enabled)
             {
                 var tmdbIds = movies.ToDictionary(m => m.Id, m => m.TmdbId);
-                await sightings.RecordAsync(judged.Select(j => (j.Entry, j.Release, j.Entry.Movie is { } movie ? tmdbIds.GetValueOrDefault(movie.Id) : (int?)null)), now, ct);
+                await sightings.RecordAsync(judged.Select(j => (j.Entry, j.Release, j.Entry.Movie is { } movie ? tmdbIds.GetValueOrDefault(movie.Id) : (int?)null, (int?)null)), now, ct);
             }
         }
 
-        var errors = results.Where(r => r.Error is not null)
+        if (seriesFeed.Count > 0)
+        {
+            var pass = await seriesRss.RunAsync(seriesFeed, now, ct);
+            matched += pass.Matched;
+            wouldGrab += pass.Attributed;
+            grabbed += pass.Grabbed;
+            picked += pass.Picked;
+        }
+
+        var errors = results.Concat(seriesResults).Where(r => r.Error is not null)
             .Select(r => new IndexerErrorResponse(r.Indexer.Id, r.Indexer.Name, r.Error!.Kind, r.Error.Message))
             .ToList();
 
         logger.LogInformation("RSS sync: {Indexers} indexer(s), {Fetched} release(s), {New} new, {Matched} matched, {WouldGrab} attributed, {Grabbed} grabbed, {Picked} picked in shadow mode, {Errors} error(s)",
-            indexers.Count, results.Sum(r => r.Releases.Count), fresh, matched, wouldGrab, grabbed, picked, errors.Count);
+            indexers.Count, results.Sum(r => r.Releases.Count) + seriesResults.Sum(r => r.Releases.Count), fresh, matched, wouldGrab, grabbed, picked, errors.Count);
 
-        return new RssSyncResponse(indexers.Count, results.Sum(r => r.Releases.Count), fresh, matched, wouldGrab, errors, grabbed, picked);
+        return new RssSyncResponse(indexers.Count, results.Sum(r => r.Releases.Count) + seriesResults.Sum(r => r.Releases.Count), fresh, matched, wouldGrab, errors, grabbed, picked);
     }
 
     private static string Key(RssReleaseResponse entry) => $"{entry.IndexerId}:{entry.Guid}";
