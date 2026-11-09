@@ -103,14 +103,31 @@ public sealed class IndexersEndpointsTests(BigarrApiFactory factory) : IClassFix
         Assert.True(result.SupportsMovieSearch);
         Assert.True(result.SupportsTmdbSearch);
         Assert.True(result.SupportsImdbSearch);
-        Assert.Equal(Indexer.DefaultCategories.Length, result.CategoryCount);
+        Assert.Equal(Indexer.DefaultCategories.Length + 5, result.CategoryCount);
         Assert.True(result.RecentReleases > 0);
+
+        // The series side of the caps: tv-search and its parameters, TV and anime categories apart.
+        Assert.True(result.SupportsTvSearch);
+        Assert.Contains("tvdbid", result.TvSearchParams!);
+        Assert.Equal([5000, 5030, 5040, 5045], result.TvCategories);
+        Assert.Equal([Indexer.AnimeCategory], result.AnimeCategories);
 
         var created = await client.PostAsJsonAsync("/api/v1/indexers", new IndexerRequest("Mock to test", IndexerImplementation.Mock), Json);
         var saved = (await created.Content.ReadFromJsonAsync<IndexerResponse>(Json))!;
         var savedTest = await client.PostAsync($"/api/v1/indexers/{saved.Id}/test", null);
         Assert.Equal(HttpStatusCode.OK, savedTest.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsync("/api/v1/indexers/999999/test", null)).StatusCode);
+
+        // Testing a saved indexer fills its empty series categories from the caps; the user's own lists are kept.
+        var filled = (await client.GetFromJsonAsync<IndexerResponse>($"/api/v1/indexers/{saved.Id}", Json))!;
+        Assert.Equal([5000, 5030, 5040, 5045], filled.TvCategories);
+        Assert.Equal([Indexer.AnimeCategory], filled.AnimeCategories);
+        var edited = await client.PutAsJsonAsync($"/api/v1/indexers/{saved.Id}", new IndexerRequest("Mock to test", IndexerImplementation.Mock, TvCategories: [5040]), Json);
+        Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
+        await client.PostAsync($"/api/v1/indexers/{saved.Id}/test", null);
+        var kept = (await client.GetFromJsonAsync<IndexerResponse>($"/api/v1/indexers/{saved.Id}", Json))!;
+        Assert.Equal([5040], kept.TvCategories);
+        Assert.Equal([Indexer.AnimeCategory], kept.AnimeCategories);
 
         // Nothing listens on this port: the test fails fast with a typed message instead of a 500.
         var unreachable = await client.PostAsJsonAsync("/api/v1/indexers/test",

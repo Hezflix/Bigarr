@@ -27,6 +27,40 @@ public sealed class IndexerGateway(IEnumerable<IIndexerClient> clients, TimeProv
     public Task<IReadOnlyList<ReleaseInfo>> FetchRecentAsync(Indexer indexer, CancellationToken cancellationToken) =>
         ExecuteAsync(indexer, (client, ct) => client.FetchRecentAsync(indexer, ct), cancellationToken);
 
+    /// <summary>
+    /// A series search can take several requests (ids, then titles; "Title 05" per scene name for anime): each one waits
+    /// for its own slot of the indexer's rate limit, and a failure backs the whole indexer off as usual.
+    /// </summary>
+    public Task<IReadOnlyList<ReleaseInfo>> SearchSeriesAsync(Indexer indexer, SeriesSearchCriteria criteria, CancellationToken cancellationToken)
+    {
+        var interval = TimeSpan.FromSeconds(Math.Max(0, indexer.RateLimitSeconds));
+        var state = State(indexer.Id);
+        return ExecuteAsync(indexer, (client, ct) => client.SearchSeriesAsync(indexer, criteria, token => state.WaitForSlotAsync(interval, time, token), ct), cancellationToken, paced: false);
+    }
+
+    /// <summary>The capabilities (cached by the client), paced and backed off like any request.</summary>
+    public Task<IndexerCapabilities> GetCapabilitiesAsync(Indexer indexer, CancellationToken cancellationToken) =>
+        ExecuteAsync(indexer, (client, ct) => client.GetCapabilitiesAsync(indexer, ct), cancellationToken);
+
+    /// <summary>
+    /// The capabilities a search just read (the client caches them), without waiting for a slot; null when they cannot
+    /// be had. For bookkeeping after a search, never before one.
+    /// </summary>
+    public async Task<IndexerCapabilities?> CachedCapabilitiesAsync(Indexer indexer, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await ClientFor(indexer).GetCapabilitiesAsync(indexer, cancellationToken);
+        }
+        catch (IndexerException)
+        {
+            return null;
+        }
+    }
+
+    public Task<IReadOnlyList<ReleaseInfo>> FetchRecentSeriesAsync(Indexer indexer, CancellationToken cancellationToken) =>
+        ExecuteAsync(indexer, (client, ct) => client.FetchRecentSeriesAsync(indexer, ct), cancellationToken);
+
     /// <summary>Capabilities plus one feed fetch. Ignores the backoff: a test is the user asking "is it back?".</summary>
     public async Task<(IndexerCapabilities Capabilities, int RecentReleases)> TestAsync(Indexer indexer, CancellationToken cancellationToken)
     {
@@ -61,7 +95,7 @@ public sealed class IndexerGateway(IEnumerable<IIndexerClient> clients, TimeProv
 
     public void Forget(int indexerId) => _states.TryRemove(indexerId, out _);
 
-    private async Task<T> ExecuteAsync<T>(Indexer indexer, Func<IIndexerClient, CancellationToken, Task<T>> action, CancellationToken cancellationToken)
+    private async Task<T> ExecuteAsync<T>(Indexer indexer, Func<IIndexerClient, CancellationToken, Task<T>> action, CancellationToken cancellationToken, bool paced = true)
     {
         ArgumentNullException.ThrowIfNull(indexer);
 
@@ -74,7 +108,10 @@ public sealed class IndexerGateway(IEnumerable<IIndexerClient> clients, TimeProv
             throw new IndexerException(IndexerFailureKind.Disabled, $"{indexer.Name} is paused until {until:HH:mm} UTC after {state.Failures} failure(s): {state.LastError}");
         }
 
-        await state.WaitForSlotAsync(TimeSpan.FromSeconds(Math.Max(0, indexer.RateLimitSeconds)), time, cancellationToken);
+        if (paced)
+        {
+            await state.WaitForSlotAsync(TimeSpan.FromSeconds(Math.Max(0, indexer.RateLimitSeconds)), time, cancellationToken);
+        }
 
         try
         {

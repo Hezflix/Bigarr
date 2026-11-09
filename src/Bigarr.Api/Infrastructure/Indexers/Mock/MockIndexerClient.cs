@@ -51,7 +51,32 @@ public sealed partial class MockIndexerClient(TimeProvider time) : IIndexerClien
     public IndexerImplementation Implementation => IndexerImplementation.Mock;
 
     public Task<IndexerCapabilities> GetCapabilitiesAsync(Indexer indexer, CancellationToken cancellationToken) =>
-        Task.FromResult(new IndexerCapabilities(true, true, true, true, Indexer.DefaultCategories.Select(c => new IndexerCategory(c, $"Movies/{c}")).ToList(), 100));
+        Task.FromResult(new IndexerCapabilities(
+            true,
+            true,
+            true,
+            true,
+            Indexer.DefaultCategories.Select(c => new IndexerCategory(c, $"Movies/{c}"))
+                .Concat(new[] { 5000, 5030, 5040, 5045, Indexer.AnimeCategory }.Select(c => new IndexerCategory(c, $"TV/{c}")))
+                .ToList(),
+            100)
+        {
+            SupportsTvSearch = true,
+            TvSearchParams = new HashSet<string>(["q", "season", "ep", "tvdbid", "tmdbid", "imdbid"]),
+        });
+
+    public Task<IReadOnlyList<ReleaseInfo>> SearchSeriesAsync(Indexer indexer, SeriesSearchCriteria criteria, Func<CancellationToken, Task> pace, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(indexer);
+        ArgumentNullException.ThrowIfNull(criteria);
+        return Task.FromResult<IReadOnlyList<ReleaseInfo>>(MockSeriesReleases.ForSearch(indexer, criteria, time.GetUtcNow()));
+    }
+
+    public Task<IReadOnlyList<ReleaseInfo>> FetchRecentSeriesAsync(Indexer indexer, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(indexer);
+        return Task.FromResult<IReadOnlyList<ReleaseInfo>>(MockSeriesReleases.Recent(indexer, time.GetUtcNow()));
+    }
 
     public Task<IReadOnlyList<ReleaseInfo>> SearchAsync(Indexer indexer, MovieSearchCriteria criteria, CancellationToken cancellationToken)
     {

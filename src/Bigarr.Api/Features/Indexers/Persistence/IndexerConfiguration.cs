@@ -16,6 +16,8 @@ public sealed class IndexerConfiguration : IEntityTypeConfiguration<Indexer>
         builder.Property(i => i.ApiPath).HasMaxLength(128);
         builder.Property(i => i.ApiKey).HasMaxLength(256);
         builder.Property(i => i.Categories).HasJsonConversion();
+        builder.Property(i => i.TvCategories).HasJsonConversion();
+        builder.Property(i => i.AnimeCategories).HasJsonConversion();
         builder.Ignore(i => i.Protocol);
 
         builder.HasIndex(i => i.Name).IsUnique();

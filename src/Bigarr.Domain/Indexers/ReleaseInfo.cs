@@ -41,6 +41,9 @@ public sealed class ReleaseInfo
 
     public int? TmdbId { get; set; }
 
+    /// <summary>TVDB id of the show, when the indexer attached one (Torznab <c>tvdbid</c>).</summary>
+    public int? TvdbId { get; set; }
+
     public IndexerFlags Flags { get; set; }
 
     public double? MinimumRatio { get; set; }

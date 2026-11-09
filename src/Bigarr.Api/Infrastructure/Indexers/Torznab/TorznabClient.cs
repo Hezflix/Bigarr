@@ -64,6 +64,54 @@ public sealed partial class TorznabClient(IHttpClientFactory httpClientFactory, 
         return TorznabParser.ParseFeed(xml, indexer);
     }
 
+    public async Task<IReadOnlyList<ReleaseInfo>> SearchSeriesAsync(Indexer indexer, SeriesSearchCriteria criteria, Func<CancellationToken, Task> pace, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(criteria);
+        ArgumentNullException.ThrowIfNull(pace);
+
+        var capabilities = await CapabilitiesPacedAsync(indexer, pace, cancellationToken);
+        var categories = SeriesQueryBuilder.Categories(indexer, capabilities, criteria.SeriesType);
+        var releases = new Dictionary<string, ReleaseInfo>(StringComparer.Ordinal);
+        foreach (var tier in SeriesQueryBuilder.Build(capabilities, criteria, categories))
+        {
+            foreach (var request in tier)
+            {
+                await pace(cancellationToken);
+                var xml = await GetAsync(indexer, request.Parameters, request.Categories, cancellationToken);
+                foreach (var release in TorznabParser.ParseFeed(xml, indexer))
+                {
+                    releases.TryAdd(release.Guid, release);
+                }
+            }
+
+            // Sonarr's tiers: the titles are only asked when the ids found nothing.
+            if (releases.Count > 0)
+            {
+                break;
+            }
+        }
+
+        return releases.Values.ToList();
+    }
+
+    public async Task<IReadOnlyList<ReleaseInfo>> FetchRecentSeriesAsync(Indexer indexer, CancellationToken cancellationToken)
+    {
+        var capabilities = await GetCapabilitiesAsync(indexer, cancellationToken);
+        var query = new Dictionary<string, string> { ["t"] = capabilities.SupportsTvSearch ? "tvsearch" : "search" };
+        var xml = await GetAsync(indexer, query, SeriesQueryBuilder.FeedCategories(indexer, capabilities), cancellationToken);
+        return TorznabParser.ParseFeed(xml, indexer);
+    }
+
+    private async Task<IndexerCapabilities> CapabilitiesPacedAsync(Indexer indexer, Func<CancellationToken, Task> pace, CancellationToken cancellationToken)
+    {
+        if (!_capabilities.TryGetValue(CacheKey(indexer), out var cached) || time.GetUtcNow() - cached.At >= CapabilitiesTtl)
+        {
+            await pace(cancellationToken);
+        }
+
+        return await GetCapabilitiesAsync(indexer, cancellationToken);
+    }
+
     /// <summary>Identifiers when the endpoint accepts them, otherwise one text query per known title (three at most).</summary>
     public static IReadOnlyList<Dictionary<string, string>> BuildSearchQueries(IndexerCapabilities capabilities, MovieSearchCriteria criteria)
     {
@@ -111,7 +159,11 @@ public sealed partial class TorznabClient(IHttpClientFactory httpClientFactory, 
     public static string CleanQuery(string title) =>
         SpacesRegex().Replace(NonQueryCharsRegex().Replace(title, " "), " ").Trim();
 
-    public static string BuildUrl(Indexer indexer, IReadOnlyDictionary<string, string> parameters, bool includeCategories)
+    public static string BuildUrl(Indexer indexer, IReadOnlyDictionary<string, string> parameters, bool includeCategories) =>
+        BuildUrl(indexer, parameters, includeCategories ? indexer?.Categories ?? [] : null);
+
+    /// <param name="categories">Null for a request without paging (<c>t=caps</c>); otherwise the categories asked, none meaning all.</param>
+    public static string BuildUrl(Indexer indexer, IReadOnlyDictionary<string, string> parameters, IReadOnlyList<int>? categories)
     {
         ArgumentNullException.ThrowIfNull(indexer);
         if (string.IsNullOrWhiteSpace(indexer.BaseUrl))
@@ -134,11 +186,11 @@ public sealed partial class TorznabClient(IHttpClientFactory httpClientFactory, 
             Append(query, "apikey", indexer.ApiKey.Trim());
         }
 
-        if (includeCategories)
+        if (categories is not null)
         {
-            if (indexer.Categories.Count > 0)
+            if (categories.Count > 0)
             {
-                Append(query, "cat", string.Join(',', indexer.Categories.Select(c => c.ToString(CultureInfo.InvariantCulture))));
+                Append(query, "cat", string.Join(',', categories.Select(c => c.ToString(CultureInfo.InvariantCulture))));
             }
 
             Append(query, "limit", PageSize.ToString(CultureInfo.InvariantCulture));
@@ -148,9 +200,12 @@ public sealed partial class TorznabClient(IHttpClientFactory httpClientFactory, 
         return $"{endpoint}?{query}";
     }
 
-    private async Task<string> GetAsync(Indexer indexer, IReadOnlyDictionary<string, string> parameters, bool includeCategories, CancellationToken cancellationToken)
+    private Task<string> GetAsync(Indexer indexer, IReadOnlyDictionary<string, string> parameters, bool includeCategories, CancellationToken cancellationToken) =>
+        GetAsync(indexer, parameters, includeCategories ? indexer.Categories : null, cancellationToken);
+
+    private async Task<string> GetAsync(Indexer indexer, IReadOnlyDictionary<string, string> parameters, IReadOnlyList<int>? categories, CancellationToken cancellationToken)
     {
-        var url = BuildUrl(indexer, parameters, includeCategories);
+        var url = BuildUrl(indexer, parameters, categories);
         logger.LogDebug("Torznab {Indexer}: GET {Url}", indexer.Name, Redact(url));
 
         var http = httpClientFactory.CreateClient(HttpClientName);

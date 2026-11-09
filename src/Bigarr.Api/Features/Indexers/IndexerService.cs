@@ -133,17 +133,63 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
         try
         {
             var (capabilities, recent) = await gateway.TestAsync(indexer, ct);
+            if (id is not null)
+            {
+                await FillSeriesCategoriesAsync(id.Value, capabilities, ct);
+            }
+
             return Result<IndexerTestResponse>.Ok(new IndexerTestResponse(
                 capabilities.SupportsMovieSearch,
                 capabilities.SupportsImdbSearch,
                 capabilities.SupportsTmdbSearch,
                 capabilities.Categories.Count,
-                recent));
+                recent,
+                capabilities.SupportsTvSearch,
+                capabilities.TvSearchParams.Order().ToList(),
+                [.. capabilities.TvCategoryIds],
+                [.. capabilities.AnimeCategoryIds]));
         }
         catch (IndexerException ex)
         {
             logger.LogWarning("Test of indexer {Name} failed ({Kind}): {Message}", indexer.Name, ex.Kind, ex.Message);
             return new Failure(StatusCodes.Status400BadRequest, "Indexer test failed", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Fills a saved indexer's empty TV and anime categories from its capabilities: an indexer pushed by Prowlarr for a
+    /// Radarr application carries movie categories only. A list the user set is never touched.
+    /// </summary>
+    public async Task FillSeriesCategoriesAsync(int id, Bigarr.Domain.Indexers.IndexerCapabilities capabilities, CancellationToken ct)
+    {
+        var row = await db.Indexers.FirstOrDefaultAsync(i => i.Id == id, ct);
+        if (row is null || (row.TvCategories.Count > 0 && row.AnimeCategories.Count > 0))
+        {
+            return;
+        }
+
+        if (row.TvCategories.Count == 0 && capabilities.TvCategoryIds.Count > 0)
+        {
+            row.TvCategories = [.. capabilities.TvCategoryIds];
+        }
+
+        if (row.AnimeCategories.Count == 0 && capabilities.AnimeCategoryIds.Count > 0)
+        {
+            row.AnimeCategories = [.. capabilities.AnimeCategoryIds];
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>After a series search or feed: fills the empty series categories of the indexers that answered.</summary>
+    public async Task FillSeriesCategoriesAsync(IEnumerable<Indexer> answered, CancellationToken ct)
+    {
+        foreach (var indexer in answered.Where(i => i.Id > 0 && (i.TvCategories.Count == 0 || i.AnimeCategories.Count == 0)))
+        {
+            if (await gateway.CachedCapabilitiesAsync(indexer, ct) is { } capabilities)
+            {
+                await FillSeriesCategoriesAsync(indexer.Id, capabilities, ct);
+            }
         }
     }
 
@@ -169,7 +215,9 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
             indexer.Protocol,
             indexer.ProwlarrId,
             new IndexerStatusResponse(status.Healthy, status.Failures, status.DisabledUntil, status.LastError, status.LastFailureAt, status.LastSuccessAt),
-            indexer.CreatedAt);
+            indexer.CreatedAt,
+            indexer.TvCategories,
+            indexer.AnimeCategories);
     }
 
     public static Failure? Validate(IndexerRequest request)
@@ -231,6 +279,11 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
             return Failure.Invalid("Invalid categories", "Newznab category ids are positive integers, e.g. 2000, 2040.");
         }
 
+        if ((request.TvCategories ?? []).Concat(request.AnimeCategories ?? []).Any(c => c <= 0))
+        {
+            return Failure.Invalid("Invalid categories", "Newznab category ids are positive integers, e.g. 5000, 5040, 5070.");
+        }
+
         return null;
     }
 
@@ -252,6 +305,16 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
         if (request.ProwlarrId is not null)
         {
             indexer.ProwlarrId = request.ProwlarrId;
+        }
+
+        if (request.TvCategories is not null)
+        {
+            indexer.TvCategories = request.TvCategories.Distinct().Order().ToList();
+        }
+
+        if (request.AnimeCategories is not null)
+        {
+            indexer.AnimeCategories = request.AnimeCategories.Distinct().Order().ToList();
         }
     }
 }
