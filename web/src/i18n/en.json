@@ -1846,9 +1846,7 @@
     "quality": "Quality",
     "stream": "Stream",
     "container": "Container",
-    "location": "Location",
     "original": "Original ({{bitrate}})",
-    "noneTrack": "None",
     "hw": "HW"
   }
 }
