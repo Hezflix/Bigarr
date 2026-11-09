@@ -1843,10 +1843,8 @@
       "slow": "Transcoding slower than real time: the player will buffer"
     },
     "startedAt": "Started {{time}}",
-    "quality": "Quality",
-    "stream": "Stream",
     "container": "Container",
-    "original": "Original ({{bitrate}})",
-    "hw": "HW"
+    "hw": "HW",
+    "noSubtitles": "No subtitles"
   }
 }

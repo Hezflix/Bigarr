@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ChevronDownIcon, LayoutGridIcon, ListIcon, LoaderIcon, PauseIcon, PlayIcon } from 'lucide-react'
+import { AudioLinesIcon, CaptionsIcon, ChevronDownIcon, FilmIcon, GaugeIcon, LayoutGridIcon, ListIcon, LoaderIcon, PackageIcon, PauseIcon, PlayIcon } from 'lucide-react'
 import { cn } from 'cn'
 import { useTranslation } from 'react-i18next'
 import { playback, type PlaybackSession, type PlaybackServerStatus, type PlexTranscode } from '@/api/client'
@@ -166,131 +166,129 @@ function Times({ session, children, className }: { session: PlaybackSession; chi
   )
 }
 
-const upper = (value: string | null | undefined) => value?.toUpperCase() ?? null
 const channelsOf = (count: number | null) => (count === null ? null : count === 6 ? '5.1' : count === 8 ? '7.1' : count === 2 ? '2.0' : `${count} ch`)
 const join = (...parts: (string | number | null | undefined)[]) => parts.filter((p) => p !== null && p !== undefined && p !== '').join(' ')
+const converted = (decision: string | null) => ['transcode', 'burn'].includes(decision?.toLowerCase() ?? '')
+const amber = 'font-medium text-amber-700 dark:text-amber-300'
 
-/** "Direct play", "Copy", "Transcode", "Burned in", amber when the track is converted. */
-function TrackDecision({ value }: { value: string | null }) {
-  const { t } = useTranslation()
-  if (!value) return null
-  const converted = ['transcode', 'burn'].includes(value.toLowerCase())
-  return <span className={converted ? 'font-medium text-amber-700 dark:text-amber-300' : undefined}>{t(`playback.trackDecisions.${value.toLowerCase()}`, { defaultValue: value })}</span>
-}
-
-/** One labeled line of a card; long values are cut, the whole of it shows on hover. */
-function Field({ label, title, children }: { label: string; title?: string; children: React.ReactNode }) {
+/** One cell of the facts grid: an icon, then the value, amber when the track is converted. Cut short, whole on hover. */
+function Fact({ icon: Icon, label, text, conversion = false, wide = false }: { icon: typeof FilmIcon; label: string; text: string; conversion?: boolean; wide?: boolean }) {
   return (
-    <>
-      <dt className="text-[10px] font-medium tracking-wide text-muted-foreground uppercase">{label}</dt>
-      <dd className="truncate" title={title}>
-        {children}
-      </dd>
-    </>
+    <div className={cn('flex min-w-0 items-center gap-2 text-xs', wide && 'col-span-2')} title={`${label}: ${text}`}>
+      <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-label={label} />
+      <span className={cn('truncate', conversion && amber)}>{text}</span>
+    </div>
   )
 }
 
 /**
- * A stream as a fixed-size tile, Tautulli's layout: the poster the whole height on the left, the same labeled lines
- * on every card (a track that is not converted says so rather than disappearing), the position and end time in the
- * corner, then the title and the user under the progress. Every card is the same size, so they line up in a grid.
+ * What the file is and what the player gets: video | audio, container | subtitles, then the transcoder across.
+ * Amber says "converted", so a cell shows only formats: source, and "→ stream" when it changes.
+ */
+function FactsGrid({ session }: { session: PlaybackSession }) {
+  const { t } = useTranslation()
+  const d = session.details
+  const tr = session.transcode
+  const videoConverted = converted(d.videoDecision)
+  const audioConverted = converted(d.audioDecision)
+  const video = join(d.sourceVideoCodec, d.sourceVideoResolution, d.sourceDynamicRange) + (videoConverted ? ` → ${join(d.streamVideoCodec, d.streamVideoResolution)}${d.hardwareTranscode ? ` (${t('playback.hw')})` : ''}` : '')
+  const audio = join(d.sourceAudioCodec, channelsOf(d.sourceAudioChannels)) + (audioConverted ? ` → ${join(d.streamAudioCodec, channelsOf(d.streamAudioChannels))}` : '')
+  const container = d.streamContainer && d.sourceContainer && d.streamContainer !== d.sourceContainer ? `${d.sourceContainer.toUpperCase()} → ${d.streamContainer.toUpperCase()}` : (d.sourceContainer ?? d.streamContainer ?? '').toUpperCase()
+  const behind = severity(session) === 2
+  const transcoder = tr
+    ? [
+        tr.speed !== null ? t('playback.speed', { value: tr.speed.toFixed(1) }) : null,
+        tr.complete ? t('playback.transcodeComplete') : tr.throttled ? t('playback.throttled') : null,
+        tr.bufferedMs !== null && !tr.complete ? t('playback.ahead', { time: formatOffset(tr.bufferedMs) }) : null,
+        behind ? t('playback.cannotKeepUp') : null,
+        tr.hardwareEncoding ?? tr.hardwareDecoding,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : null
+
+  return (
+    <div className="grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-x-4 gap-y-1.5" data-testid="facts">
+      <Fact icon={FilmIcon} label={t('playback.video')} text={video || t('common.none')} conversion={videoConverted} />
+      <Fact icon={AudioLinesIcon} label={t('playback.audio')} text={audio || t('common.none')} conversion={audioConverted} />
+      <Fact icon={PackageIcon} label={t('playback.container')} text={container || t('common.none')} />
+      <Fact
+        icon={CaptionsIcon}
+        label={t('playback.subtitles')}
+        text={d.subtitleDecision ? t(`playback.trackDecisions.${d.subtitleDecision.toLowerCase()}`, { defaultValue: d.subtitleDecision }) : t('playback.noSubtitles')}
+        conversion={converted(d.subtitleDecision)}
+      />
+      {transcoder && <Fact icon={GaugeIcon} label={t('playback.transcoder')} text={transcoder} conversion={behind} wide />}
+    </div>
+  )
+}
+
+/**
+ * A stream as a tile, over the film's backdrop (blurred so it never fights the text, tinted most where the text is):
+ * the poster, the title with the decision and the version, the user and the player, the facts grid, and the progress
+ * pinned to the bottom so it lines up across a row whatever the number of facts. The stripe on the left says whether
+ * the stream is in trouble.
  */
 function SessionCard({ session }: { session: PlaybackSession }) {
   const { t } = useTranslation()
   const d = session.details
-  const tr = session.transcode
-  const transcoding = d.decision === 'transcode'
-  const behind = severity(session) === 2
-  const mbpsOf = (kbps: number | null) => (kbps === null ? null : t('playback.mbps', { value: (kbps / 1000).toFixed(1) }))
-
-  const quality = transcoding ? join(mbpsOf(d.streamBitrate), d.streamVideoResolution) : t('playback.original', { bitrate: mbpsOf(d.sourceBitrate) ?? '?' })
-  const streamExtra = tr ? [t('playback.speed', { value: tr.speed?.toFixed(1) ?? '?' }), tr.complete ? t('playback.transcodeComplete') : tr.throttled ? t('playback.throttled') : null, tr.bufferedMs !== null && !tr.complete ? t('playback.ahead', { time: formatOffset(tr.bufferedMs) }) : null].filter(Boolean).join(', ') : null
-  const container = d.streamContainer && d.sourceContainer && d.streamContainer !== d.sourceContainer ? `${upper(d.sourceContainer)} → ${upper(d.streamContainer)}` : upper(d.sourceContainer ?? d.streamContainer)
-  const videoConverted = d.videoDecision?.toLowerCase() === 'transcode'
-  const video = join(d.sourceVideoCodec, d.sourceVideoResolution, d.sourceDynamicRange) + (videoConverted ? ` → ${join(d.streamVideoCodec, d.streamVideoResolution)}${d.hardwareTranscode ? ` (${t('playback.hw')})` : ''}` : '')
-  const audioConverted = d.audioDecision?.toLowerCase() === 'transcode'
-  const audio = join(d.sourceAudioCodec, channelsOf(d.sourceAudioChannels)) + (audioConverted ? ` → ${join(d.streamAudioCodec, channelsOf(d.streamAudioChannels))}` : '')
-  const hardware = tr?.hardwareEncoding ?? tr?.hardwareDecoding
 
   return (
-    <Card className="relative isolate gap-0 overflow-hidden p-0" data-session={session.id}>
-      {/* The film's backdrop behind the whole card, blurred and tinted with the card colour: a mood, never in the way. */}
-      {session.fanartUrl && <img src={tmdbSize(session.fanartUrl, 300)} alt="" aria-hidden="true" className="absolute inset-0 -z-10 size-full scale-125 object-cover blur-2xl" />}
-      <div className="absolute inset-0 -z-10 bg-card/85" />
+    <Card className="relative isolate h-full gap-0 overflow-hidden p-0" data-session={session.id}>
+      {session.fanartUrl && <img src={tmdbSize(session.fanartUrl, 780)} alt="" aria-hidden="true" className="absolute inset-0 -z-10 size-full scale-110 object-cover blur-md" />}
+      <div className="absolute inset-0 -z-10 bg-gradient-to-r from-card/85 via-card/80 to-card/50" />
       <Stripe session={session} />
-      <div className="relative h-56">
-        <div className="relative flex h-full gap-3 py-2.5 pr-3 pl-4">
-          <PosterImage session={session} width={342} className="h-full w-auto" />
-          <div className="flex min-w-0 flex-1 flex-col">
-            <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-              <DecisionBadge decision={d.decision} />
-              {session.versionName && <Badge variant="secondary">{session.versionName}</Badge>}
-              <Badge variant="outline">{d.local ? t('playback.lan') : t('playback.wan')}</Badge>
-              {d.hardwareTranscode && <Badge variant="outline">{t('playback.hardware')}</Badge>}
+      <div className="flex h-full flex-col gap-3 py-4 pr-4 pl-6">
+        <div className="flex gap-4">
+          <PosterImage session={session} width={342} className="w-24 self-start shadow-md" />
+          <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-1.5 font-semibold">
+                <StateIcon session={session} className="size-4" />
+                <span className="truncate">
+                  <Title session={session} />
+                </span>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <DecisionBadge decision={d.decision} />
+                {session.versionName && <Badge variant="secondary">{session.versionName}</Badge>}
+              </div>
             </div>
-            <dl className="grid grid-cols-[4.75rem_minmax(0,1fr)] items-baseline gap-x-2 gap-y-0.5 text-xs">
-              <Field label={t('playback.player')} title={join(d.playerProduct, d.playerTitle, d.playerPlatform)}>
+            <div className="flex min-w-0 items-center gap-2 text-sm">
+              <Avatar name={session.user.name} url={session.user.thumbUrl} className="size-6 text-[10px]" />
+              <span className="shrink-0">{session.user.name}</span>
+              <span className="ml-auto truncate text-xs text-muted-foreground">
                 {d.playerTitle ?? d.playerProduct ?? t('common.none')}
-                {d.playerPlatform && <span className="text-muted-foreground"> · {d.playerPlatform}</span>}
-              </Field>
-              <Field label={t('playback.quality')}>{quality}</Field>
-              {/* The decision is in the pills; this line only says how a transcode keeps up. */}
-              {transcoding && streamExtra && (
-                <Field label={t('playback.stream')} title={hardware ? `${streamExtra} · ${hardware}` : streamExtra}>
-                  <span className={behind ? 'font-medium text-amber-700 dark:text-amber-300' : undefined}>
-                    {streamExtra}
-                    {behind ? `, ${t('playback.cannotKeepUp')}` : ''}
-                  </span>
-                </Field>
-              )}
-              <Field label={t('playback.container')}>{container ?? t('common.none')}</Field>
-              <Field label={t('playback.video')} title={video}>
-                <TrackDecision value={d.videoDecision} /> <span className="text-muted-foreground">{video}</span>
-              </Field>
-              <Field label={t('playback.audio')} title={audio}>
-                <TrackDecision value={d.audioDecision} /> <span className="text-muted-foreground">{audio}</span>
-              </Field>
-              {d.subtitleDecision && (
-                <Field label={t('playback.subtitles')}>
-                  <TrackDecision value={d.subtitleDecision} />
-                </Field>
-              )}
-              <Field label={t('playback.ip')}>{d.ipAddress ?? t('common.none')}</Field>
-              <Field label={t('playback.bandwidth')}>{mbpsOf(d.bandwidth) ?? t('common.none')}</Field>
-            </dl>
+                {d.playerPlatform ? ` · ${d.playerPlatform}` : ''}
+              </span>
+            </div>
+            <FactsGrid session={session} />
           </div>
-          <Times session={session} className="absolute right-3 bottom-2 text-right text-[11px] leading-tight tabular-nums text-muted-foreground">
-            {session.state !== 'paused' && session.item.durationMs ? (
-              <span className="block">{t('playback.ends', { time: formatTime(Date.now() + remainingMs(session)) })}</span>
-            ) : null}
-            <span className="block">
+        </div>
+        {/* Pinned to the bottom: the bar sits at the same height on every tile of a row. */}
+        <div className="mt-auto flex flex-col gap-1">
+          <Progress value={progressOf(session)} aria-label={t('playback.progress')} />
+          <div className="flex flex-wrap justify-between gap-x-3 text-xs tabular-nums text-muted-foreground">
+            <Times session={session}>
               {formatOffset(session.viewOffsetMs)} / {session.item.durationMs ? formatOffset(session.item.durationMs) : '?'}
-            </span>
-          </Times>
+              {session.state !== 'paused' && session.item.durationMs ? ` · ${t('playback.ends', { time: formatTime(Date.now() + remainingMs(session)) })}` : ''}
+            </Times>
+            {/* LAN or WAN shows in the address. */}
+            <span>{[d.bandwidth !== null ? t('playback.mbps', { value: (d.bandwidth / 1000).toFixed(1) }) : null, d.ipAddress].filter(Boolean).join(' · ')}</span>
+          </div>
         </div>
-      </div>
-      <Progress value={progressOf(session)} className="relative h-1 rounded-none" aria-label={t('playback.progress')} />
-      <div className="relative flex items-center gap-3 py-2 pr-3 pl-4">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-semibold">
-          <StateIcon session={session} className="size-3.5" />
-          <span className="truncate">
-            <Title session={session} />
-          </span>
-        </div>
-        <span className="truncate text-sm text-muted-foreground">{session.user.name}</span>
-        <Avatar name={session.user.name} url={session.user.thumbUrl} />
       </div>
     </Card>
   )
 }
 
-/** The Plex account picture, or the name's initials. */
-function Avatar({ name, url }: { name: string; url: string | null }) {
+/** The Plex account picture, or the name's initial. */
+function Avatar({ name, url, className }: { name: string; url: string | null; className?: string }) {
   const [broken, setBroken] = useState(false)
   return url && !broken ? (
-    <img src={url} alt="" className="size-8 shrink-0 rounded-full object-cover" onError={() => setBroken(true)} />
+    <img src={url} alt="" className={cn('size-8 shrink-0 rounded-full object-cover', className)} onError={() => setBroken(true)} />
   ) : (
-    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground" aria-hidden="true">
+    <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground', className)} aria-hidden="true">
       {name.slice(0, 1).toUpperCase()}
     </span>
   )
