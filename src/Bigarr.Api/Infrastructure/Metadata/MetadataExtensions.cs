@@ -1,5 +1,6 @@
 using Bigarr.Api.Infrastructure.Metadata.Fixtures;
 using Bigarr.Api.Infrastructure.Metadata.Tmdb;
+using Bigarr.Api.Infrastructure.Metadata.Tvdb;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Metadata;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -31,6 +32,36 @@ public static class MetadataExtensions
             services.AddSingleton<IMetadataProvider, FixtureMetadataProvider>();
         }
 
+        // Series (blueprint §8): TVDB numbers the episodes, TMDB brings ids and images. Either key alone works.
+        services.Configure<TvdbOptions>(configuration.GetSection(TvdbOptions.Section));
+        var tvdb = configuration.GetSection(TvdbOptions.Section).Get<TvdbOptions>() ?? new TvdbOptions();
+        if (tvdb.HasApiKey)
+        {
+            services.AddSingleton<TvdbTokenCache>();
+            services.AddTransient<TvdbAuthHandler>();
+            services.AddHttpClient<TvdbClient>(http =>
+                {
+                    http.BaseAddress = new Uri(tvdb.BaseUrl);
+                    http.Timeout = TimeSpan.FromSeconds(30);
+                    http.DefaultRequestHeaders.UserAgent.ParseAdd("Bigarr/0.1 (+https://github.com/Hezflix/Bigarr)");
+                })
+                .AddHttpMessageHandler<TvdbAuthHandler>();
+        }
+
+        if (tvdb.HasApiKey || options.HasApiKey)
+        {
+            services.AddTransient<ISeriesMetadataProvider>(sp => new SeriesMetadataProvider(
+                tvdb.HasApiKey ? sp.GetRequiredService<TvdbClient>() : null,
+                options.HasApiKey ? sp.GetRequiredService<TmdbClient>() : null,
+                sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TvdbOptions>>(),
+                sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<MetadataOptions>>(),
+                sp.GetRequiredService<ILogger<SeriesMetadataProvider>>()));
+        }
+        else
+        {
+            services.AddSingleton<ISeriesMetadataProvider, FixtureSeriesMetadataProvider>();
+        }
+
         services.AddScoped<IStartupTask, MetadataStartupTask>();
         services.AddHealthChecks().AddCheck<MetadataHealthCheck>("metadata");
         return services;
@@ -46,7 +77,7 @@ public static class MetadataExtensions
 }
 
 /// <summary>Says once at startup which provider is live. Fixtures in production is a warning, not an error.</summary>
-public sealed class MetadataStartupTask(IMetadataProvider provider, IHostEnvironment environment, ILogger<MetadataStartupTask> logger) : IStartupTask
+public sealed class MetadataStartupTask(IMetadataProvider provider, ISeriesMetadataProvider series, IHostEnvironment environment, ILogger<MetadataStartupTask> logger) : IStartupTask
 {
     public Task RunAsync(CancellationToken cancellationToken)
     {
@@ -58,6 +89,15 @@ public sealed class MetadataStartupTask(IMetadataProvider provider, IHostEnviron
         else
         {
             logger.LogInformation("Metadata provider: {Provider}", provider.Name);
+        }
+
+        if (series.Name == "fixtures")
+        {
+            logger.Log(environment.IsProduction() ? LogLevel.Warning : LogLevel.Information, "No TVDB or TMDB API key configured (Bigarr__Tvdb__ApiKey): series come from the embedded fixture catalogue.");
+        }
+        else
+        {
+            logger.LogInformation("Series metadata provider: {Provider}", series.Name);
         }
 
         return Task.CompletedTask;

@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Infrastructure/Metadata/Fixtures/movies.json" />
+    <EmbeddedResource Include="Infrastructure/Metadata/Fixtures/series.json" />
   </ItemGroup>
 
 </Project>
