@@ -1,6 +1,7 @@
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.MediaServers;
+using Bigarr.Domain.Movies;
 using Bigarr.Domain.Playback;
 using Microsoft.EntityFrameworkCore;
 
@@ -40,7 +41,19 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
                 s.Details,
                 null))
             .ToListAsync(ct);
-        sessions = sessions.Select(s => s with { Transcode = transcodes.Get(s.ServerId, s.SessionKey) }).ToList();
+        // Bigarr's own images for the films it manages; episodes and other films have none until shows come.
+        var movieIds = sessions.Select(s => s.Item.MovieId).OfType<int>().Distinct().ToList();
+        var images = await db.Movies.AsNoTracking().Where(m => movieIds.Contains(m.Id)).Select(m => new { m.Id, m.Images }).ToDictionaryAsync(m => m.Id, m => m.Images, ct);
+        sessions = sessions.Select(s =>
+        {
+            var movieImages = s.Item.MovieId is { } id && images.TryGetValue(id, out var found) ? found : [];
+            return s with
+            {
+                Transcode = transcodes.Get(s.ServerId, s.SessionKey),
+                PosterUrl = movieImages.FirstOrDefault(i => i.Type == ImageType.Poster)?.RemoteUrl,
+                FanartUrl = movieImages.FirstOrDefault(i => i.Type == ImageType.Fanart)?.RemoteUrl,
+            };
+        }).ToList();
         return new NowPlayingResponse(statuses, sessions);
     }
 

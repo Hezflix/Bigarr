@@ -44,6 +44,22 @@ public sealed class PlaybackApiTests(BigarrApiFactory factory) : IClassFixture<B
         var serverId = (await created.ReadJsonAsync()).GetProperty("id").GetInt32();
         await plex.WaitForListenerAsync();
 
+        // A dropped event stream is opened again within seconds, and the server never shows as failing.
+        await WaitUntilAsync(async () =>
+        {
+            var now = await (await session.GetAsync("/api/v1/playback/sessions")).ReadJsonAsync();
+            return now.GetProperty("servers").EnumerateArray().Any(s => s.GetProperty("id").GetInt32() == serverId && s.GetProperty("connected").GetBoolean()) ? now : (JsonElement?)null;
+        });
+        var connections = plex.Requests.Count(r => r.Path == "/:/eventsource/notifications");
+        var dropped = System.Diagnostics.Stopwatch.StartNew();
+        plex.DropEventStream();
+        await WaitUntilAsync(async () => plex.IsListening && plex.Requests.Count(r => r.Path == "/:/eventsource/notifications") > connections ? await Task.FromResult<JsonElement?>(default(JsonElement)) : null);
+        Assert.True(dropped.Elapsed < TimeSpan.FromSeconds(10), $"Reconnected after {dropped.Elapsed.TotalSeconds:0.0} s");
+        var afterDrop = await (await session.GetAsync("/api/v1/playback/sessions")).ReadJsonAsync();
+        var stillUp = afterDrop.GetProperty("servers").EnumerateArray().Single(s => s.GetProperty("id").GetInt32() == serverId);
+        Assert.True(stillUp.GetProperty("connected").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, stillUp.GetProperty("error").ValueKind);
+
         // A new stream: its first notification makes Bigarr read the list of streams.
         plex.Set(new FakePlex.Stream("41", "s-41", "500", "7", "dana", "5001", Address: "198.51.100.7"));
         await plex.SendAsync("41", "500", "playing", 0);
@@ -57,6 +73,7 @@ public sealed class PlaybackApiTests(BigarrApiFactory factory) : IClassFixture<B
         Assert.Equal("Invented Film", live.GetProperty("item").GetProperty("title").GetString());
         Assert.Equal("1080p", live.GetProperty("versionName").GetString());
         Assert.Equal("directPlay", live.GetProperty("details").GetProperty("decision").GetString());
+        Assert.Equal(JsonValueKind.Null, live.GetProperty("posterUrl").ValueKind);
         var status = playing.GetProperty("servers").EnumerateArray().Single(s => s.GetProperty("id").GetInt32() == serverId);
         Assert.True(status.GetProperty("connected").GetBoolean());
 

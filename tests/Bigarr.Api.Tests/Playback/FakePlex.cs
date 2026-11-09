@@ -120,6 +120,16 @@ public sealed class FakePlex : IAsyncDisposable
         await events.Writer.WriteAsync($"event: playing\ndata: {data}\n\n");
     }
 
+    /// <summary>Ends the open event stream, like a proxy timing out a long connection.</summary>
+    public void DropEventStream()
+    {
+        lock (_lock)
+        {
+            _events?.Writer.TryComplete();
+            _events = null;
+        }
+    }
+
     public async Task WaitForListenerAsync(TimeSpan? timeout = null)
     {
         var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(30));

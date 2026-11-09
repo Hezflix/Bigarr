@@ -32,7 +32,9 @@ public sealed record PlaybackSessionResponse(
     int? VersionId,
     string? VersionName,
     StreamDetails Details,
-    PlexTranscode? Transcode = null);
+    PlexTranscode? Transcode = null,
+    string? PosterUrl = null,
+    string? FanartUrl = null);
 
 public sealed record NowPlayingResponse(List<PlaybackServerStatus> Servers, List<PlaybackSessionResponse> Sessions);
 

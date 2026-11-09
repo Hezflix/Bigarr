@@ -1797,6 +1797,9 @@ export type PlaybackSession = {
   versionName: string | null
   details: StreamDetails
   transcode: PlexTranscode | null
+  /** The film's images when Bigarr manages it. */
+  posterUrl: string | null
+  fanartUrl: string | null
 }
 
 export type PlaybackServerStatus = { id: number; name: string; connected: boolean; error: string | null; since: string | null }

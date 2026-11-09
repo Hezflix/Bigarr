@@ -25,6 +25,9 @@ public sealed class PlaybackMonitor(IServiceScopeFactory scopeFactory, PlexClien
 
     public static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(30);
 
+    /// <summary>A stream that worked and dropped (a proxy timeout, a Plex restart) is opened again this soon, quietly.</summary>
+    public static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(2);
+
     public static readonly TimeSpan ReconcileWhilePlaying = TimeSpan.FromSeconds(60);
 
     private readonly Dictionary<int, Listener> _listeners = [];
@@ -121,6 +124,8 @@ public sealed class PlaybackMonitor(IServiceScopeFactory scopeFactory, PlexClien
         var failures = 0;
         while (!ct.IsCancellationRequested)
         {
+            var heard = false;
+            var delay = RetryDelay;
             try
             {
                 var server = await ServerAsync(serverId, ct);
@@ -137,6 +142,7 @@ public sealed class PlaybackMonitor(IServiceScopeFactory scopeFactory, PlexClien
                     await foreach (var playing in plex.PlayingEventsAsync(server, listening.Token))
                     {
                         // The first word on the stream, a ping at the latest (~10 s), proves it is up.
+                        heard = true;
                         if (failures > 0 || !_status.TryGetValue(serverId, out var status) || !status.Connected)
                         {
                             logger.LogInformation("Following the streams of {Server}", server.Name);
@@ -165,6 +171,12 @@ public sealed class PlaybackMonitor(IServiceScopeFactory scopeFactory, PlexClien
             {
                 return;
             }
+            catch (Exception ex) when (heard && ex is MediaServerException)
+            {
+                // A working stream dropped: open it again right away; the status only turns red if that fails.
+                logger.LogDebug("Event stream of media server {Id} dropped, reconnecting: {Error}", serverId, ex.Message);
+                delay = ReconnectDelay;
+            }
             catch (Exception ex)
             {
                 failures++;
@@ -182,7 +194,7 @@ public sealed class PlaybackMonitor(IServiceScopeFactory scopeFactory, PlexClien
 
             try
             {
-                await Task.Delay(RetryDelay, time, ct);
+                await Task.Delay(delay, time, ct);
             }
             catch (OperationCanceledException)
             {

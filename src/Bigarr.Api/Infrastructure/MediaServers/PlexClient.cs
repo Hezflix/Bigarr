@@ -145,7 +145,7 @@ public sealed class PlexClient(IHttpClientFactory httpClientFactory) : IMediaSer
                 }
                 catch (IOException ex)
                 {
-                    throw new MediaServerException($"Plex closed the event stream: {ex.Message}", ex);
+                    throw new MediaServerException("Plex closed the event stream.", ex);
                 }
             }
 
