@@ -540,6 +540,9 @@ export const customFormats = {
 
 // ---- library ---------------------------------------------------------------
 
+/** What a root folder holds: the film scan and the add pages only see roots of their own kind. */
+export type MediaKind = 'movies' | 'series'
+
 export type RootFolder = {
   id: number
   path: string
@@ -548,7 +551,11 @@ export type RootFolder = {
   totalSpace: number | null
   versionCount: number
   unmappedFolderCount: number
+  kind: MediaKind
 }
+
+/** For `useQuery({ select })`: the roots of one kind. */
+export const rootsOfKind = (kind: MediaKind) => (roots: RootFolder[]) => roots.filter((r) => r.kind === kind)
 
 export type UnmappedReason = 'noVideoFiles' | 'notParsable' | 'noMatch' | 'ambiguousMatch' | 'metadataError'
 
@@ -562,6 +569,7 @@ export type UnmappedFolder = {
   detail: string | null
   discoveredAt: string
   lastSeenAt: string
+  kind: MediaKind
 }
 
 export type ScanState = 'idle' | 'queued' | 'running' | 'completed' | 'failed'
@@ -579,11 +587,15 @@ export type ScanStatus = {
   unmapped: number
   currentFolder: string | null
   error: string | null
+  seriesAdded: number
+  unmatchedFiles: number
+  seriesId: number | null
 }
 
 export const rootFolders = {
   list: () => api<RootFolder[]>('/api/v1/rootfolders'),
-  add: (path: string) => post<RootFolder>('/api/v1/rootfolders', { path }),
+  add: (path: string, kind: MediaKind = 'movies') => post<RootFolder>('/api/v1/rootfolders', { path, kind }),
+  setKind: (id: number, kind: MediaKind) => put<RootFolder>(`/api/v1/rootfolders/${id}`, { kind }),
   remove: (id: number) => del(`/api/v1/rootfolders/${id}`),
   scan: (id: number) => post<ScanStatus>(`/api/v1/rootfolders/${id}/scan`),
   scanStatus: (id: number) => api<ScanStatus>(`/api/v1/rootfolders/${id}/scan`),
@@ -1895,6 +1907,45 @@ export type UpdateSeriesVersionRequest = {
 export const monitoringOptions: MonitoringOption[] = ['all', 'future', 'missing', 'existing', 'pilot', 'firstSeason', 'latestSeason', 'none']
 export const seriesTypes: SeriesType[] = ['standard', 'anime', 'daily']
 
+export type UnmatchedFileReason = 'notParsable' | 'episodeNotFound' | 'ambiguous' | 'wrongSeriesType' | 'duplicate' | 'notAnEpisode'
+
+export type EpisodeFile = {
+  id: number
+  versionId: number
+  relativePath: string
+  path: string
+  seasonNumber: number
+  size: number
+  dateAdded: string
+  qualityId: number
+  quality: string
+  revisionVersion: number
+  isRepack: boolean
+  releaseGroup: string | null
+  languages: string[]
+  originalReleaseTitle: string | null
+  mediaInfo: MediaInfo | null
+  episodeIds: number[]
+  /** "S01E01", "S01E02-E03". */
+  episodes: string
+}
+
+export type UnmatchedEpisodeFile = {
+  id: number
+  versionId: number
+  relativePath: string
+  path: string
+  size: number
+  reason: UnmatchedFileReason
+  detail: string | null
+  discoveredAt: string
+  lastSeenAt: string
+}
+
+export type SeriesFiles = { files: EpisodeFile[]; unmatched: UnmatchedEpisodeFile[] }
+
+export type MapSeriesFolderRequest = { seriesId?: number | null; tvdbId?: number | null; tmdbId?: number | null; qualityProfileId?: number | null }
+
 export const series = {
   list: () => api<SeriesSummary[]>('/api/v1/series'),
   get: (id: number) => api<Series>(`/api/v1/series/${id}`),
@@ -1904,6 +1955,12 @@ export const series = {
   update: (id: number, body: { seriesType?: SeriesType }) => put<Series>(`/api/v1/series/${id}`, body),
   remove: (id: number) => del(`/api/v1/series/${id}`),
   refresh: (id: number) => post<Series>(`/api/v1/series/${id}/refresh`),
+  files: (id: number) => api<SeriesFiles>(`/api/v1/series/${id}/files`),
+  rescan: (id: number) => post<ScanStatus>(`/api/v1/series/${id}/rescan`),
+  rescanStatus: (id: number) => api<ScanStatus>(`/api/v1/series/${id}/rescan`),
+  rescanAll: () => post<ScanStatus[]>('/api/v1/series/rescan'),
+  mapFolder: (unmappedId: number, body: MapSeriesFolderRequest) =>
+    post<{ seriesId: number; versionId: number; scan: ScanStatus }>(`/api/v1/series/unmapped/${unmappedId}/map`, body),
   addVersion: (id: number, body: AddSeriesVersionRequest) => post<SeriesVersion>(`/api/v1/series/${id}/versions`, body),
   updateVersion: (id: number, versionId: number, body: UpdateSeriesVersionRequest) => put<SeriesVersion>(`/api/v1/series/${id}/versions/${versionId}`, body),
   deleteVersion: (id: number, versionId: number, promote?: number) =>

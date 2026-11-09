@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { EyeIcon, EyeOffIcon, FileXIcon, PlusIcon, RefreshCwIcon, SearchIcon, StarIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, customFormats, history, movies, quality, rootFolders, search, shadow, type MediaInfo, type MinimumAvailability, type Movie, type Version, type VersionMode } from '@/api/client'
+import { ApiError, customFormats, history, movies, quality, rootFolders, rootsOfKind, search, shadow, type MediaInfo, type MinimumAvailability, type Movie, type Version, type VersionMode } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import { StatusBadge } from '@/components/StatusBadge'
 import { CompareTable } from '@/features/activity/CompareTable'
@@ -577,7 +577,7 @@ function AddVersionDialog({ movie, onAdded }: { movie: Movie; onAdded: () => voi
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const profiles = useQuery({ queryKey: ['qualityProfiles'], queryFn: quality.profiles })
-  const roots = useQuery({ queryKey: ['rootFolders'], queryFn: rootFolders.list })
+  const roots = useQuery({ queryKey: ['rootFolders'], queryFn: rootFolders.list, select: rootsOfKind('movies') })
   const [name, setName] = useState('')
   const [mode, setMode] = useState<VersionMode>('managed')
   const [profileId, setProfileId] = useState<number>(movie.versions[0]?.qualityProfileId ?? 0)
