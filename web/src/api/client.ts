@@ -654,6 +654,10 @@ export type Indexer = {
   prowlarrId: number | null
   status: IndexerStatus
   createdAt: string
+  /** Series categories; empty until filled from the indexer's capabilities (first series search or test). */
+  tvCategories: number[]
+  /** Anime categories, added to the TV ones for anime; empty until filled from the capabilities. */
+  animeCategories: number[]
 }
 
 export type IndexerRequest = Omit<Indexer, 'id' | 'protocol' | 'prowlarrId' | 'status' | 'createdAt'>
@@ -664,6 +668,11 @@ export type IndexerTestResult = {
   supportsTmdbSearch: boolean
   categoryCount: number
   recentReleases: number
+  supportsTvSearch: boolean
+  tvSearchParams: string[] | null
+  /** What the capabilities list: an empty row field falls back to these. */
+  tvCategories: number[] | null
+  animeCategories: number[] | null
 }
 
 export const indexers = {
@@ -759,9 +768,47 @@ export const search = {
     if (options.query?.trim()) params.set('query', options.query.trim())
     return api<SearchResult>(`/api/v1/search?${params}`)
   },
+  /** Interactive search for a series: an episode, a season (packs and singles together) or the whole series. */
+  series: (seriesId: number, scope: { episodeId?: number; season?: number }, options: { versionId?: number; query?: string } = {}) => {
+    const params = new URLSearchParams()
+    if (scope.episodeId) params.set('episodeId', String(scope.episodeId))
+    if (scope.season !== undefined) params.set('season', String(scope.season))
+    if (options.versionId) params.set('versionId', String(options.versionId))
+    if (options.query?.trim()) params.set('query', options.query.trim())
+    return api<SeriesSearchResult>(`/api/v1/series/${seriesId}/search?${params}`)
+  },
   /** Automatic search on demand: every version of the film (or one), the best approved release grabbed. */
   automatic: (movieId: number, versionId?: number) =>
     post<AutomaticSearchResult[]>(`/api/v1/movies/${movieId}/search${versionId ? `?versionId=${versionId}` : ''}`),
+}
+
+export type SeriesEpisodeRef = { id: number; seasonNumber: number; episodeNumber: number; absoluteEpisodeNumber: number | null; title: string }
+
+/** One series version's verdict over every episode the release covers. */
+export type SeriesVersionDecision = VersionDecision & { targetIds: number[] }
+
+export type SeriesRelease = Omit<Release, 'edition' | 'parsedTitle' | 'parsedYear' | 'matchesMovie' | 'versions'> & {
+  parsedSeriesTitle: string | null
+  /** False when the release names another show; it is still judged and can be grabbed by hand. */
+  matchesSeries: boolean
+  /** The episodes it covers in TVDB numbering; empty when it maps to none (the reason is in `rejections`). */
+  episodes: SeriesEpisodeRef[]
+  episodesLabel: string | null
+  fullSeason: boolean
+  versions: SeriesVersionDecision[]
+}
+
+export type SeriesSearchResult = {
+  seriesId: number
+  scope: 'episode' | 'season' | 'series'
+  seasonNumber: number | null
+  episodeId: number | null
+  label: string
+  searchedAt: string
+  indexersQueried: number
+  releases: SeriesRelease[]
+  indexerErrors: { indexerId: number; indexer: string; kind: IndexerFailureKind; message: string }[]
+  query: string | null
 }
 
 // ---- wanted ----------------------------------------------------------------
@@ -799,6 +846,8 @@ export const wanted = {
 
 export type RssMovieRef = { id: number; title: string; year: number | null; posterUrl: string | null }
 
+export type RssSeriesRef = { id: number; title: string; year: number | null; posterUrl: string | null }
+
 export type RssRelease = {
   guid: string
   title: string
@@ -832,6 +881,11 @@ export type RssRelease = {
   grabError: string | null
   /** Shadow mode: the pick recorded in place of a grab. */
   shadowPickId: number | null
+  /** A series release: the series of the library (then `movie` is null); verdicts and attribution are the series versions'. */
+  series: RssSeriesRef | null
+  /** The episodes it covers: "S01E05", "S01E01–S01E10 (10 episodes)". */
+  episodes: string | null
+  episodeIds: number[] | null
 }
 
 export type RssIndexerStatus = { indexerId: number; indexer: string; lastRunAt: string | null; lastError: string | null; lastFetched: number; lastNew: number }
@@ -942,6 +996,8 @@ export type GrabRequest = {
   indexer: string
   /** Kept with the pick in shadow mode. */
   publishDate?: string | null
+  /** A series grab: the shared ids of the episodes covered; `versionId` is then the series version. */
+  episodeIds?: number[] | null
 }
 
 /** A grab sent to a client; in shadow mode only `shadowPickId` and `grabbedAt` are set (`shadow` is true). */
@@ -1964,6 +2020,7 @@ export type SeriesVersion = {
   createdAt: string
   tags: number[]
   statistics: EpisodeStatistics
+  constraints: Constraints | null
 }
 
 export type SeasonVersionState = { versionId: number; monitored: boolean; statistics: EpisodeStatistics }
@@ -2063,6 +2120,8 @@ export type UpdateSeriesVersionRequest = {
   seasonFolder?: boolean | null
   monitorNewItems?: NewItemMonitoring | null
   tagIds?: number[] | null
+  constraints?: Constraints | null
+  clearConstraints?: boolean
 }
 
 export const monitoringOptions: MonitoringOption[] = ['all', 'future', 'missing', 'existing', 'pilot', 'firstSeason', 'latestSeason', 'none']

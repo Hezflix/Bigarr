@@ -48,6 +48,8 @@ const emptyForm = (): IndexerRequest => ({
   seedRatio: null,
   seedTimeMinutes: null,
   rateLimitSeconds: 2,
+  tvCategories: [],
+  animeCategories: [],
 })
 
 const toForm = (indexer: Indexer): IndexerRequest => ({
@@ -65,6 +67,8 @@ const toForm = (indexer: Indexer): IndexerRequest => ({
   seedRatio: indexer.seedRatio,
   seedTimeMinutes: indexer.seedTimeMinutes,
   rateLimitSeconds: indexer.rateLimitSeconds,
+  tvCategories: indexer.tvCategories,
+  animeCategories: indexer.animeCategories,
 })
 
 function parseCategories(text: string): number[] {
@@ -77,7 +81,9 @@ function parseCategories(text: string): number[] {
 
 function testSummary(t: TFunction, result: IndexerTestResult): string {
   const ids = [result.supportsTmdbSearch && 'TMDB', result.supportsImdbSearch && 'IMDb'].filter(Boolean).join(' / ')
-  return t('indexers.testOk', { categories: result.categoryCount, releases: result.recentReleases, ids: ids || t('indexers.textSearchOnly') })
+  const movies = t('indexers.testOk', { categories: result.categoryCount, releases: result.recentReleases, ids: ids || t('indexers.textSearchOnly') })
+  const tvIds = (result.tvSearchParams ?? []).filter((p) => p.endsWith('id')).map((p) => p.replace(/id$/, '').toUpperCase()).join(' / ')
+  return `${movies} ${result.supportsTvSearch ? t('indexers.testTv', { ids: tvIds || t('indexers.textSearchOnly') }) : t('indexers.testNoTv')}`
 }
 
 
@@ -294,6 +300,8 @@ function IndexerDialog({ indexer, onClose, onSaved }: { indexer: Indexer | null;
   const { t } = useTranslation()
   const [form, setForm] = useState<IndexerRequest>(indexer ? toForm(indexer) : emptyForm())
   const [categories, setCategories] = useState(form.categories.join(', '))
+  const [tvCategories, setTvCategories] = useState(form.tvCategories.join(', '))
+  const [animeCategories, setAnimeCategories] = useState(form.animeCategories.join(', '))
   const set = <K extends keyof IndexerRequest>(key: K, value: IndexerRequest[K]) => setForm((f) => ({ ...f, [key]: value }))
   const isTorznab = form.implementation === 'torznab'
 
@@ -304,6 +312,8 @@ function IndexerDialog({ indexer, onClose, onSaved }: { indexer: Indexer | null;
     apiPath: isTorznab ? form.apiPath?.trim() || '/api' : '/api',
     apiKey: isTorznab ? form.apiKey?.trim() || null : null,
     categories: parseCategories(categories),
+    tvCategories: parseCategories(tvCategories),
+    animeCategories: parseCategories(animeCategories),
   })
 
   const save = useMutation({
@@ -315,7 +325,12 @@ function IndexerDialog({ indexer, onClose, onSaved }: { indexer: Indexer | null;
   })
   const test = useMutation({
     mutationFn: () => indexers.test(payload()),
-    onSuccess: (result) => toast.success(testSummary(t, result)),
+    onSuccess: (result) => {
+      toast.success(testSummary(t, result))
+      // Empty series fields take what the caps list, so the user sees (and can trim) what searches will use.
+      if (!tvCategories.trim() && result.tvCategories?.length) setTvCategories(result.tvCategories.join(', '))
+      if (!animeCategories.trim() && result.animeCategories?.length) setAnimeCategories(result.animeCategories.join(', '))
+    },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : t('indexers.testFailed')),
   })
 
@@ -399,6 +414,28 @@ function IndexerDialog({ indexer, onClose, onSaved }: { indexer: Indexer | null;
               <Input id="indexer-categories" value={categories} onChange={(e) => setCategories(e.target.value)} placeholder={DEFAULT_CATEGORIES.join(', ')} />
               <p className="text-xs text-muted-foreground">{t('indexers.categoriesHint')}</p>
             </div>
+
+            <div className="grid grid-cols-1 gap-2">
+              <Label htmlFor="indexer-tv-categories">{t('indexers.tvCategories')}</Label>
+              <Input
+                id="indexer-tv-categories"
+                value={tvCategories}
+                onChange={(e) => setTvCategories(e.target.value)}
+                placeholder={t('indexers.fromCaps')}
+                data-testid="indexer-tv-categories"
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              <Label htmlFor="indexer-anime-categories">{t('indexers.animeCategories')}</Label>
+              <Input
+                id="indexer-anime-categories"
+                value={animeCategories}
+                onChange={(e) => setAnimeCategories(e.target.value)}
+                placeholder={t('indexers.fromCaps')}
+                data-testid="indexer-anime-categories"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground sm:col-span-2">{t('indexers.seriesCategoriesHint')}</p>
 
             <div className="grid grid-cols-1 gap-2">
               <Label htmlFor="indexer-priority">{t('indexers.priority')}</Label>

@@ -194,6 +194,14 @@ function ReleaseRow({ release }: { release: RssRelease }) {
             {release.movie.title}
             {release.movie.year ? <span className="font-normal text-muted-foreground"> ({release.movie.year})</span> : null}
           </Link>
+        ) : release.series ? (
+          <span className="flex flex-col items-start gap-0.5" data-testid="rss-series">
+            <Link to="/series/$seriesId" params={{ seriesId: String(release.series.id) }} className="font-medium text-foreground underline-offset-4 hover:underline">
+              {release.series.title}
+              {release.series.year ? <span className="font-normal text-muted-foreground"> ({release.series.year})</span> : null}
+            </Link>
+            {release.episodes ? <span className="text-xs tabular-nums">{release.episodes}</span> : <span className="text-xs">{release.unmatchedReason}</span>}
+          </span>
         ) : (
           <span className="text-xs">{release.unmatchedReason}</span>
         )}
@@ -219,7 +227,7 @@ function ReleaseRow({ release }: { release: RssRelease }) {
             </Badge>
             {release.grabError && <span className="text-xs text-muted-foreground">{release.grabError}</span>}
           </span>
-        ) : release.movie ? (
+        ) : release.movie || (release.series && release.episodes) ? (
           <ul className="flex flex-col gap-1">
             {release.versions.map((v) => (
               <li key={v.versionId} className="flex flex-wrap items-center gap-1">
