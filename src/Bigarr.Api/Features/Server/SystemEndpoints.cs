@@ -24,7 +24,9 @@ public sealed record SystemStatusResponse(
     /// <summary><c>Bigarr:Scheduler:Enabled</c>: when false no task runs on its own (RSS sync, searches, health check, maintenance, backups); each runs only when triggered.</summary>
     bool SchedulerEnabled,
     /// <summary><c>Bigarr:Shadow:Enabled</c>: grabs are recorded as picks and nothing is sent to a download client.</summary>
-    bool ShadowEnabled = false);
+    bool ShadowEnabled = false,
+    /// <summary><c>tvdb+tmdb</c>, <c>tvdb</c>, <c>tmdb</c> or <c>fixtures</c>: where series numbering comes from.</summary>
+    string? SeriesMetadataProvider = null);
 
 public static class SystemEndpoints
 {
@@ -43,7 +45,7 @@ public static class SystemEndpoints
         return app;
     }
 
-    private static Ok<SystemStatusResponse> Status(IOptions<BigarrOptions> options, IOptions<SchedulerOptions> scheduler, IOptions<ShadowOptions> shadow, IHostEnvironment environment, IMetadataProvider metadata) =>
+    private static Ok<SystemStatusResponse> Status(IOptions<BigarrOptions> options, IOptions<SchedulerOptions> scheduler, IOptions<ShadowOptions> shadow, IHostEnvironment environment, IMetadataProvider metadata, ISeriesMetadataProvider seriesMetadata) =>
         TypedResults.Ok(new SystemStatusResponse(
             AppName: "Bigarr",
             Version: Version,
@@ -55,5 +57,6 @@ public static class SystemEndpoints
             ConfigDirectory: Path.GetFullPath(options.Value.ConfigDirectory),
             MetadataProvider: metadata.Name,
             SchedulerEnabled: scheduler.Value.Enabled,
-            ShadowEnabled: shadow.Value.Enabled));
+            ShadowEnabled: shadow.Value.Enabled,
+            SeriesMetadataProvider: seriesMetadata.Name));
 }

@@ -53,6 +53,9 @@ const libraryRoute = createRoute({
 })
 const addRoute = createRoute({ getParentRoute: () => appRoute, path: '/add', component: lazyRouteComponent(() => import('./features/movies/AddMoviePage'), 'AddMoviePage') })
 const movieRoute = createRoute({ getParentRoute: () => appRoute, path: '/movies/$movieId', component: lazyRouteComponent(() => import('./features/movies/MovieDetailPage'), 'MovieDetailPage') })
+const seriesLibraryRoute = createRoute({ getParentRoute: () => appRoute, path: '/series', component: lazyRouteComponent(() => import('./features/series/SeriesLibraryPage'), 'SeriesLibraryPage') })
+const addSeriesRoute = createRoute({ getParentRoute: () => appRoute, path: '/series/add', component: lazyRouteComponent(() => import('./features/series/AddSeriesPage'), 'AddSeriesPage') })
+const seriesRoute = createRoute({ getParentRoute: () => appRoute, path: '/series/$seriesId', component: lazyRouteComponent(() => import('./features/series/SeriesDetailPage'), 'SeriesDetailPage') })
 const queueRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/queue', component: lazyRouteComponent(() => import('./features/activity/QueuePage'), 'QueuePage') })
 const releasesRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/releases', component: lazyRouteComponent(() => import('./features/activity/ReleasesPage'), 'ReleasesPage') })
 const historyRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/history', component: lazyRouteComponent(() => import('./features/activity/HistoryPage'), 'HistoryPage') })
@@ -78,6 +81,9 @@ const router = createRouter({
       addRoute,
       wantedRoute,
       movieRoute,
+      seriesLibraryRoute,
+      addSeriesRoute,
+      seriesRoute,
       queueRoute,
       releasesRoute,
       historyRoute,

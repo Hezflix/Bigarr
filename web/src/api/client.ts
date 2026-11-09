@@ -1714,3 +1714,205 @@ export function slugify(value: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
 }
+
+// ---- series ----------------------------------------------------------------
+
+export type SeriesType = 'standard' | 'anime' | 'daily'
+export type SeriesStatus = 'upcoming' | 'continuing' | 'ended' | 'deleted'
+export type MonitoringOption = 'all' | 'future' | 'missing' | 'existing' | 'pilot' | 'firstSeason' | 'latestSeason' | 'none'
+export type NewItemMonitoring = 'all' | 'none'
+
+/** Per version: monitored and aired (or with a file), files, monitored, every episode outside the specials, bytes. */
+export type EpisodeStatistics = {
+  episodeCount: number
+  episodeFileCount: number
+  monitoredEpisodeCount: number
+  totalEpisodeCount: number
+  sizeOnDisk: number
+}
+
+export type SeriesLookupResult = {
+  tvdbId: number | null
+  tmdbId: number | null
+  imdbId: string | null
+  title: string
+  originalTitle: string | null
+  year: number | null
+  overview: string | null
+  posterUrl: string | null
+  status: SeriesStatus
+  network: string | null
+  suggestedType: SeriesType
+  existingSeriesId: number | null
+}
+
+export type SeriesVersionSummary = {
+  id: number
+  name: string
+  isDefault: boolean
+  monitored: boolean
+  qualityProfileId: number
+  qualityProfile: string
+  statistics: EpisodeStatistics
+}
+
+export type SeriesSummary = {
+  id: number
+  tvdbId: number | null
+  tmdbId: number | null
+  title: string
+  sortTitle: string
+  year: number | null
+  status: SeriesStatus
+  network: string | null
+  seriesType: SeriesType
+  posterUrl: string | null
+  addedAt: string
+  monitored: boolean
+  seasonCount: number
+  nextAiring: string | null
+  versions: SeriesVersionSummary[]
+}
+
+export type SeriesVersion = {
+  id: number
+  name: string
+  mode: VersionMode
+  qualityProfileId: number
+  qualityProfile: string
+  isDefault: boolean
+  monitored: boolean
+  seasonFolder: boolean
+  monitorNewItems: NewItemMonitoring
+  rootFolderId: number
+  rootFolderPath: string
+  folderName: string
+  path: string
+  createdAt: string
+  tags: number[]
+  statistics: EpisodeStatistics
+}
+
+export type SeasonVersionState = { versionId: number; monitored: boolean; statistics: EpisodeStatistics }
+
+export type Season = {
+  seasonNumber: number
+  title: string | null
+  overview: string | null
+  posterUrl: string | null
+  episodeCount: number
+  airedEpisodeCount: number
+  versions: SeasonVersionState[]
+}
+
+export type Series = {
+  id: number
+  tvdbId: number | null
+  tmdbId: number | null
+  imdbId: string | null
+  title: string
+  originalTitle: string | null
+  sortTitle: string
+  year: number | null
+  overview: string | null
+  status: SeriesStatus
+  network: string | null
+  runtime: number | null
+  airTime: string | null
+  originalCountry: string | null
+  originalLanguage: string | null
+  seriesType: SeriesType
+  ordering: 'tvdb'
+  genres: string[]
+  alternativeTitles: { title: string; language: string | null }[]
+  posterUrl: string | null
+  fanartUrl: string | null
+  firstAired: string | null
+  lastAired: string | null
+  defaultRootFolderId: number
+  addedAt: string
+  lastMetadataRefreshAt: string | null
+  monitored: boolean
+  seasons: Season[]
+  versions: SeriesVersion[]
+}
+
+export type EpisodeVersionState = { versionId: number; targetId: number; monitored: boolean; hasFile: boolean; episodeFileId: number | null }
+
+export type Episode = {
+  /** Shared by every version of the series. */
+  id: number
+  tvdbId: number | null
+  tmdbId: number | null
+  seasonNumber: number
+  episodeNumber: number
+  absoluteEpisodeNumber: number | null
+  airDate: string | null
+  airDateUtc: string | null
+  title: string
+  overview: string | null
+  runtime: number | null
+  imageUrl: string | null
+  isSpecial: boolean
+  hasAired: boolean
+  versions: EpisodeVersionState[]
+}
+
+export type AddSeriesRequest = {
+  tvdbId: number | null
+  tmdbId: number | null
+  qualityProfileId: number
+  rootFolderId: number
+  seriesType?: SeriesType
+  monitor: MonitoringOption
+  seasonFolder: boolean
+  monitorNewItems?: NewItemMonitoring
+  versionName?: string | null
+  monitored?: boolean
+  tagIds?: number[]
+}
+
+export type AddSeriesVersionRequest = {
+  name: string
+  qualityProfileId: number
+  rootFolderId?: number | null
+  folderName?: string | null
+  monitor: MonitoringOption
+  seasonFolder?: boolean
+  monitorNewItems?: NewItemMonitoring
+  monitored?: boolean
+}
+
+export type UpdateSeriesVersionRequest = {
+  name?: string | null
+  qualityProfileId?: number | null
+  monitored?: boolean | null
+  seasonFolder?: boolean | null
+  monitorNewItems?: NewItemMonitoring | null
+  tagIds?: number[] | null
+}
+
+export const monitoringOptions: MonitoringOption[] = ['all', 'future', 'missing', 'existing', 'pilot', 'firstSeason', 'latestSeason', 'none']
+export const seriesTypes: SeriesType[] = ['standard', 'anime', 'daily']
+
+export const series = {
+  list: () => api<SeriesSummary[]>('/api/v1/series'),
+  get: (id: number) => api<Series>(`/api/v1/series/${id}`),
+  episodes: (id: number) => api<Episode[]>(`/api/v1/series/${id}/episodes`),
+  lookup: (term: string) => api<SeriesLookupResult[]>(`/api/v1/series/lookup?term=${encodeURIComponent(term)}`),
+  add: (body: AddSeriesRequest) => post<Series>('/api/v1/series', body),
+  update: (id: number, body: { seriesType?: SeriesType }) => put<Series>(`/api/v1/series/${id}`, body),
+  remove: (id: number) => del(`/api/v1/series/${id}`),
+  refresh: (id: number) => post<Series>(`/api/v1/series/${id}/refresh`),
+  addVersion: (id: number, body: AddSeriesVersionRequest) => post<SeriesVersion>(`/api/v1/series/${id}/versions`, body),
+  updateVersion: (id: number, versionId: number, body: UpdateSeriesVersionRequest) => put<SeriesVersion>(`/api/v1/series/${id}/versions/${versionId}`, body),
+  deleteVersion: (id: number, versionId: number, promote?: number) =>
+    del(`/api/v1/series/${id}/versions/${versionId}${promote ? `?promote=${promote}` : ''}`),
+  promote: (id: number, versionId: number) => post<SeriesVersion>(`/api/v1/series/${id}/versions/${versionId}/promote`),
+  applyMonitoring: (id: number, versionId: number, monitor: MonitoringOption) =>
+    post<Series>(`/api/v1/series/${id}/versions/${versionId}/monitoring`, { monitor }),
+  setSeason: (id: number, versionId: number, seasonNumber: number, monitored: boolean) =>
+    put<void>(`/api/v1/series/${id}/versions/${versionId}/seasons/${seasonNumber}`, { monitored }),
+  setEpisodes: (id: number, versionId: number, episodeIds: number[], monitored: boolean) =>
+    put<void>(`/api/v1/series/${id}/versions/${versionId}/episodes`, { episodeIds, monitored }),
+}
