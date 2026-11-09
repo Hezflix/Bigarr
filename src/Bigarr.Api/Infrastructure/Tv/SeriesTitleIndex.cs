@@ -67,6 +67,31 @@ public sealed class SeriesTitleIndex
         return _scene[Clean(title)].Where(n => n.TvdbId == tvdbId).Select(n => n.SceneSeasonNumber).FirstOrDefault(s => s is not null);
     }
 
+    /// <summary>
+    /// Sonarr's <c>FindByTitleInexact</c>: the library series whose cleaned title (or alternate or XEM name) starts the
+    /// cleaned release name, the longest one; null when none does or two series tie. For names the parser cannot read.
+    /// </summary>
+    public IndexedSeries? FindInexact(string releaseTitle)
+    {
+        var clean = Clean(releaseTitle);
+        if (clean.Length == 0)
+        {
+            return null;
+        }
+
+        var hits = _byTitle.Where(g => clean.StartsWith(g.Key, StringComparison.Ordinal)).SelectMany(g => g.Select(series => (g.Key, Series: series)))
+            .Concat(_scene.Where(g => clean.StartsWith(g.Key, StringComparison.Ordinal)).SelectMany(g => g.Select(n => (g.Key, Series: ByTvdbId(n.TvdbId)))).Where(h => h.Series is not null).Select(h => (h.Key, Series: h.Series!)))
+            .ToList();
+        if (hits.Count == 0)
+        {
+            return null;
+        }
+
+        var longest = hits.Max(h => h.Key.Length);
+        var best = hits.Where(h => h.Key.Length == longest).Select(h => h.Series).Distinct().ToList();
+        return best.Count == 1 ? best[0] : null;
+    }
+
     public SeriesMatch Find(ParsedEpisodeInfo parsed, int? tvdbId = null)
     {
         ArgumentNullException.ThrowIfNull(parsed);

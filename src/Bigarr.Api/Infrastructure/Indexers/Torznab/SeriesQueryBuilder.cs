@@ -28,6 +28,17 @@ public static class SeriesQueryBuilder
         ArgumentNullException.ThrowIfNull(criteria);
         ArgumentNullException.ThrowIfNull(categories);
 
+        if (criteria.SpecialQueries.Count > 0)
+        {
+            // Sonarr's SpecialEpisodeSearchCriteria: one text search per "<series> <episode title>".
+            return
+            [
+                criteria.SpecialQueries.Select(TorznabClient.CleanQuery).Where(q => q.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Select(q => new TorznabRequest(new Dictionary<string, string> { ["t"] = "search", ["q"] = q }, categories))
+                    .ToList(),
+            ];
+        }
+
         var numbering = Numbering(criteria);
         var text = TextSuffix(criteria);
         var titles = criteria.AllTitles.Select(TorznabClient.CleanQuery).Where(t => t.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).Take(MaxTitles).ToList();
@@ -50,8 +61,19 @@ public static class SeriesQueryBuilder
 
         if (animeAbsolute)
         {
-            // Sonarr's anime requests: plain text searches, "Title 05", one per scene title.
+            // Sonarr's anime requests: the ids with the absolute number as text, then "Title 05" per scene title.
             var absolute = criteria.AbsoluteEpisodeNumber!.Value.ToString("00", CultureInfo.InvariantCulture);
+            if (ids.Count > 0 && capabilities.SupportsTvParam("q"))
+            {
+                var byIds = new Dictionary<string, string> { ["t"] = "tvsearch", ["q"] = absolute };
+                foreach (var (key, value) in ids)
+                {
+                    byIds[key] = value;
+                }
+
+                idTier.Add(new TorznabRequest(byIds, categories));
+            }
+
             foreach (var title in titles)
             {
                 idTier.Add(new TorznabRequest(new Dictionary<string, string> { ["t"] = "search", ["q"] = $"{title} {absolute}" }, categories));

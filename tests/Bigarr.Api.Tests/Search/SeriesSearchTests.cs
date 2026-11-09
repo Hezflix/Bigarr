@@ -103,6 +103,21 @@ public sealed class SeriesSearchTests(SeriesApiFactory factory) : IClassFixture<
     }
 
     [Fact]
+    public async Task A_special_is_found_by_its_title()
+    {
+        var client = await ClientAsync(factory);
+        var series = await SeriesSetup.AddAsync(client, BreakingBad);
+        await SeriesSetup.MockIndexerAsync(client);
+        var special = await SeriesSetup.EpisodeAsync(client, series.Id, 0, 2);
+
+        var result = await SearchAsync(client, series.Id, $"episodeId={special.Id}");
+        var byTitle = result.Releases.Single(r => r.Title == "Breaking.Bad.Wedding.Day.1080p.WEB-DL.DD5.1.H.264-NTb");
+        Assert.True(byTitle.MatchesSeries);
+        Assert.Equal(special.Id, Assert.Single(byTitle.Episodes).Id);
+        Assert.True(byTitle.Versions.Single().Approved, string.Join(" | ", byTitle.Versions.Single().Rejections.Select(r => r.Reason)));
+    }
+
+    [Fact]
     public async Task Without_shadow_mode_a_series_grab_is_refused_before_any_client()
     {
         var client = await ClientAsync(factory);

@@ -29,7 +29,18 @@ public static class SeriesSearchCriteriaBuilder
             return [baseCriteria with { AirDate = airDate }];
         }
 
-        if (series.SeriesType == SeriesType.Anime && episode.SeasonNumber > 0)
+        // Sonarr: a special is searched by its title too (an anime special only when it has no absolute number).
+        var animeAbsolute = series.SeriesType == SeriesType.Anime && (episode.AbsoluteEpisodeNumber is not null || episode.SceneAbsoluteEpisodeNumber is not null);
+        if (episode.SeasonNumber == 0 && !animeAbsolute)
+        {
+            return
+            [
+                Special(series, sceneNames, [episode]),
+                baseCriteria with { SeasonNumber = season, EpisodeNumber = number },
+            ];
+        }
+
+        if (series.SeriesType == SeriesType.Anime && (episode.SeasonNumber > 0 || animeAbsolute))
         {
             var absolute = (scene ? episode.SceneAbsoluteEpisodeNumber : null) ?? episode.AbsoluteEpisodeNumber;
             var criteria = new List<SeriesSearchCriteria>
@@ -62,6 +73,13 @@ public static class SeriesSearchCriteriaBuilder
         }
 
         var criteria = seasons.Select(s => Base(series, sceneNames, s) with { SeasonNumber = s }).ToList();
+        if (seasonNumber == 0)
+        {
+            // Specials: Sonarr searches each one by title as well.
+            criteria.Insert(0, Special(series, [], seasonEpisodes.OrderBy(e => e.EpisodeNumber).Take(MaxSpecialTitles).ToList()));
+            return criteria;
+        }
+
         if (series.SeriesType == SeriesType.Anime)
         {
             foreach (var name in seasons.SelectMany(s => SeasonNames(series, sceneNames, s)).Distinct(StringComparer.OrdinalIgnoreCase))
@@ -78,6 +96,23 @@ public static class SeriesSearchCriteriaBuilder
     /// <summary>The user's own words: no ids, no numbers, every indexer gets a text query.</summary>
     public static List<SeriesSearchCriteria> ForText(Series series, string query) =>
         [new SeriesSearchCriteria(query, null, null, null, series.SeriesType, [])];
+
+    /// <summary>Specials searched by title in a season search: one request each, so a long list is cut.</summary>
+    public const int MaxSpecialTitles = 30;
+
+    /// <summary>
+    /// Sonarr's special search: "&lt;scene title&gt; &lt;episode title&gt;" for the series title and its XEM names. In a
+    /// season search (several specials) only the series title, one query per special.
+    /// </summary>
+    private static SeriesSearchCriteria Special(Series series, IReadOnlyList<SceneAlias> sceneNames, IReadOnlyList<Episode> specials)
+    {
+        var titles = new[] { series.Title }.Concat(sceneNames.Select(n => n.Title)).Distinct(StringComparer.OrdinalIgnoreCase).Take(3).ToList();
+        var queries = specials.Where(e => !string.IsNullOrWhiteSpace(e.Title))
+            .SelectMany(e => titles.Select(t => $"{t} {e.Title}"))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return new SeriesSearchCriteria(series.Title, null, null, null, series.SeriesType, []) { SpecialQueries = queries };
+    }
 
     private static SeriesSearchCriteria Base(Series series, IReadOnlyList<SceneAlias> sceneNames, int? season)
     {

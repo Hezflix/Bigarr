@@ -131,8 +131,16 @@ public sealed class SeriesQueryTests
         var first = tiers[0];
         Assert.Equal("tvsearch", first[0].Parameters["t"]);
         Assert.Equal("424536", first[0].Parameters["tvdbid"]);
-        Assert.Equal(["Frieren Beyond Journey s End 33", "Sousou no Frieren 33"], first.Skip(1).Select(r => r.Parameters["q"]));
-        Assert.All(first.Skip(1), r => Assert.Equal("search", r.Parameters["t"]));
+        Assert.Equal("5", first[0].Parameters["ep"]);
+
+        // Sonarr's anime request: the ids with the absolute number as text.
+        Assert.Equal("tvsearch", first[1].Parameters["t"]);
+        Assert.Equal("424536", first[1].Parameters["tvdbid"]);
+        Assert.Equal("33", first[1].Parameters["q"]);
+        Assert.False(first[1].Parameters.ContainsKey("season"));
+
+        Assert.Equal(["Frieren Beyond Journey s End 33", "Sousou no Frieren 33"], first.Skip(2).Select(r => r.Parameters["q"]));
+        Assert.All(first.Skip(2), r => Assert.Equal("search", r.Parameters["t"]));
 
         // Under an XEM season name the episode counts from 1 and the request carries no ids.
         var sceneName = SeriesQueryBuilder.Build(Full, new SeriesSearchCriteria("Sousou no Frieren S2", null, null, null, SeriesType.Anime, []) { AbsoluteEpisodeNumber = 5 }, [5070]);
@@ -206,5 +214,44 @@ public sealed class SeriesQueryTests
         var second = new TorznabClient(new StubHttpClientFactory(answering), new FixedTimeProvider(DateTimeOffset.UtcNow), NullLogger<TorznabClient>.Instance);
         await second.SearchSeriesAsync(indexer, Show() with { SeasonNumber = 1, EpisodeNumber = 5 }, _ => Task.CompletedTask, CancellationToken.None);
         Assert.Equal(2, answering.Requests.Count);
+    }
+
+    [Fact]
+    public void A_special_is_also_searched_by_its_title_like_sonarr()
+    {
+        var series = new Series { Title = "Breaking Bad", SortTitle = "breaking bad", TvdbId = 81189 };
+        var special = new Episode { Id = 9, Title = "Good Cop / Bad Cop", SeasonNumber = 0, EpisodeNumber = 1 };
+
+        var criteria = SeriesSearchCriteriaBuilder.ForEpisode(series, special, [new SceneAlias(81189, "Breaking Bad US", null)]);
+        Assert.Equal(["Breaking Bad Good Cop / Bad Cop", "Breaking Bad US Good Cop / Bad Cop"], criteria[0].SpecialQueries);
+        Assert.Equal((0, 1), (criteria[1].SeasonNumber!.Value, criteria[1].EpisodeNumber!.Value));
+
+        var titles = Assert.Single(SeriesQueryBuilder.Build(Full, criteria[0], Tv));
+        Assert.Equal(["Breaking Bad Good Cop Bad Cop", "Breaking Bad US Good Cop Bad Cop"], titles.Select(r => r.Parameters["q"]));
+        Assert.All(titles, r => Assert.Equal("search", r.Parameters["t"]));
+
+        // The specials season: each special by title, then the season by ids.
+        var season = SeriesSearchCriteriaBuilder.ForSeason(series, 0, [special, new Episode { Title = "Wedding Day", SeasonNumber = 0, EpisodeNumber = 2 }], []);
+        Assert.Equal(["Breaking Bad Good Cop / Bad Cop", "Breaking Bad Wedding Day"], season[0].SpecialQueries);
+        Assert.Equal(0, season[1].SeasonNumber);
+
+        // An anime special with an absolute number is searched as anime, not by title.
+        var anime = new Series { Title = "Show", SortTitle = "show", TvdbId = 1, SeriesType = SeriesType.Anime };
+        var numbered = new Episode { Title = "OVA", SeasonNumber = 0, EpisodeNumber = 1, AbsoluteEpisodeNumber = 13 };
+        Assert.Empty(Assert.Single(SeriesSearchCriteriaBuilder.ForEpisode(anime, numbered, [])).SpecialQueries);
+    }
+
+    [Fact]
+    public void A_release_named_after_a_special_finds_it_by_title()
+    {
+        var specials = new[]
+        {
+            new Episode { Id = 1, Title = "Good Cop / Bad Cop", SeasonNumber = 0, EpisodeNumber = 1 },
+            new Episode { Id = 2, Title = "Wedding Day", SeasonNumber = 0, EpisodeNumber = 2 },
+        };
+
+        Assert.Equal(2, Bigarr.Api.Infrastructure.Matching.SeriesReleaseJudge.FindSpecialByTitle(specials, "Breaking.Bad.Wedding.Day.1080p.WEB-DL.DD5.1.H.264-NTb")!.EpisodeNumber);
+        Assert.Equal(1, Bigarr.Api.Infrastructure.Matching.SeriesReleaseJudge.FindSpecialByTitle(specials, "Breaking Bad - Good Cop Bad Cop 720p")!.EpisodeNumber);
+        Assert.Null(Bigarr.Api.Infrastructure.Matching.SeriesReleaseJudge.FindSpecialByTitle(specials, "Breaking.Bad.Original.Minisodes.1080p"));
     }
 }

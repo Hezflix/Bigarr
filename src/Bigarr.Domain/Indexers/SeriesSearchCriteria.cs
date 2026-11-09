@@ -26,9 +26,15 @@ public sealed record SeriesSearchCriteria(
     /// <summary>Anime: searched as "Title 05" too.</summary>
     public int? AbsoluteEpisodeNumber { get; init; }
 
+    /// <summary>
+    /// Sonarr's special search: plain text queries "&lt;series&gt; &lt;episode title&gt;", for specials releases name by title.
+    /// When set, nothing else of the criteria is asked.
+    /// </summary>
+    public IReadOnlyList<string> SpecialQueries { get; init; } = [];
+
     public bool IsSeasonSearch => SeasonNumber is not null && EpisodeNumber is null && AirDate is null && AbsoluteEpisodeNumber is null;
 
-    public bool IsSeriesSearch => SeasonNumber is null && EpisodeNumber is null && AirDate is null && AbsoluteEpisodeNumber is null;
+    public bool IsSeriesSearch => SpecialQueries.Count == 0 && SeasonNumber is null && EpisodeNumber is null && AirDate is null && AbsoluteEpisodeNumber is null;
 
     public IEnumerable<string> AllTitles => new[] { Title }.Concat(AlternateTitles).Where(t => !string.IsNullOrWhiteSpace(t)).Distinct(StringComparer.OrdinalIgnoreCase);
 }

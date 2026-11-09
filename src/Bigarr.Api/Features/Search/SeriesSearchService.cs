@@ -152,7 +152,20 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
 
         int? sceneSeason = null;
         var matches = false;
-        if (parsed is not null)
+        var special = false;
+
+        // Sonarr: a name without an episode number (or with a possible special) may name a special by its title, when
+        // the release is this show by TVDB id or by the start of its name.
+        if ((parsed is null || parsed.IsPossibleSpecialEpisode)
+            && ((release.TvdbId is { } releaseTvdb && releaseTvdb == series.TvdbId) || index.FindInexact(release.Title) is not null)
+            && SeriesReleaseJudge.ParseSpecial(parsed, release.Title, targets) is { } byTitle)
+        {
+            parsed = byTitle;
+            matches = true;
+            special = true;
+        }
+
+        if (parsed is not null && !special)
         {
             var match = index.Find(parsed, release.TvdbId is { } t && t == series.TvdbId ? t : null);
             if (release.TvdbId is { } tvdb && series.TvdbId is { } own && tvdb != own)
@@ -173,7 +186,7 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
             sceneSeason ??= index.SceneSeasonFor(parsed.SeriesTitle, series.TvdbId);
         }
 
-        var judgement = SeriesReleaseJudge.Judge(release, parsed, targets, sceneSeason, calculator, ReleaseEvaluator.Interactive(), minimumSeeders, scope, versionId);
+        var judgement = SeriesReleaseJudge.Judge(release, parsed, targets, sceneSeason, calculator, ReleaseEvaluator.Interactive(), minimumSeeders, scope, versionId, sceneSource: !special);
         if (judgement.UnmatchedReason is { } reason)
         {
             rejections.Add(new RejectionResponse(reason, false));

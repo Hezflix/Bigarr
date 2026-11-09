@@ -23,6 +23,14 @@ public static partial class MockSeriesReleases
 
         var dotted = Dotted(criteria.Title);
         var names = new List<(string Name, double SizeGb, int Seeders, int AgeDays)>();
+        if (criteria.SpecialQueries.Count > 0)
+        {
+            // Specials named by their title, as the scene does.
+            return criteria.SpecialQueries
+                .Select((q, i) => Build(indexer, $"{Dotted(q)}.1080p.WEB-DL.DD5.1.H.264-NTb", 0.9, 40 - i, 60, i, criteria.TvdbId, now))
+                .ToList();
+        }
+
         if (criteria.AirDate is { } date)
         {
             var day = date.ToString("yyyy.MM.dd", CultureInfo.InvariantCulture);

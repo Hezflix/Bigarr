@@ -46,9 +46,22 @@ public sealed class SeriesRssPass(
             .Select(f =>
             {
                 var parsed = SeriesReleaseJudge.TryParse(f.Release.Title);
-                if (parsed is null)
+                if (parsed is null || parsed.IsPossibleSpecialEpisode)
                 {
-                    return (f.Indexer, f.Release, Parsed: parsed, Match: SeriesMatch.NotFound, Reason: (string?)"Release title could not be parsed as an episode");
+                    // Sonarr: a name without an episode number may still name a special of a show found by TVDB id or
+                    // by the start of the name; the special's title is looked for once the show is loaded.
+                    var show = (f.Release.TvdbId is { } tvdb ? index.ByTvdbId(tvdb) : null)
+                        ?? (parsed is null ? null : index.Find(parsed, f.Release.TvdbId).Series)
+                        ?? index.FindInexact(f.Release.Title);
+                    if (show is not null)
+                    {
+                        return (f.Indexer, f.Release, Parsed: parsed, Match: new SeriesMatch(show, SeriesMatchKind.Title, null, []), Reason: (string?)null, Special: true);
+                    }
+
+                    if (parsed is null)
+                    {
+                        return (f.Indexer, f.Release, Parsed: parsed, Match: SeriesMatch.NotFound, Reason: (string?)"Release title could not be parsed as an episode", Special: false);
+                    }
                 }
 
                 var match = index.Find(parsed, f.Release.TvdbId);
@@ -59,7 +72,7 @@ public sealed class SeriesRssPass(
                     _ when f.Release.TvdbId is { } tvdb => $"TVDB {tvdb} is not in the library and no title matches '{parsed.SeriesTitle}'",
                     _ => $"No series in the library matches '{parsed.SeriesTitle}'",
                 };
-                return (f.Indexer, f.Release, Parsed: parsed, Match: match, Reason: reason);
+                return (f.Indexer, f.Release, Parsed: parsed, Match: match, Reason: reason, Special: false);
             })
             .ToList();
 
@@ -68,13 +81,28 @@ public sealed class SeriesRssPass(
         var calculator = await scorer.CalculatorAsync(ct);
 
         var judged = new List<(RssReleaseResponse Entry, ReleaseInfo Release, SeriesJudgement? Judgement, SeriesTargets? Targets)>();
-        foreach (var (indexer, release, parsed, match, reason) in located)
+        foreach (var (indexer, release, located1, match, locatedReason, maybeSpecial) in located)
         {
+            var parsed = located1;
+            var reason = locatedReason;
             SeriesTargets? show = match.Series is { } found ? targets.GetValueOrDefault(found.Id) : null;
             SeriesJudgement? judgement = null;
+            var special = false;
+            if (show is not null && maybeSpecial && SeriesReleaseJudge.ParseSpecial(parsed, release.Title, show) is { } byTitle)
+            {
+                parsed = byTitle;
+                special = true;
+            }
+
+            if (show is not null && parsed is null)
+            {
+                reason = "Release title could not be parsed as an episode, and names no special of the series";
+                show = null;
+            }
+
             if (show is not null)
             {
-                judgement = SeriesReleaseJudge.Judge(release, parsed, show, match.SceneSeasonNumber, calculator, _evaluator, indexer.MinimumSeeders);
+                judgement = SeriesReleaseJudge.Judge(release, parsed, show, special ? null : match.SceneSeasonNumber, calculator, _evaluator, indexer.MinimumSeeders, sceneSource: !special);
             }
 
             judged.Add((Entry(release, parsed, show, judgement, reason ?? judgement?.UnmatchedReason, now), release, judgement, show));
