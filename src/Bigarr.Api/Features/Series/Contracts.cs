@@ -49,7 +49,9 @@ public sealed record AddSeriesVersionRequest(
     bool SeasonFolder = true,
     NewItemMonitoring MonitorNewItems = NewItemMonitoring.All,
     bool Monitored = true,
-    List<int>? TagIds = null);
+    List<int>? TagIds = null,
+    /// <summary>Same constraints as a film version's: edition pattern (matched on the release title for series), required/forbidden custom formats, release group.</summary>
+    Bigarr.Api.Features.Movies.ConstraintsDto? Constraints = null);
 
 public sealed record UpdateSeriesRequest(SeriesType? SeriesType = null);
 
@@ -60,7 +62,10 @@ public sealed record UpdateSeriesVersionRequest(
     bool? SeasonFolder = null,
     NewItemMonitoring? MonitorNewItems = null,
     /// <summary>The full list of tag ids; null leaves the tags untouched.</summary>
-    List<int>? TagIds = null);
+    List<int>? TagIds = null,
+    /// <summary>Replaces the constraints; null leaves them, <see cref="ClearConstraints"/> removes them.</summary>
+    Bigarr.Api.Features.Movies.ConstraintsDto? Constraints = null,
+    bool ClearConstraints = false);
 
 public sealed record SeasonMonitoringRequest(bool Monitored);
 
@@ -124,7 +129,8 @@ public sealed record SeriesVersionResponse(
     string Path,
     DateTime CreatedAt,
     List<int> Tags,
-    EpisodeStatistics Statistics);
+    EpisodeStatistics Statistics,
+    Bigarr.Api.Features.Movies.ConstraintsDto? Constraints = null);
 
 public sealed record SeasonVersionState(int VersionId, bool Monitored, EpisodeStatistics Statistics);
 
