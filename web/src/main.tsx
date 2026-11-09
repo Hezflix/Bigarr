@@ -61,6 +61,8 @@ const releasesRoute = createRoute({ getParentRoute: () => appRoute, path: '/acti
 const historyRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/history', component: lazyRouteComponent(() => import('./features/activity/HistoryPage'), 'HistoryPage') })
 const compareRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/compare', component: lazyRouteComponent(() => import('./features/activity/ComparePage'), 'ComparePage') })
 const blocklistRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/blocklist', component: lazyRouteComponent(() => import('./features/activity/BlocklistPage'), 'BlocklistPage') })
+const nowPlayingRoute = createRoute({ getParentRoute: () => appRoute, path: '/playback/now', component: lazyRouteComponent(() => import('./features/playback/NowPlayingPage'), 'NowPlayingPage') })
+const playsRoute = createRoute({ getParentRoute: () => appRoute, path: '/playback/plays', component: lazyRouteComponent(() => import('./features/playback/PlaysPage'), 'PlaysPage') })
 const wantedRoute = createRoute({ getParentRoute: () => appRoute, path: '/wanted', component: lazyRouteComponent(() => import('./features/wanted/WantedPage'), 'WantedPage') })
 const systemRoute = createRoute({ getParentRoute: () => appRoute, path: '/system/status', component: lazyRouteComponent(() => import('./features/system/SystemPage'), 'SystemPage') })
 const librarySettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/library', component: lazyRouteComponent(() => import('./features/settings/LibrarySettingsPage'), 'LibrarySettingsPage') })
@@ -80,6 +82,8 @@ const router = createRouter({
       libraryRoute,
       addRoute,
       wantedRoute,
+      nowPlayingRoute,
+      playsRoute,
       movieRoute,
       seriesLibraryRoute,
       addSeriesRoute,

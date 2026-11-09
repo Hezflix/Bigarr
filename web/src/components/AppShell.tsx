@@ -24,6 +24,8 @@ import {
   TagsIcon,
   TvIcon,
   WebhookIcon,
+  ListVideoIcon,
+  CirclePlayIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { auth, health, system } from '@/api/client'
@@ -62,6 +64,8 @@ type NavItem = {
     | '/activity/history'
     | '/activity/blocklist'
     | '/activity/compare'
+    | '/playback/now'
+    | '/playback/plays'
     | '/settings/library'
     | '/settings/mediamanagement'
     | '/settings/indexers'
@@ -110,6 +114,13 @@ function useSections(): NavSection[] {
         { to: '/activity/history', label: t('nav.history'), icon: HistoryIcon },
         { to: '/activity/blocklist', label: t('nav.blocklist'), icon: BanIcon },
         { to: '/activity/compare', label: t('nav.compare'), icon: GitCompareIcon },
+      ],
+    },
+    {
+      title: t('nav.playback'),
+      items: [
+        { to: '/playback/now', label: t('nav.nowPlaying'), icon: CirclePlayIcon },
+        { to: '/playback/plays', label: t('nav.plays'), icon: ListVideoIcon },
       ],
     },
     {

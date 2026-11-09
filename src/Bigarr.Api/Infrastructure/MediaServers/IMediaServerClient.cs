@@ -12,7 +12,11 @@ public enum MediaChange
 public sealed record MediaServerInfo(string? Name, string? Version, int MovieLibraries);
 
 /// <summary>Raised when a media server cannot be reached or refuses the token; the message is meant for the screen.</summary>
-public sealed class MediaServerException(string message, Exception? inner = null) : Exception(message, inner);
+public sealed class MediaServerException(string message, Exception? inner = null) : Exception(message, inner)
+{
+    /// <summary>The HTTP status the server answered, when it answered one.</summary>
+    public System.Net.HttpStatusCode? StatusCode { get; init; }
+}
 
 /// <summary>What Bigarr asks of a media server: prove the connection, scan one folder, scan everything.</summary>
 public interface IMediaServerClient

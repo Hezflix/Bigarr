@@ -8,6 +8,7 @@ using Bigarr.Domain.Library;
 using Bigarr.Domain.MediaServers;
 using Bigarr.Domain.Movies;
 using Bigarr.Domain.Notifications;
+using Bigarr.Domain.Playback;
 using Bigarr.Domain.Quality;
 using Bigarr.Domain.Scheduling;
 using Bigarr.Domain.Shadow;
@@ -100,6 +101,18 @@ public sealed class BigarrDbContext(DbContextOptions<BigarrDbContext> options) :
     public DbSet<FollowedRadarr> FollowedRadarrs => Set<FollowedRadarr>();
 
     public DbSet<RadarrGrab> RadarrGrabs => Set<RadarrGrab>();
+
+    public DbSet<MediaServerUser> MediaServerUsers => Set<MediaServerUser>();
+
+    public DbSet<MediaServerItem> MediaServerItems => Set<MediaServerItem>();
+
+    public DbSet<Play> Plays => Set<Play>();
+
+    public DbSet<PlayStream> PlayStreams => Set<PlayStream>();
+
+    public DbSet<PlaybackSession> PlaybackSessions => Set<PlaybackSession>();
+
+    public DbSet<PlaybackSettings> PlaybackSettings => Set<PlaybackSettings>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

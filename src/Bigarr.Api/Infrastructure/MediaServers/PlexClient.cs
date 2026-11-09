@@ -1,4 +1,5 @@
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Bigarr.Domain.MediaServers;
 
@@ -10,6 +11,8 @@ namespace Bigarr.Api.Infrastructure.MediaServers;
 /// </summary>
 public sealed class PlexClient(IHttpClientFactory httpClientFactory) : IMediaServerClient
 {
+    public static readonly TimeSpan EventsIdleTimeout = TimeSpan.FromSeconds(60);
+
     private static readonly char[] Separators = ['/', '\\'];
 
     public bool Handles(MediaServerKind kind) => kind == MediaServerKind.Plex;
@@ -65,40 +68,109 @@ public sealed class PlexClient(IHttpClientFactory httpClientFactory) : IMediaSer
             && (path.Length == root.Length || Array.IndexOf(Separators, path[root.Length]) >= 0);
     }
 
-    private async Task<List<Section>> SectionsAsync(MediaServer server, CancellationToken ct)
+    public async Task<List<PlexSection>> SectionsAsync(MediaServer server, CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(server);
+
         using var doc = await GetJsonAsync(server, "/library/sections", ct);
-        var sections = new List<Section>();
-        if (!doc.RootElement.TryGetProperty("MediaContainer", out var container) || !container.TryGetProperty("Directory", out var directories))
+        return PlexPlayback.ParseSections(doc.RootElement);
+    }
+
+    /// <summary>Every stream playing now, all users (the token must be the server owner's).</summary>
+    public async Task<List<PlexSession>> SessionsAsync(MediaServer server, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(server);
+
+        using var doc = await GetJsonAsync(server, "/status/sessions", ct);
+        return PlexPlayback.ParseSessions(doc.RootElement);
+    }
+
+    /// <summary>An item's metadata with its external ids, files and credits marker; null when Plex no longer has it.</summary>
+    public async Task<PlexItem?> ItemAsync(MediaServer server, string ratingKey, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(server);
+
+        try
         {
-            return sections;
+            using var doc = await GetJsonAsync(server, $"/library/metadata/{Uri.EscapeDataString(ratingKey)}?includeMarkers=1", ct);
+            return PlexPlayback.ParseItem(doc.RootElement);
         }
-
-        foreach (var directory in directories.EnumerateArray())
+        catch (MediaServerException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
-            var key = directory.TryGetProperty("key", out var k) ? k.GetString() : null;
-            if (string.IsNullOrEmpty(key))
-            {
-                continue;
-            }
+            return null;
+        }
+    }
 
-            var type = directory.TryGetProperty("type", out var t) ? t.GetString() : null;
-            var locations = new List<string>();
-            if (directory.TryGetProperty("Location", out var locationArray))
+    /// <summary>The guid and external ids of a show (an episode's grandparent); null when Plex no longer has it.</summary>
+    public async Task<(string? Guid, PlexIds Ids)?> IdsAsync(MediaServer server, string ratingKey, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(server);
+
+        try
+        {
+            using var doc = await GetJsonAsync(server, $"/library/metadata/{Uri.EscapeDataString(ratingKey)}", ct);
+            return PlexPlayback.ParseIds(doc.RootElement);
+        }
+        catch (MediaServerException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The server's <c>playing</c> notifications as server-sent events, until the connection drops. Plex pings every
+    /// ~10 s (passed on as <see cref="PlexPlayingEvent.Ping"/>); a silent minute is taken as a dead connection.
+    /// </summary>
+    public async IAsyncEnumerable<PlexPlayingEvent> PlayingEventsAsync(MediaServer server, [EnumeratorCancellation] CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(server);
+
+        using var response = await SendAsync(server, HttpMethod.Get, "/:/eventsource/notifications?filters=playing", ct, MediaServersExtensions.EventsHttpClientName, "text/event-stream");
+        await using var body = await response.Content.ReadAsStreamAsync(ct);
+        using var reader = new StreamReader(body);
+        string? eventName = null;
+        while (true)
+        {
+            string? line;
+            using (var idle = CancellationTokenSource.CreateLinkedTokenSource(ct))
             {
-                foreach (var location in locationArray.EnumerateArray())
+                idle.CancelAfter(EventsIdleTimeout);
+                try
                 {
-                    if (location.TryGetProperty("path", out var p) && p.GetString() is { Length: > 0 } locationPath)
-                    {
-                        locations.Add(locationPath);
-                    }
+                    line = await reader.ReadLineAsync(idle.Token);
+                }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                {
+                    throw new MediaServerException($"Plex sent nothing for {EventsIdleTimeout.TotalSeconds:0} s.");
+                }
+                catch (IOException ex)
+                {
+                    throw new MediaServerException($"Plex closed the event stream: {ex.Message}", ex);
                 }
             }
 
-            sections.Add(new Section(key, string.Equals(type, "movie", StringComparison.OrdinalIgnoreCase), locations));
-        }
+            if (line is null)
+            {
+                throw new MediaServerException("Plex closed the event stream.");
+            }
 
-        return sections;
+            if (line.StartsWith("event:", StringComparison.Ordinal))
+            {
+                eventName = line[6..].Trim();
+            }
+            else if (line.StartsWith("data:", StringComparison.Ordinal) && eventName == "ping")
+            {
+                yield return PlexPlayingEvent.Ping;
+            }
+            else if (line.StartsWith("data:", StringComparison.Ordinal) && eventName == "playing" && PlexPlayback.ParsePlayingEvent(line[5..].Trim()) is { } playing)
+            {
+                yield return playing;
+            }
+            else if (line.Length == 0)
+            {
+                eventName = null;
+            }
+        }
     }
 
     private async Task<JsonDocument> GetJsonAsync(MediaServer server, string path, CancellationToken ct)
@@ -114,19 +186,19 @@ public sealed class PlexClient(IHttpClientFactory httpClientFactory) : IMediaSer
         }
     }
 
-    private async Task<HttpResponseMessage> SendAsync(MediaServer server, HttpMethod method, string path, CancellationToken ct)
+    private async Task<HttpResponseMessage> SendAsync(MediaServer server, HttpMethod method, string path, CancellationToken ct, string clientName = MediaServersExtensions.HttpClientName, string accept = "application/json")
     {
         using var request = new HttpRequestMessage(method, server.BaseUrl + path);
         request.Headers.TryAddWithoutValidation("X-Plex-Token", server.Token.Trim());
         request.Headers.TryAddWithoutValidation("X-Plex-Client-Identifier", "bigarr");
         request.Headers.TryAddWithoutValidation("X-Plex-Product", "Bigarr");
         request.Headers.TryAddWithoutValidation("X-Plex-Version", Features.Server.SystemEndpoints.Version);
-        request.Headers.Accept.ParseAdd("application/json");
+        request.Headers.Accept.ParseAdd(accept);
 
         HttpResponseMessage response;
         try
         {
-            response = await httpClientFactory.CreateClient(MediaServersExtensions.HttpClientName).SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+            response = await httpClientFactory.CreateClient(clientName).SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -147,11 +219,10 @@ public sealed class PlexClient(IHttpClientFactory httpClientFactory) : IMediaSer
         {
             var status = (int)response.StatusCode;
             response.Dispose();
-            throw new MediaServerException($"Plex answered HTTP {status} on {path}.");
+            throw new MediaServerException($"Plex answered HTTP {status} on {path}.") { StatusCode = (HttpStatusCode)status };
         }
 
         return response;
     }
 
-    private sealed record Section(string Key, bool IsMovies, List<string> Locations);
 }
