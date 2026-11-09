@@ -1716,6 +1716,167 @@ export const mediaServers = {
   refresh: (id: number) => post<MediaServer>(`/api/v1/mediaservers/${id}/refresh`),
 }
 
+// ---- playback ---------------------------------------------------------------
+
+export type MediaItemKind = 'movie' | 'episode'
+export type PlaybackState = 'playing' | 'paused' | 'buffering'
+export type StreamDecision = 'directPlay' | 'directStream' | 'transcode'
+export type MinimumPlayUnit = 'seconds' | 'percent'
+
+export type PlaybackUserRef = { id: number; name: string; thumbUrl: string | null }
+
+export type PlaybackItemRef = {
+  id: number
+  kind: MediaItemKind
+  title: string
+  year: number | null
+  showTitle: string | null
+  seasonNumber: number | null
+  episodeNumber: number | null
+  durationMs: number | null
+  libraryTitle: string | null
+  movieId: number | null
+}
+
+/** What the media server says about a stream: every field may be missing. */
+export type StreamDetails = {
+  playerTitle: string | null
+  playerProduct: string | null
+  playerPlatform: string | null
+  playerPlatformVersion: string | null
+  playerDevice: string | null
+  playerId: string | null
+  ipAddress: string | null
+  local: boolean | null
+  secure: boolean | null
+  relayed: boolean | null
+  bandwidth: number | null
+  decision: StreamDecision | null
+  videoDecision: string | null
+  audioDecision: string | null
+  subtitleDecision: string | null
+  hardwareTranscode: boolean | null
+  sourceContainer: string | null
+  sourceVideoResolution: string | null
+  sourceVideoCodec: string | null
+  sourceDynamicRange: string | null
+  sourceAudioCodec: string | null
+  sourceAudioChannels: number | null
+  sourceBitrate: number | null
+  streamContainer: string | null
+  streamVideoResolution: string | null
+  streamVideoCodec: string | null
+  streamAudioCodec: string | null
+  streamAudioChannels: number | null
+  streamBitrate: number | null
+  serverFilePath: string | null
+}
+
+/** How a live transcode keeps up: speed 1 = real time; throttled = far enough ahead that Plex slows down (good). */
+export type PlexTranscode = {
+  speed: number | null
+  throttled: boolean | null
+  bufferedMs: number | null
+  hardwareDecoding: string | null
+  hardwareEncoding: string | null
+  protocol: string | null
+  complete: boolean | null
+}
+
+export type PlaybackSession = {
+  id: number
+  serverId: number
+  sessionKey: string
+  user: PlaybackUserRef
+  item: PlaybackItemRef
+  state: PlaybackState
+  viewOffsetMs: number
+  startedAt: string
+  pausedSeconds: number
+  versionId: number | null
+  versionName: string | null
+  details: StreamDetails
+  transcode: PlexTranscode | null
+  /** The film's images when Bigarr manages it. */
+  posterUrl: string | null
+  fanartUrl: string | null
+}
+
+export type PlaybackServerStatus = { id: number; name: string; connected: boolean; error: string | null; since: string | null }
+
+export type NowPlaying = { servers: PlaybackServerStatus[]; sessions: PlaybackSession[] }
+
+export type Play = {
+  id: number
+  user: PlaybackUserRef
+  item: PlaybackItemRef
+  startedAt: string
+  stoppedAt: string
+  playedSeconds: number
+  pausedSeconds: number
+  maxOffsetMs: number
+  durationMs: number | null
+  watched: boolean
+  source: 'live' | 'serverHistory' | 'tautulli'
+  movieId: number | null
+  versionId: number | null
+  versionName: string | null
+  streams: number
+  decision: StreamDecision | null
+  player: string | null
+  platform: string | null
+  local: boolean | null
+}
+
+export type PlaysPage = { page: number; pageSize: number; totalRecords: number; records: Play[] }
+
+export type PlaybackUser = { id: number; name: string; thumbUrl: string | null; isOwner: boolean; plays: number; lastSeenAt: string }
+
+export type VersionPlays = { versionId: number | null; versionName: string | null; plays: number; users: number; transcodes: number; lastPlayedAt: string | null }
+
+export type PlaybackSettings = { minimumPlay: number; minimumPlayUnit: MinimumPlayUnit; watchedPercent: number }
+
+export type PlaySortKey = 'startedAt' | 'user' | 'title' | 'version' | 'played'
+
+export type PlaysQuery = {
+  page?: number
+  pageSize?: number
+  userId?: number
+  movieId?: number
+  versionId?: number
+  kind?: MediaItemKind
+  sort?: PlaySortKey
+  direction?: 'asc' | 'desc'
+}
+
+/** One session of a play, with everything the server said about it. */
+export type PlayStream = {
+  id: number
+  startedAt: string
+  stoppedAt: string
+  startOffsetMs: number
+  endOffsetMs: number
+  pausedSeconds: number
+  filePath: string | null
+  versionId: number | null
+  versionName: string | null
+  details: StreamDetails
+}
+
+export const playback = {
+  nowPlaying: () => api<NowPlaying>('/api/v1/playback/sessions'),
+  plays: (query: PlaysQuery = {}) => {
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(query)) if (value !== undefined) params.set(key, String(value))
+    return api<PlaysPage>(`/api/v1/playback/plays?${params}`)
+  },
+  streams: (playId: number) => api<PlayStream[]>(`/api/v1/playback/plays/${playId}/streams`),
+  users: () => api<PlaybackUser[]>('/api/v1/playback/users'),
+  moviePlays: (movieId: number) => api<VersionPlays[]>(`/api/v1/playback/movies/${movieId}`),
+  settings: () => api<PlaybackSettings>('/api/v1/playback/settings'),
+  updateSettings: (body: PlaybackSettings) => put<PlaybackSettings>('/api/v1/playback/settings', body),
+}
+
 // ---- helpers ---------------------------------------------------------------
 
 export function slugify(value: string): string {

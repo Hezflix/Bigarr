@@ -12,6 +12,7 @@ using Bigarr.Api.Features.MediaServers;
 using Bigarr.Api.Features.Migration;
 using Bigarr.Api.Features.Movies;
 using Bigarr.Api.Features.Notifications;
+using Bigarr.Api.Features.Playback;
 using Bigarr.Api.Features.Quality;
 using Bigarr.Api.Features.Search;
 using Bigarr.Api.Features.Series;
@@ -157,6 +158,9 @@ builder.Services.AddScoped<IScheduledJob, RadarrFollowJob>();
 // Media servers (M8): Plex, Jellyfin and Emby hear about changed folders from the outbox.
 builder.Services.AddBigarrMediaServers();
 builder.Services.AddScoped<MediaServerService>();
+
+// Playback (Tautulli replacement): Plex streams become plays, linked to the version that was played.
+builder.Services.AddBigarrPlayback();
 builder.Services.AddSingleton<HealthState>();
 builder.Services.AddScoped<HealthCheckService>();
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
@@ -207,6 +211,7 @@ app.MapBackups();
 app.MapTags();
 app.MapMigration();
 app.MapMediaServers();
+app.MapPlayback();
 app.MapShadow();
 app.MapRadarrCompat();
 

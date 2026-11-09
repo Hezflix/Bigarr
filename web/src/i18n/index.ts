@@ -12,14 +12,26 @@ void i18n.use(initReactI18next).init({
 
 export default i18n
 
+// Day first and a 24-hour clock, whatever the interface language: 09/11/2026, 21:05.
+const dateFormat = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+const dateTimeFormat = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+const timeFormat = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+
+/** 09/11/2026 */
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return ''
-  return new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium' }).format(new Date(iso))
+  return dateFormat.format(new Date(iso))
 }
 
+/** 09/11/2026, 21:05 */
 export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return ''
-  return new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
+  return dateTimeFormat.format(new Date(iso))
+}
+
+/** 21:05 */
+export function formatTime(value: string | number | Date): string {
+  return timeFormat.format(new Date(value))
 }
 
 const byteUnits = ['B', 'KB', 'MB', 'GB', 'TB']

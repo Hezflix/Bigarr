@@ -50,11 +50,16 @@ public sealed class MediaServer
     public bool IsFailing => LastErrorAt is not null && (LastRefreshAt is null || LastErrorAt > LastRefreshAt);
 
     /// <summary>A Bigarr path as the media server knows it: the first matching mapping wins, the rest of the path keeps its shape.</summary>
-    public string Translate(string path)
+    public string Translate(string path) => Map(path, PathMappings.Select(m => (m.From, m.To)));
+
+    /// <summary>The other way: a path the media server reports (a played file) as Bigarr sees it.</summary>
+    public string TranslateFromServer(string path) => Map(path, PathMappings.Select(m => (m.To, m.From)));
+
+    private static string Map(string path, IEnumerable<(string From, string To)> mappings)
     {
         ArgumentNullException.ThrowIfNull(path);
 
-        foreach (var mapping in PathMappings)
+        foreach (var mapping in mappings)
         {
             var from = mapping.From.TrimEnd(Separators);
             if (from.Length == 0 || !path.StartsWith(from, StringComparison.Ordinal))

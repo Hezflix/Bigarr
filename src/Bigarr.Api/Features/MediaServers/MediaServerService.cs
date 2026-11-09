@@ -1,3 +1,4 @@
+using Bigarr.Api.Features.Playback;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.MediaServers;
 using Bigarr.Api.Infrastructure.Persistence;
@@ -7,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Bigarr.Api.Features.MediaServers;
 
 /// <summary>The media servers Bigarr keeps informed (M8): CRUD, connection test, and a full scan on demand.</summary>
-public sealed class MediaServerService(BigarrDbContext db, MediaServerClients clients, TimeProvider time, ILogger<MediaServerService> logger)
+public sealed class MediaServerService(BigarrDbContext db, MediaServerClients clients, PlaybackMonitor playback, TimeProvider time, ILogger<MediaServerService> logger)
 {
     public const int MaxNameLength = 64;
 
@@ -38,6 +39,7 @@ public sealed class MediaServerService(BigarrDbContext db, MediaServerClients cl
         db.MediaServers.Add(server);
         await db.SaveChangesAsync(ct);
         logger.LogInformation("Media server {Name} ({Kind}) added at {Url}", server.Name, server.Kind, server.Url);
+        playback.Wake();
         return Result<MediaServerResponse>.Ok(ToResponse(server));
     }
 
@@ -62,12 +64,20 @@ public sealed class MediaServerService(BigarrDbContext db, MediaServerClients cl
 
         Apply(server, request);
         await db.SaveChangesAsync(ct);
+        playback.Wake();
         return Result<MediaServerResponse>.Ok(ToResponse(server));
     }
 
     public async Task<Result<bool>> DeleteAsync(int id, CancellationToken ct)
     {
+        // The play history hangs off the server's users and items: deleting the server would take it along.
+        if (await db.MediaServerUsers.AnyAsync(u => u.MediaServerId == id, ct) || await db.MediaServerItems.AnyAsync(i => i.MediaServerId == id, ct))
+        {
+            return Failure.Conflict("The server has play history", "Deleting it would delete its plays too. Disable it instead.");
+        }
+
         var deleted = await db.MediaServers.Where(s => s.Id == id).ExecuteDeleteAsync(ct);
+        playback.Wake();
         return deleted == 0 ? Failure.NotFound("Media server") : Result<bool>.Ok(true);
     }
 

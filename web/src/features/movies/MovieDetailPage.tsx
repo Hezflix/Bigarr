@@ -9,6 +9,7 @@ import { Poster } from '@/components/Poster'
 import { StatusBadge } from '@/components/StatusBadge'
 import { CompareTable } from '@/features/activity/CompareTable'
 import { HistoryTable } from '@/features/activity/HistoryTable'
+import { MoviePlays } from '@/features/playback/MoviePlays'
 import { extraSummary } from '@/features/import/extraFiles'
 import { RenameDialog } from '@/features/movies/RenameDialog'
 import { InteractiveSearch } from '@/features/search/InteractiveSearch'
@@ -236,6 +237,7 @@ export function MovieDetailPage() {
       <VersionsTable movie={m} onChanged={invalidate} onSearched={afterSearch} />
       <InteractiveSearch movie={m} />
       <MovieComparison tmdbId={m.tmdbId} />
+      <MoviePlays movieId={m.id} />
       <MovieHistory movieId={m.id} />
     </>
   )

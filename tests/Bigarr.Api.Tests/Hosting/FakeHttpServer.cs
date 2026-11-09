@@ -23,7 +23,8 @@ public sealed class FakeHttpServer : IAsyncDisposable
     /// An answer: status code, an optional JSON body and optional headers (<c>Retry-After</c>…). With <paramref name="Gzip"/>
     /// the body is gzipped when the request accepts it, like a Radarr behind its own compression does.
     /// </summary>
-    public sealed record Answer(int StatusCode, string? Json = null, IReadOnlyDictionary<string, string>? Headers = null, bool Gzip = false);
+    /// <remarks><paramref name="Stream"/> writes the body itself and may keep the response open (server-sent events).</remarks>
+    public sealed record Answer(int StatusCode, string? Json = null, IReadOnlyDictionary<string, string>? Headers = null, bool Gzip = false, Func<HttpResponse, CancellationToken, Task>? Stream = null);
 
     private FakeHttpServer(WebApplication app)
     {
@@ -61,6 +62,12 @@ public sealed class FakeHttpServer : IAsyncDisposable
             foreach (var (name, value) in answer.Headers ?? new Dictionary<string, string>())
             {
                 context.Response.Headers[name] = value;
+            }
+
+            if (answer.Stream is not null)
+            {
+                await answer.Stream(context.Response, context.RequestAborted);
+                return;
             }
 
             if (answer.Json is not null)

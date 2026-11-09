@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FlaskConicalIcon, PencilIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
+import { formatDateTime } from '@/i18n'
 import { toast } from 'sonner'
 import { ApiError, mediaServers, type MediaServer, type MediaServerKind, type MediaServerRequest, type MediaServerTestResult } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -25,6 +26,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { PlayRulesCard } from '@/features/playback/PlayRulesCard'
 
 const kinds: MediaServerKind[] = ['plex', 'jellyfin', 'emby']
 
@@ -43,7 +45,7 @@ function testSummary(t: TFunction, result: MediaServerTestResult): string {
   return t('mediaServers.testOk', { name: result.name ?? '?', version: result.version ?? '', count: result.movieLibraries })
 }
 
-const formatDate = (value: string | null) => (value ? new Date(value).toLocaleString() : null)
+const formatDate = (value: string | null) => (value ? formatDateTime(value) : null)
 
 /** The Plex, Jellyfin and Emby servers told about library changes (M8). */
 export function MediaServersPage() {
@@ -220,6 +222,8 @@ export function MediaServersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <PlayRulesCard />
     </>
   )
 }
