@@ -22,6 +22,7 @@ import {
   RssIcon,
   SlidersHorizontalIcon,
   TagsIcon,
+  TvIcon,
   WebhookIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -54,6 +55,8 @@ type NavItem = {
     | '/'
     | '/add'
     | '/wanted'
+    | '/series'
+    | '/series/add'
     | '/activity/queue'
     | '/activity/releases'
     | '/activity/history'
@@ -90,6 +93,13 @@ function useSections(): NavSection[] {
         { to: '/', label: t('nav.library'), icon: FilmIcon, exact: true },
         { to: '/add', label: t('nav.addMovie'), icon: PlusIcon },
         { to: '/wanted', label: t('nav.wanted'), icon: ListTodoIcon },
+      ],
+    },
+    {
+      title: t('nav.series'),
+      items: [
+        { to: '/series', label: t('nav.seriesLibrary'), icon: TvIcon, exact: true },
+        { to: '/series/add', label: t('nav.addSeries'), icon: PlusIcon },
       ],
     },
     {
