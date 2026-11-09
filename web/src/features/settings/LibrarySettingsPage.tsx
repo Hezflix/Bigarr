@@ -283,7 +283,7 @@ function RootFolderRow({ root, files, onRequestRemove }: { root: RootFolder; fil
       </TableCell>
       <TableCell className="align-top whitespace-nowrap" data-testid="rootfolder-versions">
         {root.versionCount}
-        {files !== null && <span className="text-muted-foreground"> · {t('settings.versionFiles', { count: files })}</span>}
+        {files !== null && root.kind === 'movies' && <span className="text-muted-foreground"> · {t('settings.versionFiles', { count: files })}</span>}
       </TableCell>
       <TableCell className="align-top">{root.unmappedFolderCount}</TableCell>
       <TableCell className="align-top">

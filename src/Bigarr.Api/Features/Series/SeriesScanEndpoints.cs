@@ -121,7 +121,7 @@ public static class SeriesScanEndpoints
         return TypedResults.Ok(new MapSeriesFolderResponse(seriesId, versionId, EnqueueRescan(scans, seriesId)));
     }
 
-    /// <summary>"S01E01", "S01E02-E03" (consecutive or not, Sonarr-style), "S00E05".</summary>
+    /// <summary>"S01E01", "S01E02-E03" (first and last, Sonarr-style), "S21E194-S22E01" across seasons.</summary>
     public static string Label(IReadOnlyList<(int Season, int Episode)> episodes)
     {
         if (episodes.Count == 0)
@@ -131,6 +131,9 @@ public static class SeriesScanEndpoints
 
         var first = episodes[0];
         var label = $"S{first.Season:00}E{first.Episode:00}";
-        return episodes.Count == 1 ? label : $"{label}-E{episodes[^1].Episode:00}";
+        var last = episodes[^1];
+        return episodes.Count == 1 ? label
+            : last.Season == first.Season ? $"{label}-E{last.Episode:00}"
+            : $"{label}-S{last.Season:00}E{last.Episode:00}";
     }
 }

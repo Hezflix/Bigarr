@@ -197,6 +197,14 @@ public sealed class EpisodeMapperTests
         Assert.Equal(1, index.Find(EpisodeParser.ParseTitle("Doctor.Who.1963.S01E01.DVDRip.x264-GRP")!).Series?.Id);
     }
 
+    [Fact]
+    public void File_labels_name_first_and_last_episode_and_both_seasons_when_they_differ()
+    {
+        Assert.Equal("S01E01", Bigarr.Api.Features.Series.SeriesScanEndpoints.Label([(1, 1)]));
+        Assert.Equal("S01E02-E03", Bigarr.Api.Features.Series.SeriesScanEndpoints.Label([(1, 2), (1, 3)]));
+        Assert.Equal("S21E194-S22E01", Bigarr.Api.Features.Series.SeriesScanEndpoints.Label([(21, 194), (22, 1)]));
+    }
+
     private static List<string> Labels(EpisodeMapping mapping) =>
         mapping.Episodes.Select(e => $"S{e.SeasonNumber:00}E{e.EpisodeNumber:00}").ToList();
 
