@@ -50,6 +50,7 @@ public static class PlaybackEndpoints
     public static IServiceCollection AddBigarrPlayback(this IServiceCollection services)
     {
         services.AddSingleton<PlexLibraries>();
+        services.AddSingleton<LiveTranscodes>();
         services.AddScoped<VersionResolver>();
         services.AddScoped<PlaybackTracker>();
         services.AddScoped<PlaybackService>();

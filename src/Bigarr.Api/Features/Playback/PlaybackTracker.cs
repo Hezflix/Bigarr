@@ -16,7 +16,7 @@ namespace Bigarr.Api.Features.Playback;
 /// A closed session long enough under the <see cref="PlayRules"/> becomes a <see cref="PlayStream"/>, added to the play
 /// it continues or to a new one. Everything lives in the database, so a restart in the middle of a film loses nothing.
 /// </summary>
-public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLibraries libraries, VersionResolver resolver, TimeProvider time, ILogger<PlaybackTracker> logger)
+public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLibraries libraries, VersionResolver resolver, LiveTranscodes transcodes, TimeProvider time, ILogger<PlaybackTracker> logger)
 {
     /// <summary>An item's metadata is read again after this long, when one of its streams starts.</summary>
     public static readonly TimeSpan ItemRefresh = TimeSpan.FromDays(1);
@@ -55,6 +55,13 @@ public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLib
         foreach (var gone in open.Where(o => !seen.Contains(o)))
         {
             await CloseAsync(gone, gone.LastSeenAt, ct);
+            transcodes.Set(server.Id, gone.SessionKey, null);
+        }
+
+        // After the closes: a stream gone and a new one may share a session key (Plex restarted).
+        foreach (var stream in live)
+        {
+            transcodes.Set(server.Id, stream.SessionKey, stream.Transcode);
         }
 
         return live.Count;
@@ -85,6 +92,7 @@ public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLib
             }
 
             await CloseAsync(session, now, ct);
+            transcodes.Set(server.Id, session.SessionKey, null);
             return false;
         }
 

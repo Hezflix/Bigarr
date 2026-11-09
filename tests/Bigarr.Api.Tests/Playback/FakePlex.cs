@@ -255,7 +255,7 @@ public sealed class FakePlex : IAsyncDisposable
             User = new { id = stream.UserId, title = stream.UserName, thumb = $"https://example.invalid/users/{stream.UserId}.png" },
             Player = new { title = stream.Player, product = "Plex for Android (TV)", platform = "Android", platformVersion = "12", device = "TV", machineIdentifier = "player-" + stream.SessionKey, address = stream.Address, local = stream.Local, secure = true, relayed = false, state = stream.State },
             Session = new { id = stream.SessionId, bandwidth = 21000, location = stream.Local ? "lan" : "wan" },
-            TranscodeSession = stream.Transcode ? new { videoDecision = "transcode", audioDecision = "copy", transcodeHwFullPipeline = true, container = "mpegts", videoCodec = "h264", audioCodec = "eac3", audioChannels = 6 } : null,
+            TranscodeSession = stream.Transcode ? new { videoDecision = "transcode", audioDecision = "copy", transcodeHwFullPipeline = true, transcodeHwEncodingTitle = "Intel (QuickSync)", container = "mpegts", videoCodec = "h264", audioCodec = "eac3", audioChannels = 6, speed = 1.8, throttled = true, maxOffsetAvailable = (stream.ViewOffsetMs + 90_000) / 1000.0, protocol = "dash" } : null,
         };
     }
 

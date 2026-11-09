@@ -1772,9 +1772,21 @@ export type StreamDetails = {
   serverFilePath: string | null
 }
 
+/** How a live transcode keeps up: speed 1 = real time; throttled = far enough ahead that Plex slows down (good). */
+export type PlexTranscode = {
+  speed: number | null
+  throttled: boolean | null
+  bufferedMs: number | null
+  hardwareDecoding: string | null
+  hardwareEncoding: string | null
+  protocol: string | null
+  complete: boolean | null
+}
+
 export type PlaybackSession = {
   id: number
   serverId: number
+  sessionKey: string
   user: PlaybackUserRef
   item: PlaybackItemRef
   state: PlaybackState
@@ -1784,6 +1796,7 @@ export type PlaybackSession = {
   versionId: number | null
   versionName: string | null
   details: StreamDetails
+  transcode: PlexTranscode | null
 }
 
 export type PlaybackServerStatus = { id: number; name: string; connected: boolean; error: string | null; since: string | null }

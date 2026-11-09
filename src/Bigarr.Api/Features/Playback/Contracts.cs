@@ -1,3 +1,4 @@
+using Bigarr.Api.Infrastructure.MediaServers;
 using Bigarr.Domain.Playback;
 
 namespace Bigarr.Api.Features.Playback;
@@ -21,6 +22,7 @@ public sealed record PlaybackItemRef(
 public sealed record PlaybackSessionResponse(
     int Id,
     int ServerId,
+    string SessionKey,
     PlaybackUserRef User,
     PlaybackItemRef Item,
     PlaybackState State,
@@ -29,7 +31,8 @@ public sealed record PlaybackSessionResponse(
     int PausedSeconds,
     int? VersionId,
     string? VersionName,
-    StreamDetails Details);
+    StreamDetails Details,
+    PlexTranscode? Transcode = null);
 
 public sealed record NowPlayingResponse(List<PlaybackServerStatus> Servers, List<PlaybackSessionResponse> Sessions);
 

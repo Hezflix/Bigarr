@@ -1764,8 +1764,6 @@
     "hardware": "Hardware",
     "lan": "LAN",
     "wan": "WAN",
-    "source": "Source",
-    "stream": "Stream",
     "bandwidth": "Bandwidth",
     "mbps": "{{value}} Mbps",
     "ip": "IP address",
@@ -1827,6 +1825,14 @@
     "when": "When",
     "position": "Position",
     "file": "File",
-    "pausedFor": "paused {{time}}"
+    "pausedFor": "paused {{time}}",
+    "transcoder": "Transcoder",
+    "speed": "{{value}}×",
+    "throttled": "throttled (ahead enough)",
+    "transcodeComplete": "whole file transcoded",
+    "cannotKeepUp": "slower than real time",
+    "buffered": "Buffer",
+    "ahead": "{{time}} ahead",
+    "protocol": "Protocol"
   }
 }

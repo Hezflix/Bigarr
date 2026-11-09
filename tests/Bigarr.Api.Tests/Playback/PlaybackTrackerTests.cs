@@ -24,6 +24,7 @@ public sealed class PlaybackTrackerTests : IAsyncLifetime, IDisposable
 
     private readonly SqliteTestDatabase _database = new();
     private readonly MutableTimeProvider _time = new(new DateTimeOffset(2026, 3, 14, 20, 0, 0, TimeSpan.Zero));
+    private readonly LiveTranscodes _transcodes = new();
     private readonly ServiceProvider _services = new ServiceCollection().AddHttpClient().BuildServiceProvider();
     private FakePlex _plex = null!;
     private MediaServer _server = null!;
@@ -113,6 +114,12 @@ public sealed class PlaybackTrackerTests : IAsyncLifetime, IDisposable
             Assert.Equal("1080", session.Details.SourceVideoResolution);
             Assert.Equal("720", session.Details.StreamVideoResolution);
             Assert.True(session.Details.HardwareTranscode);
+            var transcode = _transcodes.Get(_server.Id, "12");
+            Assert.NotNull(transcode);
+            Assert.Equal(1.8, transcode.Speed);
+            Assert.True(transcode.Throttled);
+            Assert.Equal(90_000, transcode.BufferedMs);
+            Assert.Equal("Intel (QuickSync)", transcode.HardwareEncoding);
             Assert.Empty(db.Plays);
         }
 
@@ -123,6 +130,7 @@ public sealed class PlaybackTrackerTests : IAsyncLifetime, IDisposable
         _plex.Remove("12");
         _time.Advance(TimeSpan.FromMinutes(30));
         Assert.Equal(0, await ReconcileAsync());
+        Assert.Null(_transcodes.Get(_server.Id, "12"));
 
         await using var after = _database.CreateContext();
         var play = await after.Plays.SingleAsync();
@@ -266,7 +274,7 @@ public sealed class PlaybackTrackerTests : IAsyncLifetime, IDisposable
         }
 
         await using var read = _database.CreateContext();
-        var service = new PlaybackService(read, null!);
+        var service = new PlaybackService(read, null!, _transcodes);
         async Task<List<int>> Order(PlaySort sort, bool ascending) =>
             (await service.PlaysAsync(1, 50, null, null, null, null, sort, ascending, CancellationToken.None)).Records.Select(r => r.PlayedSeconds).ToList();
 
@@ -333,7 +341,7 @@ public sealed class PlaybackTrackerTests : IAsyncLifetime, IDisposable
     }
 
     private PlaybackTracker Tracker(BigarrDbContext db, PlexClient plex) =>
-        new(db, plex, new PlexLibraries(plex, _time, NullLogger<PlexLibraries>.Instance), new VersionResolver(db), _time, NullLogger<PlaybackTracker>.Instance);
+        new(db, plex, new PlexLibraries(plex, _time, NullLogger<PlexLibraries>.Instance), new VersionResolver(db), _transcodes, _time, NullLogger<PlaybackTracker>.Instance);
 
     private static long Minutes(int minutes) => minutes * 60_000L;
 

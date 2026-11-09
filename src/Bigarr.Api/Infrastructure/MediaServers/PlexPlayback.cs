@@ -17,7 +17,14 @@ public sealed record PlexSession(
     long ViewOffsetMs,
     long? DurationMs,
     string? PartId,
-    StreamDetails Details);
+    StreamDetails Details,
+    PlexTranscode? Transcode = null);
+
+/// <summary>
+/// How a transcode is keeping up, live only: speed (1.0 = real time), throttled (ahead enough that Plex slows down,
+/// which is good), how far ahead of the player it is, and the hardware doing the work.
+/// </summary>
+public sealed record PlexTranscode(double? Speed, bool? Throttled, long? BufferedMs, string? HardwareDecoding, string? HardwareEncoding, string? Protocol, bool? Complete);
 
 /// <summary>A <c>playing</c> notification: Plex sends one every ~10 s per stream, and on every state change.</summary>
 public sealed record PlexPlayingEvent(string SessionKey, string RatingKey, string State, long? ViewOffsetMs)
@@ -138,7 +145,8 @@ public static class PlexPlayback
                 Long(video, "viewOffset") ?? 0,
                 Long(video, "duration"),
                 part is { } pp ? Str(pp, "id") : null,
-                details));
+                details,
+                transcode is { } tp ? TranscodeOf(tp, Long(video, "viewOffset") ?? 0) : null));
         }
 
         return sessions;
@@ -307,6 +315,23 @@ public static class PlexPlayback
                     break;
             }
         }
+    }
+
+    private static PlexTranscode TranscodeOf(JsonElement transcode, long viewOffsetMs)
+    {
+        // maxOffsetAvailable is in seconds of media already transcoded.
+        long? buffered = Str(transcode, "maxOffsetAvailable") is { } max && double.TryParse(max, NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds)
+            ? Math.Max(0, (long)(seconds * 1000) - viewOffsetMs)
+            : null;
+        double? speed = Str(transcode, "speed") is { } s && double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : null;
+        return new PlexTranscode(
+            speed,
+            Bool(transcode, "throttled"),
+            buffered,
+            Str(transcode, "transcodeHwDecodingTitle"),
+            Str(transcode, "transcodeHwEncodingTitle"),
+            Str(transcode, "protocol"),
+            Bool(transcode, "complete"));
     }
 
     private static string DynamicRangeOf(JsonElement video)

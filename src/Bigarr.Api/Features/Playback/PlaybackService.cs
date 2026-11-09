@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Bigarr.Api.Features.Playback;
 
 /// <summary>Read side of playback (now playing, plays, users, plays per version) and the play rules.</summary>
-public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor)
+public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor, LiveTranscodes transcodes)
 {
     public const int MaxPageSize = 200;
 
@@ -28,6 +28,7 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor)
             .Select(s => new PlaybackSessionResponse(
                 s.Id,
                 s.MediaServerId,
+                s.SessionKey,
                 new PlaybackUserRef(s.User.Id, s.User.DisplayName ?? s.User.Name, s.User.ThumbUrl),
                 new PlaybackItemRef(s.Item.Id, s.Item.Kind, s.Item.Title, s.Item.Year, s.Item.ShowTitle, s.Item.SeasonNumber, s.Item.EpisodeNumber, s.Item.DurationMs, s.Item.LibrarySectionTitle, s.Item.MovieId),
                 s.State,
@@ -36,8 +37,10 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor)
                 s.PausedSeconds,
                 s.VersionId,
                 s.VersionName,
-                s.Details))
+                s.Details,
+                null))
             .ToListAsync(ct);
+        sessions = sessions.Select(s => s with { Transcode = transcodes.Get(s.ServerId, s.SessionKey) }).ToList();
         return new NowPlayingResponse(statuses, sessions);
     }
 

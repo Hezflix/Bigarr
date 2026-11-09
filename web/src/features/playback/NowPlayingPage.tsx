@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { PauseIcon, PlayIcon, LoaderIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { playback, type PlaybackSession, type PlaybackServerStatus } from '@/api/client'
+import { playback, type PlaybackSession, type PlaybackServerStatus, type PlexTranscode } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,6 +10,7 @@ import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDateTime } from '@/i18n'
 import { DecisionBadge, formatOffset, itemLabel } from './format'
+import { StreamTracks } from './StreamTracks'
 
 /** The streams playing now on the followed Plex servers, refreshed every 10 s like Plex's own notifications. */
 export function NowPlayingPage() {
@@ -67,8 +68,6 @@ function SessionCard({ session }: { session: PlaybackSession }) {
   const duration = session.item.durationMs ?? 0
   const progress = duration > 0 ? Math.min(100, (session.viewOffsetMs / duration) * 100) : 0
   const StateIcon = session.state === 'paused' ? PauseIcon : session.state === 'buffering' ? LoaderIcon : PlayIcon
-  const source = [d.sourceVideoResolution, d.sourceVideoCodec, d.sourceDynamicRange].filter(Boolean).join(' · ')
-  const stream = [d.streamVideoResolution, d.streamVideoCodec].filter(Boolean).join(' · ')
 
   return (
     <Card className="gap-3" data-session={session.id}>
@@ -102,19 +101,9 @@ function SessionCard({ session }: { session: PlaybackSession }) {
           {d.hardwareTranscode && <Badge variant="outline">{t('playback.hardware')}</Badge>}
           <Badge variant="outline">{d.local ? t('playback.lan') : t('playback.wan')}</Badge>
         </div>
+        <StreamTracks details={d} />
+        {session.transcode && <TranscodeLine transcode={session.transcode} />}
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-          {source && (
-            <>
-              <dt className="text-muted-foreground">{t('playback.source')}</dt>
-              <dd>{source}</dd>
-            </>
-          )}
-          {d.decision === 'transcode' && stream && (
-            <>
-              <dt className="text-muted-foreground">{t('playback.stream')}</dt>
-              <dd>{stream}</dd>
-            </>
-          )}
           {d.bandwidth !== null && (
             <>
               <dt className="text-muted-foreground">{t('playback.bandwidth')}</dt>
@@ -132,5 +121,47 @@ function SessionCard({ session }: { session: PlaybackSession }) {
         </dl>
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * Plex's transcoder for this stream: speed (below 1× and not throttled, the player will soon buffer), how far ahead
+ * it is, and the hardware on each side.
+ */
+function TranscodeLine({ transcode }: { transcode: PlexTranscode }) {
+  const { t } = useTranslation()
+  const behind = transcode.speed !== null && transcode.speed < 1 && !transcode.throttled && !transcode.complete
+  const hardware = [transcode.hardwareDecoding, transcode.hardwareEncoding].filter(Boolean)
+  return (
+    <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-md bg-muted/50 px-2 py-1.5 text-xs" data-testid="transcoder">
+      <dt className="text-muted-foreground">{t('playback.transcoder')}</dt>
+      <dd className="flex flex-wrap gap-x-2">
+        {transcode.speed !== null && <span className={behind ? 'font-medium text-amber-700 dark:text-amber-300' : 'tabular-nums'}>{t('playback.speed', { value: transcode.speed.toFixed(1) })}</span>}
+        {transcode.complete ? (
+          <span className="text-muted-foreground">{t('playback.transcodeComplete')}</span>
+        ) : (
+          transcode.throttled && <span className="text-muted-foreground">{t('playback.throttled')}</span>
+        )}
+        {behind && <span className="text-amber-700 dark:text-amber-300">{t('playback.cannotKeepUp')}</span>}
+      </dd>
+      {transcode.bufferedMs !== null && !transcode.complete && (
+        <>
+          <dt className="text-muted-foreground">{t('playback.buffered')}</dt>
+          <dd className="tabular-nums">{t('playback.ahead', { time: formatOffset(transcode.bufferedMs) })}</dd>
+        </>
+      )}
+      {hardware.length > 0 && (
+        <>
+          <dt className="text-muted-foreground">{t('playback.hardware')}</dt>
+          <dd>{transcode.hardwareDecoding && transcode.hardwareEncoding && transcode.hardwareDecoding !== transcode.hardwareEncoding ? `${transcode.hardwareDecoding} → ${transcode.hardwareEncoding}` : hardware[0]}</dd>
+        </>
+      )}
+      {transcode.protocol && (
+        <>
+          <dt className="text-muted-foreground">{t('playback.protocol')}</dt>
+          <dd>{transcode.protocol}</dd>
+        </>
+      )}
+    </dl>
   )
 }
