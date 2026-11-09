@@ -9,8 +9,13 @@ public sealed class ScanProgress(int rootFolderId)
     private int _versionsAdded;
     private int _filesAdded;
     private int _unmapped;
+    private int _seriesAdded;
+    private int _unmatchedFiles;
 
     public int RootFolderId { get; } = rootFolderId;
+
+    /// <summary>Set when the job rescans a single series rather than a whole root.</summary>
+    public int? SeriesId { get; init; }
 
     public ScanState State { get; set; } = ScanState.Queued;
 
@@ -34,6 +39,10 @@ public sealed class ScanProgress(int rootFolderId)
 
     public int Unmapped => _unmapped;
 
+    public int SeriesAdded => _seriesAdded;
+
+    public int UnmatchedFiles => _unmatchedFiles;
+
     public void FolderDone() => Interlocked.Increment(ref _foldersProcessed);
 
     public void MovieAdded() => Interlocked.Increment(ref _moviesAdded);
@@ -44,6 +53,10 @@ public sealed class ScanProgress(int rootFolderId)
 
     public void FolderUnmapped() => Interlocked.Increment(ref _unmapped);
 
+    public void SeriesWasAdded() => Interlocked.Increment(ref _seriesAdded);
+
+    public void FileUnmatched() => Interlocked.Increment(ref _unmatchedFiles);
+
     public ScanStatusResponse ToResponse() => new(
-        RootFolderId, State, StartedAt, FinishedAt, FoldersTotal, FoldersProcessed, MoviesAdded, VersionsAdded, FilesAdded, Unmapped, CurrentFolder, Error);
+        RootFolderId, State, StartedAt, FinishedAt, FoldersTotal, FoldersProcessed, MoviesAdded, VersionsAdded, FilesAdded, Unmapped, CurrentFolder, Error, SeriesAdded, UnmatchedFiles, SeriesId);
 }

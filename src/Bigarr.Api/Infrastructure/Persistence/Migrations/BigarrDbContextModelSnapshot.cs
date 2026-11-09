@@ -561,6 +561,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("Kind")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Path")
                         .IsRequired()
                         .HasMaxLength(1024)
@@ -1639,6 +1642,15 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int?>("Runtime")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("SceneAbsoluteEpisodeNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("SceneEpisodeNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("SceneSeasonNumber")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("SeasonId")
                         .HasColumnType("INTEGER");
 
@@ -1659,6 +1671,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int?>("TvdbId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("UnverifiedSceneNumbering")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("SeasonId");
@@ -1672,6 +1687,8 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("SeriesId", "AbsoluteEpisodeNumber");
 
                     b.HasIndex("SeriesId", "AirDate");
+
+                    b.HasIndex("SeriesId", "SceneSeasonNumber", "SceneEpisodeNumber");
 
                     b.HasIndex("SeriesId", "SeasonNumber", "EpisodeNumber");
 
@@ -1730,6 +1747,37 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("EpisodeFiles", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.SceneName", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CleanTitle")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("SceneSeasonNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TvdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CleanTitle");
+
+                    b.HasIndex("TvdbId");
+
+                    b.ToTable("SceneNames", (string)null);
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Tv.Season", b =>
@@ -1829,6 +1877,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int?>("Runtime")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("SceneNumberingRefreshedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("SeriesType")
                         .HasColumnType("INTEGER");
 
@@ -1849,6 +1900,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("TvdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("UseSceneNumbering")
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("Year")
@@ -1979,6 +2033,49 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("TagId");
 
                     b.ToTable("SeriesVersionTags", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.UnmatchedEpisodeFile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DiscoveredAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("LastSeenAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Reason")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RelativePath")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("VersionId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SeriesId");
+
+                    b.HasIndex("VersionId", "RelativePath")
+                        .IsUnique();
+
+                    b.ToTable("UnmatchedEpisodeFiles", (string)null);
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Movies.MovieVersion", b =>
@@ -2544,6 +2641,25 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Tag");
+
+                    b.Navigation("Version");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.UnmatchedEpisodeFile", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Tv.Series", "Series")
+                        .WithMany()
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Bigarr.Domain.Tv.SeriesVersion", "Version")
+                        .WithMany()
+                        .HasForeignKey("VersionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Series");
 
                     b.Navigation("Version");
                 });

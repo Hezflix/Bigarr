@@ -135,6 +135,11 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             return Failure.Invalid("Unknown root folder", $"No root folder with id {request.RootFolderId}.");
         }
 
+        if (root.Kind != MediaKind.Movies)
+        {
+            return Failure.Invalid("Not a film root folder", $"'{root.Path}' holds series. Pick a film root folder.");
+        }
+
         var versionName = string.IsNullOrWhiteSpace(request.VersionName) ? VersionNaming.FromProfile(profile.Name) : request.VersionName.Trim();
         if (!Slug.IsValid(versionName))
         {
@@ -236,6 +241,11 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
         if (root is null)
         {
             return Failure.Invalid("Unknown root folder", $"No root folder with id {rootId}.");
+        }
+
+        if (root.Kind != MediaKind.Movies)
+        {
+            return Failure.Invalid("Not a film root folder", $"'{root.Path}' holds series. Pick a film root folder.");
         }
 
         var constraints = MovieMapper.FromConstraints(request.Constraints);

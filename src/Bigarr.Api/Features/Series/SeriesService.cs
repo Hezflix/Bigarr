@@ -4,6 +4,8 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Persistence;
+using Bigarr.Api.Infrastructure.Xem;
+using Bigarr.Domain.Library;
 using Bigarr.Domain.Common;
 using Bigarr.Domain.Metadata;
 using Bigarr.Domain.Movies;
@@ -15,7 +17,7 @@ using Microsoft.EntityFrameworkCore;
 /// Application rules of the Series slice: lookup, add, versions, monitoring, refresh, delete. Nothing here touches the
 /// disk: the scan and the import come with the Sonarr parser.
 /// </summary>
-public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataProvider metadata, TimeProvider time, ILogger<SeriesService> logger)
+public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataProvider metadata, XemService xem, TimeProvider time, ILogger<SeriesService> logger)
 {
     public DateTime Now => time.GetUtcNow().UtcDateTime;
 
@@ -110,6 +112,11 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             return Failure.Invalid("Unknown root folder", $"No root folder with id {request.RootFolderId}.");
         }
 
+        if (root.Kind != MediaKind.Series)
+        {
+            return Failure.Invalid("Not a series root folder", $"'{root.Path}' holds films. Pick a series root folder or change its kind in Settings → Library.");
+        }
+
         var versionName = string.IsNullOrWhiteSpace(request.VersionName) ? VersionNaming.FromProfile(profile.Name) : request.VersionName.Trim();
         if (!Slug.IsValid(versionName))
         {
@@ -161,7 +168,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             Mode = VersionMode.Managed,
             QualityProfile = profile,
             RootFolder = root,
-            FolderName = FolderNameBuilder.Build(series.Title, series.Year),
+            FolderName = string.IsNullOrWhiteSpace(request.FolderName) ? FolderNameBuilder.Build(series.Title, series.Year) : FolderNameBuilder.Sanitize(request.FolderName),
             IsDefault = true,
             Monitored = request.Monitored,
             SeasonFolder = request.SeasonFolder,
@@ -172,6 +179,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         series.Versions.Add(version);
         AttachVersion(series, version, request.Monitor);
         series.AddedAt = Now;
+        await xem.RefreshSeriesAsync(series, series.Episodes.ToList(), ct);
 
         db.Series.Add(series);
         try
@@ -246,6 +254,11 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         if (root is null)
         {
             return Failure.Invalid("Unknown root folder", $"No root folder with id {rootId}.");
+        }
+
+        if (root.Kind != MediaKind.Series)
+        {
+            return Failure.Invalid("Not a series root folder", $"'{root.Path}' holds films.");
         }
 
         var tags = await ResolveTagsAsync(request.TagIds, ct);
@@ -475,6 +488,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         series.ApplyMetadata(found);
         series.LastMetadataRefreshAt = Now;
         var sync = SyncCatalogue(series, found, series.Episodes.ToList());
+        await xem.RefreshSeriesAsync(series, series.Episodes.ToList(), ct);
 
         foreach (var version in series.Versions)
         {

@@ -22,6 +22,7 @@ public sealed class EpisodeConfiguration : IEntityTypeConfiguration<Episode>
         builder.HasIndex(e => new { e.SeriesId, e.SeasonNumber, e.EpisodeNumber });
         builder.HasIndex(e => new { e.SeriesId, e.AbsoluteEpisodeNumber });
         builder.HasIndex(e => new { e.SeriesId, e.AirDate });
+        builder.HasIndex(e => new { e.SeriesId, e.SceneSeasonNumber, e.SceneEpisodeNumber });
 
         builder.HasOne(e => e.Season)
             .WithMany()

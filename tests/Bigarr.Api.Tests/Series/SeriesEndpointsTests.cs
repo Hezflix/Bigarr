@@ -8,6 +8,7 @@ using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Tests.Auth;
 using Bigarr.Api.Tests.Metadata;
 using Bigarr.Domain.Acquisition;
+using Bigarr.Domain.Library;
 using Bigarr.Domain.Tv;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -336,11 +337,11 @@ public sealed class SeriesEndpointsTests(SeriesApiFactory factory) : IClassFixtu
         var profiles = await client.GetFromJsonAsync<List<QualityProfileSummary>>("/api/v1/qualityprofiles", Json);
         var hd = profiles!.Single(p => p.Name == QualitySeeder.HdProfileName);
 
-        var roots = await client.GetFromJsonAsync<List<RootFolderResponse>>("/api/v1/rootfolders", Json);
-        if (roots!.Count == 0)
+        var roots = (await client.GetFromJsonAsync<List<RootFolderResponse>>("/api/v1/rootfolders", Json))!.Where(r => r.Kind == MediaKind.Series).ToList();
+        if (roots.Count == 0)
         {
             var dir = Directory.CreateTempSubdirectory("bigarr-series-").FullName;
-            var created = await client.PostAsJsonAsync("/api/v1/rootfolders", new AddRootFolderRequest(dir));
+            var created = await client.PostAsJsonAsync("/api/v1/rootfolders", new AddRootFolderRequest(dir, MediaKind.Series));
             Assert.Equal(HttpStatusCode.Created, created.StatusCode);
             roots = [(await created.Content.ReadFromJsonAsync<RootFolderResponse>(Json))!];
         }

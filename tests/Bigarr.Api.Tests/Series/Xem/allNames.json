@@ -1,0 +1,42 @@
+{
+ "result": "success",
+ "data": {
+  "79151": [
+   {
+    "Fate Stay Night": -1
+   },
+   {
+    "Fate Stay Night (2006)": -1
+   }
+  ],
+  "79824": [
+   {
+    "Naruto Shippuuden": -1
+   },
+   {
+    "NARUTO 疾風伝": -1
+   },
+   {
+    "Naruto Shippuuden": -1
+   }
+  ],
+  "424536": [
+   {
+    "Sousou no Frieren": -1
+   },
+   {
+    "Frieren Nach dem Ende der Reise": -1
+   },
+   {
+    "Sousou no Frieren S2": 2
+   },
+   {
+    "Sousou no Frieren 2nd Season": 2
+   },
+   {
+    "Frieren Beyond Journeys End S2": 2
+   }
+  ]
+ },
+ "message": ""
+}

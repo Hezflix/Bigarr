@@ -14,6 +14,7 @@ public static class RootFoldersEndpoints
 
         group.MapGet("/", ListAsync);
         group.MapPost("/", AddAsync);
+        group.MapPut("/{id:int}", UpdateAsync);
         group.MapDelete("/{id:int}", DeleteAsync);
         group.MapGet("/unmapped", ListUnmappedAsync);
         group.MapGet("/{id:int}/unmapped", ListUnmappedForRootAsync);
@@ -28,8 +29,14 @@ public static class RootFoldersEndpoints
 
     private static async Task<Results<Created<RootFolderResponse>, ProblemHttpResult>> AddAsync(AddRootFolderRequest request, RootFolderService roots, CancellationToken ct)
     {
-        var result = await roots.AddAsync(request.Path, ct);
+        var result = await roots.AddAsync(request.Path, ct, request.Kind);
         return result.IsSuccess ? TypedResults.Created($"/api/v1/rootfolders/{result.Value!.Id}", result.Value) : result.Failure!.ToProblem();
+    }
+
+    private static async Task<Results<Ok<RootFolderResponse>, ProblemHttpResult>> UpdateAsync(int id, UpdateRootFolderRequest request, RootFolderService roots, CancellationToken ct)
+    {
+        var result = await roots.SetKindAsync(id, request.Kind, ct);
+        return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
     }
 
     private static async Task<Results<NoContent, ProblemHttpResult>> DeleteAsync(int id, BigarrDbContext db, LibraryScanRunner scans, CancellationToken ct)
@@ -41,7 +48,9 @@ public static class RootFoldersEndpoints
         }
 
         var inUse = await db.MovieVersions.CountAsync(v => v.RootFolderId == id, ct)
-                    + await db.Movies.CountAsync(m => m.DefaultRootFolderId == id, ct);
+                    + await db.Movies.CountAsync(m => m.DefaultRootFolderId == id, ct)
+                    + await db.SeriesVersions.CountAsync(v => v.RootFolderId == id, ct)
+                    + await db.Series.CountAsync(s => s.DefaultRootFolderId == id, ct);
         if (inUse > 0)
         {
             return Failure.Conflict("Root folder in use", $"{inUse} version(s) or movie default(s) still point at '{root.Path}'. Move them first.").ToProblem();
@@ -96,6 +105,6 @@ public static class RootFoldersEndpoints
 
         var rows = await query.OrderBy(u => u.RootFolder.Path).ThenBy(u => u.RelativePath).ToListAsync(ct);
         return rows.Select(u => new UnmappedFolderResponse(
-            u.Id, u.RootFolderId, u.RelativePath, Path.Combine(u.RootFolder.Path, u.RelativePath), u.FileCount, u.Reason, u.Detail, u.DiscoveredAt, u.LastSeenAt)).ToList();
+            u.Id, u.RootFolderId, u.RelativePath, Path.Combine(u.RootFolder.Path, u.RelativePath), u.FileCount, u.Reason, u.Detail, u.DiscoveredAt, u.LastSeenAt, u.RootFolder.Kind)).ToList();
     }
 }

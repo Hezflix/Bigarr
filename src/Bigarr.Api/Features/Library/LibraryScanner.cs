@@ -15,8 +15,10 @@ namespace Bigarr.Api.Features.Library;
 /// Read-only scan of an existing library (blueprint §5): one first-level folder = one film, one video file = one version
 /// on the system profile <c>Any</c>, unmonitored, folder name observed on disk. Never moves or renames anything.
 /// </summary>
-public sealed partial class LibraryScanner(BigarrDbContext db, IMetadataProvider metadata, TimeProvider time, ILogger<LibraryScanner> logger)
+public sealed partial class LibraryScanner(BigarrDbContext db, IMetadataProvider metadata, TimeProvider time, ILogger<LibraryScanner> logger) : IRootFolderScanner
 {
+    public MediaKind Kind => MediaKind.Movies;
+
     public static HashSet<string> VideoExtensions => VideoFiles.Extensions;
 
     private static readonly HashSet<string> ExtrasFolders = new(StringComparer.OrdinalIgnoreCase)
@@ -33,6 +35,11 @@ public sealed partial class LibraryScanner(BigarrDbContext db, IMetadataProvider
     {
         var root = await db.RootFolders.FindAsync([rootFolderId], ct)
                    ?? throw new InvalidOperationException($"Root folder {rootFolderId} no longer exists.");
+
+        if (root.Kind != MediaKind.Movies)
+        {
+            throw new InvalidOperationException($"'{root.Path}' is a series root folder; the film scan does not walk it.");
+        }
 
         if (!Directory.Exists(root.Path))
         {

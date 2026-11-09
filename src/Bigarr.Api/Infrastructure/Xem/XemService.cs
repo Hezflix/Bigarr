@@ -1,0 +1,165 @@
+using Bigarr.Api.Infrastructure.Persistence;
+using Bigarr.Domain.Tv;
+using Bigarr.Parsing.Episodes;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+
+namespace Bigarr.Api.Infrastructure.Xem;
+
+/// <summary>The list of TVDB ids XEM has a mapping for, kept 3 hours like Sonarr's cache. Singleton.</summary>
+public sealed class XemMappedIds(TimeProvider time)
+{
+    private static readonly TimeSpan Lifetime = TimeSpan.FromHours(3);
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private HashSet<int>? _ids;
+    private DateTimeOffset _fetchedAt;
+
+    /// <summary>Null when the list could not be fetched yet: callers then ask for the series' mapping directly.</summary>
+    public async Task<HashSet<int>?> GetAsync(IXemClient client, ILogger logger, CancellationToken ct)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            if (_ids is not null && time.GetUtcNow() - _fetchedAt < Lifetime)
+            {
+                return _ids;
+            }
+
+            try
+            {
+                _ids = [.. await client.GetMappedTvdbIdsAsync(ct)];
+                _fetchedAt = time.GetUtcNow();
+            }
+            catch (Exception ex) when (XemService.IsUnreachable(ex, ct))
+            {
+                logger.LogWarning("TheXEM series list unavailable: {Message}", ex.Message);
+            }
+
+            return _ids;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+}
+
+/// <summary>
+/// Keeps XEM data in the database: scene numbers on episodes (refreshed with the series metadata and on the slow
+/// schedule) and scene names (global, slow schedule). TheXEM being down never fails a caller: the last known data stays.
+/// </summary>
+public sealed class XemService(BigarrDbContext db, IXemClient client, XemMappedIds mappedIds, IOptions<XemOptions> options, TimeProvider time, ILogger<XemService> logger)
+{
+    public bool Enabled => options.Value.Enabled;
+
+    /// <summary>
+    /// Fetches the series' mapping and writes scene numbers onto <paramref name="episodes"/> (tracked or new; the caller
+    /// saves). Returns false when nothing could be fetched. Only the TVDB order has scene numbers.
+    /// </summary>
+    public async Task<bool> RefreshSeriesAsync(Domain.Tv.Series series, IReadOnlyCollection<Episode> episodes, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(series);
+        if (!Enabled || series.TvdbId is not { } tvdbId || series.Ordering != EpisodeOrder.Tvdb)
+        {
+            return false;
+        }
+
+        try
+        {
+            var mapped = await mappedIds.GetAsync(client, logger, ct);
+            IReadOnlyList<XemMapping> mappings = mapped is not null && !mapped.Contains(tvdbId) && !series.UseSceneNumbering
+                ? []
+                : await client.GetMappingsAsync(tvdbId, ct);
+
+            if (mappings.Count == 0 && !series.UseSceneNumbering)
+            {
+                series.SceneNumberingRefreshedAt = time.GetUtcNow().UtcDateTime;
+                return true;
+            }
+
+            series.UseSceneNumbering = XemNumbering.Apply(episodes, mappings);
+            series.SceneNumberingRefreshedAt = time.GetUtcNow().UtcDateTime;
+            logger.LogDebug("XEM mapping for {Title}: {Count} row(s)", series.Title, mappings.Count);
+            return true;
+        }
+        catch (Exception ex) when (IsUnreachable(ex, ct))
+        {
+            logger.LogWarning("TheXEM unavailable for {Title} (tvdb {TvdbId}), scene numbers kept as they were: {Message}", series.Title, tvdbId, ex.Message);
+            return false;
+        }
+    }
+
+    /// <summary>Replaces the scene names with XEM's list. Returns the count, or null when XEM could not be read.</summary>
+    public async Task<int?> RefreshNamesAsync(CancellationToken ct)
+    {
+        if (!Enabled)
+        {
+            return null;
+        }
+
+        IReadOnlyList<XemName> names;
+        try
+        {
+            names = await client.GetNamesAsync(ct);
+        }
+        catch (Exception ex) when (IsUnreachable(ex, ct))
+        {
+            logger.LogWarning("TheXEM scene names unavailable, the previous list stays: {Message}", ex.Message);
+            return null;
+        }
+
+        if (names.Count == 0)
+        {
+            return 0;
+        }
+
+        var rows = names
+            .Select(n => new SceneName { TvdbId = n.TvdbId, Title = Truncate(n.Title), CleanTitle = Truncate(n.Title.CleanSeriesTitle()), SceneSeasonNumber = n.SceneSeasonNumber })
+            .Where(n => n.CleanTitle.Length > 0)
+            .DistinctBy(n => (n.TvdbId, n.CleanTitle, n.SceneSeasonNumber))
+            .ToList();
+
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await db.SceneNames.ExecuteDeleteAsync(ct);
+        db.SceneNames.AddRange(rows);
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        db.ChangeTracker.Clear();
+        return rows.Count;
+    }
+
+    /// <summary>The slow schedule: scene names, then the mapping of every series with a TVDB id.</summary>
+    public async Task<string> RefreshAllAsync(CancellationToken ct)
+    {
+        if (!Enabled)
+        {
+            return "TheXEM is disabled";
+        }
+
+        var names = await RefreshNamesAsync(ct);
+        var ids = await db.Series.Where(s => s.TvdbId != null).OrderBy(s => s.Id).Select(s => s.Id).ToListAsync(ct);
+        int refreshed = 0, mapped = 0;
+        foreach (var id in ids)
+        {
+            ct.ThrowIfCancellationRequested();
+            var series = await db.Series.FirstAsync(s => s.Id == id, ct);
+            var episodes = await db.Episodes.Where(e => e.SeriesId == id).ToListAsync(ct);
+            if (await RefreshSeriesAsync(series, episodes, ct))
+            {
+                refreshed++;
+                mapped += series.UseSceneNumbering ? 1 : 0;
+                await db.SaveChangesAsync(ct);
+            }
+
+            db.ChangeTracker.Clear();
+        }
+
+        return $"{(names is null ? "scene names unavailable" : $"{names} scene name(s)")}, {refreshed}/{ids.Count} series checked, {mapped} with scene numbering";
+    }
+
+    internal static bool IsUnreachable(Exception ex, CancellationToken ct) =>
+        ex is HttpRequestException or System.Text.Json.JsonException or NotSupportedException
+        || (ex is TaskCanceledException or OperationCanceledException && !ct.IsCancellationRequested);
+
+    private static string Truncate(string value) => value.Length > 500 ? value[..500] : value;
+}

@@ -132,7 +132,7 @@ public sealed class SeriesRefreshTests : IDisposable
     private async Task<(int SeriesId, int Hd, int Uhd)> SeedAsync()
     {
         await using var db = _database.CreateContext();
-        var root = db.RootFolders.Add(new RootFolder { Path = "/data/tv" }).Entity;
+        var root = db.RootFolders.Add(new RootFolder { Path = "/data/tv", Kind = MediaKind.Series }).Entity;
         var profile = db.QualityProfiles.Add(new QualityProfile { Name = "1080p", PreferredLanguage = "en", Cutoff = TestData.BlurayQualityId }).Entity;
         if (!await db.QualityDefinitions.AnyAsync(q => q.Id == TestData.BlurayQualityId))
         {
@@ -160,7 +160,7 @@ public sealed class SeriesRefreshTests : IDisposable
             .SingleAsync();
 
     private SeriesService Service(BigarrDbContext db) =>
-        new(db, _provider, new FixedTimeProvider(Now), NullLogger<SeriesService>.Instance);
+        new(db, _provider, XemFakes.Disabled(db, new FixedTimeProvider(Now)), new FixedTimeProvider(Now), NullLogger<SeriesService>.Instance);
 
     private static SeriesMetadata Show(int[] seasons, params EpisodeMetadata[] episodes) => new()
     {

@@ -44,6 +44,8 @@ public class BigarrApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Bigarr:Downloads:Enabled", "false");
         // Scheduled tasks run through POST /api/v1/system/tasks/{name}/run, never on their own.
         builder.UseSetting("Bigarr:Scheduler:Enabled", "false");
+        // TheXEM is never called from the tests; the XEM tests swap in recorded answers.
+        builder.UseSetting("Bigarr:Xem:Enabled", "false");
         foreach (var (key, value) in _settings)
         {
             builder.UseSetting(key, value);
