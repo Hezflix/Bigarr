@@ -226,47 +226,49 @@ function FactsGrid({ session }: { session: PlaybackSession }) {
 }
 
 /**
- * A stream as a tile, over the film's backdrop (blurred so it never fights the text, tinted most where the text is):
- * the poster, the title with the decision and the version, the user and the player, the facts grid, and the progress
- * pinned to the bottom so it lines up across a row whatever the number of facts. The stripe on the left says whether
- * the stream is in trouble.
+ * A stream as a tile: the film's backdrop as a banner with the poster, the title, the user, the player and its
+ * platform, the decision and the version on it; the facts grid under it; the progress pinned to the bottom so it lines
+ * up across a row whatever the number of facts.
  */
 function SessionCard({ session }: { session: PlaybackSession }) {
   const { t } = useTranslation()
   const d = session.details
+  const player = [d.playerTitle ?? d.playerProduct, d.playerPlatform].filter(Boolean).join(' · ')
 
   return (
-    <Card className="relative isolate h-full gap-0 overflow-hidden p-0" data-session={session.id}>
-      {session.fanartUrl && <img src={tmdbSize(session.fanartUrl, 780)} alt="" aria-hidden="true" className="absolute inset-0 -z-10 size-full scale-110 object-cover blur-md" />}
-      <div className="absolute inset-0 -z-10 bg-gradient-to-r from-card/85 via-card/80 to-card/50" />
-      <Stripe session={session} />
-      <div className="flex h-full flex-col gap-3 py-4 pr-4 pl-6">
-        <div className="flex gap-4">
-          <PosterImage session={session} width={342} className="w-24 self-start shadow-md" />
-          <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-1.5 font-semibold">
-                <StateIcon session={session} className="size-4" />
-                <span className="truncate">
-                  <Title session={session} />
-                </span>
-              </div>
-              <div className="flex shrink-0 items-center gap-1.5">
-                <DecisionBadge decision={d.decision} />
-                {session.versionName && <Badge variant="secondary">{session.versionName}</Badge>}
-              </div>
-            </div>
-            <div className="flex min-w-0 items-center gap-2 text-sm">
-              <Avatar name={session.user.name} url={session.user.thumbUrl} className="size-6 text-[10px]" />
-              <span className="shrink-0">{session.user.name}</span>
-              <span className="ml-auto truncate text-xs text-muted-foreground">
-                {d.playerTitle ?? d.playerProduct ?? t('common.none')}
-                {d.playerPlatform ? ` · ${d.playerPlatform}` : ''}
+    <Card className="relative h-full gap-0 overflow-hidden p-0" data-session={session.id} data-severity={severityKeys[severity(session)]}>
+      <div className="relative isolate h-28">
+        {session.fanartUrl ? (
+          <img src={tmdbSize(session.fanartUrl, 780)} alt="" aria-hidden="true" className="absolute inset-0 -z-10 size-full object-cover" />
+        ) : (
+          <div className="absolute inset-0 -z-10 bg-muted" />
+        )}
+        <div className="absolute inset-0 -z-10 bg-gradient-to-t from-card via-card/80 to-card/20" />
+        <div className="absolute inset-x-0 bottom-0 flex items-end gap-3 px-5 pb-2">
+          <PosterImage session={session} width={185} className="w-16 shadow-lg" />
+          <div className="min-w-0 flex-1 pb-1">
+            <div className="flex items-center gap-1.5 text-lg font-semibold">
+              <StateIcon session={session} className="size-4" />
+              <span className="truncate">
+                <Title session={session} />
               </span>
             </div>
-            <FactsGrid session={session} />
+            <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
+              <Avatar name={session.user.name} url={session.user.thumbUrl} className="size-4 text-[9px]" />
+              <span className="truncate" title={player}>
+                {session.user.name}
+                {player && ` · ${player}`}
+              </span>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5 pb-1">
+            <DecisionBadge decision={d.decision} />
+            {session.versionName && <Badge variant="secondary">{session.versionName}</Badge>}
           </div>
         </div>
+      </div>
+      <div className="flex flex-1 flex-col gap-3 px-5 pt-3 pb-4">
+        <FactsGrid session={session} />
         {/* Pinned to the bottom: the bar sits at the same height on every tile of a row. */}
         <div className="mt-auto flex flex-col gap-1">
           <Progress value={progressOf(session)} aria-label={t('playback.progress')} />
