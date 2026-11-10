@@ -240,7 +240,8 @@ function SessionCard({ session, onStop }: { session: PlaybackSession; onStop: (s
           <div className="absolute inset-0 -z-10 bg-muted" />
         )}
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-card via-card/80 to-card/20" />
-        {session.canStop && <StopButton session={session} onStop={onStop} className="absolute top-2 right-2" />}
+        {/* Above the banner content, which spans the whole banner and would take the pointer otherwise. */}
+        {session.canStop && <StopButton session={session} onStop={onStop} className="absolute top-2 right-2 z-10" />}
         <div className="absolute inset-x-0 bottom-0 flex items-end gap-3 px-5 pb-2">
           <PosterImage session={session} width={185} className="w-16 shadow-lg" />
           <div className="min-w-0 flex-1 pb-1">
