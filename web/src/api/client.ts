@@ -2059,7 +2059,6 @@ export type PlaybackUserStats = {
   watchTime: WatchTime[]
   players: { player: string; platform: string | null; plays: number; seconds: number; lastPlayedAt: string }[]
   decisions: DecisionCounts
-  addresses: { ipAddress: string; local: boolean | null; plays: number; firstSeenAt: string; lastSeenAt: string }[]
 }
 
 export type UpdatePlaybackUser = { displayName: string | null; keepHistory: boolean | null }

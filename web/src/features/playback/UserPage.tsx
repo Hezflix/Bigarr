@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatDate, formatDateTime } from '@/i18n'
 import { DecisionShare } from './DecisionShare'
-import { formatPlayed } from './format'
+import { formatPlayed, locationText } from './format'
 import { PlayDetailDialog } from './PlayDetailDialog'
 import { PlaysTable } from './PlaysTable'
 import { Avatar, EditUserDialog } from './UsersPage'
@@ -87,7 +87,7 @@ export function UserPage() {
             <DecisionShare decisions={u.decisions} />
           </Section>
           <Section title={t('playback.addresses')}>
-            <AddressesTable user={u} />
+            <AddressesTable userId={id} />
           </Section>
         </div>
       </div>
@@ -140,32 +140,35 @@ function PlayersTable({ user }: { user: PlaybackUserStats }) {
 }
 
 /**
- * Where the user played from. The place of each public address comes with the addresses endpoint of the
- * geolocation work (`/playback/users/{id}/addresses`): once it is on main, this table reads it and gains a Location
- * column; until then it lists the addresses the stats know.
+ * Where the user played from, newest first, from the addresses endpoint: the place of each public address is looked up
+ * when the page asks (and remembered), a LAN address says "Local network", an unknown place stays blank.
  */
-function AddressesTable({ user }: { user: PlaybackUserStats }) {
+function AddressesTable({ userId }: { userId: number }) {
   const { t } = useTranslation()
-  if (user.addresses.length === 0) return <p className="text-sm text-muted-foreground">{t('playback.noAddresses')}</p>
+  const addresses = useQuery({ queryKey: ['playback', 'user', userId, 'addresses'], queryFn: () => playback.addresses(userId) })
+  if (addresses.isPending) return <Skeleton className="h-16 w-full" />
+  if (!addresses.data || addresses.data.length === 0) return <p className="text-sm text-muted-foreground">{t('playback.noAddresses')}</p>
   return (
     <Table data-testid="user-addresses">
       <TableHeader>
         <TableRow>
           <TableHead>{t('playback.ip')}</TableHead>
-          <TableHead className="text-right">{t('playback.plays')}</TableHead>
-          <TableHead>{t('playback.firstSeenColumn')}</TableHead>
+          <TableHead>{t('playback.location')}</TableHead>
+          <TableHead className="text-right">{t('playback.streamsColumn')}</TableHead>
           <TableHead>{t('playback.lastSeen')}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {user.addresses.map((a) => (
+        {addresses.data.map((a) => (
           <TableRow key={a.ipAddress}>
-            <TableCell className="font-mono text-xs">
-              {a.ipAddress} {a.local && <Badge variant="secondary">{t('playback.lan')}</Badge>}
+            <TableCell className="font-mono text-xs">{a.ipAddress}</TableCell>
+            <TableCell className="text-sm" title={locationText(a.location, t('playback.localNetwork')) ?? undefined}>
+              {locationText(a.location, t('playback.localNetwork'), true)}
             </TableCell>
-            <TableCell className="text-right tabular-nums">{a.plays}</TableCell>
-            <TableCell className="text-sm text-muted-foreground">{formatDate(a.firstSeenAt)}</TableCell>
-            <TableCell className="text-sm text-muted-foreground">{formatDateTime(a.lastSeenAt)}</TableCell>
+            <TableCell className="text-right tabular-nums">{a.streams}</TableCell>
+            <TableCell className="text-sm text-muted-foreground" title={t('playback.firstSeen', { date: formatDate(a.firstSeenAt) })}>
+              {formatDateTime(a.lastSeenAt)}
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>
