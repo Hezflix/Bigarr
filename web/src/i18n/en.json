@@ -1917,7 +1917,7 @@
       "serverTitle": "On the server: {{title}}",
       "suggest": "Suggest films",
       "suggestions": "Suggestions",
-      "noSuggestion": "No likely film in the library. Search by title below.",
+      "noSuggestion": "No likely film in the library. Type a title to search it.",
       "tmdbUnavailable": "TMDB could not be reached: the library alone was looked at.",
       "suggestFailed": "Could not get suggestions.",
       "reasons": {

@@ -45,7 +45,8 @@ function LinkFilmForm({ item, onClose, onLinked }: { item: PlaybackItemRef; onCl
   const library = useQuery({ queryKey: ['movies'], queryFn: movies.list })
   const term = useDeferredValue(search.trim())
   const tmdb = useQuery({ queryKey: ['movies', 'lookup', term], queryFn: () => movies.lookup(term), enabled: term.length >= 2, staleTime: 5 * 60_000, retry: false })
-  // Only once asked for: opening the picker never runs it.
+  // Only once asked for: opening the picker never runs it. Suggestions and search results take turns in the same place:
+  // typing a title goes back to the search, Suggest brings the suggestions back.
   const [suggesting, setSuggesting] = useState(false)
   const suggestions = useQuery({ queryKey: ['playback', 'suggestions', item.id], queryFn: () => playback.linkSuggestions(item.id), enabled: suggesting, retry: false })
   const pick = (id: number) => {
@@ -97,15 +98,18 @@ function LinkFilmForm({ item, onClose, onLinked }: { item: PlaybackItemRef; onCl
         <div className="flex gap-2">
           <div className="relative min-w-0 flex-1">
             <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-            <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('playback.link.search')} aria-label={t('playback.link.search')} className="pl-8" autoFocus data-testid="link-search" />
+            <Input type="search" value={search} onChange={(e) => {
+                setSearch(e.target.value)
+                setSuggesting(false)
+              }} placeholder={t('playback.link.search')} aria-label={t('playback.link.search')} className="pl-8" autoFocus data-testid="link-search" />
           </div>
-          <Button type="button" variant="outline" className="shrink-0 gap-1.5" onClick={() => (suggesting ? void suggestions.refetch() : setSuggesting(true))} disabled={suggestions.isFetching} data-testid="suggest-films">
+          <Button type="button" variant="outline" className="shrink-0 gap-1.5" onClick={() => (suggesting ? void suggestions.refetch() : setSuggesting(true))} aria-pressed={suggesting} disabled={suggestions.isFetching} data-testid="suggest-films">
             {suggestions.isFetching ? <LoaderIcon className="animate-spin" aria-hidden="true" /> : <SparklesIcon aria-hidden="true" />}
             {t('playback.link.suggest')}
           </Button>
         </div>
         {suggesting && <Suggestions query={suggestions} movieId={movieId} onPick={pick} />}
-        <ul className={cn('overflow-y-auto rounded-md border p-1', suggesting ? 'h-44' : 'h-64')} role="listbox" aria-label={t('playback.link.films')}>
+        <ul className={cn('h-64 overflow-y-auto rounded-md border p-1', suggesting && 'hidden')} role="listbox" aria-label={t('playback.link.films')} data-testid="link-results">
           {library.isPending && <Skeleton className="h-full w-full" />}
           {films.map((film) => (
             <li key={film.id} role="option" aria-selected={film.id === movieId}>
