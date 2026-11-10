@@ -75,6 +75,7 @@ const notificationsRoute = createRoute({ getParentRoute: () => appRoute, path: '
 const connectRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/connect', component: lazyRouteComponent(() => import('./features/settings/ConnectPage'), 'ConnectPage') })
 const mediaServersRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/mediaservers', component: lazyRouteComponent(() => import('./features/settings/MediaServersPage'), 'MediaServersPage') })
 const importRadarrRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/import-radarr', component: lazyRouteComponent(() => import('./features/settings/ImportRadarrPage'), 'ImportRadarrPage') })
+const importTautulliRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/import-tautulli', component: lazyRouteComponent(() => import('./features/settings/ImportTautulliPage'), 'ImportTautulliPage') })
 const followedRadarrsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/followed-radarrs', component: lazyRouteComponent(() => import('./features/settings/RadarrFollowPage'), 'RadarrFollowPage') })
 
 const router = createRouter({
@@ -101,6 +102,7 @@ const router = createRouter({
       connectRoute,
       mediaServersRoute,
       importRadarrRoute,
+      importTautulliRoute,
       followedRadarrsRoute,
       qualitySettingsRoute,
       customFormatsRoute,

@@ -150,6 +150,11 @@ builder.Services.AddScoped<RadarrImportService>();
 builder.Services.AddSingleton<RadarrImportRunner>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<RadarrImportRunner>());
 
+// Moving in from Tautulli: its play history, read from a copy of its database.
+builder.Services.AddScoped<TautulliImportService>();
+builder.Services.AddSingleton<TautulliImportRunner>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<TautulliImportRunner>());
+
 // Shadow mode: the Radarrs Bigarr follows (history, grabs, library) to compare its picks with what they grab.
 builder.Services.AddSingleton<RadarrFollowMemory>();
 builder.Services.AddScoped<RadarrFollower>();

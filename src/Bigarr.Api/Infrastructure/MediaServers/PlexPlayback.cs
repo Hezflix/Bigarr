@@ -278,25 +278,26 @@ public static class PlexPlayback
     /// TMDB, IMDb and TVDB ids from the item's <c>Guid</c> list (new agents), or from a legacy agent guid
     /// (<c>com.plexapp.agents.imdb://tt0133093?lang=en</c>, <c>com.plexapp.agents.thetvdb://81189/1/2</c>).
     /// </summary>
-    public static PlexIds IdsOf(JsonElement item, string? guid)
+    public static PlexIds IdsOf(JsonElement item, string? guid) =>
+        IdsOf([.. Array(item, "Guid").Select(entry => Str(entry, "id")), guid]);
+
+    /// <summary>
+    /// TMDB, IMDb and TVDB ids from guids, the first of each kind winning: <c>tmdb://</c>, <c>imdb://</c>, <c>tvdb://</c>
+    /// and the legacy agents' <c>com.plexapp.agents.themoviedb|imdb|thetvdb://</c> (a TVDB episode guid gives the show).
+    /// </summary>
+    public static PlexIds IdsOf(IEnumerable<string?> guids)
     {
+        ArgumentNullException.ThrowIfNull(guids);
+
         int? tmdb = null;
         string? imdb = null;
         int? tvdb = null;
-        foreach (var entry in Array(item, "Guid"))
-        {
-            Collect(Str(entry, "id"));
-        }
-
-        Collect(guid);
-        return new PlexIds(tmdb, imdb, tvdb);
-
-        void Collect(string? id)
+        foreach (var id in guids)
         {
             var sep = id?.IndexOf("://", StringComparison.Ordinal) ?? -1;
             if (id is null || sep < 0)
             {
-                return;
+                continue;
             }
 
             var scheme = id[..sep];
@@ -315,6 +316,8 @@ public static class PlexPlayback
                     break;
             }
         }
+
+        return new PlexIds(tmdb, imdb, tvdb);
     }
 
     private static PlexTranscode TranscodeOf(JsonElement transcode, long viewOffsetMs)

@@ -76,6 +76,7 @@ type NavItem = {
     | '/settings/connect'
     | '/settings/mediaservers'
     | '/settings/import-radarr'
+    | '/settings/import-tautulli'
     | '/settings/followed-radarrs'
     | '/system/status'
   label: string
@@ -136,6 +137,7 @@ function useSections(): NavSection[] {
         { to: '/settings/mediaservers', label: t('nav.settingsMediaServers'), icon: MonitorPlayIcon },
         { to: '/settings/connect', label: t('nav.settingsConnect'), icon: PlugIcon },
         { to: '/settings/import-radarr', label: t('nav.settingsImportRadarr'), icon: ImportIcon },
+        { to: '/settings/import-tautulli', label: t('nav.settingsImportTautulli'), icon: HistoryIcon },
         { to: '/settings/followed-radarrs', label: t('nav.settingsFollowedRadarrs'), icon: GitCompareArrowsIcon },
       ],
     },
