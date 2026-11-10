@@ -1,6 +1,6 @@
 namespace Bigarr.Decision.Specifications;
 
-/// <summary>Quality definitions give MB per minute of runtime; unknown runtime falls back to 110 minutes.</summary>
+/// <summary>Quality definitions give MB per minute of runtime (series sizes for episodes); unknown runtime falls back to 110 minutes.</summary>
 public sealed class SizeSpecification : IReleaseSpecification
 {
     private const long Megabyte = 1024L * 1024L;
@@ -44,18 +44,20 @@ public sealed class SizeSpecification : IReleaseSpecification
             forWhat = episodes.Slots.Count == 1 ? $"{runtime} min" : $"{episodes.Slots.Count} episodes totalling {runtime} min";
         }
 
-        if (definition.MinSize is > 0)
+        // Episodes have their own limits (Sonarr's defaults), films theirs (Radarr's).
+        var (minSize, maxSize) = target.Episodes is null ? (definition.MinSize, definition.MaxSize) : (definition.SeriesMinSize, definition.SeriesMaxSize);
+        if (minSize is > 0)
         {
-            var min = (long)(definition.MinSize.Value * runtime * Megabyte);
+            var min = (long)(minSize.Value * runtime * Megabyte);
             if (size < min)
             {
                 return new Rejection($"{Format(size)} is smaller than the minimum {Format(min)} for {definition.Name} ({forWhat})");
             }
         }
 
-        if (definition.MaxSize is > 0)
+        if (maxSize is > 0)
         {
-            var max = (long)(definition.MaxSize.Value * runtime * Megabyte);
+            var max = (long)(maxSize.Value * runtime * Megabyte);
             if (size > max)
             {
                 return new Rejection($"{Format(size)} is larger than the maximum {Format(max)} for {definition.Name} ({forWhat})");

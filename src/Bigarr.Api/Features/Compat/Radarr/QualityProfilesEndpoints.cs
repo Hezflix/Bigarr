@@ -13,7 +13,8 @@ public static class QualityProfilesEndpoints
         {
             var definitions = (await profiles.ListDefinitionsAsync(ct)).ToDictionary(d => d.Id);
             var result = new List<RadarrQualityProfile>();
-            foreach (var summary in await profiles.ListAsync(ct))
+            // Radarr's clients only see profiles a film version can take.
+            foreach (var summary in (await profiles.ListAsync(ct)).Where(p => p.Kind.ForMovies()))
             {
                 var profile = await profiles.GetAsync(summary.Id, ct);
                 if (profile is not null)
@@ -28,7 +29,7 @@ public static class QualityProfilesEndpoints
         group.MapGet("/qualityprofile/{id:int}", async Task<Results<JsonHttpResult<RadarrQualityProfile>, NotFound>> (int id, QualityProfileService profiles, CancellationToken ct) =>
         {
             var profile = await profiles.GetAsync(id, ct);
-            if (profile is null)
+            if (profile is null || !profile.Kind.ForMovies())
             {
                 return TypedResults.NotFound();
             }
@@ -42,7 +43,8 @@ public static class QualityProfilesEndpoints
         {
             var definitions = (await profiles.ListDefinitionsAsync(ct)).ToDictionary(d => d.Id);
             var result = new List<RadarrQualityProfile>();
-            foreach (var summary in await profiles.ListAsync(ct))
+            // Radarr's clients only see profiles a film version can take.
+            foreach (var summary in (await profiles.ListAsync(ct)).Where(p => p.Kind.ForMovies()))
             {
                 var profile = await profiles.GetAsync(summary.Id, ct);
                 if (profile is not null)

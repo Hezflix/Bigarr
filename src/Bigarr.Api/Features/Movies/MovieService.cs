@@ -129,6 +129,11 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             return Failure.Invalid("Unknown quality profile", $"No quality profile with id {request.QualityProfileId}.");
         }
 
+        if (Quality.ProfileKindRules.ForMovieVersion(profile) is { } wrongKind)
+        {
+            return wrongKind;
+        }
+
         var root = await db.RootFolders.FindAsync([request.RootFolderId], ct);
         if (root is null)
         {
@@ -236,6 +241,11 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             return Failure.Invalid("Unknown quality profile", $"No quality profile with id {request.QualityProfileId}.");
         }
 
+        if (Quality.ProfileKindRules.ForMovieVersion(profile) is { } wrongKind)
+        {
+            return wrongKind;
+        }
+
         var rootId = request.RootFolderId ?? movie.DefaultRootFolderId;
         var root = await db.RootFolders.FindAsync([rootId], ct);
         if (root is null)
@@ -338,6 +348,11 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             if (profile is null)
             {
                 return Failure.Invalid("Unknown quality profile", $"No quality profile with id {profileId}.");
+            }
+
+            if (Quality.ProfileKindRules.ForMovieVersion(profile) is { } wrongKind)
+            {
+                return wrongKind;
             }
 
             version.QualityProfile = profile;

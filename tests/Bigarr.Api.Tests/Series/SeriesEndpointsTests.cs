@@ -79,7 +79,7 @@ public sealed class SeriesEndpointsTests(SeriesApiFactory factory) : IClassFixtu
         Assert.Equal([0, 1, 2, 3, 4, 5], series.Seasons.Select(s => s.SeasonNumber));
 
         var version = Assert.Single(series.Versions);
-        Assert.Equal(QualitySeeder.HdProfileName.ToLowerInvariant(), version.Name);
+        Assert.Equal("1080p", version.Name);
         Assert.True(version.IsDefault);
         Assert.True(version.SeasonFolder);
         Assert.Equal("Breaking Bad (2008)", version.FolderName);
@@ -335,7 +335,7 @@ public sealed class SeriesEndpointsTests(SeriesApiFactory factory) : IClassFixtu
     private static async Task<(int ProfileId, int RootId)> SetupAsync(HttpClient client)
     {
         var profiles = await client.GetFromJsonAsync<List<QualityProfileSummary>>("/api/v1/qualityprofiles", Json);
-        var hd = profiles!.Single(p => p.Name == QualitySeeder.HdProfileName);
+        var hd = profiles!.Single(p => p.Name == QualitySeeder.SeriesHdProfileName);
 
         var roots = (await client.GetFromJsonAsync<List<RootFolderResponse>>("/api/v1/rootfolders", Json))!.Where(r => r.Kind == MediaKind.Series).ToList();
         if (roots.Count == 0)

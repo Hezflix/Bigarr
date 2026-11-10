@@ -39,6 +39,11 @@ public sealed class BulkEditService(BigarrDbContext db, MovieService movies, Out
             return Failure.Invalid("Unknown quality profile", $"No quality profile with id {request.QualityProfileId}.");
         }
 
+        if (Quality.ProfileKindRules.ForMovieVersion(profile) is { } wrongKind)
+        {
+            return wrongKind;
+        }
+
         var tags = new List<Tag>();
         if (changesTags)
         {

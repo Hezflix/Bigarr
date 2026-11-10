@@ -23,6 +23,8 @@ public sealed class SonarrImportProgress(SonarrImportRequest request)
     private int _profilesScored;
     private int _profileQualitiesCopied;
     private int _filesReplaced;
+    private int _profilesCreated;
+    private int _qualitySizesUpdated;
     private int _filesRenamed;
     private int _filesRemoved;
 
@@ -94,6 +96,10 @@ public sealed class SonarrImportProgress(SonarrImportRequest request)
 
     public void ProfileQualitiesCopied() => Interlocked.Increment(ref _profileQualitiesCopied);
 
+    public void ProfileCreated() => Interlocked.Increment(ref _profilesCreated);
+
+    public void QualitySizesUpdated(int count) => Interlocked.Add(ref _qualitySizesUpdated, count);
+
     /// <summary>Following a Sonarr: its file replaced the episode's (an upgrade, a new download).</summary>
     public void FileReplaced() => Interlocked.Increment(ref _filesReplaced);
 
@@ -125,7 +131,7 @@ public sealed class SonarrImportProgress(SonarrImportRequest request)
 
         return new SonarrImportStatusResponse(
             State, StartedAt, FinishedAt, Total, _processed, _seriesAdded, _versionsAdded, _versionsUpdated, _episodesAdded, _filesAdded, _filesMissing,
-            _skipped, _failed, _tagsAdded, _exclusionsAdded, _historyAdded, _blocklistAdded, _profilesScored, _profileQualitiesCopied, Current, Error, issues);
+            _skipped, _failed, _tagsAdded, _exclusionsAdded, _historyAdded, _blocklistAdded, _profilesScored, _profileQualitiesCopied, Current, Error, issues, _profilesCreated, _qualitySizesUpdated);
     }
 
     public static SonarrImportStatusResponse Idle { get; } =

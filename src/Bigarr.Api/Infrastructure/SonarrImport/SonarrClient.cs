@@ -146,6 +146,9 @@ public sealed record SonarrBlocklistPage(int Page, int PageSize, int TotalRecord
 
 public sealed record SonarrExclusion(int Id, int TvdbId, string? Title);
 
+/// <summary>One of Sonarr's quality definitions: sizes in MB per minute, a null max meaning no limit.</summary>
+public sealed record SonarrQualityDefinition(int Id, RadarrQualityDefinition? Quality, string? Title, double? MinSize, double? MaxSize, double? PreferredSize);
+
 /// <summary>What Sonarr's parser reads in a release title.</summary>
 public sealed record SonarrParsedEpisodeInfo(
     string? SeriesTitle,
@@ -194,6 +197,10 @@ public sealed class SonarrClient(IHttpClientFactory httpClientFactory)
 
     public Task<List<RadarrProfile>> ProfilesAsync(SonarrConnection connection, CancellationToken ct) =>
         GetAsync<List<RadarrProfile>>(connection, "/qualityprofile", ct);
+
+    /// <summary>Sonarr's quality definitions (the size limits per quality); empty when the route is missing.</summary>
+    public Task<List<SonarrQualityDefinition>> QualityDefinitionsAsync(SonarrConnection connection, CancellationToken ct) =>
+        OrEmptyAsync(() => GetAsync<List<SonarrQualityDefinition>>(connection, "/qualitydefinition", ct));
 
     /// <summary>Sonarr v3's language profiles; v4 has none (the route answers 404, or an empty list).</summary>
     public Task<List<SonarrLanguageProfile>> LanguageProfilesAsync(SonarrConnection connection, CancellationToken ct) =>

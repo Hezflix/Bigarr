@@ -72,13 +72,14 @@ public sealed class SonarrImportService(BigarrDbContext db, SonarrClient sonarr,
             return new Failure(StatusCodes.Status502BadGateway, "Sonarr did not answer", ex.Message);
         }
 
-        var profiles = await db.QualityProfiles.AsNoTracking().Select(p => new { p.Id, p.Name }).ToListAsync(ct);
+        var profiles = await db.QualityProfiles.AsNoTracking().Where(p => p.Kind == ProfileKind.Series || p.Kind == ProfileKind.Both).Select(p => new { p.Id, p.Name }).ToListAsync(ct);
         var roots = await db.RootFolders.AsNoTracking().ToListAsync(ct);
         var known = (await db.Series.AsNoTracking().Where(s => s.TvdbId != null).Select(s => s.TvdbId!.Value).ToListAsync(ct)).ToHashSet();
 
         var byProfile = snapshot.Series.GroupBy(s => s.QualityProfileId).ToDictionary(g => g.Key, g => g.Count());
         var profilePreviews = snapshot.Profiles
-            .Select(p => new RadarrProfilePreview(p.Id, p.Name, byProfile.GetValueOrDefault(p.Id), RadarrImportService.SuggestProfile(p.Name, profiles.Select(b => (b.Id, b.Name)))))
+            // A Series or Both profile of the same name, else a Series profile created from Sonarr's (0).
+            .Select(p => new RadarrProfilePreview(p.Id, p.Name, byProfile.GetValueOrDefault(p.Id), profiles.FirstOrDefault(b => string.Equals(b.Name, p.Name, StringComparison.OrdinalIgnoreCase))?.Id ?? CreateProfile))
             .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -119,6 +120,9 @@ public sealed class SonarrImportService(BigarrDbContext db, SonarrClient sonarr,
     }
 
     /// <summary>What must hold before an import is queued: a valid version name and mappings that point at things Bigarr has.</summary>
+    /// <summary>In a profile map, the Bigarr profile id that asks the import to create a Series profile from the Sonarr one.</summary>
+    public const int CreateProfile = 0;
+
     public async Task<Failure?> ValidateAsync(SonarrImportRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -133,11 +137,17 @@ public sealed class SonarrImportService(BigarrDbContext db, SonarrClient sonarr,
             return Failure.Invalid("Invalid version name", "A version name is a lowercase slug: letters, digits and single dashes.");
         }
 
-        var profileIds = (request.ProfileMap ?? []).Values.Distinct().ToList();
-        var knownProfiles = await db.QualityProfiles.Where(p => profileIds.Contains(p.Id)).Select(p => p.Id).ToListAsync(ct);
-        if (profileIds.Except(knownProfiles).Any())
+        // 0 asks the import to create a Series profile from the Sonarr one.
+        var profileIds = (request.ProfileMap ?? []).Values.Where(id => id != CreateProfile).Distinct().ToList();
+        var knownProfiles = await db.QualityProfiles.Where(p => profileIds.Contains(p.Id)).Select(p => new { p.Id, p.Name, p.Kind }).ToListAsync(ct);
+        if (profileIds.Except(knownProfiles.Select(p => p.Id)).Any())
         {
-            return Failure.Invalid("Unknown quality profile", $"No quality profile with id {string.Join(", ", profileIds.Except(knownProfiles))}.");
+            return Failure.Invalid("Unknown quality profile", $"No quality profile with id {string.Join(", ", profileIds.Except(knownProfiles.Select(p => p.Id)))}.");
+        }
+
+        if (knownProfiles.FirstOrDefault(p => !p.Kind.ForSeries()) is { } filmProfile)
+        {
+            return Failure.Invalid("Not a series quality profile", $"'{filmProfile.Name}' is a film profile: map Sonarr's profiles onto Series or Both profiles, or let the import create them.");
         }
 
         var rootIds = (request.RootFolderMap ?? []).Values.Distinct().ToList();
@@ -163,13 +173,21 @@ public sealed class SonarrImportService(BigarrDbContext db, SonarrClient sonarr,
         var connection = Connection(request.Url, request.ApiKey) ?? throw new InvalidOperationException("Sonarr URL and API key are required.");
         var startedAt = time.GetUtcNow().UtcDateTime;
         var snapshot = await LoadAsync(connection, request.ImportHistory, request.ImportBlocklist, ct);
-        var context = await ContextAsync(request, connection, snapshot, progress, ct);
 
+        progress.Current = "Profiles";
+        request = request with { ProfileMap = await CreateProfilesAsync(request.ProfileMap ?? [], snapshot.Profiles, progress, ct) };
         if (request.ImportProfileQualities)
         {
-            progress.Current = "Profiles";
             await ApplyProfilesAsync(request, snapshot.Profiles, SeriesPerProfile(snapshot.Series), progress, ct);
         }
+
+        if (request.ImportQualitySizes)
+        {
+            progress.Current = "Quality sizes";
+            await SyncSizesAsync(connection, progress, ct);
+        }
+
+        var context = await ContextAsync(request, connection, snapshot, progress, ct);
 
         progress.Total = snapshot.Series.Count;
         foreach (var item in snapshot.Series.OrderBy(s => s.SortTitle ?? s.Title, StringComparer.OrdinalIgnoreCase))
@@ -908,10 +926,97 @@ public sealed class SonarrImportService(BigarrDbContext db, SonarrClient sonarr,
     }
 
     /// <summary>
-    /// The profiles the import (and every pass of the follow) maps Sonarr's series to take the qualities, cutoff, score
-    /// thresholds and format scores (formats matched by name, none created) of the Sonarr profile holding most of their
-    /// series. A Bigarr profile a followed Radarr maps to keeps Radarr's settings: the film follow aligns it on every pass,
-    /// two masters would flip it back and forth. Returns the names of the profiles that changed.
+    /// Sonarr profiles mapped to <see cref="CreateProfile"/> get a Bigarr profile of kind Series named after them (made
+    /// unique), shaped like the seeded series profile until the Sonarr profile's qualities are copied onto it. Returns the
+    /// map with the new ids, which a "keep following" then keeps.
+    /// </summary>
+    private async Task<Dictionary<int, int>> CreateProfilesAsync(Dictionary<int, int> map, List<RadarrProfile> sonarrProfiles, SonarrImportProgress progress, CancellationToken ct)
+    {
+        var result = new Dictionary<int, int>(map);
+        var wanted = map.Where(kv => kv.Value == CreateProfile).Select(kv => kv.Key).ToList();
+        if (wanted.Count == 0)
+        {
+            return result;
+        }
+
+        var names = (await db.QualityProfiles.AsNoTracking().Select(p => p.Name).ToListAsync(ct)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var definitions = Bigarr.Parsing.Qualities.Quality.DefaultQualityDefinitions.OrderBy(d => d.Weight).ThenBy(d => d.Quality.Id).ToList();
+        foreach (var sonarrId in wanted)
+        {
+            var source = sonarrProfiles.FirstOrDefault(p => p.Id == sonarrId);
+            var baseName = string.IsNullOrWhiteSpace(source?.Name) ? $"Sonarr {sonarrId}" : source.Name.Trim();
+            var name = names.Contains(baseName) ? $"{baseName} (series)" : baseName;
+            for (var n = 2; names.Contains(name); n++)
+            {
+                name = $"{baseName} (series {n})";
+            }
+
+            var profile = Features.Quality.QualitySeeder.BuildSeriesHdProfile(definitions);
+            profile.Name = name;
+            profile.IsSystem = false;
+            profile.Kind = ProfileKind.Series;
+            db.QualityProfiles.Add(profile);
+            await db.SaveChangesAsync(ct);
+            names.Add(name);
+            result[sonarrId] = profile.Id;
+            progress.ProfileCreated();
+            logger.LogInformation("Quality profile {Name} created from Sonarr's", name);
+        }
+
+        db.ChangeTracker.Clear();
+        return result;
+    }
+
+    /// <summary>
+    /// Sonarr's quality sizes become Bigarr's series sizes (films keep theirs), on the import and on every pass of the
+    /// follow. A quality Sonarr does not list keeps its series sizes. Returns how many definitions changed.
+    /// </summary>
+    public async Task<int> SyncSizesAsync(SonarrConnection connection, SonarrImportProgress? progress, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+
+        var sonarrDefinitions = await sonarr.QualityDefinitionsAsync(connection, ct);
+        if (sonarrDefinitions.Count == 0)
+        {
+            return 0;
+        }
+
+        var definitions = await db.QualityDefinitions.ToDictionaryAsync(q => q.Id, ct);
+        var changed = 0;
+        foreach (var item in sonarrDefinitions)
+        {
+            if (SonarrQualities.ToBigarr(item.Quality) is not { } quality || !definitions.TryGetValue(quality.Id, out var definition))
+            {
+                continue;
+            }
+
+            if (definition.SeriesMinSize == item.MinSize && definition.SeriesPreferredSize == item.PreferredSize && definition.SeriesMaxSize == item.MaxSize)
+            {
+                continue;
+            }
+
+            definition.SeriesMinSize = item.MinSize;
+            definition.SeriesPreferredSize = item.PreferredSize;
+            definition.SeriesMaxSize = item.MaxSize;
+            changed++;
+        }
+
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+        if (changed > 0)
+        {
+            progress?.QualitySizesUpdated(changed);
+            logger.LogInformation("{Count} series quality size(s) taken from Sonarr", changed);
+        }
+
+        return changed;
+    }
+
+    /// <summary>
+    /// The Series profiles the import (and every pass of the follow) maps Sonarr's series to take the qualities, cutoff,
+    /// score thresholds and format scores (formats matched by name, none created) of the Sonarr profile holding most of
+    /// their series. A Both profile keeps its own settings: the Radarr follow does not write it either. Returns the names
+    /// of the profiles that changed.
     /// </summary>
     public async Task<List<string>> ApplyProfilesAsync(SonarrImportRequest request, List<RadarrProfile> sonarrProfiles, Dictionary<int, int> seriesPerProfile, SonarrImportProgress? progress, CancellationToken ct)
     {
@@ -922,7 +1027,6 @@ public sealed class SonarrImportService(BigarrDbContext db, SonarrClient sonarr,
             .GroupBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
         var qualityIds = await db.QualityDefinitions.AsNoTracking().Select(q => q.Id).ToListAsync(ct);
-        var radarrOwned = (await db.FollowedRadarrs.AsNoTracking().Select(f => f.ProfileMap).ToListAsync(ct)).SelectMany(m => m.Values).ToHashSet();
         var profiles = sonarrProfiles.Select(SonarrQualities.ToBigarr).ToList();
         var changed = new List<string>();
         foreach (var group in (request.ProfileMap ?? []).GroupBy(kv => kv.Value))
@@ -933,9 +1037,10 @@ public sealed class SonarrImportService(BigarrDbContext db, SonarrClient sonarr,
                 continue;
             }
 
-            if (radarrOwned.Contains(profile.Id))
+            if (profile.Kind != ProfileKind.Series)
             {
-                progress?.Issue(profile.Name, null, $"'{profile.Name}' is also the profile of a followed Radarr, whose settings it keeps: map Sonarr's '{sources[0].Name}' onto a profile of its own to judge series with Sonarr's settings.");
+                // A Both profile is shared with films: neither follow rewrites it.
+                progress?.Issue(profile.Name, null, $"'{profile.Name}' is a Films and Series profile: it keeps its own settings. Only Series profiles take a Sonarr profile's qualities and scores.");
                 continue;
             }
 

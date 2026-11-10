@@ -15,7 +15,7 @@ public sealed class QualityProfileService(BigarrDbContext db, ILogger<QualityPro
     public async Task<List<QualityProfileSummary>> ListAsync(CancellationToken ct) =>
         await db.QualityProfiles.AsNoTracking()
             .OrderBy(p => p.Name)
-            .Select(p => new QualityProfileSummary(p.Id, p.Name, p.Cutoff, p.UpgradeAllowed, p.IsSystem, p.PreferredLanguage))
+            .Select(p => new QualityProfileSummary(p.Id, p.Name, p.Cutoff, p.UpgradeAllowed, p.IsSystem, p.PreferredLanguage, p.Kind))
             .ToListAsync(ct);
 
     public async Task<QualityProfileResponse?> GetAsync(int id, CancellationToken ct)
@@ -48,7 +48,7 @@ public sealed class QualityProfileService(BigarrDbContext db, ILogger<QualityPro
             return invalid;
         }
 
-        var profile = new QualityProfile { Name = request.Name.Trim(), PreferredLanguage = request.PreferredLanguage.Trim() };
+        var profile = new QualityProfile { Name = request.Name.Trim(), PreferredLanguage = request.PreferredLanguage.Trim(), Kind = request.Kind };
         Apply(profile, request);
         db.QualityProfiles.Add(profile);
         await db.SaveChangesAsync(ct);
@@ -68,6 +68,23 @@ public sealed class QualityProfileService(BigarrDbContext db, ILogger<QualityPro
         if (invalid is not null)
         {
             return invalid;
+        }
+
+        if (request.Kind != profile.Kind)
+        {
+            // A profile in use cannot leave its versions with a profile of the wrong kind.
+            var films = request.Kind.ForMovies() ? 0 : await db.MovieVersions.CountAsync(v => v.QualityProfileId == id, ct);
+            var shows = request.Kind.ForSeries() ? 0 : await db.SeriesVersions.CountAsync(v => v.QualityProfileId == id, ct);
+            if (films > 0 || shows > 0)
+            {
+                return Failure.Invalid(
+                    "Kind not possible while in use",
+                    films > 0
+                        ? $"{films} film version(s) use '{profile.Name}': it must stay Films or Both until they move to another profile."
+                        : $"{shows} series version(s) use '{profile.Name}': it must stay Series or Both until they move to another profile.");
+            }
+
+            profile.Kind = request.Kind;
         }
 
         profile.Name = request.Name.Trim();
@@ -91,7 +108,7 @@ public sealed class QualityProfileService(BigarrDbContext db, ILogger<QualityPro
             return Failure.Conflict("System profile", $"'{profile.Name}' is seeded by Bigarr and cannot be deleted. Edit it instead.");
         }
 
-        var inUse = await db.MovieVersions.CountAsync(v => v.QualityProfileId == id, ct);
+        var inUse = await db.MovieVersions.CountAsync(v => v.QualityProfileId == id, ct) + await db.SeriesVersions.CountAsync(v => v.QualityProfileId == id, ct);
         if (inUse > 0)
         {
             return Failure.Conflict("Quality profile in use", $"{inUse} version(s) use '{profile.Name}'. Move them to another profile first.");
@@ -140,9 +157,18 @@ public sealed class QualityProfileService(BigarrDbContext db, ILogger<QualityPro
         }
 
         definition.Title = string.IsNullOrWhiteSpace(request.Title) ? null : request.Title.Trim();
-        definition.MinSize = request.MinSize;
-        definition.PreferredSize = request.PreferredSize;
-        definition.MaxSize = request.MaxSize;
+        if (request.Kind == Bigarr.Domain.Library.MediaKind.Series)
+        {
+            definition.SeriesMinSize = request.MinSize;
+            definition.SeriesPreferredSize = request.PreferredSize;
+            definition.SeriesMaxSize = request.MaxSize;
+        }
+        else
+        {
+            definition.MinSize = request.MinSize;
+            definition.PreferredSize = request.PreferredSize;
+            definition.MaxSize = request.MaxSize;
+        }
         await db.SaveChangesAsync(ct);
         return Result<QualityDefinitionResponse>.Ok(ToResponse(definition));
     }
@@ -301,6 +327,7 @@ public sealed class QualityProfileService(BigarrDbContext db, ILogger<QualityPro
     private async Task<QualityProfileResponse> ToResponseAsync(QualityProfile profile, CancellationToken ct)
     {
         var versionCount = profile.Id == 0 ? 0 : await db.MovieVersions.CountAsync(v => v.QualityProfileId == profile.Id, ct);
+        var seriesVersionCount = profile.Id == 0 ? 0 : await db.SeriesVersions.CountAsync(v => v.QualityProfileId == profile.Id, ct);
         return new QualityProfileResponse(
             profile.Id,
             profile.Name,
@@ -313,9 +340,11 @@ public sealed class QualityProfileService(BigarrDbContext db, ILogger<QualityPro
             profile.PreferredLanguage,
             profile.IsSystem,
             profile.FormatScores.OrderBy(s => s.CustomFormat?.Name).Select(s => new FormatScoreDto(s.CustomFormatId, s.CustomFormat?.Name ?? $"#{s.CustomFormatId}", s.Score)).ToList(),
-            versionCount);
+            versionCount,
+            profile.Kind,
+            seriesVersionCount);
     }
 
     private static QualityDefinitionResponse ToResponse(QualityDefinition q) =>
-        new(q.Id, q.Name, q.Title, q.Source.ToString(), q.Resolution, q.Modifier.ToString(), q.MinSize, q.PreferredSize, q.MaxSize);
+        new(q.Id, q.Name, q.Title, q.Source.ToString(), q.Resolution, q.Modifier.ToString(), q.MinSize, q.PreferredSize, q.MaxSize, q.SeriesMinSize, q.SeriesPreferredSize, q.SeriesMaxSize);
 }

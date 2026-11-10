@@ -175,7 +175,7 @@ public sealed class SeriesRefreshTests : IDisposable
     {
         await using var db = _database.CreateContext();
         var root = db.RootFolders.Add(new RootFolder { Path = "/data/tv", Kind = MediaKind.Series }).Entity;
-        var profile = db.QualityProfiles.Add(new QualityProfile { Name = "1080p", PreferredLanguage = "en", Cutoff = TestData.BlurayQualityId }).Entity;
+        var profile = db.QualityProfiles.Add(new QualityProfile { Name = "1080p", PreferredLanguage = "en", Cutoff = TestData.BlurayQualityId, Kind = ProfileKind.Series }).Entity;
         if (!await db.QualityDefinitions.AnyAsync(q => q.Id == TestData.BlurayQualityId))
         {
             db.QualityDefinitions.Add(new QualityDefinition { Id = TestData.BlurayQualityId, Name = "Bluray-1080p", Source = QualitySource.Bluray, Resolution = 1080 });

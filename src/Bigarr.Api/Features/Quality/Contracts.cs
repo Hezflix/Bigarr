@@ -2,12 +2,15 @@ using System.Text.Json;
 
 namespace Bigarr.Api.Features.Quality;
 
-public sealed record QualityProfileSummary(int Id, string Name, int Cutoff, bool UpgradeAllowed, bool IsSystem, string PreferredLanguage);
+/// <param name="Kind">Which versions may use it: <c>movies</c>, <c>series</c> or <c>both</c>.</param>
+public sealed record QualityProfileSummary(int Id, string Name, int Cutoff, bool UpgradeAllowed, bool IsSystem, string PreferredLanguage, Bigarr.Domain.Quality.ProfileKind Kind = Bigarr.Domain.Quality.ProfileKind.Movies);
 
-public sealed record QualityDefinitionResponse(int Id, string Name, string? Title, string Source, int Resolution, string Modifier, double? MinSize, double? PreferredSize, double? MaxSize);
+/// <summary>Sizes are MB per minute: the films' (<c>MinSize</c>…) and the series' (<c>SeriesMinSize</c>…, per minute of every episode covered).</summary>
+public sealed record QualityDefinitionResponse(int Id, string Name, string? Title, string Source, int Resolution, string Modifier, double? MinSize, double? PreferredSize, double? MaxSize, double? SeriesMinSize = null, double? SeriesPreferredSize = null, double? SeriesMaxSize = null);
 
 /// <summary>Sizes are MB per minute of runtime; null max means unlimited.</summary>
-public sealed record QualityDefinitionUpdateRequest(string? Title, double? MinSize, double? PreferredSize, double? MaxSize);
+/// <param name="Kind">Whose sizes the three values are: <c>movies</c> (the default) or <c>series</c>; the other kind's stay as they are.</param>
+public sealed record QualityDefinitionUpdateRequest(string? Title, double? MinSize, double? PreferredSize, double? MaxSize, Bigarr.Domain.Library.MediaKind Kind = Bigarr.Domain.Library.MediaKind.Movies);
 
 /// <summary>One entry of the ordered items list. A group has a <c>GroupId</c> (1000+) and several qualities ranked together.</summary>
 public sealed record QualityProfileItemDto(int? GroupId, string? GroupName, List<int> QualityIds, bool Allowed);
@@ -30,7 +33,11 @@ public sealed record QualityProfileResponse(
     string PreferredLanguage,
     bool IsSystem,
     List<FormatScoreDto> FormatScores,
-    int VersionCount);
+    /// <summary>Film versions using it.</summary>
+    int VersionCount,
+    Bigarr.Domain.Quality.ProfileKind Kind = Bigarr.Domain.Quality.ProfileKind.Movies,
+    /// <summary>Series versions using it.</summary>
+    int SeriesVersionCount = 0);
 
 public sealed record QualityProfileRequest(
     string Name,
@@ -41,7 +48,9 @@ public sealed record QualityProfileRequest(
     int CutoffFormatScore = 0,
     int MinUpgradeFormatScore = 0,
     string PreferredLanguage = "en",
-    List<FormatScoreRequest>? FormatScores = null);
+    List<FormatScoreRequest>? FormatScores = null,
+    /// <summary>Films, Series or Both; a profile in use cannot take a kind its versions do not fit.</summary>
+    Bigarr.Domain.Quality.ProfileKind Kind = Bigarr.Domain.Quality.ProfileKind.Movies);
 
 public sealed record CustomFormatSpecificationDto(string Name, string Implementation, bool Negate, bool Required, Dictionary<string, JsonElement> Fields);
 

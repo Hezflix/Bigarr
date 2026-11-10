@@ -107,6 +107,11 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             return Failure.Invalid("Unknown quality profile", $"No quality profile with id {request.QualityProfileId}.");
         }
 
+        if (Quality.ProfileKindRules.ForSeriesVersion(profile) is { } wrongKind)
+        {
+            return wrongKind;
+        }
+
         var root = await db.RootFolders.FindAsync([request.RootFolderId], ct);
         if (root is null)
         {
@@ -118,7 +123,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             return Failure.Invalid("Not a series root folder", $"'{root.Path}' holds films. Pick a series root folder or change its kind in Settings → Library.");
         }
 
-        var versionName = string.IsNullOrWhiteSpace(request.VersionName) ? VersionNaming.FromProfile(profile.Name) : request.VersionName.Trim();
+        var versionName = string.IsNullOrWhiteSpace(request.VersionName) ? VersionNaming.FromSeriesProfile(profile.Name) : request.VersionName.Trim();
         if (!Slug.IsValid(versionName))
         {
             return Failure.Invalid("Invalid version name", "A version name is a lowercase slug: letters, digits and single dashes.");
@@ -250,6 +255,11 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             return Failure.Invalid("Unknown quality profile", $"No quality profile with id {request.QualityProfileId}.");
         }
 
+        if (Quality.ProfileKindRules.ForSeriesVersion(profile) is { } wrongKind)
+        {
+            return wrongKind;
+        }
+
         var rootId = request.RootFolderId ?? series.DefaultRootFolderId;
         var root = await db.RootFolders.FindAsync([rootId], ct);
         if (root is null)
@@ -350,6 +360,11 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             if (profile is null)
             {
                 return Failure.Invalid("Unknown quality profile", $"No quality profile with id {profileId}.");
+            }
+
+            if (Quality.ProfileKindRules.ForSeriesVersion(profile) is { } wrongKind)
+            {
+                return wrongKind;
             }
 
             version.QualityProfile = profile;

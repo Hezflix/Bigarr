@@ -164,6 +164,7 @@ public sealed class SonarrFollower(
 
         // 0. Sonarr's profile settings, so Bigarr judges everything below the way Sonarr would.
         var aligned = await imports.ApplyProfilesAsync(request, profiles, seriesPerProfile, null, ct);
+        var sizes = await imports.SyncSizesAsync(connection, null, ct);
 
         // 1. New series, without their files: what Sonarr grabbed for them is judged against a show that had none.
         var addedSinceFollowing = await AddedSinceFollowingAsync(follow, series, ct);
@@ -186,7 +187,7 @@ public sealed class SonarrFollower(
 
         var now = time.GetUtcNow().UtcDateTime;
         var checkpoint = history.Count > 0 ? new[] { follow.HistoryCheckpoint, history.Max(h => Utc(h.Date)) }.Max() : follow.HistoryCheckpoint;
-        var summary = Summary(grabs, resolved, added, library, searched, shown, aligned.Count, everySeries);
+        var summary = Summary(grabs, resolved, added, library, searched, shown, aligned.Count, everySeries, sizes);
         memory.Remember(follow.Id, new SonarrFollowMemory.Entry(
             wholeList ? started : remembered!.ListReadAt,
             seriesPerProfile,
@@ -261,7 +262,7 @@ public sealed class SonarrFollower(
         return results.Count;
     }
 
-    private static string Summary(int grabs, int resolved, SonarrImportProgress added, SonarrImportProgress library, int searched, int shown, int profilesAligned, bool everySeries)
+    private static string Summary(int grabs, int resolved, SonarrImportProgress added, SonarrImportProgress library, int searched, int shown, int profilesAligned, bool everySeries, int sizes = 0)
     {
         var first = added.ToResponse();
         var report = library.ToResponse();
@@ -275,6 +276,7 @@ public sealed class SonarrFollower(
         }
 
         Add(profilesAligned, "profile(s) aligned with Sonarr");
+        Add(sizes, "series quality size(s) aligned with Sonarr");
         Add(resolved, "grab(s) imported or failed");
         Add(first.SeriesAdded + report.SeriesAdded, "series added");
         Add(first.VersionsAdded + report.VersionsAdded, "version(s) added");

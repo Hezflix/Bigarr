@@ -1676,6 +1676,15 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int>("Resolution")
                         .HasColumnType("INTEGER");
 
+                    b.Property<double?>("SeriesMaxSize")
+                        .HasColumnType("REAL");
+
+                    b.Property<double?>("SeriesMinSize")
+                        .HasColumnType("REAL");
+
+                    b.Property<double?>("SeriesPreferredSize")
+                        .HasColumnType("REAL");
+
                     b.Property<int>("Source")
                         .HasColumnType("INTEGER");
 
@@ -1709,6 +1718,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<string>("Items")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("MinFormatScore")
                         .HasColumnType("INTEGER");

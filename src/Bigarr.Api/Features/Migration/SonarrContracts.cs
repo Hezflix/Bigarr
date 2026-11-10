@@ -35,7 +35,10 @@ public sealed record SonarrImportRequest(
     string ApiKey,
     /// <summary>Name of the series version each imported show gets (or is matched on): <c>1080p</c>, or <c>4k</c> for a second Sonarr.</summary>
     string VersionName,
-    /// <summary>Sonarr quality profile id → Bigarr quality profile id. A series whose profile is not mapped is skipped.</summary>
+    /// <summary>
+    /// Sonarr quality profile id → Bigarr quality profile id (Series or Both), or 0 to create a Series profile from the
+    /// Sonarr one. A series whose profile is not mapped is skipped.
+    /// </summary>
     Dictionary<int, int> ProfileMap,
     /// <summary>Sonarr root folder path → Bigarr series root folder id. A series whose root is not mapped is skipped.</summary>
     Dictionary<string, int> RootFolderMap,
@@ -50,10 +53,12 @@ public sealed record SonarrImportRequest(
     /// <summary>Shadow mode: once the import is done, keep following this Sonarr with the same mapping.</summary>
     bool Follow = false,
     /// <summary>
-    /// Give each mapped Bigarr profile the qualities, cutoff and score thresholds of the Sonarr profile mapped to it, and its
-    /// scores for the custom formats Bigarr has under the same name. A profile a followed Radarr maps to keeps Radarr's.
+    /// Give each mapped Series profile the qualities, cutoff and score thresholds of the Sonarr profile mapped to it, and its
+    /// scores for the custom formats Bigarr has under the same name. A Both profile keeps its own.
     /// </summary>
-    bool ImportProfileQualities = true);
+    bool ImportProfileQualities = true,
+    /// <summary>Sonarr's quality sizes become Bigarr's series sizes (the film sizes stay).</summary>
+    bool ImportQualitySizes = true);
 
 /// <param name="TvdbId">Null when the line is not about a series (a profile).</param>
 /// <param name="SeriesId">The series in Bigarr when it exists, so the report can link to it.</param>
@@ -81,4 +86,8 @@ public sealed record SonarrImportStatusResponse(
     int ProfileQualitiesCopied,
     string? Current,
     string? Error,
-    List<SonarrImportIssue> Issues);
+    List<SonarrImportIssue> Issues,
+    /// <summary>Series profiles created from Sonarr's (a profile mapped to 0).</summary>
+    int ProfilesCreated = 0,
+    /// <summary>Series quality sizes taken from Sonarr's quality definitions.</summary>
+    int QualitySizesUpdated = 0);

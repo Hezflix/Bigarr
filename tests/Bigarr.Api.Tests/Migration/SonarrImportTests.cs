@@ -26,7 +26,8 @@ public sealed class SonarrImportTests(BigarrApiFactory factory) : IClassFixture<
     public async Task A_sonarr_library_imports_with_every_file_attached_and_a_second_sonarr_adds_4k_versions()
     {
         var client = await ClientAsync(factory);
-        var (hd, uhd) = await ProfilesAsync(client);
+        var (hd, uhd) = await SeriesProfilesAsync(client);
+        var (filmHd, _) = await ProfilesAsync(client);
         var tv = await SeriesRootAsync(client, "bigarr-sonarr-tv-");
         var anime = await SeriesRootAsync(client, "bigarr-sonarr-anime-");
         var films = await AddRootAsync(client, Directory.CreateTempSubdirectory("bigarr-sonarr-films-").FullName);
@@ -80,14 +81,48 @@ public sealed class SonarrImportTests(BigarrApiFactory factory) : IClassFixture<
         Assert.Equal(6, preview.HistoryRecords);
         Assert.Equal(1, preview.Exclusions);
         Assert.Equal([FakeSonarr.AnimeRootPath, FakeSonarr.RootPath], preview.RootFolders.Select(r => r.Path).ToArray());
-        Assert.Equal(hd, preview.Profiles.Single(p => p.Name == "HD-1080p").SuggestedProfileId);
+        // No Series profile is named like Sonarr's: the preview suggests creating one (0).
+        Assert.Equal(SonarrImportService.CreateProfile, preview.Profiles.Single(p => p.Name == "HD-1080p").SuggestedProfileId);
         Assert.Equal(HttpStatusCode.BadGateway, (await client.PostAsJsonAsync("/api/v1/migration/sonarr/preview", new SonarrImportPreviewRequest(sonarr.Url, "nope"), Json)).StatusCode);
 
         // A film root folder is refused.
         var refused = await client.PostAsJsonAsync("/api/v1/migration/sonarr/import", Request(sonarr.Url, "1080p", hd, films.Id, films.Id), Json);
         Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
 
-        var report = await ImportAsync(client, Request(sonarr.Url, "1080p", hd, tv.Id, anime.Id));
+        // A film profile is refused too, with the reason.
+        var filmProfile = await client.PostAsJsonAsync("/api/v1/migration/sonarr/import", Request(sonarr.Url, "1080p", filmHd, tv.Id, anime.Id), Json);
+        Assert.Equal(HttpStatusCode.BadRequest, filmProfile.StatusCode);
+        Assert.Contains("is a film profile", await filmProfile.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        double? filmMinBefore;
+        using (var scope = factory.Services.CreateScope())
+        {
+            filmMinBefore = (await scope.ServiceProvider.GetRequiredService<BigarrDbContext>().QualityDefinitions.AsNoTracking().SingleAsync(q => q.Id == 3)).MinSize;
+        }
+
+        // Sonarr's profile is mapped to 0: the import creates a Series profile named after it.
+        var report = await ImportAsync(client, Request(sonarr.Url, "1080p", SonarrImportService.CreateProfile, tv.Id, anime.Id));
+        Assert.Equal(1, report.ProfilesCreated);
+        Assert.Equal(2, report.QualitySizesUpdated);
+        int created;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+            var profile = await db.QualityProfiles.AsNoTracking().SingleAsync(p => p.Name == "HD-1080p");
+            Assert.Equal(Bigarr.Domain.Quality.ProfileKind.Series, profile.Kind);
+            Assert.False(profile.IsSystem);
+            created = profile.Id;
+
+            // Sonarr's sizes are the series ones; the film sizes stay. Sonarr's remux (id 20) is Bigarr's 30.
+            var web = await db.QualityDefinitions.AsNoTracking().SingleAsync(q => q.Id == 3);
+            Assert.Equal(5, web.SeriesMinSize);
+            Assert.Equal(140, web.SeriesMaxSize);
+            Assert.Equal(filmMinBefore, web.MinSize);
+            var remuxSizes = await db.QualityDefinitions.AsNoTracking().SingleAsync(q => q.Id == 30);
+            Assert.Equal(40, remuxSizes.SeriesMinSize);
+            Assert.Null(remuxSizes.SeriesMaxSize);
+        }
+
         Assert.True(report.SeriesAdded == 2, string.Join(" | ", report.Issues.Select(i => $"{i.Title}: {i.Reason}")) + $" failed={report.Failed} skipped={report.Skipped} total={report.Total}");
         Assert.Equal(5, report.FilesAdded);
         Assert.Equal(1, report.FilesMissing);
@@ -147,7 +182,9 @@ public sealed class SonarrImportTests(BigarrApiFactory factory) : IClassFixture<
         }
 
         // A second run changes nothing.
-        var again = await ImportAsync(client, Request(sonarr.Url, "1080p", hd, tv.Id, anime.Id));
+        var again = await ImportAsync(client, Request(sonarr.Url, "1080p", created, tv.Id, anime.Id));
+        Assert.Equal(0, again.ProfilesCreated);
+        Assert.Equal(0, again.QualitySizesUpdated);
         Assert.Equal(0, again.SeriesAdded);
         Assert.Equal(0, again.FilesAdded);
         Assert.Equal(0, again.HistoryAdded);
@@ -193,6 +230,13 @@ public sealed class SonarrImportTests(BigarrApiFactory factory) : IClassFixture<
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
         return (await db.Series.CountAsync(), await db.EpisodeFiles.CountAsync(), await db.History.CountAsync(), await db.EpisodeTargets.CountAsync(), await db.Blocklist.CountAsync());
+    }
+
+    /// <summary>The two seeded series profiles.</summary>
+    internal static async Task<(int Hd, int Uhd)> SeriesProfilesAsync(HttpClient client)
+    {
+        var profiles = (await client.GetFromJsonAsync<List<Features.Quality.QualityProfileSummary>>("/api/v1/qualityprofiles", Json))!;
+        return (profiles.Single(p => p.Name == Features.Quality.QualitySeeder.SeriesHdProfileName).Id, profiles.Single(p => p.Name == Features.Quality.QualitySeeder.SeriesUhdProfileName).Id);
     }
 
     internal static async Task<RootFolderResponse> SeriesRootAsync(HttpClient client, string prefix)
