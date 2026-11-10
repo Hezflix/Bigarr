@@ -33,7 +33,7 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
 
         var rows = await db.PlaybackSessions.AsNoTracking()
             .OrderBy(s => s.StartedAt)
-            .Select(s => new { s.LastSeenAt, Response = new PlaybackSessionResponse(
+            .Select(s => new { s.LastSeenAt, Show = new ShowIds(s.Item.ShowTvdbId, s.Item.ShowTmdbId, s.Item.ShowImdbId), Response = new PlaybackSessionResponse(
                 s.Id,
                 s.MediaServerId,
                 s.SessionKey,
@@ -54,24 +54,61 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
                 0) })
             .ToListAsync(ct);
         var now = time.GetUtcNow().UtcDateTime;
-        var sessions = rows.Select(r => r.Response with { PositionAgeMs = Math.Max(0, (long)(now - r.LastSeenAt).TotalMilliseconds) }).ToList();
-        // Bigarr's own images for the films it manages; episodes and other films have none until shows come.
-        var movieIds = sessions.Select(s => s.Item.MovieId).OfType<int>().Distinct().ToList();
+        // Bigarr's own images: the film's for the films it manages, the series' for an episode of a series it follows.
+        // Anything else keeps the initials.
+        var movieIds = rows.Select(r => r.Response.Item.MovieId).OfType<int>().Distinct().ToList();
         var images = await db.Movies.AsNoTracking().Where(m => movieIds.Contains(m.Id)).Select(m => new { m.Id, m.Images }).ToDictionaryAsync(m => m.Id, m => m.Images, ct);
-        var located = new List<PlaybackSessionResponse>(sessions.Count);
-        foreach (var s in sessions)
+        var shows = await SeriesArtworkAsync(rows.Where(r => r.Response.Item.Kind == MediaItemKind.Episode).Select(r => r.Show), ct);
+        var located = new List<PlaybackSessionResponse>(rows.Count);
+        foreach (var row in rows)
         {
-            var movieImages = s.Item.MovieId is { } id && images.TryGetValue(id, out var found) ? found : [];
+            var s = row.Response;
+            var artwork = s.Item.MovieId is { } id && images.TryGetValue(id, out var found)
+                ? new Artwork(found.FirstOrDefault(i => i.Type == ImageType.Poster)?.RemoteUrl, found.FirstOrDefault(i => i.Type == ImageType.Fanart)?.RemoteUrl)
+                : s.Item.Kind == MediaItemKind.Episode ? shows.For(row.Show, s.Item.SeasonNumber) : Artwork.None;
             located.Add(s with
             {
+                PositionAgeMs = Math.Max(0, (long)(now - row.LastSeenAt).TotalMilliseconds),
                 Transcode = transcodes.Get(s.ServerId, s.SessionKey),
-                PosterUrl = movieImages.FirstOrDefault(i => i.Type == ImageType.Poster)?.RemoteUrl,
-                FanartUrl = movieImages.FirstOrDefault(i => i.Type == ImageType.Fanart)?.RemoteUrl,
+                PosterUrl = artwork.Poster,
+                FanartUrl = artwork.Fanart,
                 Location = await geo.ResolveAsync(s.Details.IpAddress, s.Details.Local, s.ServerId, ct),
             });
         }
 
         return new NowPlayingResponse(statuses, located);
+    }
+
+    /// <summary>The ids a server gave an episode's show, to find the series in Bigarr.</summary>
+    public sealed record ShowIds(int? TvdbId, int? TmdbId, string? ImdbId);
+
+    public sealed record Artwork(string? Poster, string? Fanart)
+    {
+        public static readonly Artwork None = new(null, null);
+    }
+
+    /// <summary>
+    /// The series of Bigarr that the shows are, with their images and their seasons', in one query whatever the number
+    /// of episodes. A show is matched by its TVDB id first, then TMDB, then IMDb.
+    /// </summary>
+    public async Task<SeriesArtwork> SeriesArtworkAsync(IEnumerable<ShowIds> shows, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(shows);
+
+        var wanted = shows.ToList();
+        var tvdb = wanted.Select(w => w.TvdbId).OfType<int>().Distinct().ToList();
+        var tmdb = wanted.Select(w => w.TmdbId).OfType<int>().Distinct().ToList();
+        var imdb = wanted.Select(w => w.ImdbId).OfType<string>().Distinct(StringComparer.Ordinal).ToList();
+        if (tvdb.Count + tmdb.Count + imdb.Count == 0)
+        {
+            return new SeriesArtwork([]);
+        }
+
+        var series = await db.Series.AsNoTracking()
+            .Where(s => (s.TvdbId != null && tvdb.Contains(s.TvdbId.Value)) || (s.TmdbId != null && tmdb.Contains(s.TmdbId.Value)) || (s.ImdbId != null && imdb.Contains(s.ImdbId)))
+            .Select(s => new SeriesArtwork.Entry(s.TvdbId, s.TmdbId, s.ImdbId, s.Images, s.Seasons.Select(x => new SeriesArtwork.SeasonImages(x.SeasonNumber, x.Images)).ToList()))
+            .ToListAsync(ct);
+        return new SeriesArtwork(series);
     }
 
     /// <summary>
@@ -458,5 +495,33 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
         settings.WatchedPercent = request.WatchedPercent;
         await db.SaveChangesAsync(ct);
         return Result<PlaybackSettingsDto>.Ok(request);
+    }
+}
+
+/// <summary>
+/// Series images for episodes: the series' poster (the season's when the series has none) and its fanart for the banner.
+/// </summary>
+public sealed class SeriesArtwork(List<SeriesArtwork.Entry> series)
+{
+    public sealed record SeasonImages(int SeasonNumber, List<MediaImage> Images);
+
+    public sealed record Entry(int? TvdbId, int? TmdbId, string? ImdbId, List<MediaImage> Images, List<SeasonImages> Seasons);
+
+    public PlaybackService.Artwork For(PlaybackService.ShowIds show, int? seasonNumber)
+    {
+        ArgumentNullException.ThrowIfNull(show);
+
+        var entry = (show.TvdbId is { } tvdb ? series.FirstOrDefault(s => s.TvdbId == tvdb) : null)
+            ?? (show.TmdbId is { } tmdb ? series.FirstOrDefault(s => s.TmdbId == tmdb) : null)
+            ?? (show.ImdbId is { } imdb ? series.FirstOrDefault(s => string.Equals(s.ImdbId, imdb, StringComparison.Ordinal)) : null);
+        if (entry is null)
+        {
+            return PlaybackService.Artwork.None;
+        }
+
+        var season = seasonNumber is { } number ? entry.Seasons.FirstOrDefault(x => x.SeasonNumber == number) : null;
+        return new PlaybackService.Artwork(
+            entry.Images.FirstOrDefault(i => i.Type == ImageType.Poster)?.RemoteUrl ?? season?.Images.FirstOrDefault(i => i.Type == ImageType.Poster)?.RemoteUrl,
+            entry.Images.FirstOrDefault(i => i.Type == ImageType.Fanart)?.RemoteUrl);
     }
 }
