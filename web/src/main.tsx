@@ -71,6 +71,7 @@ const playsRoute = createRoute({
   }),
   component: lazyRouteComponent(() => import('./features/playback/PlaysPage'), 'PlaysPage'),
 })
+const playbackUsersRoute = createRoute({ getParentRoute: () => appRoute, path: '/playback/users', component: lazyRouteComponent(() => import('./features/playback/UsersPage'), 'UsersPage') })
 const wantedRoute = createRoute({ getParentRoute: () => appRoute, path: '/wanted', component: lazyRouteComponent(() => import('./features/wanted/WantedPage'), 'WantedPage') })
 const systemRoute = createRoute({ getParentRoute: () => appRoute, path: '/system/status', component: lazyRouteComponent(() => import('./features/system/SystemPage'), 'SystemPage') })
 const librarySettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/library', component: lazyRouteComponent(() => import('./features/settings/LibrarySettingsPage'), 'LibrarySettingsPage') })
@@ -93,6 +94,7 @@ const router = createRouter({
       wantedRoute,
       nowPlayingRoute,
       playsRoute,
+      playbackUsersRoute,
       movieRoute,
       seriesLibraryRoute,
       addSeriesRoute,

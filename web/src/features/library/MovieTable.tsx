@@ -10,10 +10,10 @@ import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { formatBytes, formatDate } from '@/i18n'
 import { useDocumentOffset, useOverflows } from './layout'
-import { sortedVersion, totalSize, type Density, type PosterSize, type SortDirection, type SortKey, type TableColumn } from './libraryView'
+import { sortedByVersion, totalSize, type Density, type PosterSize, type SortDirection, type SortKey, type TableColumn, type VersionMetric } from './libraryView'
 import type { Selection } from './selection'
 import { SelectionMark } from './SelectionMark'
-import { SizeSplit, useSortLabel } from './SizeSplit'
+import { PlaysSplit, SizeSplit, useSortLabel } from './SizeSplit'
 import { VersionChip } from './VersionChip'
 
 /** Names behind the ids a summary carries. */
@@ -47,9 +47,23 @@ const widths: Record<TableColumn, string> = {
   rating: '4rem',
   tags: 'minmax(6rem, 0.8fr)',
   rootFolder: 'minmax(8rem, 1fr)',
+  plays: '4.5rem',
+  lastPlayed: '9rem',
 }
 
-const sortable: Partial<Record<TableColumn | 'title', SortKey>> = { title: 'title', year: 'year', added: 'added', size: 'size', quality: 'quality', rating: 'rating' }
+const sortable: Partial<Record<TableColumn | 'title', SortKey>> = {
+  title: 'title',
+  year: 'year',
+  added: 'added',
+  size: 'size',
+  quality: 'quality',
+  rating: 'rating',
+  plays: 'plays',
+  lastPlayed: 'lastPlayed',
+}
+
+/** The columns whose header also sorts by one version's value, through a menu, when the library has several. */
+const perVersion: Partial<Record<TableColumn, VersionMetric>> = { size: 'size', plays: 'plays', lastPlayed: 'lastPlayed' }
 
 /** Where the Size cell puts the size per version: under the total, or on its line when the row has room for one line only. */
 type Split = 'under' | 'inline' | null
@@ -75,7 +89,10 @@ export function MovieTable({ movies, columns, density, posterSize, lookups, sort
   const sortLabel = useSortLabel()
   const versions = versionNames.length > 1
   const split: Split = sizeSplit && versions ? (density === 'comfortable' ? 'under' : 'inline') : null
-  const emphasis = sortedVersion(sort)
+  const sortedBy = sortedByVersion(sort)
+  const emphasis = sortedBy?.metric === 'size' ? sortedBy.version : null
+  const playsEmphasis = sortedBy?.metric === 'plays' ? sortedBy.version : null
+  const lastPlayedOf = sortedBy?.metric === 'lastPlayed' ? sortedBy.version : null
   const containerRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -86,17 +103,21 @@ export function MovieTable({ movies, columns, density, posterSize, lookups, sort
   // The virtualizer keeps the row positions it computed: a new row height has to move every row.
   useEffect(() => virtualizer.measure(), [virtualizer, height])
   // The split needs room: "1080p 39 GB · 4k 82 GB" under the total, or next to it on a compact row.
-  const width = (column: TableColumn) => (column === 'size' && split === 'under' ? '11rem' : column === 'size' && split === 'inline' ? '16.5rem' : widths[column])
+  const width = (column: TableColumn) => {
+    if (column === 'size' && split !== null) return split === 'under' ? '11rem' : '16.5rem'
+    if (column === 'plays' && split !== null) return split === 'under' ? '8.5rem' : '12rem'
+    return widths[column]
+  }
   const template = [selection.selecting ? '2rem' : null, 'minmax(14rem, 2.5fr)', ...columns.map(width)].filter(Boolean).join(' ')
 
-  // With several versions, the Size header sorts like the others and its chevron picks what it sorts by: the total or
-  // one version's size. One button and a menu, however many versions the library has.
-  const sizeHeader = () => {
-    const current: SortKey = emphasis !== null ? sort : 'size'
+  // With several versions, the Size, Plays and Last played headers sort like the others and their chevron picks what
+  // they sort by: the film's value or one version's. One button and a menu, however many versions the library has.
+  const metricHeader = (metric: VersionMetric) => {
+    const current: SortKey = sortedBy?.metric === metric ? sort : metric
     const active = sort === current
     const Arrow = !active ? ArrowUpDownIcon : direction === 'asc' ? ArrowUpIcon : ArrowDownIcon
     return (
-      <span key="size" role="columnheader" aria-sort={!active ? 'none' : direction === 'asc' ? 'ascending' : 'descending'} className="flex min-w-0 items-center gap-0.5">
+      <span key={metric} role="columnheader" aria-sort={!active ? 'none' : direction === 'asc' ? 'ascending' : 'descending'} className="flex min-w-0 items-center gap-0.5">
         <button
           type="button"
           className={cn(
@@ -104,9 +125,9 @@ export function MovieTable({ movies, columns, density, posterSize, lookups, sort
             active && 'text-foreground',
           )}
           onClick={() => onSort(current)}
-          data-testid="sort-size"
+          data-testid={`sort-${metric}`}
         >
-          <span className="truncate">{emphasis !== null ? sortLabel(current) : t('library.columns.size')}</span>
+          <span className="truncate">{current !== metric ? sortLabel(current) : t(`library.columns.${metric}`)}</span>
           <Arrow className={cn('size-3 shrink-0', !active && 'opacity-0 group-hover/sort:opacity-50 group-focus-visible/sort:opacity-50')} aria-hidden="true" />
         </button>
         <DropdownMenu>
@@ -114,20 +135,20 @@ export function MovieTable({ movies, columns, density, posterSize, lookups, sort
             <button
               type="button"
               className="shrink-0 rounded-md p-1 text-muted-foreground/70 outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/50 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
-              aria-label={t('library.sort.sizeOf')}
-              data-testid="sort-size-menu"
+              aria-label={t(`library.sort.${metric}Of`)}
+              data-testid={`sort-${metric}-menu`}
             >
               <ChevronDownIcon className="size-3" aria-hidden="true" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-44">
-            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">{t('library.sort.sizeOf')}</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">{t(`library.sort.${metric}Of`)}</DropdownMenuLabel>
             <DropdownMenuRadioGroup value={current} onValueChange={(value) => value !== sort && onSort(value as SortKey)}>
-              <DropdownMenuRadioItem value="size" data-testid="sort-size-total">
+              <DropdownMenuRadioItem value={metric} data-testid={`sort-${metric}-total`}>
                 {t('library.sort.allVersions')}
               </DropdownMenuRadioItem>
               {versionNames.map((name) => (
-                <DropdownMenuRadioItem key={name} value={`size:${name}`} data-testid={`sort-size:${name}`}>
+                <DropdownMenuRadioItem key={name} value={`${metric}:${name}`} data-testid={`sort-${metric}:${name}`}>
                   {name}
                 </DropdownMenuRadioItem>
               ))}
@@ -139,7 +160,8 @@ export function MovieTable({ movies, columns, density, posterSize, lookups, sort
   }
 
   const header = (key: TableColumn | 'title', label: string) => {
-    if (key === 'size' && versions) return sizeHeader()
+    const metric = key === 'title' ? undefined : perVersion[key]
+    if (metric && versions) return metricHeader(metric)
     const sortKey = sortable[key]
     if (!sortKey) {
       return (
@@ -198,6 +220,8 @@ export function MovieTable({ movies, columns, density, posterSize, lookups, sort
                 lookups={lookups}
                 split={split}
                 emphasis={emphasis}
+                playsEmphasis={playsEmphasis}
+                lastPlayedOf={lastPlayedOf}
                 template={template}
                 style={{ height, transform: `translateY(${item.start - virtualizer.options.scrollMargin}px)` }}
                 {...selection}
@@ -218,6 +242,8 @@ function TableRowView({
   lookups,
   split,
   emphasis,
+  playsEmphasis,
+  lastPlayedOf,
   template,
   style,
   selecting,
@@ -231,6 +257,8 @@ function TableRowView({
   lookups: Lookups
   split: Split
   emphasis: string | null
+  playsEmphasis: string | null
+  lastPlayedOf: string | null
   template: string
   style: React.CSSProperties
 }) {
@@ -255,7 +283,7 @@ function TableRowView({
       <MovieTitleCell movie={movie} image={density === 'comfortable' ? thumbnails[posterSize].image : null} selecting={selecting} />
       {columns.map((column) => (
         <div key={column} role="cell" className="min-w-0 truncate">
-          <Cell movie={movie} column={column} lookups={lookups} split={split} emphasis={emphasis} />
+          <Cell movie={movie} column={column} lookups={lookups} split={split} emphasis={emphasis} playsEmphasis={playsEmphasis} lastPlayedOf={lastPlayedOf} />
         </div>
       ))}
     </div>
@@ -285,7 +313,23 @@ function MovieTitleCell({ movie, image, selecting }: { movie: MovieSummary; imag
   )
 }
 
-function Cell({ movie, column, lookups, split, emphasis }: { movie: MovieSummary; column: TableColumn; lookups: Lookups; split: Split; emphasis: string | null }): ReactNode {
+function Cell({
+  movie,
+  column,
+  lookups,
+  split,
+  emphasis,
+  playsEmphasis,
+  lastPlayedOf,
+}: {
+  movie: MovieSummary
+  column: TableColumn
+  lookups: Lookups
+  split: Split
+  emphasis: string | null
+  playsEmphasis: string | null
+  lastPlayedOf: string | null
+}): ReactNode {
   const { t } = useTranslation()
   const distinct = <T,>(values: T[]) => [...new Set(values)]
   switch (column) {
@@ -348,6 +392,31 @@ function Cell({ movie, column, lookups, split, emphasis }: { movie: MovieSummary
           ))}
         </span>
       )
+    }
+    case 'plays': {
+      const total = <span className={cn('tabular-nums', movie.plays === 0 && 'text-muted-foreground')}>{movie.plays}</span>
+      if (split === 'under') {
+        return (
+          <span className="flex flex-col leading-tight">
+            {total}
+            <PlaysSplit movie={movie} emphasis={playsEmphasis} />
+          </span>
+        )
+      }
+      if (split === 'inline') {
+        return (
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className="min-w-[2rem] shrink-0">{total}</span>
+            <PlaysSplit movie={movie} emphasis={playsEmphasis} className="min-w-0" />
+          </span>
+        )
+      }
+      return total
+    }
+    case 'lastPlayed': {
+      // Sorted by one version's last play, the cell shows that version's.
+      const at = lastPlayedOf === null ? movie.lastPlayedAt : (movie.versions.find((v) => v.name === lastPlayedOf)?.lastPlayedAt ?? null)
+      return <span className="tabular-nums text-muted-foreground">{at === null ? t('library.neverPlayed') : formatDate(at)}</span>
     }
     case 'rootFolder':
       return (

@@ -250,6 +250,9 @@ export type VersionSummary = {
   size: number | null
   /** Null without a file; false when the file is below the profile cutoff (quality and custom format score). */
   cutoffMet: boolean | null
+  /** Plays recorded on this version, and when the last one ended. */
+  plays: number
+  lastPlayedAt: string | null
 }
 
 export type MovieSummary = {
@@ -265,6 +268,9 @@ export type MovieSummary = {
   tmdbRating: number | null
   imdbRating: number | null
   versions: VersionSummary[]
+  /** Every play of the film, those whose version could not be told included. */
+  plays: number
+  lastPlayedAt: string | null
 }
 
 export type MovieLookupResult = {
@@ -2004,7 +2010,8 @@ export type Play = {
 
 export type PlaysPage = { page: number; pageSize: number; totalRecords: number; records: Play[] }
 
-export type PlaybackUser = { id: number; name: string; thumbUrl: string | null; isOwner: boolean; plays: number; lastSeenAt: string }
+/** `name` is the one Bigarr shows (the display name when set), `serverName` the account's on the server. */
+export type PlaybackUser = { id: number; name: string; thumbUrl: string | null; isOwner: boolean; plays: number; lastSeenAt: string; serverName: string; keepHistory: boolean }
 
 export type VersionPlays = { versionId: number | null; versionName: string | null; plays: number; users: number; transcodes: number; lastPlayedAt: string | null }
 
@@ -2018,11 +2025,62 @@ export type PlaysQuery = {
   userId?: number
   movieId?: number
   versionId?: number
+  /** A version name (`4k`), across films. */
+  version?: string
   kind?: MediaItemKind
   /** Film plays linked to no Bigarr film. */
   unmatched?: boolean
+  /** ISO instants bounding the start of the play, `to` excluded. */
+  from?: string
+  to?: string
+  /** The play's furthest decision: a transcode in any stream makes it a transcode. */
+  decision?: StreamDecision
+  /** In the title or the show's title. */
+  q?: string
   sort?: PlaySortKey
   direction?: 'asc' | 'desc'
+}
+
+/** Plays started in the last `days` days, or ever when null. */
+export type WatchTime = { days: number | null; plays: number; seconds: number }
+
+export type DecisionCounts = { directPlay: number; directStream: number; transcode: number; unknown: number }
+
+export type PlaybackUserStats = {
+  id: number
+  name: string
+  displayName: string | null
+  thumbUrl: string | null
+  isOwner: boolean
+  keepHistory: boolean
+  firstSeenAt: string
+  lastSeenAt: string
+  lastPlayedAt: string | null
+  watchTime: WatchTime[]
+  players: { player: string; platform: string | null; plays: number; seconds: number; lastPlayedAt: string }[]
+  decisions: DecisionCounts
+  addresses: { ipAddress: string; local: boolean | null; plays: number; firstSeenAt: string; lastSeenAt: string }[]
+}
+
+export type UpdatePlaybackUser = { displayName: string | null; keepHistory: boolean | null }
+
+export type TopEntry = { title: string; movieId: number | null; userId: number | null; plays: number; users: number; seconds: number; lastPlayedAt: string }
+
+export type PlaybackStats = {
+  days: number | null
+  bucket: 'day' | 'week' | 'month'
+  totals: { plays: number; seconds: number; users: number; movies: number; episodes: number }
+  overTime: { date: string; movies: number; episodes: number; seconds: number }[]
+  byHour: number[]
+  /** Monday first. */
+  byWeekday: number[]
+  topMovies: TopEntry[]
+  topShows: TopEntry[]
+  topUsers: TopEntry[]
+  topPlatforms: TopEntry[]
+  decisions: DecisionCounts
+  concurrency: { streams: number; at: string | null }
+  transcodedUhd: { movieId: number; title: string; year: number | null; versionName: string | null; plays: number; transcodes: number; lastPlayedAt: string }[]
 }
 
 /** One session of a play, with everything the server said about it. */
@@ -2063,6 +2121,11 @@ export const playback = {
   stop: (sessionId: number, message: string | null) => post<void>(`/api/v1/playback/sessions/${sessionId}/stop`, { message }),
   addresses: (userId: number) => api<PlaybackAddress[]>(`/api/v1/playback/users/${userId}/addresses`),
   users: () => api<PlaybackUser[]>('/api/v1/playback/users'),
+  user: (id: number) => api<PlaybackUserStats>(`/api/v1/playback/users/${id}`),
+  updateUser: (id: number, body: UpdatePlaybackUser) => put<PlaybackUserStats>(`/api/v1/playback/users/${id}`, body),
+  playVersions: () => api<string[]>('/api/v1/playback/plays/versions'),
+  stats: (days: number | null) =>
+    api<PlaybackStats>(`/api/v1/playback/stats?${new URLSearchParams({ ...(days === null ? {} : { days: String(days) }), tz: Intl.DateTimeFormat().resolvedOptions().timeZone })}`),
   moviePlays: (movieId: number) => api<VersionPlays[]>(`/api/v1/playback/movies/${movieId}`),
   settings: () => api<PlaybackSettings>('/api/v1/playback/settings'),
   updateSettings: (body: PlaybackSettings) => put<PlaybackSettings>('/api/v1/playback/settings', body),
