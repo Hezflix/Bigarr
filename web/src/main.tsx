@@ -71,6 +71,7 @@ const playsRoute = createRoute({
   }),
   component: lazyRouteComponent(() => import('./features/playback/PlaysPage'), 'PlaysPage'),
 })
+const playbackStatsRoute = createRoute({ getParentRoute: () => appRoute, path: '/playback/stats', component: lazyRouteComponent(() => import('./features/playback/StatsPage'), 'StatsPage') })
 const playbackUsersRoute = createRoute({ getParentRoute: () => appRoute, path: '/playback/users', component: lazyRouteComponent(() => import('./features/playback/UsersPage'), 'UsersPage') })
 const playbackUserRoute = createRoute({ getParentRoute: () => appRoute, path: '/playback/users/$userId', component: lazyRouteComponent(() => import('./features/playback/UserPage'), 'UserPage') })
 const wantedRoute = createRoute({ getParentRoute: () => appRoute, path: '/wanted', component: lazyRouteComponent(() => import('./features/wanted/WantedPage'), 'WantedPage') })
@@ -95,6 +96,7 @@ const router = createRouter({
       wantedRoute,
       nowPlayingRoute,
       playsRoute,
+      playbackStatsRoute,
       playbackUsersRoute,
       playbackUserRoute,
       movieRoute,

@@ -31,6 +31,7 @@ public sealed record PlaybackStatsResponse(
     List<TopEntryResponse> TopMovies,
     List<TopEntryResponse> TopShows,
     List<TopEntryResponse> TopUsers,
+    List<TopEntryResponse> TopUsersByTime,
     List<TopEntryResponse> TopPlatforms,
     DecisionCountsResponse Decisions,
     ConcurrencyResponse Concurrency,
@@ -127,6 +128,7 @@ public sealed class PlaybackStats(BigarrDbContext db, TimeProvider time)
             Top(plays.Where(p => p.Kind == MediaItemKind.Movie), p => p.MovieId is { } id ? $"m{id}" : $"t{p.Title}\n{p.Year}", p => p.Year is { } y ? $"{p.Title} ({y})" : p.Title, p => p.MovieId, _ => null),
             Top(plays.Where(p => p.Kind == MediaItemKind.Episode), p => p.ShowTitle ?? p.Title, p => p.ShowTitle ?? p.Title, _ => null, _ => null),
             Top(plays, p => p.UserId.ToString(System.Globalization.CultureInfo.InvariantCulture), p => p.UserName, _ => null, p => p.UserId),
+            Top(plays, p => p.UserId.ToString(System.Globalization.CultureInfo.InvariantCulture), p => p.UserName, _ => null, p => p.UserId, byTime: true),
             TopPlatforms(plays, streamsByPlay),
             new DecisionCountsResponse(
                 decisions.Count(x => x == StreamDecision.DirectPlay),
@@ -155,16 +157,20 @@ public sealed class PlaybackStats(BigarrDbContext db, TimeProvider time)
         }
     }
 
-    private static List<TopEntryResponse> Top(IEnumerable<PlayRow> plays, Func<PlayRow, string> key, Func<PlayRow, string> title, Func<PlayRow, int?> movieId, Func<PlayRow, int?> userId) =>
-        plays.GroupBy(key)
+    /// <summary>The <see cref="TopCount"/> most played, by number of plays or, <paramref name="byTime"/>, by watch time.</summary>
+    private static List<TopEntryResponse> Top(IEnumerable<PlayRow> plays, Func<PlayRow, string> key, Func<PlayRow, string> title, Func<PlayRow, int?> movieId, Func<PlayRow, int?> userId, bool byTime = false)
+    {
+        var entries = plays.GroupBy(key)
             .Select(g =>
             {
                 var latest = g.MaxBy(p => p.StoppedAt)!;
                 return new TopEntryResponse(title(latest), movieId(latest), userId(latest), g.Count(), g.Select(p => p.UserId).Distinct().Count(), g.Sum(p => (long)p.PlayedSeconds), latest.StoppedAt);
-            })
-            .OrderByDescending(t => t.Plays).ThenByDescending(t => t.Seconds).ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase)
-            .Take(TopCount)
-            .ToList();
+            });
+        var ordered = byTime
+            ? entries.OrderByDescending(t => t.Seconds).ThenByDescending(t => t.Plays)
+            : entries.OrderByDescending(t => t.Plays).ThenByDescending(t => t.Seconds);
+        return ordered.ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase).Take(TopCount).ToList();
+    }
 
     /// <summary>A play counts for the platform of its last stream, like the Plays page shows it.</summary>
     private static List<TopEntryResponse> TopPlatforms(List<PlayRow> plays, ILookup<int, StreamRow> streams) =>

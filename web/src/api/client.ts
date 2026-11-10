@@ -2079,6 +2079,8 @@ export type PlaybackStats = {
   topMovies: TopEntry[]
   topShows: TopEntry[]
   topUsers: TopEntry[]
+  /** The same people ranked by watch time. */
+  topUsersByTime: TopEntry[]
   topPlatforms: TopEntry[]
   decisions: DecisionCounts
   concurrency: { streams: number; at: string | null }

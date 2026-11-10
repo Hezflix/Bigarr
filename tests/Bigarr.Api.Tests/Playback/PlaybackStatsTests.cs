@@ -231,6 +231,24 @@ public sealed class PlaybackStatsTests : IAsyncLifetime, IDisposable
     }
 
     [Fact]
+    public async Task Top_users_rank_by_plays_or_by_watch_time()
+    {
+        await using (var db = _database.CreateContext())
+        {
+            // erin: one long play yesterday, 20,000 s; bob has two plays (8800 s), alice one (3600 s) in the month.
+            var erin = db.MediaServerUsers.Add(new MediaServerUser { MediaServerId = _server.Id, ExternalId = "5", Name = "erin" }).Entity;
+            var item = await db.MediaServerItems.SingleAsync(i => i.RatingKey == "100");
+            db.Plays.Add(Play(erin, item, Now.AddDays(-1), 20_000, null));
+            await db.SaveChangesAsync();
+        }
+
+        await using var read = _database.CreateContext();
+        var stats = await new PlaybackStats(read, _time).StatsAsync(30, null, TimeZoneInfo.Utc, CancellationToken.None);
+        Assert.Equal([("bob", 2), ("erin", 1), ("alice", 1)], stats.TopUsers.Select(u => (u.Title, u.Plays)).ToList());
+        Assert.Equal([("erin", 20_000L), ("bob", 8800L), ("alice", 3600L)], stats.TopUsersByTime.Select(u => (u.Title, u.Seconds)).ToList());
+    }
+
+    [Fact]
     public async Task The_dashboard_shows_one_persons_numbers()
     {
         await using var db = _database.CreateContext();

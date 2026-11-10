@@ -36,7 +36,8 @@
     "playback": "Playback",
     "nowPlaying": "Now playing",
     "plays": "Plays",
-    "playbackUsers": "Users"
+    "playbackUsers": "Users",
+    "playbackStats": "Stats"
   },
   "theme": {
     "label": "Theme",
@@ -2012,7 +2013,46 @@
     "noAddresses": "No address recorded.",
     "unknownDecision": "Unknown",
     "last24h": "Last 24 h",
-    "firstSeenColumn": "First seen"
+    "firstSeenColumn": "First seen",
+    "uhdTranscoded": "4K played through a transcode",
+    "topPlatforms": "Top platforms",
+    "daysCount_one": "{{count}} day",
+    "usersCount_other": "{{count}} users",
+    "noUhdTranscode": "No 4K file went through a transcode in this period.",
+    "watchTime": "Watch time",
+    "sections": {
+      "activity": "Activity",
+      "activityHint": "when people watch",
+      "library": "Library",
+      "libraryHint": "what is watched, and how",
+      "people": "People",
+      "peopleHint": "who watches, on what"
+    },
+    "mostStreams": "Most streams at once",
+    "playsPer": {
+      "day": "Plays per day",
+      "week": "Plays per week",
+      "month": "Plays per month"
+    },
+    "activeUsers": "Active users",
+    "howServed": "How plays are served",
+    "split": {
+      "kind": "Films / episodes",
+      "decision": "By decision"
+    },
+    "byPlays": "Plays",
+    "byTime": "Watch time",
+    "topShows": "Top shows",
+    "statsTitle": "Stats",
+    "howServedHint": "A transcode costs the server CPU and the viewer quality. The 4K files listed went through one: the players could not take them, a 1080p copy may be enough.",
+    "byWeekday": "By weekday",
+    "daysCount_other": "{{count}} days",
+    "filmsAndEpisodes": "{{movies}} films · {{episodes}} episodes",
+    "oneYear": "1 year",
+    "topUsers": "Top users",
+    "usersCount_one": "{{count}} user",
+    "topMovies": "Top films",
+    "byHour": "By hour of the day"
   },
   "seriesSearch": {
     "search": "Search",
