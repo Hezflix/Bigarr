@@ -16,6 +16,7 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
 {
     public const int MaxPageSize = 200;
 
+    /// <summary>The message shown on the viewer's player: 200 characters, Plex's own limit for it.</summary>
     public const int MaxStopMessageLength = 200;
 
     public async Task<NowPlayingResponse> NowPlayingAsync(CancellationToken ct)

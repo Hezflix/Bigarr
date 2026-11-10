@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { itemLabel } from './format'
 
-/** The server takes at most this many characters. */
+/** Plex's own limit for the message, which the server enforces too. */
 const maxMessage = 200
 
 /**

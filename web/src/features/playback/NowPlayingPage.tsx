@@ -232,7 +232,7 @@ function SessionCard({ session, onStop }: { session: PlaybackSession; onStop: (s
   const network = [d.bandwidth !== null ? t('playback.mbps', { value: (d.bandwidth / 1000).toFixed(1) }) : null, d.ipAddress, locationText(session.location, t('playback.localNetwork'), true)].filter(Boolean).join(' · ')
 
   return (
-    <Card className="relative h-full gap-0 overflow-hidden p-0" data-session={session.id} data-severity={severityKeys[severity(session)]}>
+    <Card className="group/tile relative h-full gap-0 overflow-hidden p-0" data-session={session.id} data-severity={severityKeys[severity(session)]}>
       <div className="relative isolate h-28">
         {session.fanartUrl ? (
           <img src={tmdbSize(session.fanartUrl, 780)} alt="" aria-hidden="true" className="absolute inset-0 -z-10 size-full object-cover" />
@@ -285,7 +285,10 @@ function SessionCard({ session, onStop }: { session: PlaybackSession; onStop: (s
   )
 }
 
-/** Opens the confirmation; stopping itself happens only from there. */
+/**
+ * A light stop icon on a tile, shown when the tile is hovered or the button has the keyboard focus, and always on
+ * screens that cannot hover. It only opens the confirmation; stopping happens from there.
+ */
 function StopButton({ session, onStop, className }: { session: PlaybackSession; onStop: (session: PlaybackSession) => void; className?: string }) {
   const { t } = useTranslation()
   return (
@@ -294,13 +297,16 @@ function StopButton({ session, onStop, className }: { session: PlaybackSession; 
         <Button
           type="button"
           size="icon-sm"
-          variant="outline"
-          className={cn('bg-card/80 backdrop-blur-sm hover:bg-destructive hover:text-white dark:bg-card/70 dark:hover:bg-destructive/80', className)}
+          variant="ghost"
+          className={cn(
+            'bg-card/60 text-muted-foreground opacity-0 backdrop-blur-sm transition-opacity hover:bg-card/80 hover:text-destructive focus-visible:opacity-100 group-hover/tile:opacity-100 [@media(hover:none)]:opacity-100 dark:hover:bg-card/80 dark:hover:text-red-400',
+            className,
+          )}
           aria-label={t('playback.stop')}
           onClick={() => onStop(session)}
           data-testid="stop"
         >
-          <SquareIcon className="fill-current" />
+          <SquareIcon />
         </Button>
       </TooltipTrigger>
       <TooltipContent>{t('playback.stop')}</TooltipContent>
