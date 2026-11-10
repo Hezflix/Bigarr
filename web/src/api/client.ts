@@ -2068,9 +2068,11 @@ export type TopEntry = { title: string; movieId: number | null; userId: number |
 
 export type PlaybackStats = {
   days: number | null
+  userId: number | null
   bucket: 'day' | 'week' | 'month'
   totals: { plays: number; seconds: number; users: number; movies: number; episodes: number }
-  overTime: { date: string; movies: number; episodes: number; seconds: number }[]
+  /** The same plays split two ways: films and episodes, or by their furthest decision. */
+  overTime: { date: string; movies: number; episodes: number; seconds: number; directPlay: number; directStream: number; transcode: number }[]
   byHour: number[]
   /** Monday first. */
   byWeekday: number[]
@@ -2124,8 +2126,10 @@ export const playback = {
   user: (id: number) => api<PlaybackUserStats>(`/api/v1/playback/users/${id}`),
   updateUser: (id: number, body: UpdatePlaybackUser) => put<PlaybackUserStats>(`/api/v1/playback/users/${id}`, body),
   playVersions: () => api<string[]>('/api/v1/playback/plays/versions'),
-  stats: (days: number | null) =>
-    api<PlaybackStats>(`/api/v1/playback/stats?${new URLSearchParams({ ...(days === null ? {} : { days: String(days) }), tz: Intl.DateTimeFormat().resolvedOptions().timeZone })}`),
+  stats: (days: number | null, userId: number | null = null) =>
+    api<PlaybackStats>(
+      `/api/v1/playback/stats?${new URLSearchParams({ ...(days === null ? {} : { days: String(days) }), ...(userId === null ? {} : { userId: String(userId) }), tz: Intl.DateTimeFormat().resolvedOptions().timeZone })}`,
+    ),
   moviePlays: (movieId: number) => api<VersionPlays[]>(`/api/v1/playback/movies/${movieId}`),
   settings: () => api<PlaybackSettings>('/api/v1/playback/settings'),
   updateSettings: (body: PlaybackSettings) => put<PlaybackSettings>('/api/v1/playback/settings', body),

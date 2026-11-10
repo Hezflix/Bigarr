@@ -6,8 +6,11 @@ namespace Bigarr.Api.Features.Playback;
 
 public sealed record StatsTotalsResponse(int Plays, long Seconds, int Users, int Movies, int Episodes);
 
-/// <summary>One bar of the plays over time: a day, or the Monday of a week, or the first of a month, in the viewer's zone.</summary>
-public sealed record PlaysOverTimeResponse(DateOnly Date, int Movies, int Episodes, long Seconds);
+/// <summary>
+/// One bar of the plays over time: a day, or the Monday of a week, or the first of a month, in the viewer's zone. The
+/// same plays split two ways: films and episodes, or by their furthest decision (those without a stream in neither).
+/// </summary>
+public sealed record PlaysOverTimeResponse(DateOnly Date, int Movies, int Episodes, long Seconds, int DirectPlay = 0, int DirectStream = 0, int Transcode = 0);
 
 public sealed record TopEntryResponse(string Title, int? MovieId, int? UserId, int Plays, int Users, long Seconds, DateTime LastPlayedAt);
 
@@ -19,6 +22,7 @@ public sealed record TranscodedVersionResponse(int MovieId, string Title, int? Y
 
 public sealed record PlaybackStatsResponse(
     int? Days,
+    int? UserId,
     string Bucket,
     StatsTotalsResponse Totals,
     List<PlaysOverTimeResponse> OverTime,
@@ -41,14 +45,14 @@ public sealed class PlaybackStats(BigarrDbContext db, TimeProvider time)
 {
     public const int TopCount = 10;
 
-    public async Task<PlaybackStatsResponse> StatsAsync(int? days, TimeZoneInfo zone, CancellationToken ct)
+    public async Task<PlaybackStatsResponse> StatsAsync(int? days, int? userId, TimeZoneInfo zone, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(zone);
 
         var now = time.GetUtcNow().UtcDateTime;
         var from = days is { } d ? now.AddDays(-d) : DateTime.MinValue;
         var plays = await db.Plays.AsNoTracking()
-            .Where(p => p.StartedAt >= from)
+            .Where(p => p.StartedAt >= from && (userId == null || p.UserId == userId))
             .Select(p => new PlayRow(
                 p.Id,
                 p.UserId,
@@ -64,7 +68,7 @@ public sealed class PlaybackStats(BigarrDbContext db, TimeProvider time)
                 p.PlayedSeconds))
             .ToListAsync(ct);
         var streams = await db.PlayStreams.AsNoTracking()
-            .Where(s => s.Play.StartedAt >= from)
+            .Where(s => s.Play.StartedAt >= from && (userId == null || s.Play.UserId == userId))
             .Select(s => new StreamRow(s.PlayId, s.StartedAt, s.StoppedAt, s.Details.PlayerPlatform ?? s.Details.PlayerProduct, s.Details.Decision, s.Details.SourceVideoResolution))
             .ToListAsync(ct);
 
@@ -81,8 +85,17 @@ public sealed class PlaybackStats(BigarrDbContext db, TimeProvider time)
             };
         }
 
+        var streamsByPlay = streams.ToLookup(s => s.PlayId);
+        var decisionOf = plays.ToDictionary(p => p.Id, p => streamsByPlay[p.Id].Max(s => s.Decision));
         var overTime = plays.GroupBy(p => BucketOf(p.StartedAt))
-            .Select(g => new PlaysOverTimeResponse(g.Key, g.Count(p => p.Kind == MediaItemKind.Movie), g.Count(p => p.Kind == MediaItemKind.Episode), g.Sum(p => (long)p.PlayedSeconds)))
+            .Select(g => new PlaysOverTimeResponse(
+                g.Key,
+                g.Count(p => p.Kind == MediaItemKind.Movie),
+                g.Count(p => p.Kind == MediaItemKind.Episode),
+                g.Sum(p => (long)p.PlayedSeconds),
+                g.Count(p => decisionOf[p.Id] == StreamDecision.DirectPlay),
+                g.Count(p => decisionOf[p.Id] == StreamDecision.DirectStream),
+                g.Count(p => decisionOf[p.Id] == StreamDecision.Transcode)))
             .ToDictionary(r => r.Date);
         // Every bucket of the period, the empty ones too: a chart without gaps.
         var first = days is null ? (plays.Count == 0 ? BucketOf(now) : overTime.Keys.Min()) : BucketOf(from);
@@ -101,11 +114,11 @@ public sealed class PlaybackStats(BigarrDbContext db, TimeProvider time)
             byWeekday[((int)at.DayOfWeek + 6) % 7]++; // Monday first
         }
 
-        var streamsByPlay = streams.ToLookup(s => s.PlayId);
-        var decisions = plays.Select(p => streamsByPlay[p.Id].Max(s => s.Decision)).ToList();
+        var decisions = decisionOf.Values.ToList();
 
         return new PlaybackStatsResponse(
             days,
+            userId,
             bucket,
             new StatsTotalsResponse(plays.Count, plays.Sum(p => (long)p.PlayedSeconds), plays.Select(p => p.UserId).Distinct().Count(), plays.Count(p => p.Kind == MediaItemKind.Movie), plays.Count(p => p.Kind == MediaItemKind.Episode)),
             series,

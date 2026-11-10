@@ -183,16 +183,16 @@ public sealed class PlaybackStatsTests : IAsyncLifetime, IDisposable
     public async Task The_dashboard_counts_the_last_30_days()
     {
         await using var db = _database.CreateContext();
-        var stats = await new PlaybackStats(db, _time).StatsAsync(30, TimeZoneInfo.Utc, CancellationToken.None);
+        var stats = await new PlaybackStats(db, _time).StatsAsync(30, null, TimeZoneInfo.Utc, CancellationToken.None);
 
         // P1, P2 and P3: P4 is 40 days old.
         Assert.Equal(new StatsTotalsResponse(3, 12_400, 2, 2, 1), stats.Totals);
         Assert.Equal("day", stats.Bucket);
         Assert.Equal(31, stats.OverTime.Count);
         Assert.Equal(new DateOnly(2026, 2, 12), stats.OverTime[0].Date);
-        Assert.Equal(new PlaysOverTimeResponse(new DateOnly(2026, 3, 14), 1, 0, 3600), stats.OverTime[^1]);
-        Assert.Equal(new PlaysOverTimeResponse(new DateOnly(2026, 3, 11), 1, 0, 7000), stats.OverTime.Single(d => d.Date == new DateOnly(2026, 3, 11)));
-        Assert.Equal(new PlaysOverTimeResponse(new DateOnly(2026, 3, 4), 0, 1, 1800), stats.OverTime.Single(d => d.Date == new DateOnly(2026, 3, 4)));
+        Assert.Equal(new PlaysOverTimeResponse(new DateOnly(2026, 3, 14), 1, 0, 3600, DirectPlay: 1), stats.OverTime[^1]);
+        Assert.Equal(new PlaysOverTimeResponse(new DateOnly(2026, 3, 11), 1, 0, 7000, Transcode: 1), stats.OverTime.Single(d => d.Date == new DateOnly(2026, 3, 11)));
+        Assert.Equal(new PlaysOverTimeResponse(new DateOnly(2026, 3, 4), 0, 1, 1800, DirectStream: 1), stats.OverTime.Single(d => d.Date == new DateOnly(2026, 3, 4)));
         Assert.Equal(3, stats.OverTime.Sum(d => d.Movies + d.Episodes));
 
         Assert.Equal(1, stats.ByHour[18]);
@@ -217,7 +217,7 @@ public sealed class PlaybackStatsTests : IAsyncLifetime, IDisposable
     public async Task The_dashboard_counts_in_the_viewers_time_zone_and_by_month_since_the_start()
     {
         await using var db = _database.CreateContext();
-        var stats = await new PlaybackStats(db, _time).StatsAsync(null, PlaybackStats.Zone("Pacific/Kiritimati"), CancellationToken.None);
+        var stats = await new PlaybackStats(db, _time).StatsAsync(null, null, PlaybackStats.Zone("Pacific/Kiritimati"), CancellationToken.None);
 
         // UTC+14: P1 started at 08:00 the next day, P2, P3 and P4 at 10:00, P5 at 10:00 too.
         Assert.Equal(5, stats.Totals.Plays);
@@ -228,6 +228,42 @@ public sealed class PlaybackStatsTests : IAsyncLifetime, IDisposable
         Assert.Equal([1, 0, 1, 3], stats.OverTime.Select(m => m.Movies + m.Episodes).ToList());
         Assert.Equal(1, stats.Decisions.Unknown);
         Assert.Equal(TimeZoneInfo.Utc, PlaybackStats.Zone("Not/AZone"));
+    }
+
+    [Fact]
+    public async Task The_dashboard_shows_one_persons_numbers()
+    {
+        await using var db = _database.CreateContext();
+        var stats = await new PlaybackStats(db, _time).StatsAsync(30, _bob.Id, TimeZoneInfo.Utc, CancellationToken.None);
+
+        // bob's P2 and P3 only.
+        Assert.Equal((_bob.Id, new StatsTotalsResponse(2, 8800, 1, 1, 1)), (stats.UserId, stats.Totals));
+        Assert.Equal([("bob", 2)], stats.TopUsers.Select(u => (u.Title, u.Plays)).ToList());
+        Assert.Equal(new DecisionCountsResponse(0, 1, 1, 0), stats.Decisions);
+    }
+
+    [Fact]
+    public async Task Most_streams_at_once_counts_streams_running_together_whoever_plays_them_and_paused_ones_too()
+    {
+        await using (var db = _database.CreateContext())
+        {
+            var alice = await db.MediaServerUsers.SingleAsync(u => u.Id == _alice.Id);
+            var bob = await db.MediaServerUsers.SingleAsync(u => u.Id == _bob.Id);
+            var item = await db.MediaServerItems.SingleAsync(i => i.RatingKey == "300");
+            var at = Now.AddDays(-1);
+
+            // alice and bob at once, bob's paused for half of it: 2. alice then resumes on a second stream of the
+            // same play right after the first one ends: still 2, never 3.
+            db.Plays.AddRange(
+                Play(alice, item, at, 1800, null, Stream(at, 1800, StreamDecision.DirectPlay, "TV", "Android", "192.0.2.1"), Stream(at.AddSeconds(1800), 1200, StreamDecision.DirectPlay, "TV", "Android", "192.0.2.1")),
+                Play(bob, item, at.AddMinutes(10), 1500, null, Stream(at.AddMinutes(10), 3000, StreamDecision.DirectPlay, "Phone", "Android", "198.51.100.7", paused: 1500)));
+            await db.SaveChangesAsync();
+        }
+
+        await using var read = _database.CreateContext();
+        var stats = await new PlaybackStats(read, _time).StatsAsync(7, null, TimeZoneInfo.Utc, CancellationToken.None);
+        Assert.Equal(2, stats.Concurrency.Streams);
+        Assert.Equal(Now.AddDays(-1).AddMinutes(10), stats.Concurrency.At);
     }
 
     [Fact]

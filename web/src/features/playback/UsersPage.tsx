@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
+import { cn } from 'cn'
 import { PencilIcon, SearchIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -63,7 +65,9 @@ export function UsersPage() {
                     <span className="flex items-center gap-2.5">
                       <Avatar user={user} />
                       <span className="flex min-w-0 flex-col leading-tight">
-                        <span className="truncate font-medium">{user.name}</span>
+                        <Link to="/playback/users/$userId" params={{ userId: String(user.id) }} className="truncate font-medium underline-offset-4 hover:underline">
+                          {user.name}
+                        </Link>
                         {user.name !== user.serverName && <span className="truncate text-xs text-muted-foreground">{user.serverName}</span>}
                       </span>
                       {user.isOwner && <Badge variant="secondary">{t('playback.owner')}</Badge>}
@@ -88,18 +92,18 @@ export function UsersPage() {
   )
 }
 
-function Avatar({ user }: { user: PlaybackUser }) {
+export function Avatar({ user, className }: { user: Pick<PlaybackUser, 'name' | 'thumbUrl'>; className?: string }) {
   const [broken, setBroken] = useState(false)
-  if (user.thumbUrl && !broken) return <img src={user.thumbUrl} alt="" className="size-7 shrink-0 rounded-full object-cover" onError={() => setBroken(true)} />
+  if (user.thumbUrl && !broken) return <img src={user.thumbUrl} alt="" className={cn('size-7 shrink-0 rounded-full object-cover', className)} onError={() => setBroken(true)} />
   return (
-    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground uppercase" aria-hidden="true">
+    <span className={cn('flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground uppercase', className)} aria-hidden="true">
       {user.name.slice(0, 1)}
     </span>
   )
 }
 
 /** A centered dialog: the name Bigarr shows (blank goes back to the server's) and whether new plays are recorded. */
-function EditUserDialog({ user, onClose }: { user: PlaybackUser; onClose: () => void }) {
+export function EditUserDialog({ user, onClose }: { user: Pick<PlaybackUser, 'id' | 'name' | 'serverName' | 'keepHistory'>; onClose: () => void }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [displayName, setDisplayName] = useState(user.name === user.serverName ? '' : user.name)

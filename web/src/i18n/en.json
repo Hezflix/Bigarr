@@ -225,7 +225,8 @@
       "missingVersion": "Missing {{name}}",
       "cutoffUnmet": "Cutoff unmet",
       "recent": "Recently added",
-      "unmonitored": "Unmonitored"
+      "unmonitored": "Unmonitored",
+      "neverPlayed": "Never played"
     },
     "savedViews": {
       "label": "Views",
@@ -1998,7 +1999,20 @@
     "anyTime": "Any time",
     "noUsers": "Nobody has played anything yet.",
     "userFailed": "Could not save the user.",
-    "usersTitle": "Users"
+    "usersTitle": "Users",
+    "decisionShare": "Direct play or transcode",
+    "allTime": "All time",
+    "lastSeenAt": "last seen {{date}}",
+    "onServer": "{{name}} on the server",
+    "edit": "Edit",
+    "firstSeen": "First seen {{date}}",
+    "players": "Players",
+    "lastUsed": "Last used",
+    "addresses": "IP addresses",
+    "noAddresses": "No address recorded.",
+    "unknownDecision": "Unknown",
+    "last24h": "Last 24 h",
+    "firstSeenColumn": "First seen"
   },
   "seriesSearch": {
     "search": "Search",

@@ -68,11 +68,11 @@ public static class PlaybackEndpoints
             return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
         });
 
-        // days: the last N days (1 to 3650), or since the start when absent; tz: the viewer's IANA time zone.
-        group.MapGet("/stats", async Task<Results<Ok<PlaybackStatsResponse>, ProblemHttpResult>> (int? days, string? tz, PlaybackStats stats, CancellationToken ct) =>
+        // days: the last N days (1 to 3650), or since the start when absent; userId: one person's; tz: the viewer's IANA time zone.
+        group.MapGet("/stats", async Task<Results<Ok<PlaybackStatsResponse>, ProblemHttpResult>> (int? days, int? userId, string? tz, PlaybackStats stats, CancellationToken ct) =>
             days is < 1 or > 3650
                 ? TypedResults.Problem(title: "Invalid period", detail: "Between 1 and 3650 days.", statusCode: StatusCodes.Status400BadRequest)
-                : TypedResults.Ok(await stats.StatsAsync(days, PlaybackStats.Zone(tz), ct)));
+                : TypedResults.Ok(await stats.StatsAsync(days, userId, PlaybackStats.Zone(tz), ct)));
 
         group.MapGet("/movies/{movieId:int}", async Task<Ok<List<VersionPlaysResponse>>> (int movieId, PlaybackService playback, CancellationToken ct) =>
             TypedResults.Ok(await playback.MoviePlaysAsync(movieId, ct)));

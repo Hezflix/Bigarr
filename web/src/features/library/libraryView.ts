@@ -123,7 +123,7 @@ export const defaultPrefs: LibraryPrefs = {
   direction: 'asc',
   filter: emptyFilter,
   cardFields: ['title', 'year', 'versions'],
-  columns: ['year', 'versions', 'quality', 'profile', 'size', 'added'],
+  columns: ['year', 'versions', 'quality', 'profile', 'size', 'added', 'plays'],
   sizeSplit: true,
   savedViews: [],
 }
@@ -257,6 +257,8 @@ export function matchesFilter(movie: MovieSummary, filter: LibraryFilter, now: n
     case 'any':
       return movie.versions.some((v) => versionMatches(v, filter, now))
     case 'all':
+      // Every version never played: the plays whose version could not be told count too, the film was played.
+      if (filter.played === 'never' && movie.plays > 0) return false
       return movie.versions.length > 0 && movie.versions.every((v) => versionMatches(v, filter, now))
     default: {
       const version = filter.scope === 'default' ? movie.versions.find((v) => v.isDefault) : movie.versions.find((v) => v.name === filter.scope.slice('version:'.length))
@@ -386,5 +388,7 @@ export function presets(names: VersionName[]): Preset[] {
     { id: 'cutoffUnmet', filter: { ...emptyFilter, status: 'cutoffUnmet' } },
     { id: 'recent', filter: { ...emptyFilter, addedWithinDays: 30 }, sort: { key: 'added', direction: 'desc' } },
     { id: 'unmonitored', filter: { ...emptyFilter, scope: 'all', monitored: 'unmonitored' } },
+    // Nobody ever played any version, the longest in the library first: what to look at when the disk fills up.
+    { id: 'neverPlayed', filter: { ...emptyFilter, scope: 'all', played: 'never' }, sort: { key: 'added', direction: 'asc' } },
   ]
 }
