@@ -14,7 +14,7 @@ public static class PlaybackEndpoints
             TypedResults.Ok(await playback.NowPlayingAsync(ct)));
 
         // sort is matched by name, case-insensitive (startedAt, user, title, version, played); newest first by default.
-        group.MapGet("/plays", async Task<Results<Ok<PlaysPageResponse>, ProblemHttpResult>> (int? page, int? pageSize, int? userId, int? movieId, int? versionId, MediaItemKind? kind, string? sort, string? direction, PlaybackService playback, CancellationToken ct) =>
+        group.MapGet("/plays", async Task<Results<Ok<PlaysPageResponse>, ProblemHttpResult>> (int? page, int? pageSize, int? userId, int? movieId, int? versionId, MediaItemKind? kind, bool? unmatched, string? sort, string? direction, PlaybackService playback, CancellationToken ct) =>
         {
             var key = PlaySort.StartedAt;
             if (sort is not null && (!Enum.TryParse(sort, ignoreCase: true, out key) || !Enum.IsDefined(key)))
@@ -23,7 +23,7 @@ public static class PlaybackEndpoints
             }
 
             var ascending = string.Equals(direction, "asc", StringComparison.OrdinalIgnoreCase);
-            return TypedResults.Ok(await playback.PlaysAsync(page ?? 1, pageSize ?? 50, userId, movieId, versionId, kind, key, ascending, ct));
+            return TypedResults.Ok(await playback.PlaysAsync(page ?? 1, pageSize ?? 50, userId, movieId, versionId, kind, unmatched == true, key, ascending, ct));
         });
 
         group.MapGet("/plays/{id:int}/streams", async Task<Results<Ok<List<PlayStreamResponse>>, NotFound>> (int id, PlaybackService playback, CancellationToken ct) =>

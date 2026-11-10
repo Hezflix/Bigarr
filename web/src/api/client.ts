@@ -1547,6 +1547,103 @@ export const migration = {
   status: () => api<RadarrImportStatus>('/api/v1/migration/radarr/status'),
 }
 
+// ---- migration (import from Tautulli) ---------------------------------------
+
+/** `path`: the copy of tautulli.db on the Bigarr host, typed or where an upload put it. */
+export type TautulliImportPreviewRequest = { path: string; mediaServerId: number }
+
+export type TautulliImportPreview = {
+  tautulliVersion: string | null
+  users: number
+  deletedUsers: number
+  usersKnown: number
+  firstPlayAt: string | null
+  lastPlayAt: string | null
+  historyRows: number
+  plays: number
+  moviePlays: number
+  episodePlays: number
+  /** Music, photos, Live TV: left out. */
+  otherPlays: number
+  movies: number
+  episodes: number
+  moviePlaysWithFilm: number
+  moviePlaysWithVersion: number
+  /** No id yet but a Plex guid: the import asks Plex. */
+  moviePlaysAskPlex: number
+  moviePlaysUnmatched: number
+  alreadyImported: number
+  overlappingLive: number
+}
+
+export type TautulliImportRequest = TautulliImportPreviewRequest & { askPlex: boolean }
+
+export type TautulliImportIssue = { title: string; year: number | null; reason: string; plays: number }
+
+export type TautulliImportStatus = {
+  state: RadarrImportState
+  startedAt: string | null
+  finishedAt: string | null
+  total: number
+  processed: number
+  usersAdded: number
+  itemsAdded: number
+  playsAdded: number
+  streamsAdded: number
+  playsExtended: number
+  alreadyImported: number
+  overlappingLive: number
+  otherSkipped: number
+  moviePlays: number
+  moviePlaysWithFilm: number
+  moviePlaysWithVersion: number
+  plexAsked: number
+  plexResolved: number
+  current: string | null
+  error: string | null
+  issues: TautulliImportIssue[]
+  uploadDeleted: boolean
+}
+
+export type TautulliUpload = { path: string; bytes: number }
+
+/** Sends the raw file as the body, reporting the share sent so far (0–1): a Tautulli database runs to hundreds of megabytes. */
+function uploadTautulli(file: File, onProgress: (share: number) => void): Promise<TautulliUpload> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest()
+    request.open('PUT', '/api/v1/migration/tautulli/upload')
+    request.withCredentials = true
+    request.setRequestHeader('Content-Type', 'application/octet-stream')
+    request.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(e.loaded / e.total)
+    }
+    request.onload = () => {
+      let body: unknown
+      try {
+        body = JSON.parse(request.responseText)
+      } catch {
+        body = undefined
+      }
+      if (request.status >= 200 && request.status < 300) {
+        resolve(body as TautulliUpload)
+        return
+      }
+      const problem = body as Problem | undefined
+      reject(new ApiError(request.status, problem?.detail ?? problem?.title ?? request.statusText, problem))
+    }
+    request.onerror = () => reject(new ApiError(0, 'Upload failed'))
+    request.send(file)
+  })
+}
+
+export const tautulliImport = {
+  upload: uploadTautulli,
+  preview: (body: TautulliImportPreviewRequest) => post<TautulliImportPreview>('/api/v1/migration/tautulli/preview', body),
+  /** Queues the import (202); 409 when one is already running. */
+  start: (body: TautulliImportRequest) => post<TautulliImportStatus>('/api/v1/migration/tautulli/import', body),
+  status: () => api<TautulliImportStatus>('/api/v1/migration/tautulli/status'),
+}
+
 // ---- shadow mode: followed Radarrs -------------------------------------------
 
 /** A Radarr Bigarr follows in shadow mode. The key comes back masked (`********`); sending the mask keeps the stored one. */
@@ -1916,6 +2013,8 @@ export type PlaysQuery = {
   movieId?: number
   versionId?: number
   kind?: MediaItemKind
+  /** Film plays linked to no Bigarr film. */
+  unmatched?: boolean
   sort?: PlaySortKey
   direction?: 'asc' | 'desc'
 }

@@ -31,7 +31,7 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
                 s.MediaServerId,
                 s.SessionKey,
                 new PlaybackUserRef(s.User.Id, s.User.DisplayName ?? s.User.Name, s.User.ThumbUrl),
-                new PlaybackItemRef(s.Item.Id, s.Item.Kind, s.Item.Title, s.Item.Year, s.Item.ShowTitle, s.Item.SeasonNumber, s.Item.EpisodeNumber, s.Item.DurationMs, s.Item.LibrarySectionTitle, s.Item.MovieId),
+                new PlaybackItemRef(s.Item.Id, s.Item.Kind, s.Item.Movie != null ? s.Item.Movie.Title : s.Item.Title, s.Item.Movie != null ? s.Item.Movie.Year : s.Item.Year, s.Item.ShowTitle, s.Item.SeasonNumber, s.Item.EpisodeNumber, s.Item.DurationMs, s.Item.LibrarySectionTitle, s.Item.MovieId),
                 s.State,
                 s.ViewOffsetMs,
                 s.StartedAt,
@@ -57,7 +57,7 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
         return new NowPlayingResponse(statuses, sessions);
     }
 
-    public async Task<PlaysPageResponse> PlaysAsync(int page, int pageSize, int? userId, int? movieId, int? versionId, MediaItemKind? kind, PlaySort sort, bool ascending, CancellationToken ct)
+    public async Task<PlaysPageResponse> PlaysAsync(int page, int pageSize, int? userId, int? movieId, int? versionId, MediaItemKind? kind, bool unmatched, PlaySort sort, bool ascending, CancellationToken ct)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
@@ -83,13 +83,19 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
             query = query.Where(p => p.Item.Kind == k);
         }
 
+        // Film plays linked to no Bigarr film: an import that could not match them, or a film Bigarr does not manage.
+        if (unmatched)
+        {
+            query = query.Where(p => p.Item.Kind == MediaItemKind.Movie && p.MovieId == null && p.Item.MovieId == null);
+        }
+
         var total = await query.CountAsync(ct);
         var records = await Order(query, sort, ascending)
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(p => new PlayResponse(
                 p.Id,
                 new PlaybackUserRef(p.User.Id, p.User.DisplayName ?? p.User.Name, p.User.ThumbUrl),
-                new PlaybackItemRef(p.Item.Id, p.Item.Kind, p.Item.Title, p.Item.Year, p.Item.ShowTitle, p.Item.SeasonNumber, p.Item.EpisodeNumber, p.Item.DurationMs, p.Item.LibrarySectionTitle, p.Item.MovieId),
+                new PlaybackItemRef(p.Item.Id, p.Item.Kind, p.Movie != null ? p.Movie.Title : p.Item.Movie != null ? p.Item.Movie.Title : p.Item.Title, p.Movie != null ? p.Movie.Year : p.Item.Movie != null ? p.Item.Movie.Year : p.Item.Year, p.Item.ShowTitle, p.Item.SeasonNumber, p.Item.EpisodeNumber, p.Item.DurationMs, p.Item.LibrarySectionTitle, p.Item.MovieId),
                 p.StartedAt,
                 p.StoppedAt,
                 p.PlayedSeconds,
@@ -130,8 +136,8 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
     {
         (PlaySort.User, true) => query.OrderBy(p => p.User.DisplayName ?? p.User.Name).ThenByDescending(p => p.StartedAt).ThenByDescending(p => p.Id),
         (PlaySort.User, false) => query.OrderByDescending(p => p.User.DisplayName ?? p.User.Name).ThenByDescending(p => p.StartedAt).ThenByDescending(p => p.Id),
-        (PlaySort.Title, true) => query.OrderBy(p => p.Item.ShowTitle ?? p.Item.Title).ThenBy(p => p.Item.SeasonNumber).ThenBy(p => p.Item.EpisodeNumber).ThenByDescending(p => p.StartedAt).ThenByDescending(p => p.Id),
-        (PlaySort.Title, false) => query.OrderByDescending(p => p.Item.ShowTitle ?? p.Item.Title).ThenByDescending(p => p.Item.SeasonNumber).ThenByDescending(p => p.Item.EpisodeNumber).ThenByDescending(p => p.StartedAt).ThenByDescending(p => p.Id),
+        (PlaySort.Title, true) => query.OrderBy(p => p.Item.ShowTitle ?? (p.Movie != null ? p.Movie.Title : p.Item.Movie != null ? p.Item.Movie.Title : p.Item.Title)).ThenBy(p => p.Item.SeasonNumber).ThenBy(p => p.Item.EpisodeNumber).ThenByDescending(p => p.StartedAt).ThenByDescending(p => p.Id),
+        (PlaySort.Title, false) => query.OrderByDescending(p => p.Item.ShowTitle ?? (p.Movie != null ? p.Movie.Title : p.Item.Movie != null ? p.Item.Movie.Title : p.Item.Title)).ThenByDescending(p => p.Item.SeasonNumber).ThenByDescending(p => p.Item.EpisodeNumber).ThenByDescending(p => p.StartedAt).ThenByDescending(p => p.Id),
         (PlaySort.Version, true) => query.OrderBy(p => p.VersionName).ThenByDescending(p => p.StartedAt).ThenByDescending(p => p.Id),
         (PlaySort.Version, false) => query.OrderByDescending(p => p.VersionName).ThenByDescending(p => p.StartedAt).ThenByDescending(p => p.Id),
         (PlaySort.Played, true) => query.OrderBy(p => p.PlayedSeconds).ThenByDescending(p => p.StartedAt).ThenByDescending(p => p.Id),

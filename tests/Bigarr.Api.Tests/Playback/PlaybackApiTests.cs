@@ -70,7 +70,8 @@ public sealed class PlaybackApiTests(BigarrApiFactory factory) : IClassFixture<B
         });
         var live = playing.GetProperty("sessions")[0];
         Assert.Equal("dana", live.GetProperty("user").GetProperty("name").GetString());
-        Assert.Equal("Invented Film", live.GetProperty("item").GetProperty("title").GetString());
+        // Linked to a Bigarr film: Bigarr's title, not the one Plex shows.
+        Assert.Equal("The Matrix", live.GetProperty("item").GetProperty("title").GetString());
         Assert.Equal("1080p", live.GetProperty("versionName").GetString());
         Assert.Equal("directPlay", live.GetProperty("details").GetProperty("decision").GetString());
         Assert.Equal(JsonValueKind.Null, live.GetProperty("posterUrl").ValueKind);

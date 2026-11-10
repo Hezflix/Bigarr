@@ -101,8 +101,8 @@ public sealed class PlexClient(IHttpClientFactory httpClientFactory) : IMediaSer
         }
     }
 
-    /// <summary>The guid and external ids of a show (an episode's grandparent); null when Plex no longer has it.</summary>
-    public async Task<(string? Guid, PlexIds Ids)?> IdsAsync(MediaServer server, string ratingKey, CancellationToken ct)
+    /// <summary>The guid, external ids and title of a show (an episode's grandparent); null when Plex no longer has it.</summary>
+    public async Task<(string? Guid, PlexIds Ids, string? Title)?> IdsAsync(MediaServer server, string ratingKey, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(server);
 

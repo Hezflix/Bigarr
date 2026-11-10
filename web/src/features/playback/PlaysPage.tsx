@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useSearch } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { playback, type MediaItemKind, type Play, type PlaySortKey } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -21,13 +22,14 @@ export function PlaysPage() {
   const { t } = useTranslation()
   const [page, setPage] = useState(1)
   const [userId, setUserId] = useState<number | null>(null)
-  const [kind, setKind] = useState<'all' | MediaItemKind>('all')
+  const search = useSearch({ from: '/app/playback/plays' })
+  const [kind, setKind] = useState<'all' | MediaItemKind | 'unmatched'>(search.kind ?? 'all')
   const [sort, setSort] = useState<PlaySort>({ key: 'startedAt', direction: 'desc' })
   const [selected, setSelected] = useState<Play | null>(null)
   const users = useQuery({ queryKey: ['playback', 'users'], queryFn: playback.users })
   const query = useQuery({
     queryKey: ['playback', 'plays', page, userId, kind, sort],
-    queryFn: () => playback.plays({ page, pageSize, userId: userId ?? undefined, kind: kind === 'all' ? undefined : kind, sort: sort.key, direction: sort.direction }),
+    queryFn: () => playback.plays({ page, pageSize, userId: userId ?? undefined, kind: kind === 'all' || kind === 'unmatched' ? undefined : kind, unmatched: kind === 'unmatched' || undefined, sort: sort.key, direction: sort.direction }),
     placeholderData: keepPreviousData,
   })
   const data = query.data
@@ -56,7 +58,7 @@ export function PlaysPage() {
           <Select
             value={kind}
             onValueChange={(v) => {
-              setKind(v as 'all' | MediaItemKind)
+              setKind(v as 'all' | MediaItemKind | 'unmatched')
               setPage(1)
             }}
           >
@@ -67,6 +69,7 @@ export function PlaysPage() {
               <SelectItem value="all">{t('playback.allKinds')}</SelectItem>
               <SelectItem value="movie">{t('playback.kinds.movie')}</SelectItem>
               <SelectItem value="episode">{t('playback.kinds.episode')}</SelectItem>
+              <SelectItem value="unmatched">{t('playback.kinds.unmatched')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
