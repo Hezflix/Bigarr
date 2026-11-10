@@ -14,6 +14,22 @@ public enum TransferMode
 }
 
 /// <summary>
+/// When a season pack is an upgrade over the files it would replace (Sonarr's media management "Season Pack Upgrade").
+/// Episodes without a file always count as upgraded.
+/// </summary>
+public enum SeasonPackUpgrade
+{
+    /// <summary>Every episode of the pack must be missing or upgraded (Sonarr's default).</summary>
+    All = 0,
+
+    /// <summary>At least <c>SeasonPackUpgradeThreshold</c> percent of the episodes.</summary>
+    Threshold = 1,
+
+    /// <summary>One episode upgraded is enough, even if the others would not gain.</summary>
+    Any = 2,
+}
+
+/// <summary>
 /// Single row (id 1): naming templates, renaming on/off, transfer mode and recycle bin (blueprint §3.7). Read by the
 /// import, the rename command, version creation and file deletion.
 /// </summary>
@@ -50,6 +66,11 @@ public sealed class MediaManagementConfig
 
     /// <summary>Comma list without dots, lower case: <c>srt,ass</c>.</summary>
     public string ExtraFileExtensions { get; set; } = DefaultExtraFileExtensions;
+
+    public SeasonPackUpgrade SeasonPackUpgrade { get; set; } = SeasonPackUpgrade.All;
+
+    /// <summary>Percent of the pack's episodes that must be upgraded in <see cref="SeasonPackUpgrade.Threshold"/> mode.</summary>
+    public double SeasonPackUpgradeThreshold { get; set; } = 100;
 
     public static MediaManagementConfig Default() => new();
 }

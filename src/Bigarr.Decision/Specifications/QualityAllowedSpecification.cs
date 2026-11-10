@@ -4,7 +4,7 @@ public sealed class QualityAllowedSpecification : IReleaseSpecification
 {
     public Rejection? Evaluate(ReleaseCandidate candidate, TargetContext target)
     {
-        var quality = candidate.Parsed.Quality?.Quality;
+        var quality = candidate.Quality?.Quality;
         if (quality is null || quality.Id == 0)
         {
             return new Rejection("Quality could not be determined from the release title");

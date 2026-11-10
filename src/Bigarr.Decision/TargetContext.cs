@@ -14,6 +14,9 @@ public sealed record ExistingFile(int QualityId, int RevisionVersion, int Revisi
     /// been grabbed. Only changes how the reasons name it.
     /// </summary>
     public bool IsPick { get; init; }
+
+    /// <summary>Release group of the file (or pick): anime v2 upgrades must come from the same group.</summary>
+    public string? ReleaseGroup { get; init; }
 }
 
 /// <summary>
@@ -39,6 +42,13 @@ public sealed record TargetContext(
 
     /// <summary>Custom format names, for the reasons shown to the user.</summary>
     public IReadOnlyDictionary<int, string> CustomFormatNames { get; init; } = new Dictionary<int, string>();
+
+    /// <summary>
+    /// Set for a series version: the episodes the release covers, each with its own file, grab and monitoring. Then
+    /// <see cref="Target"/> is the first of them (it resolves the version's profile and constraints) and
+    /// <see cref="File"/> stays null: files are per episode.
+    /// </summary>
+    public EpisodeCoverage? Episodes { get; init; }
 
     public int EffectiveRuntimeMinutes => RuntimeMinutes is > 0 ? RuntimeMinutes.Value : DefaultRuntimeMinutes;
 }

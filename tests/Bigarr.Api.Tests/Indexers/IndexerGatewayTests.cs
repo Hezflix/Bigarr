@@ -37,6 +37,19 @@ public sealed class IndexerGatewayTests
         }
 
         public Task<IReadOnlyList<ReleaseInfo>> FetchRecentAsync(Indexer indexer, CancellationToken cancellationToken) => SearchAsync(indexer, Criteria, cancellationToken);
+
+        /// <summary>A series search of three requests (ids, then two titles), each paced by the gateway.</summary>
+        public async Task<IReadOnlyList<ReleaseInfo>> SearchSeriesAsync(Indexer indexer, SeriesSearchCriteria criteria, Func<CancellationToken, Task> pace, CancellationToken cancellationToken)
+        {
+            for (var i = 0; i < 3; i++)
+            {
+                await pace(cancellationToken);
+            }
+
+            return await SearchAsync(indexer, Criteria, cancellationToken);
+        }
+
+        public Task<IReadOnlyList<ReleaseInfo>> FetchRecentSeriesAsync(Indexer indexer, CancellationToken cancellationToken) => SearchAsync(indexer, Criteria, cancellationToken);
     }
 
     private static Func<IReadOnlyList<ReleaseInfo>> Ok() => () => [new ReleaseInfo { Guid = "g", Title = "t", IndexerName = "Flaky" }];
@@ -155,5 +168,19 @@ public sealed class IndexerGatewayTests
         await gateway.SearchAsync(indexer, Criteria, CancellationToken.None);
 
         Assert.True(stopwatch.Elapsed >= TimeSpan.FromMilliseconds(1900), $"three calls took {stopwatch.ElapsedMilliseconds} ms");
+    }
+
+    [Fact]
+    public async Task Every_request_of_a_series_search_waits_for_its_own_slot()
+    {
+        var client = new ScriptedClient(new Queue<Func<IReadOnlyList<ReleaseInfo>>>([Ok()]));
+        var gateway = new IndexerGateway([client], TimeProvider.System, NullLogger<IndexerGateway>.Instance);
+        var indexer = Indexer(rateLimitSeconds: 1);
+
+        var stopwatch = Stopwatch.StartNew();
+        await gateway.SearchSeriesAsync(indexer, new SeriesSearchCriteria("Show", 1, null, null, Bigarr.Domain.Tv.SeriesType.Standard, []) { SeasonNumber = 1 }, CancellationToken.None);
+
+        Assert.True(stopwatch.Elapsed >= TimeSpan.FromMilliseconds(1900), $"three paced requests took {stopwatch.ElapsedMilliseconds} ms");
+        Assert.Equal(1, client.Calls);
     }
 }

@@ -16,6 +16,7 @@ public sealed class ReleaseSightingConfiguration : IEntityTypeConfiguration<Rele
         builder.Property(s => s.InfoHash).HasMaxLength(64);
         builder.Property(s => s.Title).HasMaxLength(1024);
         builder.Property(s => s.UnmatchedReason).HasMaxLength(512);
+        builder.Property(s => s.Episodes).HasMaxLength(128);
         builder.Property(s => s.AttributedVersion).HasMaxLength(64);
         builder.Property(s => s.Verdicts).HasJsonConversion();
 

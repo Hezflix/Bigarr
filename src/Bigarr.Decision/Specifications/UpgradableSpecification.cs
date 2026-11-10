@@ -8,15 +8,89 @@ namespace Bigarr.Decision.Specifications;
 /// score at <c>CutoffFormatScore</c> wants nothing more, a proper or repack excepted (blueprint §3.6, §5). In shadow
 /// mode the "file" may be Bigarr's own pick, and the reasons say so.
 /// </summary>
+/// <remarks>
+/// For a series version every episode the release covers is checked against its own file (Sonarr's
+/// <c>UpgradeDiskSpecification</c>, season packs in its default "all" mode): the release must be an upgrade over every
+/// file it would replace, and an episode without a file counts as upgraded. One episode that would not gain rejects
+/// the whole release, with that episode named.
+/// </remarks>
 public sealed class UpgradableSpecification : IReleaseSpecification
 {
     public Rejection? Evaluate(ReleaseCandidate candidate, TargetContext target)
     {
-        var file = target.File;
-        if (file is null)
+        if (target.Episodes is { } episodes)
+        {
+            return EvaluateEpisodes(candidate, target, episodes);
+        }
+
+        return target.File is { } file ? Check(candidate, target, file) : null;
+    }
+
+    private static Rejection? EvaluateEpisodes(ReleaseCandidate candidate, TargetContext target, EpisodeCoverage episodes)
+    {
+        var withFile = episodes.Slots.Where(s => s.File is not null).ToList();
+        if (withFile.Count == 0)
         {
             return null;
         }
+
+        var refused = new List<(EpisodeSlot Slot, Rejection Rejection)>();
+        foreach (var slot in withFile)
+        {
+            if (Check(candidate, target, slot.File!) is { } rejection)
+            {
+                refused.Add((slot, rejection));
+            }
+        }
+
+        if (refused.Count == 0)
+        {
+            return null;
+        }
+
+        if (episodes.Slots.Count == 1)
+        {
+            return refused[0].Rejection;
+        }
+
+        var upgradedCount = episodes.Slots.Count - refused.Count;
+        if (candidate.ParsedEpisode?.FullSeason == true)
+        {
+            // Sonarr's season-pack modes: all (default), a percentage, or any one episode.
+            var percent = 100.0 * upgradedCount / episodes.Slots.Count;
+            var accepted = episodes.SeasonPackUpgrade switch
+            {
+                Bigarr.Domain.Library.SeasonPackUpgrade.Any => upgradedCount > 0,
+                Bigarr.Domain.Library.SeasonPackUpgrade.Threshold => percent >= episodes.SeasonPackUpgradeThreshold,
+                _ => false,
+            };
+            if (accepted)
+            {
+                return null;
+            }
+
+            if (episodes.SeasonPackUpgrade != Bigarr.Domain.Library.SeasonPackUpgrade.All)
+            {
+                var rule = episodes.SeasonPackUpgrade == Bigarr.Domain.Library.SeasonPackUpgrade.Any
+                    ? "at least one"
+                    : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{episodes.SeasonPackUpgradeThreshold:0.##}%");
+                return new Rejection(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                    $"Season pack does not upgrade enough episodes: {upgradedCount}/{episodes.Slots.Count} ({percent:0.##}%), {rule} required"));
+            }
+        }
+
+        var first = refused.OrderBy(r => r.Slot.SeasonNumber).ThenBy(r => r.Slot.EpisodeNumber).First();
+        return new Rejection(
+            $"Not an upgrade for every episode it would replace ({upgradedCount}/{episodes.Slots.Count} upgradable): {first.Slot.Label}: {first.Rejection.Reason}"
+            + (refused.Count > 1 ? $" (and {refused.Count - 1} more)" : string.Empty));
+    }
+
+    /// <summary>The film rule against one file (or pick).</summary>
+    public static Rejection? Check(ReleaseCandidate candidate, TargetContext target, ExistingFile file)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(file);
 
         var noun = file.IsPick ? "picked" : "existing";
         var nounAtStart = file.IsPick ? "Picked" : "Existing";
@@ -26,7 +100,7 @@ public sealed class UpgradableSpecification : IReleaseSpecification
             return new Rejection(file.IsPick ? "One-shot version already has a pick" : "One-shot version already has its file");
         }
 
-        var newQuality = candidate.Parsed.Quality?.Quality;
+        var newQuality = candidate.Quality?.Quality;
         if (newQuality is null || newQuality.Id == 0)
         {
             return null; // QualityAllowedSpecification already explains this one.
@@ -43,7 +117,7 @@ public sealed class UpgradableSpecification : IReleaseSpecification
         }
 
         var currentRevision = new Revision(file.RevisionVersion, file.RevisionReal, file.IsRepack);
-        var newRevision = candidate.Parsed.Quality!.Revision ?? new Revision();
+        var newRevision = candidate.Quality!.Revision ?? new Revision();
         var revisionCompare = newRevision.CompareTo(currentRevision);
         var isRevisionUpgrade = newRank == currentRank && revisionCompare > 0;
 

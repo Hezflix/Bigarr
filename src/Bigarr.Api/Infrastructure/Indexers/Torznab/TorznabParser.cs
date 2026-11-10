@@ -42,13 +42,19 @@ public static class TorznabParser
 
         int? max = int.TryParse(root.Element("limits")?.Attribute("max")?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var m) && m > 0 ? m : null;
 
+        var tvSearch = searching?.Element("tv-search");
+
         return new IndexerCapabilities(
             supportsMovie,
             supportsMovie && movieParams.Contains("imdbid"),
             supportsMovie && movieParams.Contains("tmdbid"),
             supportsMovie && movieParams.Contains("year"),
             categories,
-            max);
+            max)
+        {
+            SupportsTvSearch = IsAvailable(tvSearch),
+            TvSearchParams = SupportedParams(tvSearch),
+        };
     }
 
     public static IReadOnlyList<ReleaseInfo> ParseFeed(string xml, Indexer indexer)
@@ -187,6 +193,7 @@ public static class TorznabParser
             Categories = categories,
             ImdbId = NormalizeImdbId(Attr("imdb") ?? Attr("imdbid")),
             TmdbId = ParseInt(Attr("tmdbid") ?? Attr("tmdb")),
+            TvdbId = ParseInt(Attr("tvdbid") ?? Attr("tvdb")) is { } tvdb and > 0 ? tvdb : null,
             Flags = ParseFlags(attrs),
             MinimumRatio = ParseDouble(Attr("minimumratio")),
             MinimumSeedTime = ParseLong(Attr("minimumseedtime")) is { } seconds and > 0 ? TimeSpan.FromSeconds(seconds) : null,

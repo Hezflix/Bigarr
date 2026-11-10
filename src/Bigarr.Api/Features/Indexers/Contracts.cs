@@ -21,7 +21,11 @@ public sealed record IndexerRequest(
     /// <summary>Null keeps the current value (2 seconds on a new indexer): Prowlarr does not send it.</summary>
     int? RateLimitSeconds = null,
     /// <summary>Set when Prowlarr pushes the indexer through the compat API, from the <c>/{id}/</c> in its URL; null keeps the current link.</summary>
-    int? ProwlarrId = null);
+    int? ProwlarrId = null,
+    /// <summary>Series categories; null keeps the current ones (Prowlarr does not send them), empty means "from the capabilities".</summary>
+    List<int>? TvCategories = null,
+    /// <summary>Anime categories; null keeps the current ones, empty means "from the capabilities".</summary>
+    List<int>? AnimeCategories = null);
 
 public sealed record IndexerStatusResponse(
     bool Healthy,
@@ -51,7 +55,10 @@ public sealed record IndexerResponse(
     /// <summary>Set when Prowlarr manages the row: each sync rewrites everything but the rate limit, and the row goes when Prowlarr removes it.</summary>
     int? ProwlarrId,
     IndexerStatusResponse Status,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    /// <summary>Empty until filled from the capabilities (at the first series search or test).</summary>
+    List<int>? TvCategories = null,
+    List<int>? AnimeCategories = null);
 
 public sealed record IndexerTestResponse(
     bool SupportsMovieSearch,
@@ -59,4 +66,10 @@ public sealed record IndexerTestResponse(
     bool SupportsTmdbSearch,
     int CategoryCount,
     /// <summary>Releases returned by a feed fetch; zero on a working but empty indexer.</summary>
-    int RecentReleases);
+    int RecentReleases,
+    bool SupportsTvSearch = false,
+    /// <summary>The <c>tv-search</c> parameters the indexer takes (<c>q</c>, <c>season</c>, <c>ep</c>, <c>tvdbid</c>…).</summary>
+    List<string>? TvSearchParams = null,
+    /// <summary>The TV and anime categories the capabilities list: what an empty row field falls back to.</summary>
+    List<int>? TvCategories = null,
+    List<int>? AnimeCategories = null);

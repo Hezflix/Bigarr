@@ -16,8 +16,8 @@ public sealed class ReleaseSightings(BigarrDbContext db, IOptions<ShadowOptions>
 {
     public bool Enabled => options.Value.Enabled;
 
-    /// <param name="seen">Each release of the pass with its verdicts and the TMDB id of the film it was matched to.</param>
-    public async Task RecordAsync(IEnumerable<(RssReleaseResponse Entry, ReleaseInfo Release, int? TmdbId)> seen, DateTime now, CancellationToken ct)
+    /// <param name="seen">Each release of the pass with its verdicts and the TMDB id of the film (or TVDB id of the series) it was matched to.</param>
+    public async Task RecordAsync(IEnumerable<(RssReleaseResponse Entry, ReleaseInfo Release, int? TmdbId, int? TvdbId)> seen, DateTime now, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(seen);
 
@@ -28,7 +28,7 @@ public sealed class ReleaseSightings(BigarrDbContext db, IOptions<ShadowOptions>
             .ToHashSet();
 
         // Every pass judges the whole feed again: a release is written down once, with the verdict of the first pass that saw it.
-        foreach (var (entry, release, tmdbId) in batch)
+        foreach (var (entry, release, tmdbId, tvdbId) in batch)
         {
             if (!known.Add((entry.Indexer, entry.Guid)))
             {
@@ -45,6 +45,8 @@ public sealed class ReleaseSightings(BigarrDbContext db, IOptions<ShadowOptions>
                 SeenAt = now,
                 PublishDate = entry.PublishDate,
                 TmdbId = tmdbId is > 0 ? tmdbId : null,
+                TvdbId = tvdbId is > 0 ? tvdbId : null,
+                Episodes = Truncate(entry.Episodes, 128),
                 UnmatchedReason = Truncate(entry.UnmatchedReason, 512),
                 AttributedVersion = entry.AttributedVersionName,
                 Verdicts = entry.Versions.Select(v => new SightingVerdict(v.VersionName, v.Approved, v.Rejections.Select(r => r.Reason).ToList(), v.CustomFormatScore)).ToList(),

@@ -80,6 +80,9 @@ builder.Services.AddSingleton<LibraryScanRunner>();
 builder.Services.AddScoped<IndexerService>();
 builder.Services.AddScoped<TargetContextFactory>();
 builder.Services.AddScoped<InteractiveSearchService>();
+builder.Services.AddScoped<SeriesTargetsFactory>();
+builder.Services.AddScoped<SeriesSearchService>();
+builder.Services.AddScoped<SeriesRssPass>();
 builder.Services.Configure<RssSyncOptions>(builder.Configuration.GetSection(RssSyncOptions.Section));
 builder.Services.Configure<SearchOptions>(builder.Configuration.GetSection(SearchOptions.Section));
 builder.Services.AddSingleton<RssFeedState>();
@@ -98,6 +101,7 @@ builder.Services.AddScoped<GrabService>();
 // Shadow mode (next to Radarr): picks instead of grabs, sightings of what the RSS pass saw.
 builder.Services.Configure<ShadowOptions>(builder.Configuration.GetSection(ShadowOptions.Section));
 builder.Services.AddScoped<ShadowPickRecorder>();
+builder.Services.AddScoped<SeriesShadowPickRecorder>();
 builder.Services.AddScoped<ReleaseSightings>();
 builder.Services.AddScoped<ShadowJudge>();
 builder.Services.AddScoped<QueueService>();

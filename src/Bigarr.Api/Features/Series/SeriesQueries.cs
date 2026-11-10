@@ -177,7 +177,8 @@ public sealed class SeriesQueries(BigarrDbContext db, TimeProvider time)
         Path.Combine(version.RootFolder.Path, version.FolderName),
         version.CreatedAt,
         version.Tags.Select(t => t.Id).Order().ToList(),
-        statistics);
+        statistics,
+        Movies.MovieMapper.ToConstraints(version.Constraints));
 
     public async Task<SeriesVersionResponse?> GetVersionAsync(int seriesId, int versionId, CancellationToken ct)
     {

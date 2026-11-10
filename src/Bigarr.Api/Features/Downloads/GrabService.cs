@@ -28,6 +28,7 @@ public sealed class GrabService(
     OutboxWriter outbox,
     CustomFormatScorer scorer,
     ShadowPickRecorder picks,
+    SeriesShadowPickRecorder seriesPicks,
     IOptions<ShadowOptions> shadow,
     TimeProvider time,
     ILogger<GrabService> logger)
@@ -44,6 +45,11 @@ public sealed class GrabService(
         if (invalid is not null)
         {
             return invalid;
+        }
+
+        if (request.IsSeries)
+        {
+            return await GrabEpisodesAsync(request, trigger, ct);
         }
 
         // Folder, tags, file and format scores feed the event's snapshot.
@@ -167,6 +173,57 @@ public sealed class GrabService(
         queue.RequestRefresh();
         logger.LogInformation("Grabbed {Title} for {Movie} [{Version}] → {Client} ({DownloadId}, {Trigger})", request.Title, version.Movie.Title, version.Name, chosen.Name, downloadId, trigger);
         return Result<GrabResponse>.Ok(new GrabResponse(grab.Id, downloadId, chosen.Id, chosen.Name, grab.State, grab.GrabbedAt));
+    }
+
+    /// <summary>Shown when a series release would go to a download client: nothing imports it before S5.</summary>
+    public const string SeriesGrabGated =
+        "Bigarr cannot track or import series downloads yet, so nothing was sent to the download client (a torrent nobody imports would be left behind). Shadow mode records the pick instead.";
+
+    /// <summary>
+    /// A series release: one target per (version, episode) pair it covers. In shadow mode a series pick is recorded.
+    /// Otherwise the grab is refused for now: queue tracking and import of series downloads come later, and a torrent
+    /// nobody imports must not be left in the client.
+    /// </summary>
+    private async Task<Result<GrabResponse>> GrabEpisodesAsync(GrabRequest request, string trigger, CancellationToken ct)
+    {
+        var version = await db.SeriesVersions
+            .Include(v => v.Series)
+            .Include(v => v.QualityProfile).ThenInclude(p => p.FormatScores)
+            .FirstOrDefaultAsync(v => v.Id == request.VersionId, ct);
+        if (version is null)
+        {
+            return Failure.NotFound("Series version");
+        }
+
+        var episodeIds = request.EpisodeIds!.Distinct().ToList();
+        var targets = await db.EpisodeTargets
+            .Include(t => t.Episode)
+            .Where(t => t.VersionId == version.Id && episodeIds.Contains(t.EpisodeId))
+            .ToListAsync(ct);
+        if (targets.Count != episodeIds.Count)
+        {
+            var missing = episodeIds.Except(targets.Select(t => t.EpisodeId)).ToList();
+            return Failure.Invalid("Unknown episodes", $"Episode(s) {string.Join(", ", missing)} are not episodes of {version.Series.Title} [{version.Name}].");
+        }
+
+        var targetIds = targets.Select(t => t.Id).ToList();
+        if (await db.GrabTargets.AnyAsync(t => targetIds.Contains(t.TargetId) && t.Active, ct))
+        {
+            return Failure.Conflict("Already downloading", $"An episode of this release already has an active download for {version.Series.Title} [{version.Name}].");
+        }
+
+        if (!shadow.Value.Enabled)
+        {
+            return new Failure(StatusCodes.Status409Conflict, "Series downloads are not supported yet", SeriesGrabGated);
+        }
+
+        foreach (var target in targets)
+        {
+            target.Version = version;
+        }
+
+        var pick = await seriesPicks.RecordAsync(version, targets, request, trigger, ct);
+        return Result<GrabResponse>.Ok(new GrabResponse(null, null, null, null, null, pick.PickedAt, pick.Id));
     }
 
     public static Failure? Validate(GrabRequest request)

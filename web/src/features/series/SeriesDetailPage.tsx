@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { cn } from 'cn'
-import { BookmarkIcon, ChevronRightIcon, FolderSearchIcon, ListChecksIcon, PlusIcon, RefreshCwIcon, StarIcon, Trash2Icon } from 'lucide-react'
+import { BookmarkIcon, ChevronRightIcon, FilterIcon, FolderSearchIcon, ListChecksIcon, PlusIcon, RefreshCwIcon, SearchIcon, StarIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   ApiError,
+  customFormats,
   monitoringOptions,
   quality,
   series as seriesApi,
@@ -42,6 +43,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatBytes, formatDate } from '@/i18n'
 import { EpisodeProgress } from './EpisodeProgress'
+import { SeriesSearchDialog, type SeriesSearchScope } from '@/features/search/SeriesInteractiveSearch'
+import { Checkbox } from '@/components/ui/checkbox'
 
 const errorMessage = (error: unknown, fallback: string) => (error instanceof ApiError ? error.message : fallback)
 
@@ -56,6 +59,7 @@ export function SeriesDetailPage() {
   const files = useQuery({ queryKey: ['seriesFiles', id], queryFn: () => seriesApi.files(id) })
   const [chosenVersion, setChosenVersion] = useState<number | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [searchScope, setSearchScope] = useState<SeriesSearchScope | null>(null)
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['seriesDetail', id] })
@@ -173,6 +177,10 @@ export function SeriesDetailPage() {
           </div>
 
           <div className="mt-1 flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={() => setSearchScope({ kind: 'series', label: s.title })} data-testid="series-search-all">
+              <SearchIcon />
+              {t('seriesSearch.searchSeries')}
+            </Button>
             <Button type="button" variant="outline" onClick={() => refresh.mutate()} disabled={refresh.isPending}>
               <RefreshCwIcon className={refresh.isPending ? 'animate-spin' : undefined} />
               {t('seriesDetail.refresh')}
@@ -214,8 +222,11 @@ export function SeriesDetailPage() {
           files={files.data?.files.filter((f) => f.versionId === version.id)}
           loading={episodes.isPending}
           onChanged={invalidate}
+          onSearch={setSearchScope}
         />
       )}
+
+      {searchScope && <SeriesSearchDialog key={JSON.stringify(searchScope)} series={s} scope={searchScope} onClose={() => setSearchScope(null)} />}
 
       {version && files.data && <UnmatchedFiles files={files.data.unmatched.filter((f) => f.versionId === version.id)} />}
     </>
@@ -229,6 +240,7 @@ function VersionBar({ series: s, version, onChoose, onChanged }: { series: Serie
   const [monitoringOpen, setMonitoringOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [constraintsOpen, setConstraintsOpen] = useState(false)
 
   const toggle = useMutation({
     mutationFn: () => seriesApi.updateVersion(s.id, version.id, { monitored: !version.monitored }),
@@ -295,7 +307,12 @@ function VersionBar({ series: s, version, onChoose, onChanged }: { series: Serie
         <span className="text-muted-foreground">{t('seriesDetail.newSeasons', { value: t(`monitoringOption.${version.monitorNewItems === 'all' ? 'all' : 'none'}`) })}</span>
         {version.statistics.sizeOnDisk > 0 && <span className="text-muted-foreground">{formatBytes(version.statistics.sizeOnDisk)}</span>}
         <EpisodeProgress statistics={version.statistics} monitored={version.monitored} className="w-48" />
+        <ConstraintsSummary version={version} />
         <div className="ml-auto flex gap-2">
+          <Button type="button" size="sm" variant="ghost" onClick={() => setConstraintsOpen(true)} data-testid="version-constraints">
+            <FilterIcon />
+            {t('seriesDetail.constraints')}
+          </Button>
           {!version.isDefault && (
             <Button type="button" size="sm" variant="ghost" onClick={() => promote.mutate()} disabled={promote.isPending}>
               <StarIcon />
@@ -312,7 +329,130 @@ function VersionBar({ series: s, version, onChoose, onChanged }: { series: Serie
       <ApplyMonitoringDialog series={s} version={version} open={monitoringOpen} onOpenChange={setMonitoringOpen} onDone={onChanged} />
       <AddVersionDialog series={s} open={addOpen} onOpenChange={setAddOpen} onDone={(created) => { onChoose(created); onChanged() }} />
       <DeleteVersionDialog series={s} version={version} open={deleteOpen} onOpenChange={setDeleteOpen} onDone={onChanged} />
+      {constraintsOpen && <ConstraintsDialog key={version.id} series={s} version={version} onClose={() => setConstraintsOpen(false)} onDone={onChanged} />}
     </Card>
+  )
+}
+
+/** The version's constraints, when it has some: what tells two versions with one profile apart. */
+function ConstraintsSummary({ version }: { version: SeriesVersion }) {
+  const { t } = useTranslation()
+  const c = version.constraints
+  if (!c) return null
+  const parts = [
+    c.edition ? t('seriesDetail.titlePattern', { value: c.edition }) : null,
+    c.releaseGroup ? t('versions.group', { value: c.releaseGroup }) : null,
+    (c.requiredCustomFormatIds?.length ?? 0) > 0 ? t('seriesDetail.requiredCount', { count: c.requiredCustomFormatIds!.length }) : null,
+    (c.forbiddenCustomFormatIds?.length ?? 0) > 0 ? t('seriesDetail.forbiddenCount', { count: c.forbiddenCustomFormatIds!.length }) : null,
+  ].filter(Boolean)
+  return (
+    <span className="text-xs text-muted-foreground" data-testid="version-constraints-summary">
+      {parts.join(' · ')}
+    </span>
+  )
+}
+
+/**
+ * Edits a series version's constraints, like a film version's: a title pattern (episode names carry no edition, so it
+ * is matched on the release title), a release group, required and forbidden custom formats.
+ */
+function ConstraintsDialog({ series: s, version, onClose, onDone }: { series: Series; version: SeriesVersion; onClose: () => void; onDone: () => void }) {
+  const { t } = useTranslation()
+  const current = version.constraints
+  const [pattern, setPattern] = useState(current?.edition ?? '')
+  const [group, setGroup] = useState(current?.releaseGroup ?? '')
+  const [required, setRequired] = useState<number[]>(current?.requiredCustomFormatIds ?? [])
+  const [forbidden, setForbidden] = useState<number[]>(current?.forbiddenCustomFormatIds ?? [])
+  const formats = useQuery({ queryKey: ['customFormats'], queryFn: customFormats.list })
+  const empty = !pattern.trim() && !group.trim() && required.length === 0 && forbidden.length === 0
+  const save = useMutation({
+    mutationFn: () =>
+      seriesApi.updateVersion(
+        s.id,
+        version.id,
+        empty
+          ? { clearConstraints: true }
+          : {
+              constraints: {
+                edition: pattern.trim() || null,
+                releaseGroup: group.trim() || null,
+                requiredCustomFormatIds: required.length > 0 ? required : null,
+                forbiddenCustomFormatIds: forbidden.length > 0 ? forbidden : null,
+              },
+            },
+      ),
+    onSuccess: () => {
+      onDone()
+      onClose()
+    },
+  })
+  const toggle = (list: number[], set: (v: number[]) => void, id: number) => set(list.includes(id) ? list.filter((x) => x !== id) : [...list, id])
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-2xl">
+        <form
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault()
+            save.mutate()
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{t('seriesDetail.constraintsTitle', { version: version.name })}</DialogTitle>
+            <DialogDescription>{t('seriesDetail.constraintsHint')}</DialogDescription>
+          </DialogHeader>
+          <div className="my-6 grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2">
+              <Label htmlFor="series-constraint-pattern">{t('seriesDetail.titlePatternLabel')}</Label>
+              <Input id="series-constraint-pattern" value={pattern} onChange={(e) => setPattern(e.target.value)} placeholder="vostfr|multi" />
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              <Label htmlFor="series-constraint-group">{t('versions.releaseGroup')}</Label>
+              <Input id="series-constraint-group" value={group} onChange={(e) => setGroup(e.target.value)} placeholder="NTb" />
+            </div>
+            {formats.data && formats.data.length > 0 && (
+              <>
+                <fieldset className="grid grid-cols-1 gap-2">
+                  <legend className="text-sm font-medium">{t('versions.requiredFormats')}</legend>
+                  <div className="flex flex-wrap gap-x-4 gap-y-2">
+                    {formats.data.map((f) => (
+                      <label key={f.id} className="flex items-center gap-2 text-sm font-normal">
+                        <Checkbox checked={required.includes(f.id)} disabled={forbidden.includes(f.id)} onCheckedChange={() => toggle(required, setRequired, f.id)} />
+                        {f.name}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+                <fieldset className="grid grid-cols-1 gap-2">
+                  <legend className="text-sm font-medium">{t('versions.forbiddenFormats')}</legend>
+                  <div className="flex flex-wrap gap-x-4 gap-y-2">
+                    {formats.data.map((f) => (
+                      <label key={f.id} className="flex items-center gap-2 text-sm font-normal">
+                        <Checkbox checked={forbidden.includes(f.id)} disabled={required.includes(f.id)} onCheckedChange={() => toggle(forbidden, setForbidden, f.id)} />
+                        {f.name}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              </>
+            )}
+          </div>
+          {save.error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>{errorMessage(save.error, t('common.unexpectedError'))}</AlertDescription>
+            </Alert>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={onClose}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="submit" disabled={save.isPending} data-testid="version-constraints-save">
+              {t('common.save')}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -517,6 +657,7 @@ function SeasonList({
   files,
   loading,
   onChanged,
+  onSearch,
 }: {
   series: Series
   version: SeriesVersion
@@ -524,6 +665,7 @@ function SeasonList({
   files: EpisodeFile[] | undefined
   loading: boolean
   onChanged: () => void
+  onSearch: (scope: SeriesSearchScope) => void
 }) {
   // Episode id → the version's file holding it (a multi-episode file sits on several rows).
   const fileByEpisode = useMemo(() => {
@@ -565,6 +707,7 @@ function SeasonList({
             })
           }
           onChanged={onChanged}
+          onSearch={onSearch}
         />
       ))}
     </div>
@@ -582,9 +725,10 @@ type SeasonBlockProps = {
   open: boolean
   onToggleOpen: () => void
   onChanged: () => void
+  onSearch: (scope: SeriesSearchScope) => void
 }
 
-function SeasonBlock({ series: s, season, version, episodes, files, loading, showAbsolute, open, onToggleOpen, onChanged }: SeasonBlockProps) {
+function SeasonBlock({ series: s, season, version, episodes, files, loading, showAbsolute, open, onToggleOpen, onChanged, onSearch }: SeasonBlockProps) {
   const { t } = useTranslation()
   const state = season.versions.find((v) => v.versionId === version.id)
   const monitored = state?.monitored ?? false
@@ -611,6 +755,18 @@ function SeasonBlock({ series: s, season, version, episodes, files, loading, sho
         </button>
         {state && <span className="text-xs text-muted-foreground tabular-nums">{t('seriesDetail.monitoredEpisodes', { count: state.statistics.monitoredEpisodeCount })}</span>}
         {state && <EpisodeProgress statistics={state.statistics} monitored={monitored} className="hidden w-36 sm:flex" />}
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="size-7"
+          onClick={() => onSearch({ kind: 'season', season: season.seasonNumber, label: name })}
+          aria-label={t('seriesSearch.searchSeason', { season: name })}
+          title={t('seriesSearch.searchSeason', { season: name })}
+          data-testid="season-search"
+        >
+          <SearchIcon />
+        </Button>
       </div>
       {open && (
         <div className="border-t">
@@ -622,7 +778,7 @@ function SeasonBlock({ series: s, season, version, episodes, files, loading, sho
           ) : episodes.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">{t('seriesDetail.noEpisodes')}</p>
           ) : (
-            <EpisodeTable series={s} version={version} episodes={episodes} files={files} showAbsolute={showAbsolute} onChanged={onChanged} />
+            <EpisodeTable series={s} version={version} episodes={episodes} files={files} showAbsolute={showAbsolute} onChanged={onChanged} onSearch={onSearch} />
           )}
         </div>
       )}
@@ -637,6 +793,7 @@ function EpisodeTable({
   files,
   showAbsolute,
   onChanged,
+  onSearch,
 }: {
   series: Series
   version: SeriesVersion
@@ -644,6 +801,7 @@ function EpisodeTable({
   files: Map<number, EpisodeFile>
   showAbsolute: boolean
   onChanged: () => void
+  onSearch: (scope: SeriesSearchScope) => void
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -668,7 +826,8 @@ function EpisodeTable({
           {showAbsolute && <TableHead className="w-14 text-right">{t('seriesDetail.columns.absolute')}</TableHead>}
           <TableHead>{t('seriesDetail.columns.title')}</TableHead>
           <TableHead className="w-32">{t('seriesDetail.columns.airDate')}</TableHead>
-          <TableHead className="w-56 pr-4">{t('seriesDetail.columns.file')}</TableHead>
+          <TableHead className="w-56">{t('seriesDetail.columns.file')}</TableHead>
+          <TableHead className="w-10 pr-4" aria-label={t('seriesSearch.search')} />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -695,8 +854,22 @@ function EpisodeTable({
               <TableCell className="tabular-nums" title={episode.hasAired ? undefined : t('seriesDetail.unaired')}>
                 {episode.airDate ? formatDate(episode.airDate) : t('seriesDetail.tba')}
               </TableCell>
-              <TableCell className="pr-4">
+              <TableCell>
                 <EpisodeFileCell file={files.get(episode.id)} episode={episode} />
+              </TableCell>
+              <TableCell className="py-1 pr-4">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="size-7"
+                  onClick={() => onSearch({ kind: 'episode', episodeId: episode.id, label: `S${String(episode.seasonNumber).padStart(2, '0')}E${String(episode.episodeNumber).padStart(2, '0')}` })}
+                  aria-label={t('seriesSearch.searchEpisode', { title: episode.title })}
+                  title={t('seriesSearch.searchEpisode', { title: episode.title })}
+                  data-testid="episode-search"
+                >
+                  <SearchIcon />
+                </Button>
               </TableCell>
             </TableRow>
           )

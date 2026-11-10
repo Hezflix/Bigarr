@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Infrastructure.Xem;
+using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Library;
 using Bigarr.Domain.Common;
 using Bigarr.Domain.Metadata;
@@ -267,6 +268,12 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             return tags.Failure!;
         }
 
+        var constraints = Movies.MovieMapper.FromConstraints(request.Constraints);
+        if (await ValidateConstraintsAsync(constraints, ct) is { } invalidConstraints)
+        {
+            return invalidConstraints;
+        }
+
         await db.Episodes.Where(e => e.SeriesId == seriesId).LoadAsync(ct);
         var defaultVersion = series.Versions.FirstOrDefault(v => v.IsDefault);
         var version = new SeriesVersion
@@ -284,6 +291,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             SeasonFolder = request.SeasonFolder,
             MonitorNewItems = request.MonitorNewItems,
             Tags = tags.Value!,
+            Constraints = constraints,
             CreatedAt = Now,
         };
         series.Versions.Add(version);
@@ -350,6 +358,21 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         version.Monitored = request.Monitored ?? version.Monitored;
         version.SeasonFolder = request.SeasonFolder ?? version.SeasonFolder;
         version.MonitorNewItems = request.MonitorNewItems ?? version.MonitorNewItems;
+
+        if (request.ClearConstraints)
+        {
+            version.Constraints = null;
+        }
+        else if (request.Constraints is not null)
+        {
+            var constraints = Movies.MovieMapper.FromConstraints(request.Constraints);
+            if (await ValidateConstraintsAsync(constraints, ct) is { } invalidConstraints)
+            {
+                return invalidConstraints;
+            }
+
+            version.Constraints = constraints;
+        }
 
         if (request.TagIds is not null)
         {
@@ -452,6 +475,57 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
 
     // ---- refresh ----------------------------------------------------------------------------------------------------
 
+    /// <summary>Targets among <paramref name="targetIds"/> that a grab, a shadow pick or a history event points at, with what it is.</summary>
+    private async Task<Dictionary<int, string>> RecordedTargetsAsync(List<int> targetIds, CancellationToken ct)
+    {
+        var recorded = new Dictionary<int, string>();
+        if (targetIds.Count == 0)
+        {
+            return recorded;
+        }
+
+        foreach (var id in await db.GrabTargets.Where(t => targetIds.Contains(t.TargetId)).Select(t => t.TargetId).Distinct().ToListAsync(ct))
+        {
+            recorded.TryAdd(id, "a grab");
+        }
+
+        foreach (var id in await db.SeriesShadowPickEpisodes.Where(p => p.TargetId != null && targetIds.Contains(p.TargetId.Value)).Select(p => p.TargetId!.Value).Distinct().ToListAsync(ct))
+        {
+            recorded.TryAdd(id, "a shadow pick");
+        }
+
+        foreach (var id in await db.History.Where(h => h.TargetId != null && targetIds.Contains(h.TargetId.Value)).Select(h => h.TargetId!.Value).Distinct().ToListAsync(ct))
+        {
+            recorded.TryAdd(id, "history");
+        }
+
+        return recorded;
+    }
+
+    /// <summary>Same rules as a film version's constraints: no format both required and forbidden, every format known.</summary>
+    private async Task<Failure?> ValidateConstraintsAsync(AcquisitionConstraints? constraints, CancellationToken ct)
+    {
+        if (constraints is null)
+        {
+            return null;
+        }
+
+        if (constraints.RequiredCustomFormatIds.Intersect(constraints.ForbiddenCustomFormatIds).Any())
+        {
+            return Failure.Invalid("Contradictory constraints", "A custom format cannot be both required and forbidden.");
+        }
+
+        var ids = constraints.RequiredCustomFormatIds.Concat(constraints.ForbiddenCustomFormatIds).Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return null;
+        }
+
+        var known = await db.CustomFormats.Where(f => ids.Contains(f.Id)).Select(f => f.Id).ToListAsync(ct);
+        var unknown = ids.Except(known).ToList();
+        return unknown.Count == 0 ? null : Failure.Invalid("Unknown custom format", $"No custom format with id {string.Join(", ", unknown)}.");
+    }
+
     public async Task<Result<Series>> RefreshAsync(int seriesId, CancellationToken ct)
     {
         var series = await WithGraph(tracking: true).FirstOrDefaultAsync(s => s.Id == seriesId, ct);
@@ -504,12 +578,21 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             }
         }
 
-        // Episodes the provider dropped go, unless a version holds a file for them (the user decides then).
+        // Episodes the provider dropped go, unless a version holds a file for them, or one of their targets was grabbed
+        // (or picked in shadow mode) or has history: deleting the target would cut that record loose (the user decides then).
+        var removedTargetIds = sync.Removed.SelectMany(e => e.Targets).Select(t => t.Id).Where(id => id > 0).ToList();
+        var recorded = await RecordedTargetsAsync(removedTargetIds, ct);
         foreach (var episode in sync.Removed)
         {
             if (episode.Targets.Any(t => t.EpisodeFileId is not null))
             {
                 logger.LogWarning("{Series}: S{Season:00}E{Episode:00} is gone from the provider but has a file; kept", series.Title, episode.SeasonNumber, episode.EpisodeNumber);
+                continue;
+            }
+
+            if (episode.Targets.FirstOrDefault(t => recorded.ContainsKey(t.Id)) is { } kept)
+            {
+                logger.LogWarning("{Series}: S{Season:00}E{Episode:00} is gone from the provider but has {What}; kept", series.Title, episode.SeasonNumber, episode.EpisodeNumber, recorded[kept.Id]);
                 continue;
             }
 

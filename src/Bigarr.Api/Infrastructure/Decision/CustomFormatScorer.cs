@@ -104,6 +104,61 @@ public sealed class CustomFormatScorer(BigarrDbContext db, ILogger<CustomFormatS
         return CustomFormatInput.FromParsed(parsed, null, release.Size, release.Flags, year, CustomFormatInput.LanguageFromIsoCode(originalLanguageIso));
     }
 
+    public static CustomFormatInput EpisodeReleaseInput(Bigarr.Parsing.Episodes.Model.ParsedEpisodeInfo parsed, ReleaseInfo release, int? year, string? originalLanguageIso)
+    {
+        ArgumentNullException.ThrowIfNull(release);
+        return CustomFormatInput.FromEpisode(parsed, null, release.Size, release.Flags, year, CustomFormatInput.LanguageFromIsoCode(originalLanguageIso));
+    }
+
+    /// <summary>
+    /// An episode file (or a shadow pick standing in for one): what was stored wins over what Sonarr's parser reads from
+    /// the original release name or the file name.
+    /// </summary>
+    public static CustomFormatInput EpisodeFileInput(
+        string? originalReleaseTitle,
+        string relativePath,
+        long size,
+        IndexerFlags flags,
+        QualityDefinition? quality,
+        IEnumerable<string> languageNames,
+        string? releaseGroup,
+        int? year,
+        string? originalLanguageIso)
+    {
+        ArgumentNullException.ThrowIfNull(relativePath);
+        ArgumentNullException.ThrowIfNull(languageNames);
+
+        var fileName = Path.GetFileName(relativePath);
+        var title = string.IsNullOrWhiteSpace(originalReleaseTitle) ? Path.GetFileNameWithoutExtension(relativePath) : originalReleaseTitle;
+        Bigarr.Parsing.Episodes.Model.ParsedEpisodeInfo? parsed = null;
+        try
+        {
+            parsed = Bigarr.Parsing.Episodes.Parser.ParseTitle(title);
+        }
+        catch (Exception)
+        {
+            // an unparseable name still has a quality and a size to judge
+        }
+
+        var original = CustomFormatInput.LanguageFromIsoCode(originalLanguageIso);
+        var stored = languageNames.Select(CustomFormatInput.LanguageFromName).Where(l => l is not null).Select(l => l!).ToList();
+        var parsedQuality = parsed?.Quality?.Quality;
+
+        return new CustomFormatInput(
+            parsed?.ReleaseTitle ?? title,
+            fileName,
+            quality is not null ? (ParserSource)(int)quality.Source : parsedQuality?.Source ?? ParserSource.UNKNOWN,
+            quality?.Resolution ?? parsedQuality?.Resolution ?? 0,
+            quality is not null ? (ParserModifier)(int)quality.Modifier : parsedQuality?.Modifier ?? ParserModifier.NONE,
+            CustomFormatInput.EffectiveLanguages(stored.Count > 0 ? stored : parsed?.Languages, original),
+            original,
+            null,
+            releaseGroup ?? (string.IsNullOrWhiteSpace(parsed?.ReleaseGroup) ? null : parsed!.ReleaseGroup),
+            size,
+            flags,
+            year);
+    }
+
     /// <summary>
     /// A file on disk: what the import stored wins over what the parser reads from the name, the name fills the gaps.
     /// </summary>

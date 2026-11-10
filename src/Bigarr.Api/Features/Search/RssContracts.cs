@@ -21,6 +21,8 @@ public sealed class RssSyncOptions
 
 public sealed record RssMovieRef(int Id, string Title, int? Year, string? PosterUrl);
 
+public sealed record RssSeriesRef(int Id, string Title, int? Year, string? PosterUrl);
+
 /// <summary>One release seen in a feed, with what the library made of it.</summary>
 public sealed record RssReleaseResponse(
     string Guid,
@@ -57,7 +59,13 @@ public sealed record RssReleaseResponse(
     /// <summary>Why the attributed release was not grabbed after all: another release of the pass was better, or the client refused it.</summary>
     string? GrabError = null,
     /// <summary>Shadow mode: the pick recorded in place of a grab.</summary>
-    int? ShadowPickId = null);
+    int? ShadowPickId = null,
+    /// <summary>The series of the library a series release belongs to (then <see cref="Movie"/> is null); the verdicts and attributed version are the series versions'.</summary>
+    RssSeriesRef? Series = null,
+    /// <summary>The episodes a series release covers: <c>S01E05</c>, <c>S01E01–S01E10 (10 episodes)</c>…</summary>
+    string? Episodes = null,
+    /// <summary>Shared ids of those episodes.</summary>
+    List<int>? EpisodeIds = null);
 
 public sealed record RssIndexerStatusResponse(int IndexerId, string Indexer, DateTime? LastRunAt, string? LastError, int LastFetched, int LastNew);
 

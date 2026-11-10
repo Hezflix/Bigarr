@@ -75,7 +75,15 @@ public sealed class MediaManagementTests(BigarrApiFactory factory) : IClassFixtu
         Assert.Equal("Matrix, The (1999)", movie.Versions.Single().FolderName);
         await client.DeleteAsync($"/api/v1/movies/{movie.Id}");
 
-        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync("/api/v1/mediamanagement", defaults.ToRequest(), Json)).StatusCode);
+        // Sonarr's season-pack upgrade: all by default, a threshold or any; the threshold is a percentage.
+        Assert.Equal(SeasonPackUpgrade.All, defaults.SeasonPackUpgrade);
+        Assert.Equal(100, defaults.SeasonPackUpgradeThreshold);
+        var pack = await client.PutAsJsonAsync("/api/v1/mediamanagement", defaults.ToRequest() with { SeasonPackUpgrade = SeasonPackUpgrade.Threshold, SeasonPackUpgradeThreshold = 75 }, Json);
+        var packSaved = (await pack.Content.ReadFromJsonAsync<MediaManagementResponse>(Json))!;
+        Assert.Equal((SeasonPackUpgrade.Threshold, 75d), (packSaved.SeasonPackUpgrade, packSaved.SeasonPackUpgradeThreshold));
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync("/api/v1/mediamanagement", defaults.ToRequest() with { SeasonPackUpgradeThreshold = 120 }, Json)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync("/api/v1/mediamanagement", defaults.ToRequest() with { SeasonPackUpgrade = SeasonPackUpgrade.All, SeasonPackUpgradeThreshold = 100 }, Json)).StatusCode);
     }
 
     [Fact]

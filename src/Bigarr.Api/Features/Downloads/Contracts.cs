@@ -57,8 +57,18 @@ public sealed record GrabRequest(
     /// <summary>Indexer name as displayed, kept when the indexer row is gone.</summary>
     string? Indexer = null,
     /// <summary>When the indexer published it; shadow mode keeps it with the pick.</summary>
-    DateTimeOffset? PublishDate = null)
+    DateTimeOffset? PublishDate = null,
+    /// <summary>
+    /// A series grab: the shared ids of the episodes the release covers, and <see cref="VersionId"/> is then the series
+    /// version. One <c>GrabTarget</c> per (version, episode) pair.
+    /// </summary>
+    List<int>? EpisodeIds = null)
 {
+    public bool IsSeries => EpisodeIds is { Count: > 0 };
+
+    public static GrabRequest ForEpisodes(ReleaseInfo release, int seriesVersionId, IEnumerable<int> episodeIds) =>
+        From(release, seriesVersionId) with { EpisodeIds = episodeIds.Distinct().ToList() };
+
     /// <summary>What the automatic paths (RSS, searches) send: the release as the indexer returned it.</summary>
     public static GrabRequest From(ReleaseInfo release, int versionId)
     {

@@ -28,6 +28,21 @@ public sealed class Indexer
 
     public List<int> Categories { get; set; } = [.. DefaultCategories];
 
+    /// <summary>Sonarr's usual TV categories, used when neither the row nor the indexer's capabilities say better.</summary>
+    public static readonly int[] DefaultTvCategories = [5000, 5030, 5040];
+
+    /// <summary>The Torznab anime category.</summary>
+    public const int AnimeCategory = 5070;
+
+    /// <summary>
+    /// Categories series searches and the series feed use (Sonarr's <c>Categories</c>). Empty until filled from the
+    /// indexer's capabilities (TV and every TV sub-category but anime): Prowlarr pushes Bigarr movie categories only.
+    /// </summary>
+    public List<int> TvCategories { get; set; } = [];
+
+    /// <summary>Anime categories (Sonarr's <c>AnimeCategories</c>), added to the TV ones for anime. Empty until filled from the capabilities.</summary>
+    public List<int> AnimeCategories { get; set; } = [];
+
     /// <summary>1 is the highest priority, 50 the lowest; breaks ties between otherwise equal releases.</summary>
     public int Priority { get; set; } = 25;
 

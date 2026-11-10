@@ -433,6 +433,10 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("AnimeCategories")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ApiKey")
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
@@ -487,6 +491,10 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
                     b.Property<int?>("SeedTimeMinutes")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("TvCategories")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -547,6 +555,12 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
                     b.Property<bool>("RenameFiles")
                         .HasColumnType("INTEGER");
+
+                    b.Property<int>("SeasonPackUpgrade")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("SeasonPackUpgradeThreshold")
+                        .HasColumnType("REAL");
 
                     b.Property<int>("TransferMode")
                         .HasColumnType("INTEGER");
@@ -1934,6 +1948,10 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Episodes")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Guid")
                         .IsRequired()
                         .HasMaxLength(1024)
@@ -1965,6 +1983,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int?>("TmdbId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("TvdbId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("UnmatchedReason")
                         .HasMaxLength(512)
                         .HasColumnType("TEXT");
@@ -1985,6 +2006,163 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("ReleaseSightings", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Shadow.SeriesShadowPick", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("CustomFormatScore")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CustomFormats")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("FullSeason")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("IndexerFlags")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("IndexerId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("IndexerName")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InfoHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsRepack")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Languages")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("LastPickedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("PickedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Picks")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset?>("PublishDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Quality")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("QualityId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ReleaseGroup")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReleaseGuid")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReleaseTitle")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("RevisionReal")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RevisionVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Seeders")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("SeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SeriesTitle")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Trigger")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("TvdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("VersionId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("VersionName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IndexerId");
+
+                    b.HasIndex("PickedAt");
+
+                    b.HasIndex("SeriesId");
+
+                    b.HasIndex("TvdbId", "VersionName");
+
+                    b.HasIndex("VersionId", "ReleaseGuid")
+                        .IsUnique();
+
+                    b.ToTable("SeriesShadowPicks", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Shadow.SeriesShadowPickEpisode", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("AbsoluteEpisodeNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("EpisodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("EpisodeNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PickId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SeasonNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("TargetId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EpisodeId");
+
+                    b.HasIndex("PickId");
+
+                    b.HasIndex("TargetId");
+
+                    b.ToTable("SeriesShadowPickEpisodes", (string)null);
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Shadow.ShadowPick", b =>
@@ -3071,6 +3249,47 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("FollowedRadarr");
                 });
 
+            modelBuilder.Entity("Bigarr.Domain.Shadow.SeriesShadowPick", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Indexers.Indexer", null)
+                        .WithMany()
+                        .HasForeignKey("IndexerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Bigarr.Domain.Tv.Series", null)
+                        .WithMany()
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Bigarr.Domain.Tv.SeriesVersion", "Version")
+                        .WithMany()
+                        .HasForeignKey("VersionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Version");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Shadow.SeriesShadowPickEpisode", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Tv.Episode", null)
+                        .WithMany()
+                        .HasForeignKey("EpisodeId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Bigarr.Domain.Shadow.SeriesShadowPick", "Pick")
+                        .WithMany("Episodes")
+                        .HasForeignKey("PickId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Bigarr.Domain.Acquisition.AcquisitionTarget", null)
+                        .WithMany()
+                        .HasForeignKey("TargetId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Pick");
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Shadow.ShadowPick", b =>
                 {
                     b.HasOne("Bigarr.Domain.Indexers.Indexer", null)
@@ -3385,6 +3604,11 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Bigarr.Domain.Quality.QualityProfile", b =>
                 {
                     b.Navigation("FormatScores");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Shadow.SeriesShadowPick", b =>
+                {
+                    b.Navigation("Episodes");
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Tv.Episode", b =>

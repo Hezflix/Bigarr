@@ -8,6 +8,7 @@ using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Library;
 using Bigarr.Domain.Metadata;
 using Bigarr.Domain.Quality;
+using Bigarr.Domain.Shadow;
 using Bigarr.Domain.Tv;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -110,6 +111,47 @@ public sealed class SeriesRefreshTests : IDisposable
         await using var check = _database.CreateContext();
         var freed = await check.EpisodeTargets.SingleAsync(t => t.VersionId == hd && t.Episode.TvdbId == 102);
         Assert.Null(freed.EpisodeFileId);
+    }
+
+    [Fact]
+    public async Task An_episode_with_a_grab_a_shadow_pick_or_history_stays_when_the_provider_drops_it()
+    {
+        _provider.Show = Show([1], Ep(101, 1, 1), Ep(102, 1, 2), Ep(103, 1, 3), Ep(104, 1, 4), Ep(105, 1, 5));
+        var (seriesId, hd, uhd) = await SeedAsync();
+
+        await using (var db = _database.CreateContext())
+        {
+            var targets = await db.EpisodeTargets.Include(t => t.Episode).Where(t => t.Episode.SeriesId == seriesId).ToListAsync();
+            EpisodeTarget Target(int tvdbId, int versionId) => targets.Single(t => t.Episode.TvdbId == tvdbId && t.VersionId == versionId);
+
+            // 102: an ended grab of the 4K version; 103: a shadow pick; 104: a history line. 105 has nothing.
+            var grab = new Grab { ReleaseTitle = "Demo.Show.S01E02.2160p.WEB-DL-GRP" };
+            grab.AddTarget(Target(102, uhd));
+            grab.TransitionTo(GrabState.Removed);
+            db.Grabs.Add(grab);
+            db.SeriesShadowPicks.Add(new SeriesShadowPick
+            {
+                SeriesTitle = "Demo Show",
+                VersionName = "1080p",
+                Trigger = "rss",
+                ReleaseTitle = "Demo.Show.S01E03.1080p.WEB-DL-GRP",
+                ReleaseGuid = "g103",
+                Episodes = [new SeriesShadowPickEpisode { TargetId = Target(103, hd).Id, EpisodeId = Target(103, hd).EpisodeId, SeasonNumber = 1, EpisodeNumber = 3 }],
+            });
+            db.History.Add(new Bigarr.Domain.History.HistoryEvent { TargetId = Target(104, hd).Id, EventType = Bigarr.Domain.History.HistoryEventType.Grabbed, SourceTitle = "Demo.Show.S01E04.1080p.WEB-DL-GRP" });
+            await db.SaveChangesAsync();
+        }
+
+        _provider.Show = Show([1], Ep(101, 1, 1));
+        await using (var db = _database.CreateContext())
+        {
+            Assert.True((await Service(db).RefreshAsync(seriesId, CancellationToken.None)).IsSuccess);
+        }
+
+        await using var check = _database.CreateContext();
+        var left = await check.Episodes.Where(e => e.SeriesId == seriesId).Select(e => e.TvdbId!.Value).OrderBy(id => id).ToListAsync();
+        Assert.Equal([101, 102, 103, 104], left);
+        Assert.Equal(0, await OrphansAsync(check));
     }
 
     [Fact]

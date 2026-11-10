@@ -499,7 +499,16 @@
         "duplicate": "Episode already has a file",
         "notAnEpisode": "Not a single episode"
       }
-    }
+    },
+    "constraints": "Constraints",
+    "constraintsTitle": "Constraints of {{version}}",
+    "constraintsHint": "Releases this version accepts on top of its profile. When several versions accept a release, the one with the most specific constraints gets it, then the default version.",
+    "titlePatternLabel": "Release title pattern (regex)",
+    "titlePattern": "title ~ {{value}}",
+    "requiredCount_one": "{{count}} required format",
+    "requiredCount_other": "{{count}} required formats",
+    "forbiddenCount_one": "{{count}} forbidden format",
+    "forbiddenCount_other": "{{count}} forbidden formats"
   },
   "status": {
     "pending": "Pending",
@@ -707,7 +716,13 @@
     "prowlarrHint": "Prowlarr's indexers come from Prowlarr, as in Radarr: add Bigarr there as a Radarr application (Settings → Apps → + → Radarr) and it adds, updates and removes them here on every sync.",
     "prowlarrHowTo": "URL and key to give it",
     "prowlarrBadge": "Prowlarr",
-    "prowlarrManaged": "Managed by Prowlarr: every sync rewrites its name, URL, key, categories, priority, seeders, seed criteria and RSS and search switches, and deleting it in Prowlarr removes it here. Change those in Prowlarr; the rate limit is yours."
+    "prowlarrManaged": "Managed by Prowlarr: every sync rewrites its name, URL, key, categories, priority, seeders, seed criteria and RSS and search switches, and deleting it in Prowlarr removes it here. Change those in Prowlarr; the rate limit is yours.",
+    "tvCategories": "Series categories",
+    "animeCategories": "Anime categories",
+    "fromCaps": "From the indexer's capabilities",
+    "seriesCategoriesHint": "What series searches and the series feed ask (anime adds its own). Left empty, they are filled from the indexer's capabilities at the first series search or test: Prowlarr only pushes movie categories to an app declared as Radarr.",
+    "testTv": "Series: tv-search by {{ids}}.",
+    "testNoTv": "No tv-search: series are searched by text."
   },
   "search": {
     "title": "Interactive search",
@@ -790,7 +805,7 @@
     "syncFailed": "The RSS pass failed.",
     "empty": "No releases seen yet.",
     "emptyMatched": "No release matched a film of the library yet.",
-    "movie": "Movie",
+    "movie": "Movie or series",
     "noMatch": "Not in the library",
     "grabbed": "Grabbed for {{version}}",
     "picked": "Picked for {{version}}",
@@ -1162,7 +1177,16 @@
     "backfillDone_one": "{{count}} file probed, {{remaining}} left.",
     "backfillDone_other": "{{count}} files probed, {{remaining}} left.",
     "saved": "Media management saved.",
-    "saveFailed": "The settings could not be saved."
+    "saveFailed": "The settings could not be saved.",
+    "seasonPacks": "Season packs",
+    "seasonPackUpgrade": "Season pack upgrade",
+    "seasonPackUpgradeModes": {
+      "all": "Every episode",
+      "threshold": "A share of the episodes",
+      "any": "Any one episode"
+    },
+    "seasonPackUpgradeThreshold": "Threshold (%)",
+    "seasonPackUpgradeHint": "When a season pack counts as an upgrade over the episode files it would replace, as in Sonarr. Episodes without a file always count as upgraded. “Any one episode” may replace better files with worse ones."
   },
   "wanted": {
     "title": "Wanted",
@@ -1841,5 +1865,23 @@
     "container": "Container",
     "hw": "HW",
     "noSubtitles": "No subtitles"
+  },
+  "seriesSearch": {
+    "search": "Search",
+    "searchSeries": "Search series",
+    "searchSeason": "Search {{season}}",
+    "searchEpisode": "Search “{{title}}”",
+    "title": "Search {{what}} · {{series}}",
+    "hint": {
+      "episode": "Single episodes of this episode, judged by every version. Packs and other episodes are listed with the reason they do not fit.",
+      "season": "Season packs and single episodes together, judged by every version over every episode they cover.",
+      "series": "Everything the indexers know about the show, mapped to episodes and judged by every version."
+    },
+    "queryPlaceholder": "Search by text instead (e.g. a scene name)",
+    "textResults": "Results for the text “{{query}}”: the show's ids and titles were not used.",
+    "episodes": "Episodes",
+    "pack": "Season pack",
+    "grabFor": "Grab {{episodes}} for {{version}}",
+    "grabUnmapped": "This release maps to no episode of the series: nothing to grab"
   }
 }
