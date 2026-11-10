@@ -428,6 +428,12 @@ public sealed class TautulliImportService(
                 }
 
                 user.ThumbUrl ??= account.Thumb;
+
+                // Tautulli's word on who left the server, until plex.tv gives its own.
+                if (user.OnServerCheckedAt is null)
+                {
+                    user.OnServer = user.IsOwner || !account.Deleted;
+                }
             }
 
             entities[tautulliId] = user;

@@ -2017,7 +2017,20 @@ export type Play = {
 export type PlaysPage = { page: number; pageSize: number; totalRecords: number; records: Play[] }
 
 /** `name` is the one Bigarr shows (the display name when set), `serverName` the account's on the server. */
-export type PlaybackUser = { id: number; name: string; thumbUrl: string | null; isOwner: boolean; plays: number; lastSeenAt: string; serverName: string; keepHistory: boolean }
+export type PlaybackUser = {
+  id: number
+  name: string
+  thumbUrl: string | null
+  isOwner: boolean
+  plays: number
+  lastSeenAt: string
+  serverName: string
+  keepHistory: boolean
+  /** The server is still shared with them (plex.tv's list), null when not known yet. */
+  onServer: boolean | null
+  /** When plex.tv said so; null when it is the Tautulli import's idea. */
+  onServerCheckedAt: string | null
+}
 
 export type VersionPlays = { versionId: number | null; versionName: string | null; plays: number; users: number; transcodes: number; lastPlayedAt: string | null }
 

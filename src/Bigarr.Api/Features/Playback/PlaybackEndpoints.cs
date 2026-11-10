@@ -135,6 +135,8 @@ public static class PlaybackEndpoints
         services.AddScoped<ItemLinks>();
         services.AddScoped<PlexHistoryBackstop>();
         services.AddScoped<IScheduledJob, PlexHistoryJob>();
+        services.AddScoped<ServerAccess>();
+        services.AddScoped<IScheduledJob, ServerAccessJob>();
         services.AddSingleton<PlaybackMonitor>();
         services.AddHostedService(sp => sp.GetRequiredService<PlaybackMonitor>());
         return services;

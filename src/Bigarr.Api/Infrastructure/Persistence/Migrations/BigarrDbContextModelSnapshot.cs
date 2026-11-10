@@ -1205,6 +1205,12 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool?>("OnServer")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("OnServerCheckedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ThumbUrl")
                         .HasMaxLength(1024)
                         .HasColumnType("TEXT");

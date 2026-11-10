@@ -289,7 +289,7 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
     public async Task<List<PlaybackUserResponse>> UsersAsync(CancellationToken ct) =>
         await db.MediaServerUsers.AsNoTracking()
             .OrderBy(u => u.DisplayName ?? u.Name)
-            .Select(u => new PlaybackUserResponse(u.Id, u.DisplayName ?? u.Name, u.ThumbUrl, u.IsOwner, db.Plays.Count(p => p.UserId == u.Id), u.LastSeenAt, u.Name, u.KeepHistory))
+            .Select(u => new PlaybackUserResponse(u.Id, u.DisplayName ?? u.Name, u.ThumbUrl, u.IsOwner, db.Plays.Count(p => p.UserId == u.Id), u.LastSeenAt, u.Name, u.KeepHistory, u.IsOwner ? true : u.OnServer, u.OnServerCheckedAt))
             .ToListAsync(ct);
 
     /// <summary>The windows of the user page's watch time, in days; null is since the start.</summary>

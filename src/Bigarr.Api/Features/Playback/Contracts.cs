@@ -112,8 +112,12 @@ public sealed record PlayFilter(
     string? Search = null,
     bool Unmatched = false);
 
-/// <summary><c>Name</c> is the one Bigarr shows (the display name when set), <c>ServerName</c> the account's on the server.</summary>
-public sealed record PlaybackUserResponse(int Id, string Name, string? ThumbUrl, bool IsOwner, int Plays, DateTime LastSeenAt, string ServerName, bool KeepHistory);
+/// <summary>
+/// <c>Name</c> is the one Bigarr shows (the display name when set), <c>ServerName</c> the account's on the server.
+/// <c>OnServer</c>: the server is still shared with them, null when not known; <c>OnServerCheckedAt</c> when plex.tv said
+/// so, null when it is the Tautulli import's idea.
+/// </summary>
+public sealed record PlaybackUserResponse(int Id, string Name, string? ThumbUrl, bool IsOwner, int Plays, DateTime LastSeenAt, string ServerName, bool KeepHistory, bool? OnServer = null, DateTime? OnServerCheckedAt = null);
 
 /// <summary>
 /// The user page's numbers: plays and watch time over the last day, week, month and since the start, players, decisions.

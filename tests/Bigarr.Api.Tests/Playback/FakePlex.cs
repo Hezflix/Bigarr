@@ -15,6 +15,9 @@ public sealed class FakePlex : IAsyncDisposable
 {
     public const string Token = "fake-plex-token";
 
+    /// <summary>The server's id on plex.tv, at <c>/</c>.</summary>
+    public const string MachineIdentifier = "fake-plex-machine";
+
     private readonly FakeHttpServer _http;
     private readonly Lock _lock = new();
     private Channel<string>? _events;
@@ -180,6 +183,11 @@ public sealed class FakePlex : IAsyncDisposable
                 // The player stops: the stream leaves the list.
                 var sessionId = System.Web.HttpUtility.ParseQueryString(request.Query)["sessionId"];
                 return Streams.RemoveAll(s => s.SessionId == sessionId) > 0 ? new FakeHttpServer.Answer(200, "{}") : new FakeHttpServer.Answer(404);
+            }
+
+            if (request.Path == "/")
+            {
+                return Json(new { MediaContainer = new { friendlyName = "Fake Plex", machineIdentifier = MachineIdentifier, version = "1.41.0" } });
             }
 
             if (request.Path == "/status/sessions")

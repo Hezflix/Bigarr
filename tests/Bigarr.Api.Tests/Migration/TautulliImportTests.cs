@@ -86,6 +86,11 @@ public sealed class TautulliImportTests(BigarrApiFactory factory) : IClassFixtur
             Assert.Equal("Owner", users["1"].DisplayName);
             Assert.Equal("Alice", users["9002"].DisplayName);
             Assert.False(users["9003"].KeepHistory);
+
+            // Tautulli's deleted flag is a first idea of who left the server, until plex.tv says.
+            Assert.True(users["9002"].OnServer);
+            Assert.False(users["9003"].OnServer);
+            Assert.Null(users["9003"].OnServerCheckedAt);
             Assert.Equal(DateTime.UnixEpoch.AddSeconds(T0 + 20_000), users["9003"].FirstSeenAt);
 
             var plays = await db.Plays.AsNoTracking().Include(p => p.Item).Include(p => p.Streams).Where(p => p.Source == PlaySource.Tautulli).ToListAsync();

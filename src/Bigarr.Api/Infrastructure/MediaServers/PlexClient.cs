@@ -31,6 +31,15 @@ public sealed class PlexClient(IHttpClientFactory httpClientFactory) : IMediaSer
             sections.Count(s => s.IsMovies));
     }
 
+    /// <summary>The server's own id on plex.tv, what plex.tv lists the servers shared with an account under.</summary>
+    public async Task<string?> MachineIdentifierAsync(MediaServer server, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(server);
+
+        using var root = await GetJsonAsync(server, "/", ct);
+        return root.RootElement.GetProperty("MediaContainer").TryGetProperty("machineIdentifier", out var id) ? id.GetString() : null;
+    }
+
     public async Task NotifyAsync(MediaServer server, string path, MediaChange change, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(server);
