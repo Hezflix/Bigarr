@@ -284,7 +284,9 @@ public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLib
 
     private async Task<MediaServerUser> UserAsync(MediaServer server, PlexSession stream, DateTime now, CancellationToken ct)
     {
-        var user = await db.MediaServerUsers.FirstOrDefaultAsync(u => u.MediaServerId == server.Id && u.ExternalId == stream.UserId, ct);
+        // Two new streams in one pass may share a user or an item not saved yet: the tracked ones count first.
+        var user = db.MediaServerUsers.Local.FirstOrDefault(u => u.MediaServerId == server.Id && u.ExternalId == stream.UserId)
+            ?? await db.MediaServerUsers.FirstOrDefaultAsync(u => u.MediaServerId == server.Id && u.ExternalId == stream.UserId, ct);
         if (user is null)
         {
             user = new MediaServerUser { MediaServerId = server.Id, ExternalId = stream.UserId, Name = stream.UserName, FirstSeenAt = now };
@@ -315,7 +317,8 @@ public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLib
 
     private async Task<MediaServerItem> ItemAsync(MediaServer server, PlexSession stream, PlexItem? metadata, DateTime now, CancellationToken ct)
     {
-        var item = await db.MediaServerItems.FirstOrDefaultAsync(i => i.MediaServerId == server.Id && i.RatingKey == stream.RatingKey, ct);
+        var item = db.MediaServerItems.Local.FirstOrDefault(i => i.MediaServerId == server.Id && i.RatingKey == stream.RatingKey)
+            ?? await db.MediaServerItems.FirstOrDefaultAsync(i => i.MediaServerId == server.Id && i.RatingKey == stream.RatingKey, ct);
         if (item is null)
         {
             item = new MediaServerItem { MediaServerId = server.Id, RatingKey = stream.RatingKey, Kind = stream.Kind, Title = metadata?.Title ?? stream.RatingKey, FirstSeenAt = now };

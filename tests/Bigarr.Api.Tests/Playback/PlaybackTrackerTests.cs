@@ -95,6 +95,18 @@ public sealed class PlaybackTrackerTests : IAsyncLifetime, IDisposable
     }
 
     [Fact]
+    public async Task Two_people_starting_the_same_new_film_at_once_share_one_item()
+    {
+        _plex.Set(new FakePlex.Stream("12", "s-aaa", "100", "2", "bob", "1001"));
+        _plex.Set(new FakePlex.Stream("13", "s-bbb", "100", "3", "carol", "1001"));
+        Assert.Equal(2, await ReconcileAsync());
+
+        await using var db = _database.CreateContext();
+        Assert.Equal(2, await db.PlaybackSessions.CountAsync());
+        Assert.Equal(1, await db.MediaServerItems.CountAsync(i => i.RatingKey == "100"));
+    }
+
+    [Fact]
     public async Task A_restart_of_bigarr_in_the_middle_keeps_the_session_and_a_vanished_stream_stops_where_last_seen()
     {
         _plex.Set(new FakePlex.Stream("12", "s-aaa", "100", "2", "bob", "1001", Transcode: true));
