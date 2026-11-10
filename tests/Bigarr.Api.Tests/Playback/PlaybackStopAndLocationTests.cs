@@ -40,6 +40,7 @@ public sealed class PlaybackStopAndLocationTests
         var dana = now.GetProperty("sessions").EnumerateArray().Single(s => s.GetProperty("user").GetProperty("name").GetString() == "dana");
         var eli = now.GetProperty("sessions").EnumerateArray().Single(s => s.GetProperty("user").GetProperty("name").GetString() == "eli");
         Assert.True(dana.GetProperty("canStop").GetBoolean());
+        Assert.InRange(dana.GetProperty("positionAgeMs").GetInt64(), 0, 60_000);
         Assert.False(dana.GetProperty("location").GetProperty("local").GetBoolean());
         Assert.Equal("Lyon", dana.GetProperty("location").GetProperty("city").GetString());
         Assert.Equal("FR", dana.GetProperty("location").GetProperty("countryCode").GetString());

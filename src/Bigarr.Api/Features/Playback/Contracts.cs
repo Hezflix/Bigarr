@@ -22,6 +22,10 @@ public sealed record PlaybackItemRef(
     string? ServerTitle = null,
     bool LinkedByHand = false);
 
+/// <summary>
+/// <c>PositionAgeMs</c>: how long ago the server gave <c>ViewOffsetMs</c>, so a page can move the position on from
+/// there until the next refresh.
+/// </summary>
 public sealed record PlaybackSessionResponse(
     int Id,
     int ServerId,
@@ -39,7 +43,8 @@ public sealed record PlaybackSessionResponse(
     string? PosterUrl = null,
     string? FanartUrl = null,
     PlaybackLocation? Location = null,
-    bool CanStop = false);
+    bool CanStop = false,
+    long PositionAgeMs = 0);
 
 public sealed record NowPlayingResponse(List<PlaybackServerStatus> Servers, List<PlaybackSessionResponse> Sessions);
 

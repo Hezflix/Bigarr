@@ -31,9 +31,9 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
                 : new PlaybackServerStatus(s.Id, s.Name, false, null, null))
             .ToList();
 
-        var sessions = await db.PlaybackSessions.AsNoTracking()
+        var rows = await db.PlaybackSessions.AsNoTracking()
             .OrderBy(s => s.StartedAt)
-            .Select(s => new PlaybackSessionResponse(
+            .Select(s => new { s.LastSeenAt, Response = new PlaybackSessionResponse(
                 s.Id,
                 s.MediaServerId,
                 s.SessionKey,
@@ -50,8 +50,11 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
                 null,
                 null,
                 null,
-                s.ServerSessionId != null))
+                s.ServerSessionId != null,
+                0) })
             .ToListAsync(ct);
+        var now = time.GetUtcNow().UtcDateTime;
+        var sessions = rows.Select(r => r.Response with { PositionAgeMs = Math.Max(0, (long)(now - r.LastSeenAt).TotalMilliseconds) }).ToList();
         // Bigarr's own images for the films it manages; episodes and other films have none until shows come.
         var movieIds = sessions.Select(s => s.Item.MovieId).OfType<int>().Distinct().ToList();
         var images = await db.Movies.AsNoTracking().Where(m => movieIds.Contains(m.Id)).Select(m => new { m.Id, m.Images }).ToDictionaryAsync(m => m.Id, m => m.Images, ct);

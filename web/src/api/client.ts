@@ -1986,6 +1986,8 @@ export type PlaybackSession = {
   location: PlaybackLocation | null
   /** Plex gave the stream's session id, so it can be stopped from Bigarr. */
   canStop: boolean
+  /** How long ago the server gave `viewOffsetMs`. */
+  positionAgeMs: number
 }
 
 export type PlaybackServerStatus = { id: number; name: string; connected: boolean; error: string | null; since: string | null }
