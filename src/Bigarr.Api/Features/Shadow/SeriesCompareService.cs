@@ -60,6 +60,8 @@ public sealed record SeriesCompareRowResponse(
     DateTime At,
     /// <summary>Every episode either side covers on the row.</summary>
     string Episodes,
+    /// <summary>The first season the row covers, for grouping by season.</summary>
+    int SeasonNumber,
     List<SeriesCompareGrabResponse> Sonarr,
     List<SeriesComparePickResponse> Bigarr,
     /// <summary>Other picks for those episodes while Sonarr's download was in flight, or upgrades within the group.</summary>
@@ -76,6 +78,19 @@ public sealed record SeriesCompareCounts(int Same, int Different, int BigarrOnly
 
 public sealed record SeriesCompareVersionSummary(string VersionName, SeriesCompareCounts Counts);
 
+/// <summary>One show of Activity → Compare · Sonarr: one line until opened, its rows newest first.</summary>
+public sealed record SeriesCompareGroupResponse(
+    int TvdbId,
+    int? SeriesId,
+    string SeriesTitle,
+    int? Year,
+    string? PosterUrl,
+    SeriesCompareCounts Counts,
+    /// <summary>The latest row's time.</summary>
+    DateTime LatestAt,
+    List<SeriesCompareRowResponse> Rows);
+
+/// <param name="Total">Shows with at least one row of the asked outcome; pages count shows, not rows.</param>
 public sealed record SeriesCompareResponse(
     DateTime? From,
     DateTime To,
@@ -84,7 +99,7 @@ public sealed record SeriesCompareResponse(
     List<string> Versions,
     SeriesCompareCounts Summary,
     List<SeriesCompareVersionSummary> ByVersion,
-    List<SeriesCompareRowResponse> Rows,
+    List<SeriesCompareGroupResponse> Groups,
     int Total,
     int Page,
     int PageSize);
@@ -137,8 +152,14 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
             .Select(g => new SeriesCompareVersionSummary(g.Key, Count(g)))
             .ToList();
 
-        var filtered = rows.Where(r => outcome is null || r.Outcome == outcome).OrderByDescending(r => r.At).ToList();
-        var pageRows = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        // Paged by show: a show with a hundred rows is one line until opened.
+        var shows = rows.Where(r => outcome is null || r.Outcome == outcome)
+            .GroupBy(r => r.TvdbId)
+            .Select(g => (TvdbId: g.Key, Rows: g.OrderByDescending(r => r.At).ToList()))
+            .OrderByDescending(g => g.Rows[0].At)
+            .ToList();
+        var pageShows = shows.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        var pageRows = pageShows.SelectMany(g => g.Rows).ToList();
 
         var tvdbIds = pageRows.Select(r => r.TvdbId).Distinct().ToList();
         var series = (await db.Series.AsNoTracking().Where(s => s.TvdbId != null && tvdbIds.Contains(s.TvdbId.Value)).ToListAsync(ct)).ToDictionary(s => s.TvdbId!.Value);
@@ -163,11 +184,26 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
                 row.Version,
                 row.At,
                 SonarrFollower.EpisodesLabel(row.Episodes),
+                row.Episodes.Count == 0 ? 0 : row.Episodes.Min(e => e.Season),
                 rowGrabs.Select(ToResponse).ToList(),
                 rowPicks.Select(ToResponse).ToList(),
                 row.AlsoPicked.Select(p => ToResponse(picks[p.Id])).ToList(),
                 lead,
                 rowGrabs.Count == 1 && rowPicks.Count == 0 && sightings.TryGetValue(rowGrabs[0].Id, out var sighting) ? Sighting(sighting, row.Version) : null);
+        }).ToList();
+        var byShow = responses.ToLookup(r => r.TvdbId);
+        var groups = pageShows.Select(g =>
+        {
+            var first = byShow[g.TvdbId].First();
+            return new SeriesCompareGroupResponse(
+                g.TvdbId,
+                first.SeriesId,
+                first.SeriesTitle,
+                first.Year,
+                first.PosterUrl,
+                Count(g.Rows),
+                g.Rows[0].At,
+                byShow[g.TvdbId].ToList());
         }).ToList();
 
         var versions = (await db.SeriesShadowPicks.AsNoTracking().Select(p => p.VersionName).Distinct().ToListAsync(ct))
@@ -175,7 +211,7 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
             .OrderBy(v => v, StringComparer.Ordinal)
             .ToList();
 
-        return new SeriesCompareResponse(from, now, (int)window.TotalHours, options.Value.Enabled, versions, summary, byVersion, responses, filtered.Count, page, pageSize);
+        return new SeriesCompareResponse(from, now, (int)window.TotalHours, options.Value.Enabled, versions, summary, byVersion, groups, shows.Count, page, pageSize);
     }
 
     private static HashSet<(int Season, int Episode)> EpisodesOf(SonarrGrab grab) => grab.Episodes.Select(e => (e.SeasonNumber, e.EpisodeNumber)).ToHashSet();

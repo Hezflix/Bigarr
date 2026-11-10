@@ -34,7 +34,7 @@ public sealed class SonarrFollowTests(SonarrShadowApiFactory factory) : IClassFi
     public async Task The_follow_records_sonarr_grabs_searches_new_series_and_keeps_the_library_in_line()
     {
         var client = await ClientAsync(factory);
-        var (hd, _) = await ProfilesAsync(client);
+        var (hd, _) = await SonarrImportTests.SeriesProfilesAsync(client);
         var tv = await SonarrImportTests.SeriesRootAsync(client, "bigarr-follow-tv-");
         var anime = await SonarrImportTests.SeriesRootAsync(client, "bigarr-follow-anime-");
         await AddMockIndexerAsync(client, "Mock follow");
@@ -132,14 +132,23 @@ public sealed class SonarrFollowTests(SonarrShadowApiFactory factory) : IClassFi
 
         // Compare: the pack is the same release on both sides, Frieren's episode is Sonarr only, season 2 Bigarr only.
         var compare = (await client.GetFromJsonAsync<SeriesCompareResponse>("/api/v1/shadow/compare/series", Json))!;
-        var same = compare.Rows.Single(r => r.Outcome == SeriesCompareOutcome.Same);
+        var same = compare.Groups.SelectMany(g => g.Rows).Single(r => r.Outcome == SeriesCompareOutcome.Same);
         Assert.Equal(81189, same.TvdbId);
         Assert.Equal("S01E01–S01E07 (7 episodes)", same.Episodes);
-        Assert.Contains(compare.Rows, r => r.Outcome == SeriesCompareOutcome.SonarrOnly && r.TvdbId == 424536 && r.Sighting is null);
-        Assert.Contains(compare.Rows, r => r.Outcome == SeriesCompareOutcome.BigarrOnly && r.Episodes.StartsWith("S02E01", StringComparison.Ordinal));
+        Assert.Contains(compare.Groups.SelectMany(g => g.Rows), r => r.Outcome == SeriesCompareOutcome.SonarrOnly && r.TvdbId == 424536 && r.Sighting is null);
+        Assert.Contains(compare.Groups.SelectMany(g => g.Rows), r => r.Outcome == SeriesCompareOutcome.BigarrOnly && r.Episodes.StartsWith("S02E01", StringComparison.Ordinal));
         Assert.Equal(1, compare.Summary.Same);
+        // One line per show, newest first, with its own counters.
+        Assert.Equal(2, compare.Total);
+        var breakingBad = compare.Groups.Single(g => g.TvdbId == 81189);
+        Assert.Equal(1, breakingBad.Counts.Same);
+        Assert.True(breakingBad.Counts.BigarrOnly >= 1);
+        Assert.All(breakingBad.Rows, r => Assert.True(r.SeasonNumber is 1 or 2));
+        var onePerPage = (await client.GetFromJsonAsync<SeriesCompareResponse>("/api/v1/shadow/compare/series?pageSize=1", Json))!;
+        Assert.Single(onePerPage.Groups);
+        Assert.Equal(2, onePerPage.Total);
         var page = (await client.GetFromJsonAsync<SeriesCompareResponse>("/api/v1/shadow/compare/series?tvdbId=424536", Json))!;
-        Assert.All(page.Rows, r => Assert.Equal(424536, r.TvdbId));
+        Assert.All(page.Groups.SelectMany(g => g.Rows), r => Assert.Equal(424536, r.TvdbId));
 
         // Sonarr imports the pack; on Frieren, deletes episode 1's file and unmonitors episode 2.
         for (var n = 1; n <= 7; n++)
@@ -187,7 +196,7 @@ public sealed class SonarrFollowTests(SonarrShadowApiFactory factory) : IClassFi
     public async Task Search_on_add_is_capped_per_pass()
     {
         var client = await ClientAsync(factory);
-        var (hd, _) = await ProfilesAsync(client);
+        var (hd, _) = await SonarrImportTests.SeriesProfilesAsync(client);
         var tv = await SonarrImportTests.SeriesRootAsync(client, "bigarr-follow-cap-");
         await using var sonarr = await FakeSonarr.StartAsync();
         var created = await client.PostAsJsonAsync("/api/v1/shadow/sonarrs", new FollowedSonarrRequest(
