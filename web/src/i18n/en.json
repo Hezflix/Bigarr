@@ -1642,7 +1642,10 @@
     "alsoPickedSeries_one": "Bigarr also picked {{count}} release for these episodes (an upgrade, or while Sonarr's download was in flight)",
     "alsoPickedSeries_other": "Bigarr also picked {{count}} releases for these episodes (upgrades, or while Sonarr's download was in flight)",
     "firstSonarr": "Sonarr first by {{gap}}",
-    "whyNotSonarr": "Why Sonarr grabbed nothing"
+    "whyNotSonarr": "Why Sonarr grabbed nothing",
+    "seriesFileThen": "The episodes had {{quality}} (score {{score}}) when Sonarr grabbed.",
+    "seriesPickThen": "Bigarr had already picked {{quality}} (score {{score}}) for those episodes when Sonarr grabbed: judged against that pick.",
+    "seriesNoFileThen": "The episodes had no file when Sonarr grabbed."
   },
   "radarrFollow": {
     "title": "Followed Radarrs",

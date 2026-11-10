@@ -391,10 +391,10 @@ function GrabCard({ grab }: { grab: SeriesCompareGrab }) {
               {verdict.episodes && <span className="text-xs text-muted-foreground">{t('compare.bigarrEpisodes', { episodes: verdict.episodes })}</span>}
               {verdict.currentQuality ? (
                 <span className="text-xs text-muted-foreground">
-                  {verdict.currentIsPick ? t('compare.pickThen', { quality: verdict.currentQuality, score: verdict.currentScore ?? 0 }) : t('compare.fileThen', { quality: verdict.currentQuality, score: verdict.currentScore ?? 0 })}
+                  {verdict.currentIsPick ? t('compare.seriesPickThen', { quality: verdict.currentQuality, score: verdict.currentScore ?? 0 }) : t('compare.seriesFileThen', { quality: verdict.currentQuality, score: verdict.currentScore ?? 0 })}
                 </span>
               ) : (
-                <span className="text-xs text-muted-foreground">{t('compare.noFileThen')}</span>
+                <span className="text-xs text-muted-foreground">{t('compare.seriesNoFileThen')}</span>
               )}
             </>
           )}
