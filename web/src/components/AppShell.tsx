@@ -26,6 +26,8 @@ import {
   WebhookIcon,
   ListVideoIcon,
   CirclePlayIcon,
+  UsersIcon,
+  ChartColumnIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { auth, health, system } from '@/api/client'
@@ -66,6 +68,8 @@ type NavItem = {
     | '/activity/compare'
     | '/playback/now'
     | '/playback/plays'
+    | '/playback/stats'
+    | '/playback/users'
     | '/settings/library'
     | '/settings/mediamanagement'
     | '/settings/indexers'
@@ -122,6 +126,8 @@ function useSections(): NavSection[] {
       items: [
         { to: '/playback/now', label: t('nav.nowPlaying'), icon: CirclePlayIcon },
         { to: '/playback/plays', label: t('nav.plays'), icon: ListVideoIcon },
+        { to: '/playback/stats', label: t('nav.playbackStats'), icon: ChartColumnIcon },
+        { to: '/playback/users', label: t('nav.playbackUsers'), icon: UsersIcon },
       ],
     },
     {

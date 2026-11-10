@@ -69,6 +69,14 @@ public sealed class MovieSummaryQuery(BigarrDbContext db, CustomFormatScorer sco
         var formats = rows.Any(r => r.Versions.Any(v => v.File is not null)) ? new Formats(await scorer.CalculatorAsync(ct), await scorer.SignatureAsync(ct)) : null;
         var today = DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime);
 
+        // Plays per film and version, read off the (MovieId, VersionId, StoppedAt) index rather than the rows.
+        var plays = await db.Plays.AsNoTracking()
+            .Where(p => p.MovieId != null)
+            .GroupBy(p => new { p.MovieId, p.VersionId })
+            .Select(g => new { MovieId = g.Key.MovieId!.Value, g.Key.VersionId, Count = g.Count(), Last = g.Max(p => p.StoppedAt) })
+            .ToListAsync(ct);
+        var playsByMovie = plays.ToLookup(p => p.MovieId);
+
         var summaries = rows.Select(row =>
         {
             // The availability rules only read the status and the release dates.
@@ -82,6 +90,7 @@ public sealed class MovieSummaryQuery(BigarrDbContext db, CustomFormatScorer sco
                 PhysicalReleaseDate = row.PhysicalReleaseDate,
             };
 
+            var filmPlays = playsByMovie[row.Id].ToList();
             return new MovieSummary(
                 row.Id,
                 row.TmdbId,
@@ -107,11 +116,15 @@ public sealed class MovieSummaryQuery(BigarrDbContext db, CustomFormatScorer sco
                         v.RootFolderId,
                         v.TagIds.Order().ToList(),
                         v.File?.Input.Size,
-                        v.File is null || v.Mode != VersionMode.Managed ? null : CutoffMet(v.File, profiles[v.QualityProfileId], qualities, formats!)))
+                        v.File is null || v.Mode != VersionMode.Managed ? null : CutoffMet(v.File, profiles[v.QualityProfileId], qualities, formats!),
+                        filmPlays.Where(p => p.VersionId == v.Id).Sum(p => p.Count),
+                        filmPlays.Where(p => p.VersionId == v.Id).Max(p => (DateTime?)p.Last)))
                     .ToList(),
                 row.AddedAt,
                 row.Ratings?.Tmdb?.Value,
-                row.Ratings?.Imdb?.Value);
+                row.Ratings?.Imdb?.Value,
+                filmPlays.Sum(p => p.Count),
+                filmPlays.Max(p => (DateTime?)p.Last));
         }).ToList();
 
         // Every file is on this list: the remembered matches of the others belong to files deleted or replaced since.

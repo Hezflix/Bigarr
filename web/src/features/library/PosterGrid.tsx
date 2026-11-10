@@ -128,6 +128,7 @@ function CardInfo({ movie, density, posterSize, fields, sizeSplit, emphasis }: C
   const meta = [
     show('year') ? (movie.year ?? t('common.none')) : null,
     show('size') && size > 0 ? formatBytes(size) : null,
+    show('plays') ? t('library.playsCount', { count: movie.plays }) : null,
   ].filter((part) => part !== null)
 
   return (

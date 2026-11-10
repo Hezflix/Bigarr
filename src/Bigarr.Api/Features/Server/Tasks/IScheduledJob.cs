@@ -19,6 +19,12 @@ public interface IScheduledJob
     /// <summary>Grace period after startup before the first run: a restart must not hammer the indexers.</summary>
     TimeSpan InitialDelay { get; }
 
+    /// <summary>
+    /// Runs on its own even with <c>Bigarr:Scheduler:Enabled</c> false: a job that only reads (Plex's watch history)
+    /// is as safe in shadow mode as the playback monitor that follows the same server.
+    /// </summary>
+    bool RunsWhenSchedulerDisabled => false;
+
     /// <summary>Does the work and returns one line about it ("15 releases, 2 grabbed"), or null.</summary>
     Task<string?> RunAsync(CancellationToken ct);
 }

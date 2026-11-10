@@ -21,7 +21,7 @@ public sealed record SystemStatusResponse(
     string ConfigDirectory,
     /// <summary><c>tmdb</c> or <c>fixtures</c>.</summary>
     string MetadataProvider,
-    /// <summary><c>Bigarr:Scheduler:Enabled</c>: when false no task runs on its own (RSS sync, searches, health check, maintenance, backups); each runs only when triggered.</summary>
+    /// <summary><c>Bigarr:Scheduler:Enabled</c>: when false no task runs on its own (RSS sync, searches, health check, maintenance, backups); each runs only when triggered, but for the read-only Plex watch history.</summary>
     bool SchedulerEnabled,
     /// <summary><c>Bigarr:Shadow:Enabled</c>: grabs are recorded as picks and nothing is sent to a download client.</summary>
     bool ShadowEnabled = false,

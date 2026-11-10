@@ -35,7 +35,9 @@
     "addSeries": "Add a series",
     "playback": "Playback",
     "nowPlaying": "Now playing",
-    "plays": "Plays"
+    "plays": "Plays",
+    "playbackUsers": "Users",
+    "playbackStats": "Stats"
   },
   "theme": {
     "label": "Theme",
@@ -118,16 +120,20 @@
       "size": "Size",
       "quality": "Quality",
       "rating": "Rating",
-      "versionSize": "Size · {{version}}",
       "sizeOf": "Sort by the size of",
       "allVersions": "All versions",
       "asc": "Ascending",
-      "desc": "Descending"
+      "desc": "Descending",
+      "lastPlayed": "Last played",
+      "plays": "Plays",
+      "lastPlayedOf": "Sort by the last play of",
+      "ofVersion": "{{metric}} · {{version}}",
+      "playsOf": "Sort by the plays of"
     },
     "filter": {
       "label": "Filter",
       "scope": "Applies to",
-      "scopeHint": "Which version monitoring, status, quality, tags and root folder look at.",
+      "scopeHint": "Which version monitoring, status, played, quality, tags and root folder look at.",
       "scopes": {
         "any": "Any version",
         "all": "Every version",
@@ -158,7 +164,17 @@
       "addedAny": "Any time",
       "addedDays_one": "Last {{count}} day",
       "addedDays_other": "Last {{count}} days",
-      "nothing": "Nothing to pick."
+      "nothing": "Nothing to pick.",
+      "playedValues": {
+        "any": "Any",
+        "never": "Never played",
+        "ever": "Played"
+      },
+      "playedWithin_other": "In the last {{count}} days",
+      "notPlayedWithin_one": "Not for {{count}} day",
+      "notPlayedWithin_other": "Not for {{count}} days",
+      "played": "Played",
+      "playedWithin_one": "In the last {{count}} day"
     },
     "view": {
       "label": "View",
@@ -177,7 +193,8 @@
         "versions": "Versions",
         "quality": "Quality",
         "size": "Size on disk",
-        "rating": "Rating"
+        "rating": "Rating",
+        "plays": "Plays"
       },
       "columns": "Table columns",
       "sizeSplit": "Size per version",
@@ -199,7 +216,9 @@
       "added": "Added",
       "rating": "Rating",
       "tags": "Tags",
-      "rootFolder": "Root folder"
+      "rootFolder": "Root folder",
+      "lastPlayed": "Last played",
+      "plays": "Plays"
     },
     "presets": {
       "all": "All",
@@ -207,7 +226,8 @@
       "missingVersion": "Missing {{name}}",
       "cutoffUnmet": "Cutoff unmet",
       "recent": "Recently added",
-      "unmonitored": "Unmonitored"
+      "unmonitored": "Unmonitored",
+      "neverPlayed": "Never played"
     },
     "savedViews": {
       "label": "Views",
@@ -216,7 +236,10 @@
       "saveHint": "Keeps the filters, the sort and the layout under a name, for you on this browser.",
       "name": "Name",
       "delete": "Delete the view {{name}}"
-    }
+    },
+    "playsCount_other": "{{count}} plays",
+    "playsCount_one": "{{count}} play",
+    "neverPlayed": "Never"
   },
   "bulk": {
     "selected_one": "{{count}} selected",
@@ -1949,7 +1972,87 @@
     "stopping": "Stopping…",
     "stopped": "Stream of {{user}} stopped.",
     "stopFailed": "Could not stop the stream: {{error}}",
-    "unknownPlayer": "an unknown player"
+    "unknownPlayer": "an unknown player",
+    "keepHistory": "Record plays",
+    "owner": "Owner",
+    "until": "Until",
+    "lastDays_other": "Last {{count}} days",
+    "keepHistoryHint": "Off: their streams still show in Now playing, but no new play is written. Plays already recorded are kept.",
+    "lastDays_one": "Last {{count}} day",
+    "searchTitle": "Search a title",
+    "from": "From",
+    "period": "Period",
+    "editUser": "Edit {{name}}",
+    "allVersions": "All versions",
+    "allDecisions": "Any decision",
+    "editUserHint": "On the server: {{name}}.",
+    "lastSeen": "Last seen",
+    "customRange": "Custom range",
+    "to": "to",
+    "history": "History",
+    "noMatch": "No play matches these filters.",
+    "displayName": "Display name",
+    "clearFilters": "Clear filters",
+    "kept": "Recorded",
+    "userSaved": "User saved.",
+    "notKept": "Not recorded",
+    "editUserTitle": "Edit user",
+    "anyTime": "Any time",
+    "noUsers": "Nobody has played anything yet.",
+    "userFailed": "Could not save the user.",
+    "usersTitle": "Users",
+    "decisionShare": "Direct play or transcode",
+    "allTime": "All time",
+    "lastSeenAt": "last seen {{date}}",
+    "onServer": "{{name}} on the server",
+    "edit": "Edit",
+    "firstSeen": "First seen {{date}}",
+    "players": "Players",
+    "lastUsed": "Last used",
+    "addresses": "IP addresses",
+    "noAddresses": "No address recorded.",
+    "unknownDecision": "Unknown",
+    "last24h": "Last 24 h",
+    "uhdTranscoded": "4K played through a transcode",
+    "topPlatforms": "Top platforms",
+    "daysCount_one": "{{count}} day",
+    "usersCount_other": "{{count}} users",
+    "noUhdTranscode": "No 4K file went through a transcode in this period.",
+    "watchTime": "Watch time",
+    "sections": {
+      "activity": "Activity",
+      "activityHint": "when people watch",
+      "library": "Library",
+      "libraryHint": "what is watched, and how",
+      "people": "People",
+      "peopleHint": "who watches, on what"
+    },
+    "mostStreams": "Most streams at once",
+    "playsPer": {
+      "day": "Plays per day",
+      "week": "Plays per week",
+      "month": "Plays per month"
+    },
+    "activeUsers": "Active users",
+    "howServed": "How plays are served",
+    "split": {
+      "kind": "Films / episodes",
+      "decision": "By decision"
+    },
+    "byPlays": "Plays",
+    "byTime": "Watch time",
+    "topShows": "Top shows",
+    "statsTitle": "Stats",
+    "howServedHint": "A transcode costs the server CPU and the viewer quality. The 4K files listed went through one: the players could not take them, a 1080p copy may be enough.",
+    "byWeekday": "By weekday",
+    "daysCount_other": "{{count}} days",
+    "filmsAndEpisodes": "{{movies}} films · {{episodes}} episodes",
+    "oneYear": "1 year",
+    "topUsers": "Top users",
+    "usersCount_one": "{{count}} user",
+    "topMovies": "Top films",
+    "byHour": "By hour of the day",
+    "streamsColumn": "Streams"
   },
   "seriesSearch": {
     "search": "Search",

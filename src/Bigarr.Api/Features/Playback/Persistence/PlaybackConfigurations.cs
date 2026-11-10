@@ -67,6 +67,9 @@ public sealed class PlayConfiguration : IEntityTypeConfiguration<Play>
         builder.HasIndex(p => new { p.ItemId, p.UserId });
         builder.HasIndex(p => new { p.MovieId, p.StartedAt });
         builder.HasIndex(p => new { p.VersionId, p.StartedAt });
+
+        // The library list counts the plays of every film and version: read off this index alone, never the rows.
+        builder.HasIndex(p => new { p.MovieId, p.VersionId, p.StoppedAt });
     }
 }
 
@@ -83,6 +86,9 @@ public sealed class PlayStreamConfiguration : IEntityTypeConfiguration<PlayStrea
         builder.HasOne(s => s.Version).WithMany().HasForeignKey(s => s.VersionId).OnDelete(DeleteBehavior.SetNull);
         builder.HasIndex(s => s.ExternalKey).IsUnique().HasFilter("\"ExternalKey\" IS NOT NULL");
         builder.HasIndex(s => s.VersionId);
+
+        // IX_PlayStreams_Decision_PlayId, for the Plays page's decision filter, is created by the PlaybackStats
+        // migration: EF cannot index a complex property's column.
     }
 }
 

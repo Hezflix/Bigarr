@@ -286,9 +286,9 @@ public sealed class PlaybackTrackerTests : IAsyncLifetime, IDisposable
         }
 
         await using var read = _database.CreateContext();
-        var service = new PlaybackService(read, null!, _transcodes, null!, null!, NullLogger<PlaybackService>.Instance);
+        var service = new PlaybackService(read, null!, _transcodes, null!, null!, _time, NullLogger<PlaybackService>.Instance);
         async Task<List<int>> Order(PlaySort sort, bool ascending) =>
-            (await service.PlaysAsync(1, 50, null, null, null, null, false, sort, ascending, CancellationToken.None)).Records.Select(r => r.PlayedSeconds).ToList();
+            (await service.PlaysAsync(1, 50, new PlayFilter(), sort, ascending, CancellationToken.None)).Records.Select(r => r.PlayedSeconds).ToList();
 
         Assert.Equal([600, 60, 6000], await Order(PlaySort.StartedAt, false));
         Assert.Equal([6000, 60, 600], await Order(PlaySort.StartedAt, true));

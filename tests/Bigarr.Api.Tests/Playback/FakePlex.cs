@@ -56,7 +56,16 @@ public sealed class FakePlex : IAsyncDisposable
         string Address = "192.0.2.10",
         bool Local = false);
 
+    /// <summary>A viewed mark of the watch history: who finished which item, when.</summary>
+    public sealed record Viewed(string RatingKey, string AccountId, DateTime ViewedAt);
+
     public string Url => _http.Url;
+
+    /// <summary>The watch history, served oldest first from <c>viewedAt&gt;=</c>, paged by <c>X-Plex-Container-Start/Size</c>.</summary>
+    public List<Viewed> History { get; } = [];
+
+    /// <summary>The server's accounts, by id: the owner is 1.</summary>
+    public Dictionary<string, string> Accounts { get; } = [];
 
     public List<Stream> Streams { get; } = [];
 
@@ -176,6 +185,26 @@ public sealed class FakePlex : IAsyncDisposable
             if (request.Path == "/status/sessions")
             {
                 return Json(new { MediaContainer = new { size = Streams.Count, Metadata = Streams.Select(SessionJson).ToList() } });
+            }
+
+            if (request.Path == "/status/sessions/history/all")
+            {
+                var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(request.Query);
+                var since = DateTimeOffset.FromUnixTimeSeconds(long.Parse(query["viewedAt>"].ToString(), System.Globalization.CultureInfo.InvariantCulture)).UtcDateTime;
+                var start = int.Parse(query["X-Plex-Container-Start"].ToString(), System.Globalization.CultureInfo.InvariantCulture);
+                var size = int.Parse(query["X-Plex-Container-Size"].ToString(), System.Globalization.CultureInfo.InvariantCulture);
+                var marks = History.Where(v => v.ViewedAt >= since).OrderBy(v => v.ViewedAt).ToList();
+                var page = marks.Skip(start).Take(size).Select(v =>
+                {
+                    var item = Items[v.RatingKey];
+                    return new { ratingKey = v.RatingKey, key = $"/library/metadata/{v.RatingKey}", type = item.Type, title = item.Title, librarySectionID = item.SectionId, accountID = long.Parse(v.AccountId, System.Globalization.CultureInfo.InvariantCulture), viewedAt = new DateTimeOffset(v.ViewedAt).ToUnixTimeSeconds() };
+                }).ToList();
+                return Json(new { MediaContainer = new { size = page.Count, totalSize = marks.Count, offset = start, Metadata = page } });
+            }
+
+            if (request.Path == "/accounts")
+            {
+                return Json(new { MediaContainer = new { Account = Accounts.Select(a => new { id = long.Parse(a.Key, System.Globalization.CultureInfo.InvariantCulture), name = a.Value }).ToList() } });
             }
 
             if (request.Path == "/library/sections")

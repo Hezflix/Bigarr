@@ -12,7 +12,7 @@ namespace Bigarr.Api.Features.Playback;
 /// Read side of playback (now playing, plays, users, plays per version, locations), the play rules, and stopping a
 /// stream on request.
 /// </summary>
-public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor, LiveTranscodes transcodes, GeoLocator geo, PlexClient plex, ILogger<PlaybackService> logger)
+public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor, LiveTranscodes transcodes, GeoLocator geo, PlexClient plex, TimeProvider time, ILogger<PlaybackService> logger)
 {
     public const int MaxPageSize = 200;
 
@@ -138,38 +138,14 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
         return addresses;
     }
 
-    public async Task<PlaysPageResponse> PlaysAsync(int page, int pageSize, int? userId, int? movieId, int? versionId, MediaItemKind? kind, bool unmatched, PlaySort sort, bool ascending, CancellationToken ct)
+    public async Task<PlaysPageResponse> PlaysAsync(int page, int pageSize, PlayFilter filter, PlaySort sort, bool ascending, CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(filter);
+
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
 
-        var query = db.Plays.AsNoTracking();
-        if (userId is { } user)
-        {
-            query = query.Where(p => p.UserId == user);
-        }
-
-        if (movieId is { } movie)
-        {
-            query = query.Where(p => p.MovieId == movie);
-        }
-
-        if (versionId is { } version)
-        {
-            query = query.Where(p => p.VersionId == version);
-        }
-
-        if (kind is { } k)
-        {
-            query = query.Where(p => p.Item.Kind == k);
-        }
-
-        // Film plays linked to no Bigarr film: an import that could not match them, or a film Bigarr does not manage.
-        if (unmatched)
-        {
-            query = query.Where(p => p.Item.Kind == MediaItemKind.Movie && p.MovieId == null && p.Item.MovieId == null);
-        }
-
+        var query = Filter(db.Plays.AsNoTracking(), db.PlayStreams.AsNoTracking(), filter);
         var total = await query.CountAsync(ct);
         var records = await Order(query, sort, ascending)
             .Skip((page - 1) * pageSize).Take(pageSize)
@@ -196,6 +172,79 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
             .ToListAsync(ct);
         return new PlaysPageResponse(page, pageSize, total, records);
     }
+
+    public static IQueryable<Play> Filter(IQueryable<Play> query, IQueryable<PlayStream> streams, PlayFilter filter)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        ArgumentNullException.ThrowIfNull(streams);
+        ArgumentNullException.ThrowIfNull(filter);
+
+        if (filter.UserId is { } user)
+        {
+            query = query.Where(p => p.UserId == user);
+        }
+
+        if (filter.MovieId is { } movie)
+        {
+            query = query.Where(p => p.MovieId == movie);
+        }
+
+        if (filter.VersionId is { } version)
+        {
+            query = query.Where(p => p.VersionId == version);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Version))
+        {
+            var name = filter.Version.Trim();
+            query = query.Where(p => p.VersionName == name);
+        }
+
+        if (filter.Kind is { } kind)
+        {
+            query = query.Where(p => p.Item.Kind == kind);
+        }
+
+        if (filter.From is { } from)
+        {
+            query = query.Where(p => p.StartedAt >= from);
+        }
+
+        if (filter.To is { } to)
+        {
+            query = query.Where(p => p.StartedAt < to);
+        }
+
+        if (filter.Decision is { } decision)
+        {
+            // A stream with that decision and none further. Two IN lists read once each, where a MAX per play reads
+            // the streams of every play.
+            var with = streams.Where(s => s.Details.Decision == decision).Select(s => s.PlayId);
+            var further = streams.Where(s => s.Details.Decision > decision).Select(s => s.PlayId);
+            query = query.Where(p => with.Contains(p.Id) && !further.Contains(p.Id));
+        }
+
+        // Film plays linked to no Bigarr film: an import that could not match them, or a film Bigarr does not manage.
+        if (filter.Unmatched)
+        {
+            query = query.Where(p => p.Item.Kind == MediaItemKind.Movie && p.MovieId == null && p.Item.MovieId == null);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var pattern = "%" + EscapeLike(filter.Search.Trim()) + "%";
+            query = query.Where(p => EF.Functions.Like(p.Item.Title, pattern, "\\") || EF.Functions.Like(p.Item.ShowTitle!, pattern, "\\"));
+        }
+
+        return query;
+    }
+
+    /// <summary>The version names plays were recorded under, for the Plays page's version filter.</summary>
+    public async Task<List<string>> VersionNamesAsync(CancellationToken ct) =>
+        await db.Plays.AsNoTracking().Where(p => p.VersionName != null).Select(p => p.VersionName!).Distinct().OrderBy(n => n).ToListAsync(ct);
+
+    private static string EscapeLike(string value) =>
+        value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal);
 
     /// <summary>The sessions a play was made of, oldest first, with everything the server said about each.</summary>
     public async Task<List<PlayStreamResponse>?> StreamsAsync(int playId, CancellationToken ct)
@@ -239,8 +288,106 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
     public async Task<List<PlaybackUserResponse>> UsersAsync(CancellationToken ct) =>
         await db.MediaServerUsers.AsNoTracking()
             .OrderBy(u => u.DisplayName ?? u.Name)
-            .Select(u => new PlaybackUserResponse(u.Id, u.DisplayName ?? u.Name, u.ThumbUrl, u.IsOwner, db.Plays.Count(p => p.UserId == u.Id), u.LastSeenAt))
+            .Select(u => new PlaybackUserResponse(u.Id, u.DisplayName ?? u.Name, u.ThumbUrl, u.IsOwner, db.Plays.Count(p => p.UserId == u.Id), u.LastSeenAt, u.Name, u.KeepHistory))
             .ToListAsync(ct);
+
+    /// <summary>The windows of the user page's watch time, in days; null is since the start.</summary>
+    public static readonly int?[] WatchTimeWindows = [1, 7, 30, null];
+
+    public async Task<PlaybackUserStatsResponse?> UserStatsAsync(int userId, CancellationToken ct)
+    {
+        var user = await db.MediaServerUsers.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, ct);
+        if (user is null)
+        {
+            return null;
+        }
+
+        var now = time.GetUtcNow().UtcDateTime;
+        var plays = await db.Plays.AsNoTracking()
+            .Where(p => p.UserId == userId)
+            .Select(p => new { p.Id, p.StartedAt, p.StoppedAt, p.PlayedSeconds })
+            .ToListAsync(ct);
+        var watchTime = WatchTimeWindows
+            .Select(days =>
+            {
+                var window = days is { } d ? plays.Where(p => p.StartedAt >= now.AddDays(-d)).ToList() : plays;
+                return new WatchTimeResponse(days, window.Count, window.Sum(p => (long)p.PlayedSeconds));
+            })
+            .ToList();
+
+        // One read of the streams gives the players and the decisions; the addresses are AddressesAsync's, with their places.
+        var streams = await db.PlayStreams.AsNoTracking()
+            .Where(s => s.Play.UserId == userId)
+            .Select(s => new
+            {
+                s.PlayId,
+                s.StartedAt,
+                s.StoppedAt,
+                s.PausedSeconds,
+                Player = s.Details.PlayerTitle ?? s.Details.PlayerProduct,
+                s.Details.PlayerPlatform,
+                s.Details.Decision,
+            })
+            .ToListAsync(ct);
+
+        var players = streams
+            .GroupBy(s => (Player: s.Player ?? string.Empty, Platform: s.PlayerPlatform))
+            .Select(g => new PlayerStatsResponse(
+                g.Key.Player,
+                g.Key.Platform,
+                g.Select(s => s.PlayId).Distinct().Count(),
+                g.Sum(s => Math.Max(0, (long)(s.StoppedAt - s.StartedAt).TotalSeconds - s.PausedSeconds)),
+                g.Max(s => s.StoppedAt)))
+            .OrderByDescending(p => p.Plays).ThenByDescending(p => p.LastPlayedAt)
+            .Take(TopPlayers)
+            .ToList();
+
+        var decisions = streams.GroupBy(s => s.PlayId).Select(g => g.Max(s => s.Decision)).ToList();
+        var counts = new DecisionCountsResponse(
+            decisions.Count(d => d == StreamDecision.DirectPlay),
+            decisions.Count(d => d == StreamDecision.DirectStream),
+            decisions.Count(d => d == StreamDecision.Transcode),
+            plays.Count - decisions.Count(d => d is not null));
+
+        return new PlaybackUserStatsResponse(
+            user.Id,
+            user.Name,
+            user.DisplayName,
+            user.ThumbUrl,
+            user.IsOwner,
+            user.KeepHistory,
+            user.FirstSeenAt,
+            user.LastSeenAt,
+            plays.Count == 0 ? null : plays.Max(p => p.StoppedAt),
+            watchTime,
+            players,
+            counts);
+    }
+
+    /// <summary>How many players the user page lists, the most used first.</summary>
+    public const int TopPlayers = 10;
+
+    public async Task<Result<PlaybackUserStatsResponse>> UpdateUserAsync(int userId, UpdatePlaybackUserRequest request, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var user = await db.MediaServerUsers.FirstOrDefaultAsync(u => u.Id == userId, ct);
+        if (user is null)
+        {
+            return Failure.NotFound($"Media server user {userId}");
+        }
+
+        var displayName = string.IsNullOrWhiteSpace(request.DisplayName) ? null : request.DisplayName.Trim();
+        if (displayName is { Length: > 256 })
+        {
+            return Failure.Invalid("Display name too long", "At most 256 characters.");
+        }
+
+        user.DisplayName = displayName;
+        user.KeepHistory = request.KeepHistory ?? user.KeepHistory;
+        await db.SaveChangesAsync(ct);
+        return Result<PlaybackUserStatsResponse>.Ok((await UserStatsAsync(userId, ct))!);
+    }
 
     public async Task<List<VersionPlaysResponse>> MoviePlaysAsync(int movieId, CancellationToken ct)
     {
@@ -255,7 +402,18 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
                 g.Count(p => p.Streams.Any(s => s.Details.Decision == StreamDecision.Transcode)),
                 g.Max(p => (DateTime?)p.StoppedAt)))
             .ToListAsync(ct);
-        return rows.OrderBy(r => r.VersionId is null).ThenByDescending(r => r.Plays).ToList();
+        if (rows.Count == 0)
+        {
+            return rows;
+        }
+
+        // The film's versions nobody played are listed too: a 4K never played is what the table is for.
+        var unplayed = await db.MovieVersions.AsNoTracking()
+            .Where(v => v.MovieId == movieId)
+            .Select(v => new { v.Id, v.Name })
+            .ToListAsync(ct);
+        rows.AddRange(unplayed.Where(v => rows.All(r => r.VersionId != v.Id)).Select(v => new VersionPlaysResponse(v.Id, v.Name, 0, 0, 0, null)));
+        return rows.OrderBy(r => r.VersionId is null).ThenByDescending(r => r.Plays).ThenBy(r => r.VersionName, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     public async Task<PlaybackSettingsDto> SettingsAsync(CancellationToken ct)

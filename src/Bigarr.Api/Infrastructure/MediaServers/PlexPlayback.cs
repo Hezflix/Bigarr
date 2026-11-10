@@ -70,6 +70,15 @@ public sealed record PlexItem(
 
 public sealed record PlexIds(int? TmdbId, string? ImdbId, int? TvdbId);
 
+/// <summary>A viewed mark of Plex's watch history (<c>/status/sessions/history/all</c>): who finished what, and when.</summary>
+public sealed record PlexHistoryEntry(string RatingKey, MediaItemKind Kind, string AccountId, DateTime ViewedAt, string Title, string? LibrarySectionId);
+
+/// <summary>One page of the watch history and how many marks the whole query has.</summary>
+public sealed record PlexHistoryPage(List<PlexHistoryEntry> Entries, int Total);
+
+/// <summary>An account of the server (<c>/accounts</c>): the owner is 1, the friends their plex.tv id, like in the sessions.</summary>
+public sealed record PlexAccount(string Id, string Name, string? Thumb);
+
 public sealed record PlexSection(string Key, string Title, string? Type, IReadOnlyList<string> Locations)
 {
     public bool IsMovies => string.Equals(Type, "movie", StringComparison.OrdinalIgnoreCase);
@@ -218,6 +227,46 @@ public static class PlexPlayback
 
         var guid = Str(item, "guid");
         return (guid, IdsOf(item, guid), Str(item, "title"));
+    }
+
+    /// <summary>The marks of a history page; those of anything but a film or an episode (music, photos) are skipped.</summary>
+    public static PlexHistoryPage ParseHistory(JsonElement root)
+    {
+        var entries = new List<PlexHistoryEntry>();
+        var count = 0;
+        foreach (var item in Metadata(root))
+        {
+            count++;
+            if (KindOf(Str(item, "type")) is not { } kind || Str(item, "ratingKey") is not { } ratingKey || Str(item, "accountID") is not { } account || Long(item, "viewedAt") is not { } viewedAt)
+            {
+                continue;
+            }
+
+            var title = Str(item, "title") ?? ratingKey;
+            entries.Add(new PlexHistoryEntry(ratingKey, kind, account, DateTimeOffset.FromUnixTimeSeconds(viewedAt).UtcDateTime, title, Str(item, "librarySectionID")));
+        }
+
+        var total = root.TryGetProperty("MediaContainer", out var container) ? Int(container, "totalSize") ?? Int(container, "size") ?? count : count;
+        return new PlexHistoryPage(entries, total);
+    }
+
+    public static List<PlexAccount> ParseAccounts(JsonElement root)
+    {
+        var accounts = new List<PlexAccount>();
+        if (!root.TryGetProperty("MediaContainer", out var container))
+        {
+            return accounts;
+        }
+
+        foreach (var account in Array(container, "Account"))
+        {
+            if (Str(account, "id") is { } id && Str(account, "name") is { } name)
+            {
+                accounts.Add(new PlexAccount(id, name, Str(account, "thumb")));
+            }
+        }
+
+        return accounts;
     }
 
     public static List<PlexSection> ParseSections(JsonElement root)

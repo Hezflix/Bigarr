@@ -19,9 +19,13 @@ public sealed class TasksAndHealthTests(BigarrApiFactory factory) : IClassFixtur
         var client = await ClientAsync(factory);
 
         var tasks = (await client.GetFromJsonAsync<List<ScheduledTaskResponse>>("/api/v1/system/tasks", Json))!;
-        Assert.Equal([Bigarr.Api.Features.Server.Backup.BackupJob.JobName, CutoffUnmetSearchJob.JobName, HealthCheckJob.JobName, MediaMaintenanceJob.JobName, Bigarr.Api.Features.Movies.MetadataRefreshJob.JobName, Bigarr.Api.Features.Shadow.RadarrFollowJob.JobName, RssSyncJob.JobName, Bigarr.Api.Features.Series.SceneMappingRefreshJob.JobName], tasks.Select(t => t.Name).OrderBy(n => n, StringComparer.Ordinal));
-        Assert.All(tasks, t => Assert.False(t.Enabled)); // the scheduler is off in the tests
-        Assert.All(tasks, t => Assert.Null(t.NextRunAt));
+        Assert.Equal([Bigarr.Api.Features.Server.Backup.BackupJob.JobName, CutoffUnmetSearchJob.JobName, HealthCheckJob.JobName, MediaMaintenanceJob.JobName, Bigarr.Api.Features.Movies.MetadataRefreshJob.JobName, Bigarr.Api.Features.Playback.PlexHistoryJob.JobName, Bigarr.Api.Features.Shadow.RadarrFollowJob.JobName, RssSyncJob.JobName, Bigarr.Api.Features.Series.SceneMappingRefreshJob.JobName], tasks.Select(t => t.Name).OrderBy(n => n, StringComparer.Ordinal));
+
+        // The scheduler is off in the tests, like in shadow mode: only the read-only Plex history keeps its schedule.
+        var scheduled = tasks.Where(t => t.Enabled).ToList();
+        Assert.Equal([Bigarr.Api.Features.Playback.PlexHistoryJob.JobName], scheduled.Select(t => t.Name));
+        Assert.NotNull(scheduled[0].NextRunAt);
+        Assert.All(tasks.Except(scheduled), t => Assert.Null(t.NextRunAt));
         Assert.Equal(60, tasks.Single(t => t.Name == CutoffUnmetSearchJob.JobName).IntervalMinutes);
 
         var run = await client.PostAsync($"/api/v1/system/tasks/{RssSyncJob.JobName}/run", null);

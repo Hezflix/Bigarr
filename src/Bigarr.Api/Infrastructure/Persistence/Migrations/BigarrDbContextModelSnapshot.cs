@@ -664,6 +664,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("PlayHistoryCheckedUntil")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Token")
                         .IsRequired()
                         .HasMaxLength(512)
@@ -1263,6 +1266,8 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId", "StartedAt");
 
                     b.HasIndex("VersionId", "StartedAt");
+
+                    b.HasIndex("MovieId", "VersionId", "StoppedAt");
 
                     b.ToTable("Plays", (string)null);
                 });

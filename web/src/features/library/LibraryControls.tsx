@@ -27,8 +27,10 @@ import {
   densities,
   emptyFilter,
   posterSizes,
+  playedFilters,
   sortKeys,
   statusFilters,
+  type PlayedFilter,
   tableColumns,
   viewModes,
   type FilterScope,
@@ -241,6 +243,11 @@ function FilterMenu({ filter, onChange, names, qualities, tags, rootFolders }: F
   const set = (patch: Partial<LibraryFilter>) => onChange({ ...filter, ...patch })
   const scopes: FilterScope[] = ['any', 'all', 'default', ...names.map((n) => `version:${n.name}` as const)]
   const scopeLabel = (scope: FilterScope) => (scope.startsWith('version:') ? scope.slice('version:'.length) : t(`library.filter.scopes.${scope as 'any'}`))
+  const playedLabel = (played: PlayedFilter) => {
+    if (played === 'any' || played === 'never' || played === 'ever') return t(`library.filter.playedValues.${played}`)
+    const [kind, days] = played.split(':')
+    return t(kind === 'within' ? 'library.filter.playedWithin' : 'library.filter.notPlayedWithin', { count: Number(days) })
+  }
 
   return (
     <DropdownMenu>
@@ -297,6 +304,21 @@ function FilterMenu({ filter, onChange, names, qualities, tags, rootFolders }: F
               {statusFilters.map((value) => (
                 <DropdownMenuRadioItem key={value} value={value} onSelect={keepOpen} data-testid={`library-filter-status-${value}`}>
                   {t(`library.filter.statuses.${value}`)}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger data-testid="library-filter-played">
+            <span className="flex-1">{t('library.filter.played')}</span>
+            <span className="text-xs text-muted-foreground">{playedLabel(filter.played)}</span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuRadioGroup value={filter.played} onValueChange={(value) => set({ played: value as PlayedFilter })}>
+              {playedFilters.map((value) => (
+                <DropdownMenuRadioItem key={value} value={value} onSelect={keepOpen} data-testid={`library-filter-played-${value}`}>
+                  {playedLabel(value)}
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
@@ -514,7 +536,9 @@ function SortSub({ prefs, onChange, names }: { prefs: LibraryPrefs; onChange: (p
   const label = useSortLabel()
   const Arrow = prefs.direction === 'asc' ? ArrowUpIcon : ArrowDownIcon
   // With several versions, each one's size sorts too, right after the total.
-  const keys: SortKey[] = sortKeys.flatMap((key) => (key === 'size' && names.length > 1 ? [key, ...names.map((n) => `size:${n.name}` as const)] : [key]))
+  const keys: SortKey[] = sortKeys.flatMap((key) =>
+    (key === 'size' || key === 'plays' || key === 'lastPlayed') && names.length > 1 ? [key, ...names.map((n) => `${key}:${n.name}` as const)] : [key],
+  )
   return (
     <DropdownMenuSub>
       <DropdownMenuSubTrigger data-testid="library-sort">

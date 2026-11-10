@@ -13,6 +13,12 @@ namespace Bigarr.Api.Features.Server.Tasks;
 /// </summary>
 public sealed class TaskRunner(IServiceScopeFactory scopeFactory, SchedulerState state, SchedulerSignal signal, IOptions<SchedulerOptions> options, TimeProvider time, ILogger<TaskRunner> logger)
 {
+    /// <summary>The jobs that keep their schedule when the scheduler is disabled (<see cref="IScheduledJob.RunsWhenSchedulerDisabled"/>).</summary>
+    private readonly HashSet<string> _alwaysOn = new(StringComparer.Ordinal);
+
+    /// <summary>Whether a job runs on its own: every job with the scheduler on, only the always-on ones with it off.</summary>
+    private bool Scheduled(IScheduledJob job) => job.Enabled && (options.Value.Enabled || job.RunsWhenSchedulerDisabled);
+
     /// <summary>Loads what the previous run left and decides when each job is first due after this start.</summary>
     public async Task InitializeAsync(CancellationToken ct)
     {
@@ -33,13 +39,16 @@ public sealed class TaskRunner(IServiceScopeFactory scopeFactory, SchedulerState
             var earliest = now + job.InitialDelay;
             var cadence = runtime.LastRunAt is { } last ? last + job.Interval : earliest;
             runtime.NextRunAt = job.Enabled ? (cadence > earliest ? cadence : earliest) : null;
+            if (job.RunsWhenSchedulerDisabled)
+            {
+                _alwaysOn.Add(job.Name);
+            }
         }
     }
 
     public async Task<List<ScheduledTaskResponse>> ListAsync(CancellationToken ct)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
-        var scheduling = options.Value.Enabled;
         return scope.ServiceProvider.GetServices<IScheduledJob>()
             .Select(job =>
             {
@@ -48,27 +57,32 @@ public sealed class TaskRunner(IServiceScopeFactory scopeFactory, SchedulerState
                     job.Name,
                     job.DisplayName,
                     (int)job.Interval.TotalMinutes,
-                    job.Enabled && scheduling,
+                    Scheduled(job),
                     runtime.Running,
                     runtime.LastRunAt,
                     runtime.LastDurationMs,
                     runtime.LastSucceeded,
                     runtime.LastSummary,
                     runtime.LastError,
-                    job.Enabled && scheduling ? runtime.NextRunAt : null);
+                    Scheduled(job) ? runtime.NextRunAt : null);
             })
             .OrderBy(t => t.DisplayName)
             .ToList();
     }
 
-    /// <summary>Jobs whose time has come, oldest due first.</summary>
+    /// <summary>Jobs whose time has come, oldest due first; with the scheduler disabled, only the always-on ones.</summary>
     public List<string> Due(DateTime now) =>
-        state.Names.Where(n => state.TryGet(n, out var r) && !r.Running && r.NextRunAt is { } next && next <= now)
+        ScheduledNames().Where(n => state.TryGet(n, out var r) && !r.Running && r.NextRunAt is { } next && next <= now)
             .OrderBy(n => state.NextRunAt(n))
             .ToList();
 
     public DateTime? NextDue() =>
-        state.Names.Select(n => state.NextRunAt(n)).Where(n => n is not null).Min();
+        ScheduledNames().Select(n => state.NextRunAt(n)).Where(n => n is not null).Min();
+
+    /// <summary>Whether anything runs on its own: false with the scheduler disabled and no always-on job.</summary>
+    public bool AnyScheduled => options.Value.Enabled || _alwaysOn.Count > 0;
+
+    private IEnumerable<string> ScheduledNames() => options.Value.Enabled ? state.Names : state.Names.Where(_alwaysOn.Contains);
 
     public async Task<Result<TaskRunResponse>> RunAsync(string name, CancellationToken ct)
     {
@@ -163,8 +177,11 @@ public sealed class SchedulerRunner(TaskRunner runner, SchedulerSignal signal, I
             await runner.InitializeAsync(stoppingToken);
             if (!options.Value.Enabled)
             {
-                logger.LogInformation("Scheduler disabled (Bigarr:Scheduler:Enabled = false): tasks only run when triggered");
-                return;
+                logger.LogInformation("Scheduler disabled (Bigarr:Scheduler:Enabled = false): tasks only run when triggered, but for the read-only ones");
+                if (!runner.AnyScheduled)
+                {
+                    return;
+                }
             }
 
             while (!stoppingToken.IsCancellationRequested)
