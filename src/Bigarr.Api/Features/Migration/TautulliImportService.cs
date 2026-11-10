@@ -202,7 +202,7 @@ public sealed class TautulliImportService(
 
             progress.Current = "Adding users and items";
             var users = await UsersAsync(server, snapshot, stamp, progress, ct);
-            await ItemsAsync(server, plans, stamp, progress, ct);
+            await ItemsAsync(server, plans, context, stamp, progress, ct);
 
             var rules = new PlayRules(await db.PlaybackSettings.AsNoTracking().FirstOrDefaultAsync(s => s.Id == PlaybackSettings.SingletonId, ct) ?? PlaybackSettings.Default());
             var folders = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
@@ -339,17 +339,26 @@ public sealed class TautulliImportService(
             }
         }
 
-        foreach (var row in fresh)
+        long? previousEnd = null;
+        foreach (var row in group)
         {
             var played = Math.Max(0, (int)(row.StoppedAt - row.StartedAt).TotalSeconds - row.PausedSeconds);
             var end = PlayRules.SnapEnd(row.ViewOffsetMs, duration);
+
+            // Tautulli keeps where a stream stopped, not where it started: a resumed stream starts where the one
+            // before stopped, the first one the time played before its end.
+            var start = previousEnd is { } resumedAt && resumedAt <= end ? resumedAt : Math.Max(0, end - played * 1000L);
+            previousEnd = end;
+            if (context.Imported.ContainsKey(row.Id))
+            {
+                continue;
+            }
+
             play.Streams.Add(new PlayStream
             {
                 StartedAt = row.StartedAt,
                 StoppedAt = row.StoppedAt,
-
-                // Tautulli keeps where a stream stopped, not where it started: the start is the end less the time played.
-                StartOffsetMs = Math.Max(0, end - played * 1000L),
+                StartOffsetMs = start,
                 EndOffsetMs = end,
                 PausedSeconds = row.PausedSeconds,
                 Details = row.Details,
@@ -429,7 +438,7 @@ public sealed class TautulliImportService(
         return entities.ToDictionary(e => e.Key, e => e.Value.Id);
     }
 
-    private async Task ItemsAsync(MediaServer server, Dictionary<string, ItemPlan> plans, DateTime stamp, TautulliImportProgress progress, CancellationToken ct)
+    private async Task ItemsAsync(MediaServer server, Dictionary<string, ItemPlan> plans, Context context, DateTime stamp, TautulliImportProgress progress, CancellationToken ct)
     {
         var existing = await db.MediaServerItems.Where(i => i.MediaServerId == server.Id).ToDictionaryAsync(i => i.RatingKey, StringComparer.Ordinal, ct);
         var added = new List<(ItemPlan Plan, MediaServerItem Item)>();
@@ -463,14 +472,14 @@ public sealed class TautulliImportService(
                 TmdbId = plan.TmdbId,
                 ImdbId = plan.ImdbId,
                 TvdbId = plan.TvdbId,
-                Title = plan.Title,
-                Year = plan.Year,
+                Title = context.Films.Title(plan.MovieId) ?? plan.Title,
+                Year = plan.MovieId is not null ? context.Films.Year(plan.MovieId) ?? plan.Year : plan.Year,
                 DurationMs = plan.DurationMs,
                 CreditsStartMs = plan.CreditsStartMs,
                 LibrarySectionId = plan.SectionId,
                 LibrarySectionTitle = plan.SectionTitle,
                 ShowRatingKey = source.GrandparentRatingKey,
-                ShowTitle = source.GrandparentTitle,
+                ShowTitle = plan.ShowTitle,
                 ShowTmdbId = plan.ShowTmdbId,
                 ShowTvdbId = plan.ShowTvdbId,
                 ShowImdbId = plan.ShowImdbId,
@@ -522,7 +531,8 @@ public sealed class TautulliImportService(
     private async Task AskPlexAsync(MediaServer server, Dictionary<string, ItemPlan> plans, FilmIndex films, TautulliImportProgress progress, CancellationToken ct)
     {
         var movies = plans.Values.Where(p => p.Kind == MediaItemKind.Movie && p.NeedsPlex).ToList();
-        var shows = plans.Values.Where(p => p.Kind == MediaItemKind.Episode && p.NeedsPlex && p.Source.GrandparentRatingKey is not null)
+        // Every show is asked, for the title Plex gives it now; its ids too when Tautulli has none.
+        var shows = plans.Values.Where(p => p.Kind == MediaItemKind.Episode && p.Source.GrandparentRatingKey is not null)
             .GroupBy(p => p.Source.GrandparentRatingKey!, StringComparer.Ordinal)
             .ToList();
         var asked = 0;
@@ -531,7 +541,7 @@ public sealed class TautulliImportService(
         {
             foreach (var plan in movies)
             {
-                progress.Current = $"Asking Plex for ids ({++asked}/{total})";
+                progress.Current = $"Asking Plex about items ({++asked}/{total})";
                 var item = await plex.ItemAsync(server, plan.RatingKey, ct);
                 var ids = item?.Ids;
                 plan.TmdbId ??= ids?.TmdbId;
@@ -545,11 +555,12 @@ public sealed class TautulliImportService(
 
             foreach (var show in shows)
             {
-                progress.Current = $"Asking Plex for ids ({++asked}/{total})";
+                progress.Current = $"Asking Plex about items ({++asked}/{total})";
                 var found = await plex.IdsAsync(server, show.Key, ct);
-                progress.PlexAsked(found is { Ids: { TvdbId: not null } or { TmdbId: not null } });
+                progress.PlexAsked(found is not null);
                 foreach (var plan in show)
                 {
+                    plan.ShowTitle = found?.Title ?? plan.ShowTitle;
                     plan.ShowGuid ??= found?.Guid;
                     plan.ShowTvdbId ??= found?.Ids.TvdbId;
                     plan.ShowTmdbId ??= found?.Ids.TmdbId;
@@ -758,6 +769,9 @@ public sealed class TautulliImportService(
 
         public string? ShowGuid { get; set; }
 
+        /// <summary>Tautulli's, or Plex's when it answers.</summary>
+        public string? ShowTitle { get; set; } = source.GrandparentTitle;
+
         public int? ShowTmdbId { get; set; }
 
         public string? ShowImdbId { get; set; }
@@ -793,11 +807,13 @@ public sealed class TautulliImportService(
         private readonly Dictionary<int, int> _byTmdb = [];
         private readonly Dictionary<string, int> _byImdb = new(StringComparer.Ordinal);
         private readonly Dictionary<(string Title, int Year), int?> _byTitle = [];
+        private readonly Dictionary<int, Film> _byId = [];
 
         public FilmIndex(List<Film> films)
         {
             foreach (var film in films)
             {
+                _byId[film.Id] = film;
                 _byTmdb.TryAdd(film.TmdbId, film.Id);
                 if (film.ImdbId is { Length: > 0 } imdb)
                 {
@@ -815,6 +831,11 @@ public sealed class TautulliImportService(
                 }
             }
         }
+
+        /// <summary>Bigarr's title of the film, shown instead of the title Tautulli saw.</summary>
+        public string? Title(int? movieId) => movieId is { } id && _byId.TryGetValue(id, out var film) ? film.Title : null;
+
+        public int? Year(int? movieId) => movieId is { } id && _byId.TryGetValue(id, out var film) ? film.Year : null;
 
         public int? Find(ItemPlan plan)
         {

@@ -347,7 +347,15 @@ function RunStep({ status, onAgain }: { status: TautulliImportStatus; onAgain: (
       )}
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-xl font-semibold tracking-tight">{t('importTautulli.issues')}</h2>
+        <div className="flex flex-wrap items-baseline gap-3">
+          <h2 className="text-xl font-semibold tracking-tight">{t('importTautulli.issues')}</h2>
+          {!busy && status.issues.length > 0 && (
+            <Link to="/playback/plays" search={{ kind: 'unmatched' }} className="text-sm underline underline-offset-4" data-testid="tautulli-unmatched-plays">
+              {t('importTautulli.seeUnmatched')}
+            </Link>
+          )}
+        </div>
+        {status.issues.length > 0 && <p className="max-w-3xl text-xs text-muted-foreground">{t('importTautulli.issuesHint')}</p>}
         {status.issues.length === 0 ? (
           <p className="text-sm text-muted-foreground">{busy ? '' : t('importTautulli.noIssues')}</p>
         ) : (

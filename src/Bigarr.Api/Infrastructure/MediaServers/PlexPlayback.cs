@@ -207,8 +207,8 @@ public static class PlexPlayback
             parts);
     }
 
-    /// <summary>The guid and external ids of any item (a show, a season), or null when Plex has no such item.</summary>
-    public static (string? Guid, PlexIds Ids)? ParseIds(JsonElement root)
+    /// <summary>The guid, external ids and title of any item (a show, a season), or null when Plex has no such item.</summary>
+    public static (string? Guid, PlexIds Ids, string? Title)? ParseIds(JsonElement root)
     {
         var item = Metadata(root).FirstOrDefault();
         if (item.ValueKind != JsonValueKind.Object)
@@ -217,7 +217,7 @@ public static class PlexPlayback
         }
 
         var guid = Str(item, "guid");
-        return (guid, IdsOf(item, guid));
+        return (guid, IdsOf(item, guid), Str(item, "title"));
     }
 
     public static List<PlexSection> ParseSections(JsonElement root)

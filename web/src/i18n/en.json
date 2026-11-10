@@ -1744,8 +1744,8 @@
     "overlappingLive": "Followed live by Bigarr",
     "otherPlays": "Music, photos, Live TV",
     "options": "Options",
-    "askPlex": "Ask Plex for missing ids",
-    "askPlexHint": "Films and shows Tautulli only knows by a Plex guid are looked up on the Plex server while it still has them. Off: they are linked by title and year only.",
+    "askPlex": "Ask Plex",
+    "askPlexHint": "Films Tautulli only knows by a Plex guid get their ids from Plex while it still has them, and every show its current title and ids. Off: films are linked by title and year only, shows keep Tautulli’s title.",
     "back": "Back",
     "start": "Start import",
     "starting": "Starting…",
@@ -1771,7 +1771,9 @@
     "issueYear": "Year",
     "issuePlays": "Plays",
     "issueReason": "Why",
-    "again": "Import again"
+    "again": "Import again",
+    "seeUnmatched": "See their plays",
+    "issuesHint": "Their plays are kept under Tautulli’s title. The Plays page lists them any time under “Films not linked”."
   },
   "mediaServers": {
     "title": "Media servers",
@@ -1867,7 +1869,8 @@
     "allKinds": "Films and episodes",
     "kinds": {
       "movie": "Films",
-      "episode": "Episodes"
+      "episode": "Episodes",
+      "unmatched": "Films not linked"
     },
     "noPlays": "No play yet.",
     "pageOf": "Page {{page}} of {{pages}} · {{total}} plays",

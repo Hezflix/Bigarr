@@ -72,7 +72,7 @@ public sealed class TautulliImportTests(BigarrApiFactory factory) : IClassFixtur
         Assert.Equal(6, report.GetProperty("moviePlays").GetInt32());
         Assert.Equal(5, report.GetProperty("moviePlaysWithFilm").GetInt32());
         Assert.Equal(5, report.GetProperty("moviePlaysWithVersion").GetInt32());
-        Assert.Equal(3, report.GetProperty("plexAsked").GetInt32());
+        Assert.Equal(4, report.GetProperty("plexAsked").GetInt32());
         Assert.Equal(2, report.GetProperty("plexResolved").GetInt32());
         var issue = Assert.Single(report.GetProperty("issues").EnumerateArray());
         Assert.Equal("Unknown Invention", issue.GetProperty("title").GetString());
@@ -101,6 +101,12 @@ public sealed class TautulliImportTests(BigarrApiFactory factory) : IClassFixtur
             Assert.Equal(films.InventedFilm, resumed.MovieId);
             Assert.Equal("1080p", resumed.VersionName);
             Assert.Equal(users["9002"].Id, resumed.UserId);
+
+            // Tautulli keeps no start position: the resumed stream starts where the first one stopped.
+            var sessions = resumed.Streams.OrderBy(s => s.StartedAt).ToList();
+            Assert.Equal(0, sessions[0].StartOffsetMs);
+            Assert.Equal(2_400_000, sessions[1].StartOffsetMs);
+            Assert.Equal(DateTime.UnixEpoch.AddSeconds(T0), resumed.StartedAt);
 
             Assert.Equal("4k", plays.Single(p => p.Item.RatingKey == "60").VersionName);
             Assert.Equal(films.InventedFilm, plays.Single(p => p.Item.RatingKey == "60").MovieId);
@@ -134,6 +140,11 @@ public sealed class TautulliImportTests(BigarrApiFactory factory) : IClassFixtur
             Assert.Equal(70001, items["802"].ShowTvdbId);
             Assert.Equal(70002, items["803"].ShowTvdbId);
             Assert.Equal("Invented Show", items["801"].ShowTitle);
+            Assert.Equal("Plex show 900", items["803"].ShowTitle);
+
+            // Linked films carry Bigarr's title, unmatched ones Tautulli's.
+            Assert.Equal("An Invented Picture", items["20"].Title);
+            Assert.Equal("Unknown Invention", items["50"].Title);
             Assert.Equal(1, items["801"].SeasonNumber);
             Assert.Equal(2, items["802"].EpisodeNumber);
             Assert.Equal(MediaItemKind.Episode, items["803"].Kind);
@@ -144,6 +155,13 @@ public sealed class TautulliImportTests(BigarrApiFactory factory) : IClassFixtur
             // The live play wins: the overlapping row was left out.
             Assert.Single(await db.Plays.AsNoTracking().Where(p => p.ItemId == items["40"].Id && p.UserId == users["1"].Id).ToListAsync());
         }
+
+        // The Plays page shows Bigarr's film title, and lists the film plays left unmatched.
+        var sequelPlays = await (await session.GetAsync($"/api/v1/playback/plays?movieId={films.Sequel}")).ReadJsonAsync();
+        Assert.Equal("Invented Sequel", sequelPlays.GetProperty("records")[0].GetProperty("item").GetProperty("title").GetString());
+        var unmatched = await (await session.GetAsync("/api/v1/playback/plays?unmatched=true")).ReadJsonAsync();
+        Assert.Equal(1, unmatched.GetProperty("totalRecords").GetInt32());
+        Assert.Equal("Unknown Invention", unmatched.GetProperty("records")[0].GetProperty("item").GetProperty("title").GetString());
 
         // Again: nothing new.
         var again = await ImportAsync(session, path, serverId);

@@ -364,7 +364,7 @@ public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLib
         return item;
     }
 
-    private async Task<(string? Guid, PlexIds Ids)?> ShowIdsAsync(MediaServer server, string ratingKey, CancellationToken ct)
+    private async Task<(string? Guid, PlexIds Ids, string? Title)?> ShowIdsAsync(MediaServer server, string ratingKey, CancellationToken ct)
     {
         try
         {

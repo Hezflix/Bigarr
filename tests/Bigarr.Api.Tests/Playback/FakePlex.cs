@@ -189,7 +189,7 @@ public sealed class FakePlex : IAsyncDisposable
 
                 if (ShowTvdbIds.TryGetValue(key, out var tvdb))
                 {
-                    return Json(new { MediaContainer = new { Metadata = new[] { new { ratingKey = key, type = "show", guid = $"plex://show/{key}", Guid = new[] { new { id = $"tvdb://{tvdb}" } } } } } });
+                    return Json(new { MediaContainer = new { Metadata = new[] { new { ratingKey = key, type = "show", title = $"Plex show {key}", guid = $"plex://show/{key}", Guid = new[] { new { id = $"tvdb://{tvdb}" } } } } } });
                 }
 
                 return new FakeHttpServer.Answer(404);

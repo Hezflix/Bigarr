@@ -62,7 +62,15 @@ const historyRoute = createRoute({ getParentRoute: () => appRoute, path: '/activ
 const compareRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/compare', component: lazyRouteComponent(() => import('./features/activity/ComparePage'), 'ComparePage') })
 const blocklistRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/blocklist', component: lazyRouteComponent(() => import('./features/activity/BlocklistPage'), 'BlocklistPage') })
 const nowPlayingRoute = createRoute({ getParentRoute: () => appRoute, path: '/playback/now', component: lazyRouteComponent(() => import('./features/playback/NowPlayingPage'), 'NowPlayingPage') })
-const playsRoute = createRoute({ getParentRoute: () => appRoute, path: '/playback/plays', component: lazyRouteComponent(() => import('./features/playback/PlaysPage'), 'PlaysPage') })
+// `?kind=unmatched`: the film plays linked to no film, as the Tautulli import report links them.
+const playsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/playback/plays',
+  validateSearch: (search: Record<string, unknown>): { kind?: 'movie' | 'episode' | 'unmatched' } => ({
+    kind: search.kind === 'movie' || search.kind === 'episode' || search.kind === 'unmatched' ? search.kind : undefined,
+  }),
+  component: lazyRouteComponent(() => import('./features/playback/PlaysPage'), 'PlaysPage'),
+})
 const wantedRoute = createRoute({ getParentRoute: () => appRoute, path: '/wanted', component: lazyRouteComponent(() => import('./features/wanted/WantedPage'), 'WantedPage') })
 const systemRoute = createRoute({ getParentRoute: () => appRoute, path: '/system/status', component: lazyRouteComponent(() => import('./features/system/SystemPage'), 'SystemPage') })
 const librarySettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/library', component: lazyRouteComponent(() => import('./features/settings/LibrarySettingsPage'), 'LibrarySettingsPage') })

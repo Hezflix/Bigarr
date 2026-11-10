@@ -2013,6 +2013,8 @@ export type PlaysQuery = {
   movieId?: number
   versionId?: number
   kind?: MediaItemKind
+  /** Film plays linked to no Bigarr film. */
+  unmatched?: boolean
   sort?: PlaySortKey
   direction?: 'asc' | 'desc'
 }
