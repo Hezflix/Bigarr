@@ -158,7 +158,10 @@ public sealed record VersionSummary(
     /// <summary>Bytes; null without a file.</summary>
     long? Size,
     /// <summary>Judged now like on the movie page; null without a file.</summary>
-    bool? CutoffMet);
+    bool? CutoffMet,
+    /// <summary>Plays recorded on this version (playback), and when the last one ended.</summary>
+    int Plays = 0,
+    DateTime? LastPlayedAt = null);
 
 public sealed record MovieSummary(
     int Id,
@@ -172,7 +175,10 @@ public sealed record MovieSummary(
     List<VersionSummary> Versions,
     DateTime AddedAt,
     double? TmdbRating,
-    double? ImdbRating);
+    double? ImdbRating,
+    /// <summary>Every play of the film, those whose version could not be told included.</summary>
+    int Plays = 0,
+    DateTime? LastPlayedAt = null);
 
 public enum TagsMode
 {

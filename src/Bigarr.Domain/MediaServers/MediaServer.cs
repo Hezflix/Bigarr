@@ -44,6 +44,9 @@ public sealed class MediaServer
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>Plex's watch history has been compared with the plays up to here (the playback backstop's checkpoint).</summary>
+    public DateTime? PlayHistoryCheckedUntil { get; set; }
+
     public string BaseUrl => Url.Trim().TrimEnd('/');
 
     /// <summary>The server has been failing since its last success.</summary>

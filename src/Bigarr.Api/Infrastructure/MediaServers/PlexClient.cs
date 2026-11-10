@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -140,6 +141,29 @@ public sealed class PlexClient(IHttpClientFactory httpClientFactory) : IMediaSer
         {
             throw new MediaServerException("Plex refused to stop the stream: it takes Plex Pass and the server owner's token.", ex) { StatusCode = ex.StatusCode };
         }
+    }
+
+    /// <summary>
+    /// One page of the watch history from <paramref name="since"/> on, oldest first: what Plex marked as viewed, by
+    /// every account (the token must be the server owner's).
+    /// </summary>
+    public async Task<PlexHistoryPage> HistoryAsync(MediaServer server, DateTime since, int start, int size, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(server);
+
+        var from = new DateTimeOffset(DateTime.SpecifyKind(since, DateTimeKind.Utc)).ToUnixTimeSeconds();
+        var path = string.Create(CultureInfo.InvariantCulture, $"/status/sessions/history/all?sort=viewedAt:asc&viewedAt%3E={from}&X-Plex-Container-Start={start}&X-Plex-Container-Size={size}");
+        using var doc = await GetJsonAsync(server, path, ct);
+        return PlexPlayback.ParseHistory(doc.RootElement);
+    }
+
+    /// <summary>The server's accounts, to name a user Plex's history knows and the sessions never showed.</summary>
+    public async Task<List<PlexAccount>> AccountsAsync(MediaServer server, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(server);
+
+        using var doc = await GetJsonAsync(server, "/accounts", ct);
+        return PlexPlayback.ParseAccounts(doc.RootElement);
     }
 
     /// <summary>

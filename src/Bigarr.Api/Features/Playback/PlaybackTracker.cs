@@ -190,7 +190,7 @@ public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLib
     {
         var user = await UserAsync(server, stream, now, ct);
         var metadata = await MetadataAsync(server, stream.RatingKey, ct);
-        var item = await ItemAsync(server, stream, metadata, now, ct);
+        var item = await ItemAsync(server, stream.RatingKey, stream.Kind, stream.DurationMs, metadata, now, ct);
         var part = metadata?.Parts.FirstOrDefault(p => p.Id == stream.PartId) ?? (metadata?.Parts.Count == 1 ? metadata.Parts[0] : null);
         var details = WithSource(stream.Details, part);
         var folders = await libraries.FoldersAsync(server, item.LibrarySectionId, ct);
@@ -315,17 +315,35 @@ public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLib
         }
     }
 
-    private async Task<MediaServerItem> ItemAsync(MediaServer server, PlexSession stream, PlexItem? metadata, DateTime now, CancellationToken ct)
+    /// <summary>The item of a rating key Plex's history names, read from Plex when Bigarr has it not or for too long.</summary>
+    public async Task<MediaServerItem> HistoryItemAsync(MediaServer server, PlexHistoryEntry entry, DateTime now, CancellationToken ct)
     {
-        var item = db.MediaServerItems.Local.FirstOrDefault(i => i.MediaServerId == server.Id && i.RatingKey == stream.RatingKey)
-            ?? await db.MediaServerItems.FirstOrDefaultAsync(i => i.MediaServerId == server.Id && i.RatingKey == stream.RatingKey, ct);
+        ArgumentNullException.ThrowIfNull(server);
+        ArgumentNullException.ThrowIfNull(entry);
+
+        var known = await db.MediaServerItems.FirstOrDefaultAsync(i => i.MediaServerId == server.Id && i.RatingKey == entry.RatingKey, ct);
+        if (known is not null && now - known.UpdatedAt < ItemRefresh)
+        {
+            return known;
+        }
+
+        var item = await ItemAsync(server, entry.RatingKey, entry.Kind, null, await MetadataAsync(server, entry.RatingKey, ct), now, ct);
+        item.Title = item.Title == entry.RatingKey ? entry.Title : item.Title;
+        item.LibrarySectionId ??= entry.LibrarySectionId;
+        return item;
+    }
+
+    private async Task<MediaServerItem> ItemAsync(MediaServer server, string ratingKey, MediaItemKind kind, long? durationMs, PlexItem? metadata, DateTime now, CancellationToken ct)
+    {
+        var item = db.MediaServerItems.Local.FirstOrDefault(i => i.MediaServerId == server.Id && i.RatingKey == ratingKey)
+            ?? await db.MediaServerItems.FirstOrDefaultAsync(i => i.MediaServerId == server.Id && i.RatingKey == ratingKey, ct);
         if (item is null)
         {
-            item = new MediaServerItem { MediaServerId = server.Id, RatingKey = stream.RatingKey, Kind = stream.Kind, Title = metadata?.Title ?? stream.RatingKey, FirstSeenAt = now };
+            item = new MediaServerItem { MediaServerId = server.Id, RatingKey = ratingKey, Kind = kind, Title = metadata?.Title ?? ratingKey, FirstSeenAt = now };
             db.MediaServerItems.Add(item);
         }
 
-        item.DurationMs ??= stream.DurationMs;
+        item.DurationMs ??= durationMs;
         if (metadata is null || now - item.UpdatedAt < ItemRefresh && item.Id != 0)
         {
             return item;
@@ -338,7 +356,7 @@ public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLib
         item.TvdbId = metadata.Ids.TvdbId;
         item.Title = metadata.Title;
         item.Year = metadata.Year;
-        item.DurationMs = metadata.DurationMs ?? stream.DurationMs;
+        item.DurationMs = metadata.DurationMs ?? durationMs;
         item.CreditsStartMs = metadata.CreditsStartMs;
         item.LibrarySectionId = metadata.LibrarySectionId;
         item.LibrarySectionTitle = metadata.LibrarySectionTitle;
