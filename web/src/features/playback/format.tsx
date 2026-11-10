@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import type { PlaybackItemRef, StreamDecision } from '@/api/client'
+import type { PlaybackItemRef, PlaybackLocation, StreamDecision } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 
 /** Codecs and resolutions as players show them: HEVC, EAC3, H264, 4K. Plex sends them in lower case. */
@@ -48,4 +48,16 @@ export function DecisionBadge({ decision }: { decision: StreamDecision | null })
       {t(`playback.decisions.${decision}`)}
     </Badge>
   )
+}
+
+/**
+ * "Lyon, Auvergne-Rhône-Alpes, France" in full, "Lyon, France" short; a region named like its city is said once.
+ * Null when there is no location to say.
+ */
+export function locationText(location: PlaybackLocation | null, localNetwork: string, short = false): string | null {
+  if (!location) return null
+  if (location.local) return localNetwork
+  const parts = short ? [location.city, location.country ?? location.countryCode] : [location.city, location.region, location.country ?? location.countryCode]
+  const said = parts.filter((p, i): p is string => !!p && parts.indexOf(p) === i)
+  return said.length > 0 ? said.join(', ') : null
 }

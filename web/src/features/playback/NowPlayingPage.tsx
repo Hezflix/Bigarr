@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { AudioLinesIcon, CaptionsIcon, ChevronDownIcon, FilmIcon, GaugeIcon, LayoutGridIcon, ListIcon, LoaderIcon, PackageIcon, PauseIcon, PlayIcon } from 'lucide-react'
+import { AudioLinesIcon, CaptionsIcon, ChevronDownIcon, FilmIcon, GaugeIcon, LayoutGridIcon, ListIcon, LoaderIcon, PackageIcon, PauseIcon, PlayIcon, SquareIcon } from 'lucide-react'
 import { cn } from 'cn'
 import { useTranslation } from 'react-i18next'
 import { playback, type PlaybackSession, type PlaybackServerStatus, type PlexTranscode } from '@/api/client'
@@ -13,7 +13,8 @@ import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatDateTime, formatTime } from '@/i18n'
-import { DecisionBadge, formatCodec, formatOffset, itemLabel } from './format'
+import { DecisionBadge, formatCodec, formatOffset, itemLabel, locationText } from './format'
+import { StopStreamDialog } from './StopStreamDialog'
 import { StreamTracks } from './StreamTracks'
 
 type View = 'cards' | 'rows'
@@ -51,6 +52,7 @@ export function NowPlayingPage() {
   const query = useQuery({ queryKey: ['playback', 'now'], queryFn: playback.nowPlaying, refetchInterval: 10_000 })
   const data = query.data
   const [view, setView] = useState<View>(storedView)
+  const [stopping, setStopping] = useState<PlaybackSession | null>(null)
   const choose = (next: View) => {
     setView(next)
     try {
@@ -96,11 +98,12 @@ export function NowPlayingPage() {
       {data && data.sessions.length > 0 && view === 'cards' && (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,30rem),1fr))] gap-4" data-testid="now-playing">
           {data.sessions.map((session) => (
-            <SessionCard key={session.id} session={session} />
+            <SessionCard key={session.id} session={session} onStop={setStopping} />
           ))}
         </div>
       )}
-      {data && data.sessions.length > 0 && view === 'rows' && <SessionRows sessions={data.sessions} />}
+      {data && data.sessions.length > 0 && view === 'rows' && <SessionRows sessions={data.sessions} onStop={setStopping} />}
+      <StopStreamDialog session={stopping} onClose={() => setStopping(null)} />
     </>
   )
 }
@@ -222,13 +225,14 @@ function FactsGrid({ session }: { session: PlaybackSession }) {
  * platform, the decision and the version on it; the facts grid under it; the progress pinned to the bottom so it lines
  * up across a row whatever the number of facts.
  */
-function SessionCard({ session }: { session: PlaybackSession }) {
+function SessionCard({ session, onStop }: { session: PlaybackSession; onStop: (session: PlaybackSession) => void }) {
   const { t } = useTranslation()
   const d = session.details
   const player = [d.playerTitle ?? d.playerProduct, d.playerPlatform].filter(Boolean).join(' · ')
+  const network = [d.bandwidth !== null ? t('playback.mbps', { value: (d.bandwidth / 1000).toFixed(1) }) : null, d.ipAddress, locationText(session.location, t('playback.localNetwork'), true)].filter(Boolean).join(' · ')
 
   return (
-    <Card className="relative h-full gap-0 overflow-hidden p-0" data-session={session.id} data-severity={severityKeys[severity(session)]}>
+    <Card className="group/tile relative h-full gap-0 overflow-hidden p-0" data-session={session.id} data-severity={severityKeys[severity(session)]}>
       <div className="relative isolate h-28">
         {session.fanartUrl ? (
           <img src={tmdbSize(session.fanartUrl, 780)} alt="" aria-hidden="true" className="absolute inset-0 -z-10 size-full object-cover" />
@@ -236,6 +240,8 @@ function SessionCard({ session }: { session: PlaybackSession }) {
           <div className="absolute inset-0 -z-10 bg-muted" />
         )}
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-card via-card/80 to-card/20" />
+        {/* Above the banner content, which spans the whole banner and would take the pointer otherwise. */}
+        {session.canStop && <StopButton session={session} onStop={onStop} className="absolute top-2 right-2 z-10" />}
         <div className="absolute inset-x-0 bottom-0 flex items-end gap-3 px-5 pb-2">
           <PosterImage session={session} width={185} className="w-16 shadow-lg" />
           <div className="min-w-0 flex-1 pb-1">
@@ -269,12 +275,44 @@ function SessionCard({ session }: { session: PlaybackSession }) {
               {formatOffset(session.viewOffsetMs)} / {session.item.durationMs ? formatOffset(session.item.durationMs) : '?'}
               {session.state !== 'paused' && session.item.durationMs ? ` · ${t('playback.ends', { time: formatTime(Date.now() + remainingMs(session)) })}` : ''}
             </Times>
-            {/* LAN or WAN shows in the address. */}
-            <span>{[d.bandwidth !== null ? t('playback.mbps', { value: (d.bandwidth / 1000).toFixed(1) }) : null, d.ipAddress].filter(Boolean).join(' · ')}</span>
+            {/* LAN or WAN shows in the address and its place. */}
+            <span className="min-w-0 truncate" title={locationText(session.location, t('playback.localNetwork')) ?? undefined} data-testid="network">
+              {network}
+            </span>
           </div>
         </div>
       </div>
     </Card>
+  )
+}
+
+/**
+ * A light stop icon on a tile, red under the pointer or the keyboard focus. Shown when the tile is hovered or the
+ * button has the focus, and always on screens that cannot hover. It only opens the confirmation; stopping happens
+ * from there.
+ */
+function StopButton({ session, onStop, className }: { session: PlaybackSession; onStop: (session: PlaybackSession) => void; className?: string }) {
+  const { t } = useTranslation()
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          className={cn(
+            'bg-card/60 text-muted-foreground opacity-0 backdrop-blur-sm transition-opacity hover:bg-card/80 hover:text-destructive focus-visible:text-destructive focus-visible:opacity-100 group-hover/tile:opacity-100 [@media(hover:none)]:opacity-100',
+            className,
+          )}
+          aria-label={t('playback.stop')}
+          onClick={() => onStop(session)}
+          data-testid="stop"
+        >
+          <SquareIcon />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{t('playback.stop')}</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -291,7 +329,7 @@ function Avatar({ name, url, className }: { name: string; url: string | null; cl
 }
 
 /** One line per stream, for evenings with many; a click opens the same details as a card under the row. */
-function SessionRows({ sessions }: { sessions: PlaybackSession[] }) {
+function SessionRows({ sessions, onStop }: { sessions: PlaybackSession[]; onStop: (session: PlaybackSession) => void }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState<number | null>(null)
 
@@ -349,6 +387,8 @@ function SessionRows({ sessions }: { sessions: PlaybackSession[] }) {
                       <dd className="tabular-nums">
                         {d.ipAddress} ({d.local ? t('playback.lan') : t('playback.wan')})
                       </dd>
+                      <dt className="text-muted-foreground">{t('playback.location')}</dt>
+                      <dd>{locationText(session.location, t('playback.localNetwork')) ?? t('playback.unknownLocation')}</dd>
                     </>
                   )}
                   <dt className="text-muted-foreground">{t('playback.position')}</dt>
@@ -357,6 +397,14 @@ function SessionRows({ sessions }: { sessions: PlaybackSession[] }) {
                   </dd>
                   <dt className="text-muted-foreground">{t('playback.since')}</dt>
                   <dd>{formatDateTime(session.startedAt)}</dd>
+                  {session.canStop && (
+                    <dd className="col-span-2 pt-2">
+                      <Button type="button" size="sm" variant="outline" className="hover:bg-destructive hover:text-white dark:hover:bg-destructive/80" onClick={() => onStop(session)} data-testid="stop">
+                        <SquareIcon className="fill-current" />
+                        {t('playback.stop')}
+                      </Button>
+                    </dd>
+                  )}
                 </dl>
               </div>
             )}

@@ -1936,7 +1936,20 @@
     "startedAt": "Started {{time}}",
     "container": "Container",
     "hw": "HW",
-    "noSubtitles": "No subtitles"
+    "noSubtitles": "No subtitles",
+    "location": "Location",
+    "localNetwork": "Local network",
+    "unknownLocation": "Unknown location",
+    "stop": "Stop stream",
+    "stopTitle": "Stop this stream?",
+    "stopDescription": "{{user}} is watching {{title}} on {{player}}. Plex stops it on their player right away.",
+    "stopMessage": "Message shown on their player (optional)",
+    "stopMessagePlaceholder": "e.g. Server maintenance, back in 10 minutes",
+    "stopConfirm": "Stop stream",
+    "stopping": "Stopping…",
+    "stopped": "Stream of {{user}} stopped.",
+    "stopFailed": "Could not stop the stream: {{error}}",
+    "unknownPlayer": "an unknown player"
   },
   "seriesSearch": {
     "search": "Search",

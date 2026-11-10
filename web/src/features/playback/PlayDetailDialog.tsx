@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDateTime } from '@/i18n'
-import { DecisionBadge, formatOffset, formatPlayed, itemLabel } from './format'
+import { DecisionBadge, formatOffset, formatPlayed, itemLabel, locationText } from './format'
 import { StreamTracks } from './StreamTracks'
 
 /** A play and the sessions it was made of: player, network, what happened to each track, the file. */
@@ -59,6 +59,8 @@ export function PlayDetailDialog({ play, onClose }: { play: Play | null; onClose
                         <>
                           <dt className="text-muted-foreground">{t('playback.ip')}</dt>
                           <dd className="tabular-nums">{d.ipAddress}</dd>
+                          <dt className="text-muted-foreground">{t('playback.location')}</dt>
+                          <dd data-testid="location">{locationText(stream.location, t('playback.localNetwork')) ?? t('playback.unknownLocation')}</dd>
                         </>
                       )}
                       {d.bandwidth !== null && (

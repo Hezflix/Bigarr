@@ -1,4 +1,5 @@
 using Bigarr.Api.Infrastructure;
+using Bigarr.Api.Infrastructure.MediaServers;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.MediaServers;
 using Bigarr.Domain.Movies;
@@ -7,10 +8,16 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bigarr.Api.Features.Playback;
 
-/// <summary>Read side of playback (now playing, plays, users, plays per version) and the play rules.</summary>
-public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor, LiveTranscodes transcodes)
+/// <summary>
+/// Read side of playback (now playing, plays, users, plays per version, locations), the play rules, and stopping a
+/// stream on request.
+/// </summary>
+public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor, LiveTranscodes transcodes, GeoLocator geo, PlexClient plex, ILogger<PlaybackService> logger)
 {
     public const int MaxPageSize = 200;
+
+    /// <summary>The message shown on the viewer's player: 200 characters, Plex's own limit for it.</summary>
+    public const int MaxStopMessageLength = 200;
 
     public async Task<NowPlayingResponse> NowPlayingAsync(CancellationToken ct)
     {
@@ -39,22 +46,96 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
                 s.VersionId,
                 s.VersionName,
                 s.Details,
-                null))
+                null,
+                null,
+                null,
+                null,
+                s.ServerSessionId != null))
             .ToListAsync(ct);
         // Bigarr's own images for the films it manages; episodes and other films have none until shows come.
         var movieIds = sessions.Select(s => s.Item.MovieId).OfType<int>().Distinct().ToList();
         var images = await db.Movies.AsNoTracking().Where(m => movieIds.Contains(m.Id)).Select(m => new { m.Id, m.Images }).ToDictionaryAsync(m => m.Id, m => m.Images, ct);
-        sessions = sessions.Select(s =>
+        var located = new List<PlaybackSessionResponse>(sessions.Count);
+        foreach (var s in sessions)
         {
             var movieImages = s.Item.MovieId is { } id && images.TryGetValue(id, out var found) ? found : [];
-            return s with
+            located.Add(s with
             {
                 Transcode = transcodes.Get(s.ServerId, s.SessionKey),
                 PosterUrl = movieImages.FirstOrDefault(i => i.Type == ImageType.Poster)?.RemoteUrl,
                 FanartUrl = movieImages.FirstOrDefault(i => i.Type == ImageType.Fanart)?.RemoteUrl,
-            };
-        }).ToList();
-        return new NowPlayingResponse(statuses, sessions);
+                Location = await geo.ResolveAsync(s.Details.IpAddress, s.Details.Local, s.ServerId, ct),
+            });
+        }
+
+        return new NowPlayingResponse(statuses, located);
+    }
+
+    /// <summary>
+    /// Stops a stream on its player, with an optional message shown to the viewer. Manual only: nothing in Bigarr calls
+    /// this on its own. The stream then ends like any other, through Plex's stop notification.
+    /// </summary>
+    public async Task<Result<bool>> StopAsync(int sessionId, string? message, CancellationToken ct)
+    {
+        message = string.IsNullOrWhiteSpace(message) ? null : message.Trim();
+        if (message?.Length > MaxStopMessageLength)
+        {
+            return Failure.Invalid("Message too long", $"At most {MaxStopMessageLength} characters.");
+        }
+
+        var session = await db.PlaybackSessions.AsNoTracking()
+            .Include(s => s.MediaServer).Include(s => s.User).Include(s => s.Item)
+            .FirstOrDefaultAsync(s => s.Id == sessionId, ct);
+        if (session is null)
+        {
+            return Failure.NotFound("Stream");
+        }
+
+        if (session.MediaServer.Kind != MediaServerKind.Plex || session.ServerSessionId is null)
+        {
+            return Failure.Conflict("This stream cannot be stopped", "The server did not give the stream's session id.");
+        }
+
+        try
+        {
+            await plex.TerminateAsync(session.MediaServer, session.ServerSessionId, message, ct);
+        }
+        catch (MediaServerException ex)
+        {
+            logger.LogWarning("Could not stop the stream of {User} ({Title}): {Error}", session.User.ShownName, session.Item.Title, ex.Message);
+            return new Failure(StatusCodes.Status502BadGateway, "Plex did not stop the stream", ex.Message);
+        }
+
+        logger.LogInformation("Stopped the stream of {User} ({Title}) on request", session.User.ShownName, session.Item.Title);
+        return Result<bool>.Ok(true);
+    }
+
+    /// <summary>
+    /// The addresses a user played from, newest first, each with its place (looked up on demand) and its
+    /// streams. Null when the user does not exist.
+    /// </summary>
+    public async Task<List<PlaybackAddressResponse>?> AddressesAsync(int userId, CancellationToken ct)
+    {
+        if (!await db.MediaServerUsers.AnyAsync(u => u.Id == userId, ct))
+        {
+            return null;
+        }
+
+        var streams = await db.PlayStreams.AsNoTracking()
+            .Where(s => s.Play.UserId == userId && s.Details.IpAddress != null)
+            .OrderByDescending(s => s.StoppedAt)
+            .Select(s => new { Ip = s.Details.IpAddress!, s.StartedAt, s.StoppedAt, s.Details.Local, Player = s.Details.PlayerTitle ?? s.Details.PlayerProduct, Platform = s.Details.PlayerPlatform, ServerId = s.Play.Item.MediaServerId })
+            .ToListAsync(ct);
+
+        var addresses = new List<PlaybackAddressResponse>();
+        foreach (var group in streams.GroupBy(s => s.Ip))
+        {
+            var last = group.First();
+            var location = await geo.ResolveAsync(last.Ip, group.Any(s => s.Local == true), last.ServerId, ct);
+            addresses.Add(new PlaybackAddressResponse(last.Ip, location, group.Count(), group.Min(s => s.StartedAt), last.StoppedAt, last.Player, last.Platform));
+        }
+
+        return addresses;
     }
 
     public async Task<PlaysPageResponse> PlaysAsync(int page, int pageSize, int? userId, int? movieId, int? versionId, MediaItemKind? kind, bool unmatched, PlaySort sort, bool ascending, CancellationToken ct)
@@ -124,11 +205,20 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
             return null;
         }
 
-        return await db.PlayStreams.AsNoTracking()
+        var rows = await db.PlayStreams.AsNoTracking()
             .Where(s => s.PlayId == playId)
             .OrderBy(s => s.StartedAt).ThenBy(s => s.Id)
-            .Select(s => new PlayStreamResponse(s.Id, s.StartedAt, s.StoppedAt, s.StartOffsetMs, s.EndOffsetMs, s.PausedSeconds, s.FilePath, s.VersionId, s.Version != null ? s.Version.Name : null, s.Details))
+            .Select(s => new { Stream = new PlayStreamResponse(s.Id, s.StartedAt, s.StoppedAt, s.StartOffsetMs, s.EndOffsetMs, s.PausedSeconds, s.FilePath, s.VersionId, s.Version != null ? s.Version.Name : null, s.Details, null), ServerId = s.Play.Item.MediaServerId })
             .ToListAsync(ct);
+
+        // Locations are not stored: each address is placed now, through the in-memory cache.
+        var streams = new List<PlayStreamResponse>(rows.Count);
+        foreach (var row in rows)
+        {
+            streams.Add(row.Stream with { Location = await geo.ResolveAsync(row.Stream.Details.IpAddress, row.Stream.Details.Local, row.ServerId, ct) });
+        }
+
+        return streams;
     }
 
     /// <summary>Newest first by default; ties keep a stable order by id.</summary>

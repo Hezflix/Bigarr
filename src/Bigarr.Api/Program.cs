@@ -165,7 +165,7 @@ builder.Services.AddScoped<CompareService>();
 builder.Services.AddScoped<IScheduledJob, RadarrFollowJob>();
 
 // Media servers (M8): Plex, Jellyfin and Emby hear about changed folders from the outbox.
-builder.Services.AddBigarrMediaServers();
+builder.Services.AddBigarrMediaServers(builder.Configuration);
 builder.Services.AddScoped<MediaServerService>();
 
 // Playback (Tautulli replacement): Plex streams become plays, linked to the version that was played.
