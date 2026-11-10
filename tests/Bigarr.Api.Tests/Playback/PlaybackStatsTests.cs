@@ -195,9 +195,12 @@ public sealed class PlaybackStatsTests : IAsyncLifetime, IDisposable
         Assert.Equal(new PlaysOverTimeResponse(new DateOnly(2026, 3, 4), 0, 1, 1800, DirectStream: 1), stats.OverTime.Single(d => d.Date == new DateOnly(2026, 3, 4)));
         Assert.Equal(3, stats.OverTime.Sum(d => d.Movies + d.Episodes));
 
-        Assert.Equal(1, stats.ByHour[18]);
-        Assert.Equal(2, stats.ByHour[20]);
-        Assert.Equal([0, 0, 2, 0, 0, 1, 0], stats.ByWeekday); // two Wednesdays, a Saturday
+        Assert.Equal(new PlaysSplitResponse(1, 1, 0, 1, 0, 0), stats.ByHour[18]); // P1: a film, direct play
+        Assert.Equal(new PlaysSplitResponse(2, 1, 1, 0, 1, 1), stats.ByHour[20]); // P2 (film, transcode) and P3 (episode, direct stream)
+        Assert.Equal([0, 0, 2, 0, 0, 1, 0], stats.ByWeekday.Select(d => d.Plays)); // two Wednesdays, a Saturday
+        Assert.Equal(new PlaysSplitResponse(2, 1, 1, 0, 1, 1), stats.ByWeekday[2]);
+        Assert.Equal(new PlaysSplitResponse(1, 1, 0, 1, 0, 0), stats.ByWeekday[5]);
+        Assert.Equal(24, stats.ByHour.Count);
 
         var movie = Assert.Single(stats.TopMovies);
         Assert.Equal(("The Matrix (1999)", _movie.Id, 2, 2, 10_600L), (movie.Title, movie.MovieId, movie.Plays, movie.Users, movie.Seconds));
@@ -222,8 +225,11 @@ public sealed class PlaybackStatsTests : IAsyncLifetime, IDisposable
         // UTC+14: P1 started at 08:00 the next day, P2, P3 and P4 at 10:00, P5 at 10:00 too.
         Assert.Equal(5, stats.Totals.Plays);
         Assert.Equal("month", stats.Bucket);
-        Assert.Equal(1, stats.ByHour[8]);
-        Assert.Equal(4, stats.ByHour[10]);
+        Assert.Equal(1, stats.ByHour[8].Plays);
+        Assert.Equal(4, stats.ByHour[10].Plays);
+
+        // P5, from Plex's history, has no stream: a play of the hour, in no decision.
+        Assert.Equal(new PlaysSplitResponse(4, 2, 2, 1, 1, 1), stats.ByHour[10]);
         Assert.Equal([new DateOnly(2025, 12, 1), new DateOnly(2026, 1, 1), new DateOnly(2026, 2, 1), new DateOnly(2026, 3, 1)], stats.OverTime.Select(m => m.Date).ToList());
         Assert.Equal([1, 0, 1, 3], stats.OverTime.Select(m => m.Movies + m.Episodes).ToList());
         Assert.Equal(1, stats.Decisions.Unknown);

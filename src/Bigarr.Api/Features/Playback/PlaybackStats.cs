@@ -12,6 +12,12 @@ public sealed record StatsTotalsResponse(int Plays, long Seconds, int Users, int
 /// </summary>
 public sealed record PlaysOverTimeResponse(DateOnly Date, int Movies, int Episodes, long Seconds, int DirectPlay = 0, int DirectStream = 0, int Transcode = 0);
 
+/// <summary>
+/// The plays of one hour of the day or one weekday, split the two ways the plays over time are: films and episodes, or
+/// by their furthest decision (plays without a stream count in <c>Plays</c> only).
+/// </summary>
+public sealed record PlaysSplitResponse(int Plays, int Movies, int Episodes, int DirectPlay, int DirectStream, int Transcode);
+
 public sealed record TopEntryResponse(string Title, int? MovieId, int? UserId, int Plays, int Users, long Seconds, DateTime LastPlayedAt);
 
 /// <summary>The most streams at once in the period, and when it first happened.</summary>
@@ -26,8 +32,8 @@ public sealed record PlaybackStatsResponse(
     string Bucket,
     StatsTotalsResponse Totals,
     List<PlaysOverTimeResponse> OverTime,
-    int[] ByHour,
-    int[] ByWeekday,
+    List<PlaysSplitResponse> ByHour,
+    List<PlaysSplitResponse> ByWeekday,
     List<TopEntryResponse> TopMovies,
     List<TopEntryResponse> TopShows,
     List<TopEntryResponse> TopUsers,
@@ -106,14 +112,22 @@ public sealed class PlaybackStats(BigarrDbContext db, TimeProvider time)
             series.Add(overTime.GetValueOrDefault(date) ?? new PlaysOverTimeResponse(date, 0, 0, 0));
         }
 
-        var byHour = new int[24];
-        var byWeekday = new int[7];
-        foreach (var play in plays)
+        PlaysSplitResponse Split(IEnumerable<PlayRow> group)
         {
-            var at = local(play.StartedAt);
-            byHour[at.Hour]++;
-            byWeekday[((int)at.DayOfWeek + 6) % 7]++; // Monday first
+            var list = group.ToList();
+            return new PlaysSplitResponse(
+                list.Count,
+                list.Count(p => p.Kind == MediaItemKind.Movie),
+                list.Count(p => p.Kind == MediaItemKind.Episode),
+                list.Count(p => decisionOf[p.Id] == StreamDecision.DirectPlay),
+                list.Count(p => decisionOf[p.Id] == StreamDecision.DirectStream),
+                list.Count(p => decisionOf[p.Id] == StreamDecision.Transcode));
         }
+
+        var hours = plays.ToLookup(p => local(p.StartedAt).Hour);
+        var weekdays = plays.ToLookup(p => ((int)local(p.StartedAt).DayOfWeek + 6) % 7); // Monday first
+        var byHour = Enumerable.Range(0, 24).Select(h => Split(hours[h])).ToList();
+        var byWeekday = Enumerable.Range(0, 7).Select(d => Split(weekdays[d])).ToList();
 
         var decisions = decisionOf.Values.ToList();
 

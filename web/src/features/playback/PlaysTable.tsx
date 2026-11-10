@@ -10,8 +10,25 @@ import { DecisionBadge, formatPlayed, itemLabel } from './format'
 
 export type PlaySort = { key: PlaySortKey; direction: 'asc' | 'desc' }
 
-/** Plays, one row each. With a sort the headers sort; a click on a row opens its streams. */
-export function PlaysTable({ plays, showItem = true, sort, onSort, onSelect }: { plays: Play[]; showItem?: boolean; sort?: PlaySort; onSort?: (key: PlaySortKey) => void; onSelect?: (play: Play) => void }) {
+/**
+ * Plays, one row each. With a sort the headers sort; a click on a row opens its streams. `showUser` is off on one user's
+ * page and `showItem` on one film's: a column that always says the same is left out.
+ */
+export function PlaysTable({
+  plays,
+  showItem = true,
+  showUser = true,
+  sort,
+  onSort,
+  onSelect,
+}: {
+  plays: Play[]
+  showItem?: boolean
+  showUser?: boolean
+  sort?: PlaySort
+  onSort?: (key: PlaySortKey) => void
+  onSelect?: (play: Play) => void
+}) {
   const { t } = useTranslation()
   const head = (key: PlaySortKey, label: string, className?: string) =>
     sort && onSort ? (
@@ -28,7 +45,7 @@ export function PlaysTable({ plays, showItem = true, sort, onSort, onSelect }: {
         <TableHeader>
           <TableRow>
             {head('startedAt', t('playback.started'))}
-            {head('user', t('playback.user'))}
+            {showUser && head('user', t('playback.user'))}
             {showItem && head('title', t('playback.title'))}
             {head('version', t('playback.version'))}
             <TableHead>{t('playback.player')}</TableHead>
@@ -48,7 +65,7 @@ export function PlaysTable({ plays, showItem = true, sort, onSort, onSelect }: {
                 onClick={onSelect ? (e) => !(e.target as HTMLElement).closest('a') && onSelect(play) : undefined}
               >
                 <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(play.startedAt)}</TableCell>
-                <TableCell className="whitespace-nowrap">{play.user.name}</TableCell>
+                {showUser && <TableCell className="whitespace-nowrap">{play.user.name}</TableCell>}
                 {showItem && (
                   <TableCell className="min-w-[14rem] whitespace-normal">
                     {play.movieId ? (

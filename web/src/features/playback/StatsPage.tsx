@@ -17,6 +17,10 @@ import { UserPicker } from './UserPicker'
 
 const periods: (number | null)[] = [7, 30, 90, 365, null]
 
+type Split = 'kind' | 'decision'
+
+const splitSeries: Record<Split, SeriesKey[]> = { kind: ['movies', 'episodes'], decision: ['directPlay', 'directStream', 'transcode'] }
+
 /** Monday first, like the API. */
 const weekdayFormat = new Intl.DateTimeFormat('en-GB', { weekday: 'short' })
 const weekdays = Array.from({ length: 7 }, (_, i) => weekdayFormat.format(new Date(2024, 0, 1 + i)))
@@ -41,7 +45,10 @@ export function StatsPage() {
   const { t } = useTranslation()
   const [days, setDays] = useState<number | null>(30)
   const [userId, setUserId] = useState<number | null>(null)
-  const [split, setSplit] = useState<'kind' | 'decision'>('kind')
+  // Each chart has its own switch: films / episodes, or by decision.
+  const [split, setSplit] = useState<Split>('kind')
+  const [hourSplit, setHourSplit] = useState<Split>('kind')
+  const [weekdaySplit, setWeekdaySplit] = useState<Split>('kind')
   const [usersBy, setUsersBy] = useState<'time' | 'plays'>('time')
   const users = useQuery({ queryKey: ['playback', 'users'], queryFn: playback.users })
   const stats = useQuery({ queryKey: ['playback', 'stats', days, userId], queryFn: () => playback.stats(days, userId), placeholderData: keepPreviousData })
@@ -88,31 +95,16 @@ export function StatsPage() {
           <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
             <Section
               title={t(`playback.playsPer.${s.bucket}`)}
-              action={
-                <Segmented
-                  value={split}
-                  onChange={setSplit}
-                  options={[
-                    ['kind', t('playback.split.kind')],
-                    ['decision', t('playback.split.decision')],
-                  ]}
-                  testId="stats-split"
-                />
-              }
+              action={<SplitSwitch value={split} onChange={setSplit} testId="stats-split" />}
             >
-              <StackedBars
-                rows={s.overTime.map((d) => ({ ...d, label: bucketLabel(d.date, s.bucket) }) as ChartRow)}
-                series={split === 'kind' ? ['movies', 'episodes'] : ['directPlay', 'directStream', 'transcode']}
-                labels={labels}
-                height={270}
-              />
+              <StackedBars rows={s.overTime.map((d) => ({ ...d, label: bucketLabel(d.date, s.bucket) }) as ChartRow)} series={splitSeries[split]} labels={labels} height={300} />
             </Section>
             <div className="flex flex-col gap-4">
-              <Section title={t('playback.byHour')}>
-                <StackedBars rows={s.byHour.map((plays, h) => ({ label: String(h).padStart(2, '0'), plays }))} series={['plays']} labels={labels} height={110} />
+              <Section title={t('playback.byHour')} action={<SplitSwitch value={hourSplit} onChange={setHourSplit} testId="stats-hour-split" />}>
+                <StackedBars rows={s.byHour.map((h, hour) => ({ ...h, label: String(hour).padStart(2, '0') }) as ChartRow)} series={splitSeries[hourSplit]} labels={labels} height={140} />
               </Section>
-              <Section title={t('playback.byWeekday')}>
-                <StackedBars rows={s.byWeekday.map((plays, i) => ({ label: weekdays[i], plays }))} series={['plays']} labels={labels} height={110} />
+              <Section title={t('playback.byWeekday')} action={<SplitSwitch value={weekdaySplit} onChange={setWeekdaySplit} testId="stats-weekday-split" />}>
+                <StackedBars rows={s.byWeekday.map((d, i) => ({ ...d, label: weekdays[i] }) as ChartRow)} series={splitSeries[weekdaySplit]} labels={labels} height={140} />
               </Section>
             </div>
           </div>
@@ -165,6 +157,22 @@ export function StatsPage() {
         </div>
       )}
     </>
+  )
+}
+
+/** Films / episodes, or by decision: the same switch and colours on every chart of plays. */
+function SplitSwitch({ value, onChange, testId }: { value: Split; onChange: (value: Split) => void; testId: string }) {
+  const { t } = useTranslation()
+  return (
+    <Segmented
+      value={value}
+      onChange={onChange}
+      options={[
+        ['kind', t('playback.split.kind')],
+        ['decision', t('playback.split.decision')],
+      ]}
+      testId={testId}
+    />
   )
 }
 

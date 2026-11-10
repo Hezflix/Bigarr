@@ -2065,6 +2065,9 @@ export type UpdatePlaybackUser = { displayName: string | null; keepHistory: bool
 
 export type TopEntry = { title: string; movieId: number | null; userId: number | null; plays: number; users: number; seconds: number; lastPlayedAt: string }
 
+/** The plays of an hour or a weekday, split by kind and by decision (plays without a stream are in `plays` only). */
+export type PlaysSplit = { plays: number; movies: number; episodes: number; directPlay: number; directStream: number; transcode: number }
+
 export type PlaybackStats = {
   days: number | null
   userId: number | null
@@ -2072,9 +2075,9 @@ export type PlaybackStats = {
   totals: { plays: number; seconds: number; users: number; movies: number; episodes: number }
   /** The same plays split two ways: films and episodes, or by their furthest decision. */
   overTime: { date: string; movies: number; episodes: number; seconds: number; directPlay: number; directStream: number; transcode: number }[]
-  byHour: number[]
-  /** Monday first. */
-  byWeekday: number[]
+  /** 24 hours, then 7 days Monday first: each split like the plays over time. */
+  byHour: PlaysSplit[]
+  byWeekday: PlaysSplit[]
   topMovies: TopEntry[]
   topShows: TopEntry[]
   topUsers: TopEntry[]

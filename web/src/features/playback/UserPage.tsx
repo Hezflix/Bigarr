@@ -189,7 +189,7 @@ function UserPlays({ userId }: { userId: number }) {
       {data && data.records.length === 0 && <p className="text-sm text-muted-foreground">{t('playback.noPlays')}</p>}
       {data && data.records.length > 0 && (
         <>
-          <PlaysTable plays={data.records} onSelect={setSelected} />
+          <PlaysTable plays={data.records} showUser={false} onSelect={setSelected} />
           <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground">
             <span className="tabular-nums">{t('playback.pageOf', { page, pages, total: data.totalRecords })}</span>
             <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
