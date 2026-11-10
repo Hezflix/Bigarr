@@ -286,8 +286,9 @@ function SessionCard({ session, onStop }: { session: PlaybackSession; onStop: (s
 }
 
 /**
- * A light stop icon on a tile, shown when the tile is hovered or the button has the keyboard focus, and always on
- * screens that cannot hover. It only opens the confirmation; stopping happens from there.
+ * A light stop icon on a tile, red under the pointer or the keyboard focus. Shown when the tile is hovered or the
+ * button has the focus, and always on screens that cannot hover. It only opens the confirmation; stopping happens
+ * from there.
  */
 function StopButton({ session, onStop, className }: { session: PlaybackSession; onStop: (session: PlaybackSession) => void; className?: string }) {
   const { t } = useTranslation()
@@ -299,7 +300,7 @@ function StopButton({ session, onStop, className }: { session: PlaybackSession; 
           size="icon-sm"
           variant="ghost"
           className={cn(
-            'bg-card/60 text-muted-foreground opacity-0 backdrop-blur-sm transition-opacity hover:bg-card/80 hover:text-destructive focus-visible:opacity-100 group-hover/tile:opacity-100 [@media(hover:none)]:opacity-100 dark:hover:bg-card/80 dark:hover:text-red-400',
+            'bg-card/60 text-muted-foreground opacity-0 backdrop-blur-sm transition-opacity hover:bg-card/80 hover:text-destructive focus-visible:text-destructive focus-visible:opacity-100 group-hover/tile:opacity-100 [@media(hover:none)]:opacity-100',
             className,
           )}
           aria-label={t('playback.stop')}
