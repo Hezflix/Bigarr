@@ -404,7 +404,13 @@ export const tags = {
 
 // ---- quality ---------------------------------------------------------------
 
-export type QualityProfile = { id: number; name: string; cutoff: number; upgradeAllowed: boolean; isSystem: boolean; preferredLanguage: string }
+/** Which versions may use a profile: film ones, series ones, or both. */
+export type ProfileKind = 'movies' | 'series' | 'both'
+
+export type QualityProfile = { id: number; name: string; cutoff: number; upgradeAllowed: boolean; isSystem: boolean; preferredLanguage: string; kind: ProfileKind }
+
+/** The profiles a film (`movies`) or series (`series`) version can take: its own kind and Both. */
+export const profilesFor = (kind: 'movies' | 'series') => (profiles: QualityProfile[]) => profiles.filter((p) => p.kind === kind || p.kind === 'both')
 
 export type QualityDefinition = {
   id: number
@@ -417,9 +423,14 @@ export type QualityDefinition = {
   minSize: number | null
   preferredSize: number | null
   maxSize: number | null
+  /** The series sizes: MB per minute of every episode a release covers. */
+  seriesMinSize: number | null
+  seriesPreferredSize: number | null
+  seriesMaxSize: number | null
 }
 
-export type QualityDefinitionUpdate = { title: string | null; minSize: number | null; preferredSize: number | null; maxSize: number | null }
+/** `kind` says whose sizes these are: the films' (default) or the series'. */
+export type QualityDefinitionUpdate = { title: string | null; minSize: number | null; preferredSize: number | null; maxSize: number | null; kind?: 'movies' | 'series' }
 
 /** One entry of the ordered items list, worst first: the position is the rank. */
 export type QualityProfileItem = { groupId: number | null; groupName: string | null; qualityIds: number[]; allowed: boolean }
@@ -439,6 +450,8 @@ export type QualityProfileDetail = {
   isSystem: boolean
   formatScores: FormatScore[]
   versionCount: number
+  kind: ProfileKind
+  seriesVersionCount: number
 }
 
 export type QualityProfileRequest = {
@@ -451,6 +464,7 @@ export type QualityProfileRequest = {
   minUpgradeFormatScore: number
   preferredLanguage: string
   formatScores: { customFormatId: number; score: number }[]
+  kind: ProfileKind
 }
 
 export const quality = {
@@ -1989,6 +2003,8 @@ export type SeriesCompareRow = {
   at: string
   /** Every episode either side covers on the row. */
   episodes: string
+  /** The first season the row covers. */
+  seasonNumber: number
   sonarr: SeriesCompareGrab[]
   bigarr: SeriesComparePick[]
   alsoPicked: SeriesComparePick[]
@@ -1998,10 +2014,23 @@ export type SeriesCompareRow = {
 
 export type SeriesCompareCounts = { same: number; different: number; bigarrOnly: number; sonarrOnly: number; total: number }
 
+/** One show: one line until opened, its rows newest first. */
+export type SeriesCompareGroup = {
+  tvdbId: number
+  seriesId: number | null
+  seriesTitle: string
+  year: number | null
+  posterUrl: string | null
+  counts: SeriesCompareCounts
+  latestAt: string
+  rows: SeriesCompareRow[]
+}
+
+/** `total` counts shows; pages are pages of shows. */
 export type SeriesCompareResult = Omit<CompareResult, 'summary' | 'byVersion' | 'rows'> & {
   summary: SeriesCompareCounts
   byVersion: { versionName: string; counts: SeriesCompareCounts }[]
-  rows: SeriesCompareRow[]
+  groups: SeriesCompareGroup[]
 }
 
 export type SeriesCompareQuery = Omit<CompareQuery, 'outcome' | 'tmdbId'> & { outcome?: SeriesCompareOutcome; tvdbId?: number }
@@ -2374,6 +2403,12 @@ export const playback = {
 }
 
 // ---- helpers ---------------------------------------------------------------
+
+/** A series profile's name without its leading "Series" word, as the server names a version: `Series 1080p` → `1080p`. */
+export function seriesVersionName(profileName: string): string {
+  const slug = slugify(profileName)
+  return slug.startsWith('series-') && slug.length > 'series-'.length ? slug.slice('series-'.length) : slug
+}
 
 export function slugify(value: string): string {
   return value

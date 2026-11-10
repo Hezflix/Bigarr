@@ -201,7 +201,7 @@ function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: Son
 
       <section className="flex flex-col gap-3">
         <h2 className="text-xl font-semibold tracking-tight">{t('importRadarr.profiles')}</h2>
-        <ProfileMappingTable preview={shaped} value={profileMap} onChange={setProfileMap} labels={labels} />
+        <ProfileMappingTable preview={shaped} value={profileMap} onChange={setProfileMap} labels={labels} kind="series" allowCreate />
         <p className="max-w-3xl text-xs text-muted-foreground">{t('importSonarr.profilesHint')}</p>
       </section>
 

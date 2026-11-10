@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, movies, quality, queue, slugify, type Movie, type Release } from '@/api/client'
+import { ApiError, movies, quality, queue, slugify, type Movie, type Release, profilesFor} from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -23,7 +23,7 @@ function escapeRegex(value: string): string {
 export function OneShotGrabDialog({ movie, release, defaultProfileId, onClose }: { movie: Movie; release: Release; defaultProfileId: number; onClose: () => void }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const profiles = useQuery({ queryKey: ['qualityProfiles'], queryFn: quality.profiles })
+  const profiles = useQuery({ queryKey: ['qualityProfiles'], queryFn: quality.profiles, select: profilesFor('movies') })
   const suggested = slugify(release.edition ?? release.releaseGroup ?? release.quality) || 'alternate'
   const [name, setName] = useState(suggested)
   const [profileId, setProfileId] = useState(defaultProfileId)

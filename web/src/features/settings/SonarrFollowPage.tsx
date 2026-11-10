@@ -120,8 +120,8 @@ export function SonarrFollowPage() {
       </div>
       <p className="max-w-3xl text-sm text-muted-foreground">
         {t('sonarrFollow.intro')}{' '}
-        <Link to="/activity/compare" className="underline underline-offset-4">
-          {t('nav.compare')}
+        <Link to="/activity/compare-sonarr" className="underline underline-offset-4">
+          {t('nav.compareSonarr')}
         </Link>
       </p>
 
@@ -295,6 +295,8 @@ function FollowedSonarrDialog({ sonarr, onClose, onSaved }: { sonarr: FollowedSo
       setPreview(result)
       // A new form takes the suggestions; an edited one keeps its mapping and only fills the gaps.
       const suggested = suggestedMapping(sonarrMappingPreview(result))
+      // The follow maps onto existing profiles only: "create" (0) is the import's.
+      suggested.profileMap = Object.fromEntries(Object.entries(suggested.profileMap).filter(([, id]) => id !== 0))
       setForm((f) => ({
         ...f,
         name: f.name.trim() ? f.name : `Sonarr ${result.suggestedVersionName}`,
@@ -384,7 +386,7 @@ function FollowedSonarrDialog({ sonarr, onClose, onSaved }: { sonarr: FollowedSo
               )}
               {preview ? (
                 <>
-                  <ProfileMappingTable preview={sonarrMappingPreview(preview)} labels={labels} value={form.profileMap} onChange={(value) => set('profileMap', value)} />
+                  <ProfileMappingTable preview={sonarrMappingPreview(preview)} labels={labels} kind="series" value={form.profileMap} onChange={(value) => set('profileMap', value)} />
                   <RootFolderMappingTable preview={sonarrMappingPreview(preview)} labels={labels} kind="series" value={form.rootFolderMap} onChange={(value) => set('rootFolderMap', value)} />
                   {!mapped && <p className="text-xs text-muted-foreground">{t('importSonarr.mappingIncomplete')}</p>}
                 </>

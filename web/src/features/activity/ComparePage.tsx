@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { cn } from 'cn'
@@ -13,7 +13,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { CompareTable, outcomeStyles } from '@/features/activity/CompareTable'
-import { SeriesCompareView } from '@/features/activity/SeriesCompare'
 import { formatDateTime } from '@/i18n'
 
 const pageSize = 50
@@ -27,33 +26,6 @@ const windows = [6, 24, 72] as const
  * version attribution against Radarr's before replacing it.
  */
 export function ComparePage() {
-  const { t } = useTranslation()
-  const [kind, setKind] = useState<'films' | 'series'>('films')
-  const tabs = (
-    <div className="flex rounded-md border p-0.5" role="tablist" aria-label={t('compare.title')} data-testid="compare-kind">
-      {(['films', 'series'] as const).map((value) => (
-        <Button key={value} type="button" role="tab" aria-selected={kind === value} variant={kind === value ? 'secondary' : 'ghost'} size="sm" onClick={() => setKind(value)}>
-          {value === 'films' ? t('compare.films') : t('compare.seriesTab')}
-        </Button>
-      ))}
-    </div>
-  )
-  if (kind === 'series') {
-    return (
-      <>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">{t('compare.seriesTitle')}</h1>
-          {tabs}
-        </div>
-        <SeriesCompareView />
-      </>
-    )
-  }
-
-  return <FilmsCompare tabs={tabs} />
-}
-
-function FilmsCompare({ tabs }: { tabs: ReactNode }) {
   const { t } = useTranslation()
   const [days, setDays] = useState<number>(30)
   const [windowHours, setWindowHours] = useState<number>(24)
@@ -80,7 +52,6 @@ function FilmsCompare({ tabs }: { tabs: ReactNode }) {
     <>
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">{t('compare.title')}</h1>
-        {tabs}
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <Select value={String(days)} onValueChange={(value) => resetPage(setDays)(Number(value))}>
             <SelectTrigger size="sm" aria-label={t('compare.period')} data-testid="compare-period">

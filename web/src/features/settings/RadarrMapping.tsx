@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { quality, rootFolders, rootsOfKind, type RadarrImportPreview, type SonarrImportPreview } from '@/api/client'
+import { profilesFor, quality, rootFolders, rootsOfKind, type RadarrImportPreview, type SonarrImportPreview } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
@@ -53,9 +53,25 @@ export function mappingComplete(preview: RadarrImportPreview, value: RadarrMappi
   )
 }
 
-export function ProfileMappingTable({ preview, value, onChange, labels }: { preview: RadarrImportPreview; value: Record<number, number>; onChange: (value: Record<number, number>) => void; labels?: MappingLabels }) {
+export function ProfileMappingTable({
+  preview,
+  value,
+  onChange,
+  labels,
+  kind = 'movies',
+  allowCreate = false,
+}: {
+  preview: RadarrImportPreview
+  value: Record<number, number>
+  onChange: (value: Record<number, number>) => void
+  labels?: MappingLabels
+  /** Which Bigarr profiles can be chosen: Films (and Both) for a Radarr, Series (and Both) for a Sonarr. */
+  kind?: 'movies' | 'series'
+  /** The Sonarr import can create a Series profile from the source one (value 0). */
+  allowCreate?: boolean
+}) {
   const { t } = useTranslation()
-  const profiles = useQuery({ queryKey: ['qualityProfiles'], queryFn: quality.profiles })
+  const profiles = useQuery({ queryKey: ['qualityProfiles'], queryFn: quality.profiles, select: profilesFor(kind) })
   return (
     <div className="overflow-x-auto rounded-lg border">
       <Table>
@@ -77,6 +93,7 @@ export function ProfileMappingTable({ preview, value, onChange, labels }: { prev
                     <SelectValue placeholder={t('importRadarr.chooseProfile')} />
                   </SelectTrigger>
                   <SelectContent>
+                    {allowCreate && <SelectItem value="0">{t('importSonarr.createProfile')}</SelectItem>}
                     {profiles.data?.map((p) => (
                       <SelectItem key={p.id} value={String(p.id)}>
                         {p.name}

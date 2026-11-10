@@ -4,7 +4,7 @@ import { Link } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { ChevronDownIcon, ChevronRightIcon, RefreshCwIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { shadow, type SeriesCompareCounts, type SeriesCompareGrab, type SeriesCompareOutcome, type SeriesComparePick, type SeriesCompareRow } from '@/api/client'
+import { shadow, type SeriesCompareCounts, type SeriesCompareGrab, type SeriesCompareGroup, type SeriesCompareOutcome, type SeriesComparePick, type SeriesCompareRow } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -40,7 +40,7 @@ function formatGap(seconds: number): string {
  * Activity → Compare, series: per show, version and episode set, what the followed Sonarr grabbed next to what Bigarr
  * would have grabbed. A season pack on one side and single episodes on the other share one row.
  */
-export function SeriesCompareView() {
+export function SonarrComparePage() {
   const { t } = useTranslation()
   const [days, setDays] = useState<number>(30)
   const [windowHours, setWindowHours] = useState<number>(24)
@@ -64,6 +64,7 @@ export function SeriesCompareView() {
 
   return (
     <>
+      <h1 className="text-2xl font-semibold tracking-tight">{t('compare.seriesTitle')}</h1>
       <div className="flex flex-wrap items-center gap-2">
         <Select value={String(days)} onValueChange={(value) => resetPage(setDays)(Number(value))}>
           <SelectTrigger size="sm" aria-label={t('compare.period')}>
@@ -166,10 +167,10 @@ export function SeriesCompareView() {
           <span className="text-xs text-muted-foreground">
             {data.from ? t('compare.since', { date: formatDateTime(data.from) }) : t('compare.periodAll')} · {t('compare.windowHours', { hours: data.windowHours })}
           </span>
-          {data.rows.length === 0 ? (
+          {data.groups.length === 0 ? (
             <p className="text-sm text-muted-foreground">{data.summary.total === 0 ? t('compare.seriesEmpty') : t('compare.emptyFiltered')}</p>
           ) : (
-            <SeriesCompareTable rows={data.rows} />
+            <SeriesGroups groups={data.groups} />
           )}
           {pages > 1 && (
             <div className="flex items-center gap-2">
@@ -215,6 +216,95 @@ function Summary({ counts, active, onPick }: { counts: SeriesCompareCounts; acti
       <p className="text-sm text-muted-foreground">
         {agreement === null ? t('compare.seriesNoGrabs') : t('compare.seriesAgreement', { percent: agreement, same: counts.same, grabs })}
       </p>
+    </div>
+  )
+}
+
+function Counters({ counts }: { counts: SeriesCompareCounts }) {
+  const { t } = useTranslation()
+  return (
+    <span className="flex flex-wrap gap-1">
+      {outcomes
+        .filter((o) => counts[o] > 0)
+        .map((o) => (
+          <Badge key={o} variant="outline" className={seriesOutcomeStyles[o]}>
+            {t(`compare.seriesOutcomes.${o}`)} · {counts[o]}
+          </Badge>
+        ))}
+    </span>
+  )
+}
+
+const countRows = (rows: SeriesCompareRow[]): SeriesCompareCounts => {
+  const counts = { same: 0, different: 0, bigarrOnly: 0, sonarrOnly: 0, total: rows.length }
+  for (const row of rows) counts[row.outcome]++
+  return counts
+}
+
+/** One line per show, collapsed: open it for its seasons, open a season for its episode-set rows. */
+function SeriesGroups({ groups }: { groups: SeriesCompareGroup[] }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState<Set<string>>(new Set())
+  const toggle = (key: string) =>
+    setOpen((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+
+  return (
+    <div className="flex flex-col rounded-lg border" data-testid="series-compare-groups">
+      {groups.map((group) => {
+        const key = `s${group.tvdbId}`
+        const expanded = open.has(key)
+        const seasons = [...new Set(group.rows.map((r) => r.seasonNumber))].sort((a, b) => b - a)
+        return (
+          <div key={key} className="border-b last:border-b-0" data-testid="series-compare-group">
+            <button type="button" className="flex w-full items-center gap-3 p-3 text-left hover:bg-muted/50" onClick={() => toggle(key)} aria-expanded={expanded}>
+              {expanded ? <ChevronDownIcon className="size-4 shrink-0" /> : <ChevronRightIcon className="size-4 shrink-0" />}
+              <Poster url={group.posterUrl} title={group.seriesTitle} size="thumb" />
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium">
+                  {group.seriesTitle}
+                  {group.year && <span className="ml-1 text-muted-foreground">({group.year})</span>}
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  {t('compare.rowsCount', { count: group.rows.length })} · {t('compare.latest', { date: formatDateTime(group.latestAt) })}
+                </span>
+              </span>
+              <Counters counts={group.counts} />
+            </button>
+            {expanded && (
+              <div className="flex flex-col gap-2 px-3 pb-3 pl-10">
+                {group.seriesId !== null && (
+                  <Link to="/series/$seriesId" params={{ seriesId: String(group.seriesId) }} className="text-sm underline-offset-4 hover:underline">
+                    {t('nav.series')} →
+                  </Link>
+                )}
+                {seasons.map((season) => {
+                  const seasonKey = `${key}-${season}`
+                  const rows = group.rows.filter((r) => r.seasonNumber === season)
+                  const seasonOpen = open.has(seasonKey)
+                  return (
+                    <div key={seasonKey} className="rounded-md border" data-testid="series-compare-season">
+                      <button type="button" className="flex w-full items-center gap-2 p-2 text-left text-sm hover:bg-muted/50" onClick={() => toggle(seasonKey)} aria-expanded={seasonOpen}>
+                        {seasonOpen ? <ChevronDownIcon className="size-4" /> : <ChevronRightIcon className="size-4" />}
+                        <span className="font-medium">{season === 0 ? t('compare.specials') : t('compare.seasonLabel', { season })}</span>
+                        <span className="text-xs text-muted-foreground">{t('compare.rowsCount', { count: rows.length })}</span>
+                        <span className="ml-auto">
+                          <Counters counts={countRows(rows)} />
+                        </span>
+                      </button>
+                      {seasonOpen && <SeriesCompareTable rows={rows} showSeries={false} />}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -446,12 +536,13 @@ export function SeriesCompareSection({ tvdbId }: { tvdbId: number | null }) {
     queryFn: () => shadow.compareSeries({ days: 0, windowHours: 24, page: 1, pageSize: 50, tvdbId: tvdbId ?? undefined }),
     enabled: tvdbId !== null,
   })
-  if (!query.data || query.data.rows.length === 0) return null
+  const rows = query.data?.groups.flatMap((g) => g.rows) ?? []
+  if (rows.length === 0) return null
   return (
     <section className="flex flex-col gap-3" data-testid="series-compare-section">
       <h2 className="text-xl font-semibold tracking-tight">{t('compare.seriesTitle')}</h2>
       <p className="max-w-3xl text-sm text-muted-foreground">{t('compare.seriesHint')}</p>
-      <SeriesCompareTable rows={query.data.rows} showSeries={false} />
+      <SeriesCompareTable rows={rows} showSeries={false} />
     </section>
   )
 }

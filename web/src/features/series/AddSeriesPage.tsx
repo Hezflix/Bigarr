@@ -11,10 +11,11 @@ import {
   rootsOfKind,
   series as seriesApi,
   seriesTypes,
-  slugify,
+  seriesVersionName,
   type MonitoringOption,
   type SeriesLookupResult,
   type SeriesType,
+  profilesFor,
 } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -122,7 +123,7 @@ export function AddSeriesPage() {
 function AddForm({ show, onCancel, onAdded }: { show: SeriesLookupResult; onCancel: () => void; onAdded: (id: number) => void }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const profiles = useQuery({ queryKey: ['qualityProfiles'], queryFn: quality.profiles })
+  const profiles = useQuery({ queryKey: ['qualityProfiles'], queryFn: quality.profiles, select: profilesFor('series') })
   const roots = useQuery({ queryKey: ['rootFolders'], queryFn: rootFolders.list, select: rootsOfKind('series') })
   const [profileId, setProfileId] = useState<number | ''>('')
   const [rootId, setRootId] = useState<number | ''>('')
@@ -140,7 +141,7 @@ function AddForm({ show, onCancel, onAdded }: { show: SeriesLookupResult; onCanc
   }, [roots.data, rootId])
 
   const profile = profiles.data?.find((p) => p.id === profileId)
-  const effectiveName = versionName.trim() || (profile ? slugify(profile.name) : '')
+  const effectiveName = versionName.trim() || (profile ? seriesVersionName(profile.name) : '')
 
   const add = useMutation({
     mutationFn: () =>

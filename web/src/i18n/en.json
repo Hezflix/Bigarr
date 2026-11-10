@@ -29,7 +29,8 @@
     "settingsImportRadarr": "Import from Radarr",
     "settingsImportTautulli": "Import from Tautulli",
     "settingsFollowedRadarrs": "Followed Radarrs",
-    "compare": "Compare",
+    "compare": "Compare · Radarr",
+    "compareSonarr": "Compare · Sonarr",
     "series": "Series",
     "seriesLibrary": "Library",
     "addSeries": "Add a series",
@@ -884,7 +885,18 @@
     "preferredSize": "Preferred",
     "maxSize": "Max",
     "saved": "Saved.",
-    "saveFailed": "The change could not be saved."
+    "saveFailed": "The change could not be saved.",
+    "kind": "For",
+    "kinds": {
+      "movies": "Films",
+      "series": "Series",
+      "both": "Films and series"
+    },
+    "kindHint": "Film versions take Films or Both profiles, series versions Series or Both. The Radarr follow only writes Films profiles, the Sonarr follow only Series ones.",
+    "kindInUse": "Used by {{films}} film version(s) and {{series}} series version(s): a kind that excludes them is refused until they move.",
+    "sizesFilms": "Films",
+    "sizesSeries": "Series",
+    "seriesDefinitionsHint": "Series sizes, in MB per minute of every episode a release covers, apart from the films'. They start from Sonarr's defaults, and the Sonarr import and follow keep them in line with Sonarr's."
   },
   "customFormats": {
     "title": "Custom formats",
@@ -1645,7 +1657,13 @@
     "whyNotSonarr": "Why Sonarr grabbed nothing",
     "seriesFileThen": "The episodes had {{quality}} (score {{score}}) when Sonarr grabbed.",
     "seriesPickThen": "Bigarr had already picked {{quality}} (score {{score}}) for those episodes when Sonarr grabbed: judged against that pick.",
-    "seriesNoFileThen": "The episodes had no file when Sonarr grabbed."
+    "seriesNoFileThen": "The episodes had no file when Sonarr grabbed.",
+    "seasonLabel": "Season {{season}}",
+    "specials": "Specials",
+    "rowsCount_one": "{{count}} row",
+    "rowsCount_other": "{{count}} rows",
+    "latest": "Latest {{date}}",
+    "showsPage": "Shows {{from}}–{{to}} of {{total}}"
   },
   "radarrFollow": {
     "title": "Followed Radarrs",
@@ -2224,7 +2242,7 @@
     "sonarrProfile": "Sonarr profile",
     "series": "Series",
     "sonarrPath": "Sonarr path",
-    "profilesHint": "Map onto profiles of their own: a profile a followed Radarr also maps to keeps Radarr's settings. Sonarr's custom formats are not imported (Bigarr's are shared with films); scores are copied for the formats Bigarr has under the same name.",
+    "profilesHint": "Only Series and Both profiles can be chosen. “Create a Series profile from Sonarr's” adds one named after it with its qualities and scores. Sonarr's custom formats are not imported (Bigarr's are shared with films); scores are copied for the formats Bigarr has under the same name.",
     "rootFoldersHint": "Only series root folders can be chosen. The Sonarr path is read as is on this host when it is reachable; otherwise pick the root folder where the same shows live, added on the Library settings page.",
     "noTags": "Sonarr has no tags in use.",
     "importProfileQualities": "Give each mapped profile the qualities, cutoff and scores of its Sonarr profile",
@@ -2239,6 +2257,7 @@
     "noIssues": "Every series went through.",
     "issueTitle": "Series",
     "issueTvdb": "TVDB",
-    "again": "Import another Sonarr"
+    "again": "Import another Sonarr",
+    "createProfile": "Create a Series profile from Sonarr's"
   }
 }

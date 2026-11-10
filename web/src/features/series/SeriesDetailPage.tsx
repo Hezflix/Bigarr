@@ -12,7 +12,7 @@ import {
   monitoringOptions,
   quality,
   series as seriesApi,
-  slugify,
+  seriesVersionName,
   type Episode,
   type EpisodeFile,
   type MonitoringOption,
@@ -20,6 +20,7 @@ import {
   type Series,
   type SeriesVersion,
   type UnmatchedEpisodeFile,
+  profilesFor,
 } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import {
@@ -508,12 +509,12 @@ function ApplyMonitoringDialog({ series: s, version, open, onOpenChange, onDone 
 
 function AddVersionDialog({ series: s, open, onOpenChange, onDone }: { series: Series; open: boolean; onOpenChange: (open: boolean) => void; onDone: (id: number) => void }) {
   const { t } = useTranslation()
-  const profiles = useQuery({ queryKey: ['qualityProfiles'], queryFn: quality.profiles, enabled: open })
+  const profiles = useQuery({ queryKey: ['qualityProfiles'], queryFn: quality.profiles, select: profilesFor('series'), enabled: open })
   const [name, setName] = useState('')
   const [profileId, setProfileId] = useState<number | ''>('')
   const [monitor, setMonitor] = useState<MonitoringOption>('all')
   const profile = profiles.data?.find((p) => p.id === profileId) ?? profiles.data?.[0]
-  const effectiveName = name.trim() || (profile ? slugify(profile.name) : '')
+  const effectiveName = name.trim() || (profile ? seriesVersionName(profile.name) : '')
 
   const add = useMutation({
     mutationFn: () => seriesApi.addVersion(s.id, { name: effectiveName, qualityProfileId: profile!.id, monitor }),

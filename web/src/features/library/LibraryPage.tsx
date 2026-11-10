@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { CheckSquareIcon, PlusIcon } from 'lucide-react'
 import { Trans, useTranslation } from 'react-i18next'
-import { auth, movies, quality, rootFolders, tags } from '@/api/client'
+import { auth, movies, quality, rootFolders, tags, profilesFor} from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -41,7 +41,7 @@ export function LibraryPage() {
   const [prefs, update] = useLibraryPrefs(me.data?.id)
   const library = useQuery({ queryKey: ['movies'], queryFn: movies.list })
   const definitions = useQuery({ queryKey: ['qualityDefinitions'], queryFn: quality.definitions, staleTime: 5 * 60_000 })
-  const profiles = useQuery({ queryKey: ['qualityProfiles'], queryFn: quality.profiles })
+  const profiles = useQuery({ queryKey: ['qualityProfiles'], queryFn: quality.profiles, select: profilesFor('movies') })
   const tagList = useQuery({ queryKey: ['tags'], queryFn: tags.list })
   const roots = useQuery({ queryKey: ['rootFolders'], queryFn: rootFolders.list })
   const [term, setTerm] = useState('')

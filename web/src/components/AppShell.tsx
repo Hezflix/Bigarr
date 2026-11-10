@@ -66,6 +66,7 @@ type NavItem = {
     | '/activity/history'
     | '/activity/blocklist'
     | '/activity/compare'
+    | '/activity/compare-sonarr'
     | '/playback/now'
     | '/playback/plays'
     | '/playback/stats'
@@ -121,6 +122,7 @@ function useSections(): NavSection[] {
         { to: '/activity/history', label: t('nav.history'), icon: HistoryIcon },
         { to: '/activity/blocklist', label: t('nav.blocklist'), icon: BanIcon },
         { to: '/activity/compare', label: t('nav.compare'), icon: GitCompareIcon },
+        { to: '/activity/compare-sonarr', label: t('nav.compareSonarr'), icon: GitCompareIcon },
       ],
     },
     {
