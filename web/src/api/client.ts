@@ -1910,7 +1910,13 @@ export type PlaybackItemRef = {
   durationMs: number | null
   libraryTitle: string | null
   movieId: number | null
+  /** The title the server (or Tautulli) gave, under which a film not linked is kept. Set on plays. */
+  serverTitle?: string | null
+  /** The film was chosen by hand, or unlinked by hand when `movieId` is null. */
+  linkedByHand?: boolean
 }
+
+export type ItemLink = { itemId: number; movieId: number | null; versionId: number | null; linkedByHand: boolean; plays: number }
 
 /** What the media server says about a stream: every field may be missing. */
 export type StreamDetails = {
@@ -2130,6 +2136,8 @@ export const playback = {
   user: (id: number) => api<PlaybackUserStats>(`/api/v1/playback/users/${id}`),
   updateUser: (id: number, body: UpdatePlaybackUser) => put<PlaybackUserStats>(`/api/v1/playback/users/${id}`, body),
   playVersions: () => api<string[]>('/api/v1/playback/plays/versions'),
+  /** All the plays of the item follow; a null film unlinks it. */
+  linkItem: (itemId: number, movieId: number | null, versionId: number | null = null) => put<ItemLink>(`/api/v1/playback/items/${itemId}/link`, { movieId, versionId }),
   stats: (days: number | null, userId: number | null = null) =>
     api<PlaybackStats>(
       `/api/v1/playback/stats?${new URLSearchParams({ ...(days === null ? {} : { days: String(days) }), ...(userId === null ? {} : { userId: String(userId) }), tz: Intl.DateTimeFormat().resolvedOptions().timeZone })}`,

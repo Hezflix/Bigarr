@@ -72,6 +72,17 @@ public sealed class MediaServerItem
 
     public Movie? Movie { get; set; }
 
+    /// <summary>
+    /// <see cref="MovieId"/> was chosen by hand (linked, or unlinked when null): the item's ids no longer decide it, so a
+    /// refresh from the server keeps it.
+    /// </summary>
+    public bool LinkedByHand { get; set; }
+
+    /// <summary>The version chosen with a link by hand: the plays whose file does not tell their version get this one.</summary>
+    public int? LinkedVersionId { get; set; }
+
+    public MovieVersion? LinkedVersion { get; set; }
+
     public DateTime FirstSeenAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }

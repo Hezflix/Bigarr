@@ -244,6 +244,32 @@ public sealed class PlaybackTrackerTests : IAsyncLifetime, IDisposable
     }
 
     [Fact]
+    public async Task An_item_linked_by_hand_keeps_its_film_and_version_through_a_refresh_and_new_plays()
+    {
+        // A film whose ids Plex got wrong (another film's TMDB id) and whose file Bigarr does not know.
+        _plex.Items["400"] = new FakePlex.Item("400", "Matrix (VF)", 1999, Minutes(136), "3", [new FakePlex.Part("4001", "/elsewhere/matrix.vf.mkv", "1080")], TmdbId: 999001);
+        await using (var db = _database.CreateContext())
+        {
+            db.MediaServerItems.Add(new MediaServerItem { MediaServerId = _server.Id, RatingKey = "400", Kind = MediaItemKind.Movie, Title = "Matrix (VF)", MovieId = _movie.Id, LinkedByHand = true, LinkedVersionId = _uhd.Id });
+            await db.SaveChangesAsync();
+        }
+
+        _plex.Set(new FakePlex.Stream("40", "s-40", "400", "1", "alice", "4001"));
+        await ReconcileAsync();
+        _time.Advance(TimeSpan.FromMinutes(40));
+        await EventAsync("40", "400", "stopped", Minutes(40));
+
+        await using var after = _database.CreateContext();
+        var item = await after.MediaServerItems.SingleAsync(i => i.RatingKey == "400");
+        Assert.Equal(_movie.Id, item.MovieId);
+        Assert.Equal(999001, item.TmdbId);
+        var play = await after.Plays.SingleAsync(p => p.ItemId == item.Id);
+        Assert.Equal(_movie.Id, play.MovieId);
+        Assert.Equal(_uhd.Id, play.VersionId);
+        Assert.Equal("4k", play.VersionName);
+    }
+
+    [Fact]
     public async Task An_episode_keeps_the_show_ids_and_numbers_and_the_next_episode_on_the_same_player_is_a_new_stream()
     {
         _plex.Items["301"] = _plex.Items["300"] with { RatingKey = "301", Title = "Second", Episode = 2, Parts = [new FakePlex.Part("3011", null, "1080")] };

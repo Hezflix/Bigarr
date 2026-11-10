@@ -53,6 +53,13 @@ public static class PlaybackEndpoints
         group.MapGet("/plays/{id:int}/streams", async Task<Results<Ok<List<PlayStreamResponse>>, NotFound>> (int id, PlaybackService playback, CancellationToken ct) =>
             await playback.StreamsAsync(id, ct) is { } streams ? TypedResults.Ok(streams) : TypedResults.NotFound());
 
+        // Links a film the server played to a Bigarr film by hand (movieId null unlinks it): all its plays follow.
+        group.MapPut("/items/{id:int}/link", async Task<Results<Ok<ItemLinkResponse>, ProblemHttpResult>> (int id, LinkItemRequest request, ItemLinks links, CancellationToken ct) =>
+        {
+            var result = await links.LinkAsync(id, request, ct);
+            return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
+        });
+
         group.MapGet("/users", async Task<Ok<List<PlaybackUserResponse>>> (PlaybackService playback, CancellationToken ct) =>
             TypedResults.Ok(await playback.UsersAsync(ct)));
 
@@ -125,6 +132,7 @@ public static class PlaybackEndpoints
         services.AddScoped<PlaybackTracker>();
         services.AddScoped<PlaybackService>();
         services.AddScoped<PlaybackStats>();
+        services.AddScoped<ItemLinks>();
         services.AddScoped<PlexHistoryBackstop>();
         services.AddScoped<IScheduledJob, PlexHistoryJob>();
         services.AddSingleton<PlaybackMonitor>();

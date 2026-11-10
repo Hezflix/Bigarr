@@ -364,7 +364,11 @@ public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLib
 
         if (metadata.Kind == MediaItemKind.Movie)
         {
-            item.MovieId = await MovieIdAsync(metadata.Ids, ct);
+            // A link chosen by hand outlives the item's ids, which are what got it wrong or left it out.
+            if (!item.LinkedByHand)
+            {
+                item.MovieId = await MovieIdAsync(metadata.Ids, ct);
+            }
         }
         else
         {

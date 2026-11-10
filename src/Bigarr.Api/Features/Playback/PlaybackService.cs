@@ -152,7 +152,7 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
             .Select(p => new PlayResponse(
                 p.Id,
                 new PlaybackUserRef(p.User.Id, p.User.DisplayName ?? p.User.Name, p.User.ThumbUrl),
-                new PlaybackItemRef(p.Item.Id, p.Item.Kind, p.Movie != null ? p.Movie.Title : p.Item.Movie != null ? p.Item.Movie.Title : p.Item.Title, p.Movie != null ? p.Movie.Year : p.Item.Movie != null ? p.Item.Movie.Year : p.Item.Year, p.Item.ShowTitle, p.Item.SeasonNumber, p.Item.EpisodeNumber, p.Item.DurationMs, p.Item.LibrarySectionTitle, p.Item.MovieId),
+                new PlaybackItemRef(p.Item.Id, p.Item.Kind, p.Movie != null ? p.Movie.Title : p.Item.Movie != null ? p.Item.Movie.Title : p.Item.Title, p.Movie != null ? p.Movie.Year : p.Item.Movie != null ? p.Item.Movie.Year : p.Item.Year, p.Item.ShowTitle, p.Item.SeasonNumber, p.Item.EpisodeNumber, p.Item.DurationMs, p.Item.LibrarySectionTitle, p.Item.MovieId, p.Item.Title, p.Item.LinkedByHand),
                 p.StartedAt,
                 p.StoppedAt,
                 p.PlayedSeconds,
@@ -233,7 +233,8 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
         if (!string.IsNullOrWhiteSpace(filter.Search))
         {
             var pattern = "%" + EscapeLike(filter.Search.Trim()) + "%";
-            query = query.Where(p => EF.Functions.Like(p.Item.Title, pattern, "\\") || EF.Functions.Like(p.Item.ShowTitle!, pattern, "\\"));
+            // The Bigarr film's title too: a play linked by hand keeps the server's title on its item.
+            query = query.Where(p => EF.Functions.Like(p.Item.Title, pattern, "\\") || EF.Functions.Like(p.Item.ShowTitle!, pattern, "\\") || (p.Movie != null && EF.Functions.Like(p.Movie.Title, pattern, "\\")));
         }
 
         return query;

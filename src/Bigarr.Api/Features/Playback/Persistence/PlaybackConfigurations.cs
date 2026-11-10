@@ -42,6 +42,7 @@ public sealed class MediaServerItemConfiguration : IEntityTypeConfiguration<Medi
 
         builder.HasOne(i => i.MediaServer).WithMany().HasForeignKey(i => i.MediaServerId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(i => i.Movie).WithMany().HasForeignKey(i => i.MovieId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne(i => i.LinkedVersion).WithMany().HasForeignKey(i => i.LinkedVersionId).OnDelete(DeleteBehavior.SetNull);
         builder.HasIndex(i => new { i.MediaServerId, i.RatingKey }).IsUnique();
         builder.HasIndex(i => i.TmdbId);
         builder.HasIndex(i => i.ShowTvdbId);

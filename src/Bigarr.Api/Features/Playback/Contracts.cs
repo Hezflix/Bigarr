@@ -7,6 +7,7 @@ public sealed record PlaybackServerStatus(int Id, string Name, bool Connected, s
 
 public sealed record PlaybackUserRef(int Id, string Name, string? ThumbUrl);
 
+/// <summary><c>Title</c> is the Bigarr film's when linked; <c>ServerTitle</c> the one the server or Tautulli gave.</summary>
 public sealed record PlaybackItemRef(
     int Id,
     MediaItemKind Kind,
@@ -17,7 +18,9 @@ public sealed record PlaybackItemRef(
     int? EpisodeNumber,
     long? DurationMs,
     string? LibraryTitle,
-    int? MovieId);
+    int? MovieId,
+    string? ServerTitle = null,
+    bool LinkedByHand = false);
 
 public sealed record PlaybackSessionResponse(
     int Id,
