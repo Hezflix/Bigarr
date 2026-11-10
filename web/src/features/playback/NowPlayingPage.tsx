@@ -35,7 +35,6 @@ export function severity(session: PlaybackSession): 0 | 1 | 2 {
   return session.details.decision === 'transcode' ? 1 : 0
 }
 
-const stripes = ['bg-emerald-500', 'bg-amber-500', 'bg-red-500'] as const
 const severityKeys = ['fine', 'transcoding', 'slow'] as const
 
 const remainingMs = (s: PlaybackSession) => Math.max(0, (s.item.durationMs ?? 0) - s.viewOffsetMs)
@@ -140,13 +139,6 @@ function PosterImage({ session, width, className }: { session: PlaybackSession; 
       {session.item.title.slice(0, 2).toUpperCase()}
     </div>
   )
-}
-
-/** The stripe on the left edge: the one colour that says whether a stream is in trouble. */
-function Stripe({ session }: { session: PlaybackSession }) {
-  const { t } = useTranslation()
-  const level = severity(session)
-  return <div className={cn('absolute inset-y-0 left-0 z-10 w-1.5', stripes[level])} title={t(`playback.severity.${severityKeys[level]}`)} data-severity={severityKeys[level]} />
 }
 
 /** "Started 09/11/2026, 21:05 · ends 23:51" on hover of the position or the time left. */
@@ -310,7 +302,6 @@ function SessionRows({ sessions }: { sessions: PlaybackSession[] }) {
         const expanded = open === session.id
         return (
           <div key={session.id} className="relative" data-session={session.id}>
-            <Stripe session={session} />
             <div
               role="button"
               tabIndex={0}
@@ -322,7 +313,7 @@ function SessionRows({ sessions }: { sessions: PlaybackSession[] }) {
                 }
               }}
               aria-expanded={expanded}
-              className="flex w-full cursor-pointer items-center gap-3 py-2 pr-3 pl-5 text-left text-sm hover:bg-muted/50"
+              className="flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted/50"
             >
               <PosterImage session={session} width={92} className="w-7 rounded-sm" />
               <StateIcon session={session} className="size-3.5" />
@@ -344,7 +335,7 @@ function SessionRows({ sessions }: { sessions: PlaybackSession[] }) {
               <ChevronDownIcon className={cn('size-4 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-180')} />
             </div>
             {expanded && (
-              <div className="grid gap-4 bg-muted/30 py-3 pr-4 pl-14 md:grid-cols-2">
+              <div className="grid gap-4 bg-muted/30 py-3 pr-4 pl-12 md:grid-cols-2">
                 <div className="flex flex-col gap-2">
                   <StreamTracks details={d} />
                   {session.transcode && <TranscodeLine transcode={session.transcode} />}

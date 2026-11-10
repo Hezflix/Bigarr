@@ -1837,11 +1837,6 @@
     "viewRows": "Rows",
     "ends": "ends {{time}}",
     "left": "{{time}} left",
-    "severity": {
-      "fine": "Fine: nothing is transcoded",
-      "transcoding": "Transcoding, keeping up",
-      "slow": "Transcoding slower than real time: the player will buffer"
-    },
     "startedAt": "Started {{time}}",
     "container": "Container",
     "hw": "HW",
