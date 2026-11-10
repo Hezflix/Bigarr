@@ -4,6 +4,7 @@ import { useNavigate, useParams } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { BookmarkIcon, ChevronRightIcon, FilterIcon, FolderSearchIcon, ListChecksIcon, PlusIcon, RefreshCwIcon, SearchIcon, StarIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { SeriesCompareSection } from '@/features/activity/SeriesCompare'
 import { toast } from 'sonner'
 import {
   ApiError,
@@ -229,6 +230,8 @@ export function SeriesDetailPage() {
       {searchScope && <SeriesSearchDialog key={JSON.stringify(searchScope)} series={s} scope={searchScope} onClose={() => setSearchScope(null)} />}
 
       {version && files.data && <UnmatchedFiles files={files.data.unmatched.filter((f) => f.versionId === version.id)} />}
+
+      <SeriesCompareSection tvdbId={s.tvdbId} />
     </>
   )
 }

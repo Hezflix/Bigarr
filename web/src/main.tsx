@@ -88,6 +88,8 @@ const mediaServersRoute = createRoute({ getParentRoute: () => appRoute, path: '/
 const importRadarrRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/import-radarr', component: lazyRouteComponent(() => import('./features/settings/ImportRadarrPage'), 'ImportRadarrPage') })
 const importTautulliRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/import-tautulli', component: lazyRouteComponent(() => import('./features/settings/ImportTautulliPage'), 'ImportTautulliPage') })
 const followedRadarrsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/followed-radarrs', component: lazyRouteComponent(() => import('./features/settings/RadarrFollowPage'), 'RadarrFollowPage') })
+const importSonarrRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/import-sonarr', component: lazyRouteComponent(() => import('./features/settings/ImportSonarrPage'), 'ImportSonarrPage') })
+const followedSonarrsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/followed-sonarrs', component: lazyRouteComponent(() => import('./features/settings/SonarrFollowPage'), 'SonarrFollowPage') })
 
 const router = createRouter({
   routeTree: rootRoute.addChildren([loginRoute, appRoute.addChildren([
@@ -118,6 +120,8 @@ const router = createRouter({
       importRadarrRoute,
       importTautulliRoute,
       followedRadarrsRoute,
+      importSonarrRoute,
+      followedSonarrsRoute,
       qualitySettingsRoute,
       customFormatsRoute,
       systemRoute,

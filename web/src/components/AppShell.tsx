@@ -82,6 +82,8 @@ type NavItem = {
     | '/settings/import-radarr'
     | '/settings/import-tautulli'
     | '/settings/followed-radarrs'
+    | '/settings/import-sonarr'
+    | '/settings/followed-sonarrs'
     | '/system/status'
   label: string
   icon: React.ComponentType<{ className?: string }>
@@ -145,6 +147,8 @@ function useSections(): NavSection[] {
         { to: '/settings/import-radarr', label: t('nav.settingsImportRadarr'), icon: ImportIcon },
         { to: '/settings/import-tautulli', label: t('nav.settingsImportTautulli'), icon: HistoryIcon },
         { to: '/settings/followed-radarrs', label: t('nav.settingsFollowedRadarrs'), icon: GitCompareArrowsIcon },
+        { to: '/settings/import-sonarr', label: t('nav.settingsImportSonarr'), icon: ImportIcon },
+        { to: '/settings/followed-sonarrs', label: t('nav.settingsFollowedSonarrs'), icon: GitCompareArrowsIcon },
       ],
     },
     {
