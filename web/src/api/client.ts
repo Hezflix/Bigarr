@@ -1916,6 +1916,14 @@ export type PlaybackItemRef = {
   linkedByHand?: boolean
 }
 
+export type SuggestionReason = 'sameTmdbId' | 'sameImdbId' | 'tmdbSearch' | 'titleAndYear' | 'sameTitle' | 'closeTitle'
+
+/** A library film the played item may be: why, the surest reason first, and how many versions it has. */
+export type LinkSuggestion = { movieId: number; title: string; year: number | null; posterUrl: string | null; versions: number; score: number; reasons: SuggestionReason[] }
+
+/** `tmdbSearched` is false when TMDB could not be reached: the library alone was looked at. */
+export type LinkSuggestions = { itemId: number; suggestions: LinkSuggestion[]; tmdbSearched: boolean }
+
 export type ItemLink = { itemId: number; movieId: number | null; versionId: number | null; linkedByHand: boolean; plays: number }
 
 /** What the media server says about a stream: every field may be missing. */
@@ -2152,6 +2160,8 @@ export const playback = {
   updateUser: (id: number, body: UpdatePlaybackUser) => put<PlaybackUserStats>(`/api/v1/playback/users/${id}`, body),
   playVersions: () => api<string[]>('/api/v1/playback/plays/versions'),
   /** All the plays of the item follow; a null film unlinks it. */
+  /** Asked for by hand from the link picker; never run on its own. */
+  linkSuggestions: (itemId: number) => api<LinkSuggestions>(`/api/v1/playback/items/${itemId}/suggestions`),
   linkItem: (itemId: number, movieId: number | null, versionId: number | null = null) => put<ItemLink>(`/api/v1/playback/items/${itemId}/link`, { movieId, versionId }),
   stats: (days: number | null, userId: number | null = null) =>
     api<PlaybackStats>(

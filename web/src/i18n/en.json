@@ -1914,7 +1914,20 @@
       "linked_other": "{{count}} plays linked.",
       "unlinked": "Plays unlinked.",
       "failed": "The link could not be saved.",
-      "serverTitle": "On the server: {{title}}"
+      "serverTitle": "On the server: {{title}}",
+      "suggest": "Suggest films",
+      "suggestions": "Suggestions",
+      "noSuggestion": "No likely film in the library. Search by title below.",
+      "tmdbUnavailable": "TMDB could not be reached: the library alone was looked at.",
+      "suggestFailed": "Could not get suggestions.",
+      "reasons": {
+        "sameTmdbId": "Same TMDB id",
+        "sameImdbId": "Same IMDb id",
+        "tmdbSearch": "Found on TMDB",
+        "titleAndYear": "Title + year",
+        "sameTitle": "Same title",
+        "closeTitle": "Close title"
+      }
     },
     "noPlays": "No play yet.",
     "pageOf": "Page {{page}} of {{pages}} · {{total}} plays",

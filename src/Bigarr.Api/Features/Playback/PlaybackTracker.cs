@@ -355,6 +355,7 @@ public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLib
         item.ImdbId = metadata.Ids.ImdbId;
         item.TvdbId = metadata.Ids.TvdbId;
         item.Title = metadata.Title;
+        item.OriginalTitle = metadata.OriginalTitle;
         item.Year = metadata.Year;
         item.DurationMs = metadata.DurationMs ?? durationMs;
         item.CreditsStartMs = metadata.CreditsStartMs;

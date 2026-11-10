@@ -66,7 +66,8 @@ public sealed record PlexItem(
     string? SeasonRatingKey,
     int? SeasonNumber,
     int? EpisodeNumber,
-    IReadOnlyList<PlexPart> Parts);
+    IReadOnlyList<PlexPart> Parts,
+    string? OriginalTitle = null);
 
 public sealed record PlexIds(int? TmdbId, string? ImdbId, int? TvdbId);
 
@@ -213,7 +214,8 @@ public static class PlexPlayback
             Str(item, "parentRatingKey"),
             Int(item, "parentIndex"),
             kind == MediaItemKind.Episode ? Int(item, "index") : null,
-            parts);
+            parts,
+            Str(item, "originalTitle"));
     }
 
     /// <summary>The guid, external ids and title of any item (a show, a season), or null when Plex has no such item.</summary>

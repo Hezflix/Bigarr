@@ -32,6 +32,7 @@ public sealed class MediaServerItemConfiguration : IEntityTypeConfiguration<Medi
         builder.Property(i => i.Guid).HasMaxLength(256);
         builder.Property(i => i.ImdbId).HasMaxLength(16);
         builder.Property(i => i.Title).HasMaxLength(512);
+        builder.Property(i => i.OriginalTitle).HasMaxLength(512);
         builder.Property(i => i.LibrarySectionId).HasMaxLength(64);
         builder.Property(i => i.LibrarySectionTitle).HasMaxLength(256);
         builder.Property(i => i.ShowRatingKey).HasMaxLength(64);

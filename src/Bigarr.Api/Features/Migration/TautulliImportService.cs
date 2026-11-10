@@ -479,6 +479,7 @@ public sealed class TautulliImportService(
                 ImdbId = plan.ImdbId,
                 TvdbId = plan.TvdbId,
                 Title = context.Films.Title(plan.MovieId) ?? plan.Title,
+                OriginalTitle = source.OriginalTitle,
                 Year = plan.MovieId is not null ? context.Films.Year(plan.MovieId) ?? plan.Year : plan.Year,
                 DurationMs = plan.DurationMs,
                 CreditsStartMs = plan.CreditsStartMs,

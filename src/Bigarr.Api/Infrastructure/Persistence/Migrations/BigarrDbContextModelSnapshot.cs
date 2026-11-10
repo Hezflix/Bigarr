@@ -1103,6 +1103,10 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int?>("MovieId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("OriginalTitle")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("RatingKey")
                         .IsRequired()
                         .HasMaxLength(64)

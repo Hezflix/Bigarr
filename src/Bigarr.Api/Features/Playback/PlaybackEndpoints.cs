@@ -60,6 +60,13 @@ public static class PlaybackEndpoints
             return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
         });
 
+        // Films of the library the item may be, for the link picker; asked for by hand, never run on its own.
+        group.MapGet("/items/{id:int}/suggestions", async Task<Results<Ok<LinkSuggestionsResponse>, ProblemHttpResult>> (int id, LinkSuggestions suggestions, CancellationToken ct) =>
+        {
+            var result = await suggestions.SuggestAsync(id, ct);
+            return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
+        });
+
         group.MapGet("/users", async Task<Ok<List<PlaybackUserResponse>>> (PlaybackService playback, CancellationToken ct) =>
             TypedResults.Ok(await playback.UsersAsync(ct)));
 
@@ -133,6 +140,7 @@ public static class PlaybackEndpoints
         services.AddScoped<PlaybackService>();
         services.AddScoped<PlaybackStats>();
         services.AddScoped<ItemLinks>();
+        services.AddScoped<LinkSuggestions>();
         services.AddScoped<PlexHistoryBackstop>();
         services.AddScoped<IScheduledJob, PlexHistoryJob>();
         services.AddScoped<ServerAccess>();

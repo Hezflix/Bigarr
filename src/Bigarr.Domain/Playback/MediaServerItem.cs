@@ -38,6 +38,9 @@ public sealed class MediaServerItem
 
     public required string Title { get; set; }
 
+    /// <summary>The title in the film's own language, when the server (or Tautulli) gave one: a clue to link it by.</summary>
+    public string? OriginalTitle { get; set; }
+
     public int? Year { get; set; }
 
     public long? DurationMs { get; set; }
