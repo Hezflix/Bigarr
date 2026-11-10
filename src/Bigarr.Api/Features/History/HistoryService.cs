@@ -17,7 +17,8 @@ public sealed record HistoryFilter(
     int? VersionId = null,
     IReadOnlyCollection<HistoryEventType>? EventTypes = null,
     IReadOnlyCollection<int>? VersionIds = null,
-    Expression<Func<MovieVersion, bool>>? TargetVersions = null);
+    Expression<Func<MovieVersion, bool>>? TargetVersions = null,
+    int? SeriesId = null);
 
 public sealed record HistoryPage(List<HistoryEvent> Events, int Total);
 
@@ -57,6 +58,11 @@ public sealed class HistoryService(BigarrDbContext db)
         else if (movieIds.Count > 1)
         {
             query = query.Where(h => h.MovieId != null && movieIds.Contains(h.MovieId.Value));
+        }
+
+        if (filter.SeriesId is { } seriesId)
+        {
+            query = query.Where(h => h.SeriesId == seriesId);
         }
 
         if (filter.VersionId is { } versionId)

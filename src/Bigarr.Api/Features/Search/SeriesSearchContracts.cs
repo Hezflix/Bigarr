@@ -58,4 +58,6 @@ public sealed record SeriesSearchResponse(
     int IndexersQueried,
     List<SeriesReleaseResponse> Releases,
     List<IndexerErrorResponse> IndexerErrors,
-    string? Query = null);
+    string? Query = null,
+    /// <summary>A whole-series search: the seasons the request by ids left uncovered, then searched one by one.</summary>
+    List<int>? FallbackSeasons = null);

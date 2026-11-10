@@ -33,6 +33,7 @@ using Bigarr.Api.Infrastructure.Indexers;
 using Bigarr.Api.Infrastructure.Matching;
 using Bigarr.Api.Infrastructure.MediaServers;
 using Bigarr.Api.Infrastructure.RadarrImport;
+using Bigarr.Api.Infrastructure.SonarrImport;
 using Bigarr.Api.Infrastructure.Media;
 using Bigarr.Api.Infrastructure.Metadata;
 using Bigarr.Api.Infrastructure.Persistence;
@@ -163,6 +164,22 @@ builder.Services.AddSingleton<RadarrFollowWakeups>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<RadarrFollowWakeups>());
 builder.Services.AddScoped<CompareService>();
 builder.Services.AddScoped<IScheduledJob, RadarrFollowJob>();
+
+// Moving in from Sonarr (S4) and following it in shadow mode: the series twin of the two blocks above.
+builder.Services.AddHttpClient(SonarrClient.HttpClientName, http => http.Timeout = TimeSpan.FromSeconds(120));
+builder.Services.AddSingleton<SonarrClient>();
+builder.Services.AddScoped<SonarrImportService>();
+builder.Services.AddSingleton<SonarrImportRunner>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<SonarrImportRunner>());
+builder.Services.AddSingleton<SonarrFollowMemory>();
+builder.Services.AddScoped<SeriesShadowJudge>();
+builder.Services.AddScoped<SonarrFollower>();
+builder.Services.AddScoped<FollowedSonarrService>();
+builder.Services.AddScoped<SeriesCompareService>();
+builder.Services.AddScoped<SeriesAutomaticSearchService>();
+builder.Services.AddSingleton<SonarrFollowWakeups>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<SonarrFollowWakeups>());
+builder.Services.AddScoped<IScheduledJob, SonarrFollowJob>();
 
 // Media servers (M8): Plex, Jellyfin and Emby hear about changed folders from the outbox.
 builder.Services.AddBigarrMediaServers(builder.Configuration);

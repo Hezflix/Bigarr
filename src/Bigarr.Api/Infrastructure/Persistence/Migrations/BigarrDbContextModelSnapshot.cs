@@ -396,6 +396,13 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("SeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SeriesTitle")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("SourceTitle")
                         .HasMaxLength(1024)
                         .HasColumnType("TEXT");
@@ -404,6 +411,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("TmdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("TvdbId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("VersionName")
@@ -421,6 +431,8 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("MediaFileId");
 
                     b.HasIndex("MovieId");
+
+                    b.HasIndex("SeriesId");
 
                     b.HasIndex("TargetId");
 
@@ -1837,6 +1849,84 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("FollowedRadarrs", (string)null);
                 });
 
+            modelBuilder.Entity("Bigarr.Domain.Shadow.FollowedSonarr", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ApiKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("HistoryCheckpoint")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("ImportTags")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("KeepMonitored")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastErrorAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastSummary")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastSyncAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastWebhookAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastWebhookEvent")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProfileMap")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RootFolderMap")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("VersionName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("FollowedSonarrs", (string)null);
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Shadow.RadarrGrab", b =>
                 {
                     b.Property<int>("Id")
@@ -2121,6 +2211,12 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<long>("Size")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("SonarrView")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("SonarrViewAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Trigger")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -2305,6 +2401,173 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("ShadowPicks", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Shadow.SonarrGrab", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("BigarrVerdict")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("CustomFormatScore")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CustomFormats")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DownloadClient")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DownloadId")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("FollowedSonarrId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("FullSeason")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("GrabbedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("IndexerName")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InfoHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Languages")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("PublishedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Quality")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("QualityId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ReleaseGroup")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReleaseGuid")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReleaseSource")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReleaseTitle")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReleaseType")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("RevisionVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("SeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SeriesTitle")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SonarrHistoryId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SonarrSeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("State")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TvdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("VersionId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("VersionName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DownloadId");
+
+                    b.HasIndex("GrabbedAt");
+
+                    b.HasIndex("SeriesId");
+
+                    b.HasIndex("VersionId");
+
+                    b.HasIndex("FollowedSonarrId", "SonarrHistoryId")
+                        .IsUnique();
+
+                    b.HasIndex("TvdbId", "VersionName");
+
+                    b.ToTable("SonarrGrabs", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Shadow.SonarrGrabEpisode", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("AbsoluteEpisodeNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("EpisodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("EpisodeNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("GrabId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SeasonNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SonarrEpisodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SonarrHistoryId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EpisodeId");
+
+                    b.HasIndex("GrabId");
+
+                    b.ToTable("SonarrGrabEpisodes", (string)null);
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Tags.Tag", b =>
@@ -2637,6 +2900,31 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("Series", (string)null);
                 });
 
+            modelBuilder.Entity("Bigarr.Domain.Tv.SeriesExclusion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TvdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TvdbId")
+                        .IsUnique();
+
+                    b.ToTable("SeriesExclusions", (string)null);
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Tv.SeriesTag", b =>
                 {
                     b.Property<int>("SeriesId")
@@ -2936,6 +3224,11 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.HasOne("Bigarr.Domain.Movies.Movie", "Movie")
                         .WithMany()
                         .HasForeignKey("MovieId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Bigarr.Domain.Tv.Series", null)
+                        .WithMany()
+                        .HasForeignKey("SeriesId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Bigarr.Domain.Acquisition.AcquisitionTarget", "Target")
@@ -3340,6 +3633,43 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Version");
                 });
 
+            modelBuilder.Entity("Bigarr.Domain.Shadow.SonarrGrab", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Shadow.FollowedSonarr", "FollowedSonarr")
+                        .WithMany()
+                        .HasForeignKey("FollowedSonarrId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Bigarr.Domain.Tv.Series", null)
+                        .WithMany()
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Bigarr.Domain.Tv.SeriesVersion", null)
+                        .WithMany()
+                        .HasForeignKey("VersionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("FollowedSonarr");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Shadow.SonarrGrabEpisode", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Tv.Episode", null)
+                        .WithMany()
+                        .HasForeignKey("EpisodeId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Bigarr.Domain.Shadow.SonarrGrab", "Grab")
+                        .WithMany("Episodes")
+                        .HasForeignKey("GrabId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Grab");
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Tv.Episode", b =>
                 {
                     b.HasOne("Bigarr.Domain.Tv.Season", "Season")
@@ -3637,6 +3967,11 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Shadow.SeriesShadowPick", b =>
+                {
+                    b.Navigation("Episodes");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Shadow.SonarrGrab", b =>
                 {
                     b.Navigation("Episodes");
                 });

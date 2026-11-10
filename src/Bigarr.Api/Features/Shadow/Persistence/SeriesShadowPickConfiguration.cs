@@ -25,6 +25,7 @@ public sealed class SeriesShadowPickConfiguration : IEntityTypeConfiguration<Ser
         builder.Property(p => p.ReleaseGroup).HasMaxLength(255);
         builder.Property(p => p.Languages).HasJsonConversion();
         builder.Property(p => p.CustomFormats).HasJsonConversion();
+        builder.Property(p => p.SonarrView).HasJsonConversion();
 
         // One row per version and release: a release picked again only moves LastPickedAt.
         builder.HasIndex(p => new { p.VersionId, p.ReleaseGuid }).IsUnique();

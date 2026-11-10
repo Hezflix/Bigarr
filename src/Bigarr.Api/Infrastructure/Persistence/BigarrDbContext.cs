@@ -106,6 +106,14 @@ public sealed class BigarrDbContext(DbContextOptions<BigarrDbContext> options) :
 
     public DbSet<RadarrGrab> RadarrGrabs => Set<RadarrGrab>();
 
+    public DbSet<FollowedSonarr> FollowedSonarrs => Set<FollowedSonarr>();
+
+    public DbSet<SonarrGrab> SonarrGrabs => Set<SonarrGrab>();
+
+    public DbSet<SonarrGrabEpisode> SonarrGrabEpisodes => Set<SonarrGrabEpisode>();
+
+    public DbSet<SeriesExclusion> SeriesExclusions => Set<SeriesExclusion>();
+
     public DbSet<MediaServerUser> MediaServerUsers => Set<MediaServerUser>();
 
     public DbSet<MediaServerItem> MediaServerItems => Set<MediaServerItem>();

@@ -89,33 +89,39 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
         }
 
         var stopwatch = Stopwatch.StartNew();
-        var results = await IndexerQueries.RunAsync(indexers, async (indexer, token) =>
-        {
-            var found = new Dictionary<string, ReleaseInfo>(StringComparer.Ordinal);
-            foreach (var one in criteria)
-            {
-                foreach (var release in await gateway.SearchSeriesAsync(indexer, one, token))
-                {
-                    found.TryAdd(release.Guid, release);
-                }
-            }
-
-            return (IReadOnlyList<ReleaseInfo>)found.Values.ToList();
-        }, ct);
-        logger.LogInformation("Interactive search for {Series} {Label}{Query}: {Releases} release(s) from {Indexers} indexer(s) in {Elapsed} ms",
-            series.Title, label, query is null ? string.Empty : $" by text '{query}'", results.Sum(r => r.Releases.Count), indexers.Count, stopwatch.ElapsedMilliseconds);
-
-        await indexerService.FillSeriesCategoriesAsync(results.Where(r => r.Error is null).Select(r => r.Indexer), ct);
-
+        var (found, results) = await WholeSeriesSearch.QueryAsync(indexers, criteria, gateway, ct);
         var calculator = await scorer.CalculatorAsync(ct);
         var minimumSeeders = indexers.ToDictionary(i => i.Id, i => i.MinimumSeeders);
         var index = new SeriesTitleIndex([targets.Indexed], targets.SceneNames);
         var searchScope = new EpisodeSearchScope(scope switch { "episode" => EpisodeSearchKind.Episode, "season" => EpisodeSearchKind.Season, _ => EpisodeSearchKind.Series }, requested, seasonNumber, label);
+        var releases = found.Select(release => Evaluate(release, targets, index, searchScope, versionId, minimumSeeders.GetValueOrDefault(release.IndexerId), calculator)).ToList();
 
-        var releases = results
-            .SelectMany(r => r.Releases)
-            .Select(release => Evaluate(release, targets, index, searchScope, versionId, minimumSeeders.GetValueOrDefault(release.IndexerId), calculator))
-            .ToList();
+        // Decision 7: a whole-series search starts with one request by the show's ids, then searches season by season
+        // the seasons no acceptable release of that request covers (Sonarr's own series search goes season by season).
+        var fallbackSeasons = new List<int>();
+        if (scope == "series" && query is null)
+        {
+            var now = time.GetUtcNow().UtcDateTime;
+            var covered = releases
+                .Where(r => r.Response.MatchesSeries && r.Response.Versions.Any(v => v.Approved))
+                .SelectMany(r => r.Response.Episodes.Select(e => e.Id))
+                .ToHashSet();
+            fallbackSeasons = WholeSeriesSearch.UncoveredSeasons(targets.Episodes.Where(e => e.SeasonNumber > 0 && e.HasAired(now)), covered);
+            var seen = found.Select(r => (r.IndexerId, r.Guid)).ToHashSet();
+            foreach (var season in fallbackSeasons)
+            {
+                var seasonEpisodes = targets.Episodes.Where(e => e.SeasonNumber == season).ToList();
+                var (more, moreResults) = await WholeSeriesSearch.QueryAsync(indexers, SeriesSearchCriteriaBuilder.ForSeason(series, season, seasonEpisodes, targets.SceneNames), gateway, ct);
+                results.AddRange(moreResults.Where(r => r.Error is not null && results.All(e => e.Indexer.Id != r.Indexer.Id || e.Error is null)));
+                releases.AddRange(more.Where(r => seen.Add((r.IndexerId, r.Guid))).Select(release => Evaluate(release, targets, index, searchScope, versionId, minimumSeeders.GetValueOrDefault(release.IndexerId), calculator)));
+            }
+        }
+
+        logger.LogInformation("Interactive search for {Series} {Label}{Query}: {Releases} release(s) from {Indexers} indexer(s) in {Elapsed} ms{Fallback}",
+            series.Title, label, query is null ? string.Empty : $" by text '{query}'", releases.Count, indexers.Count, stopwatch.ElapsedMilliseconds,
+            fallbackSeasons.Count == 0 ? string.Empty : $", then season by season: {string.Join(", ", fallbackSeasons)}");
+
+        await indexerService.FillSeriesCategoriesAsync(results.Where(r => r.Error is null).Select(r => r.Indexer).DistinctBy(i => i.Id), ct);
 
         var ordered = releases
             .OrderByDescending(r => r.Response.MatchesSeries && r.Response.Episodes.Count > 0)
@@ -131,10 +137,11 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
             .ToList();
 
         var errors = results.Where(r => r.Error is not null)
+            .DistinctBy(r => r.Indexer.Id)
             .Select(r => new IndexerErrorResponse(r.Indexer.Id, r.Indexer.Name, r.Error!.Kind, r.Error.Message))
             .ToList();
 
-        return Result<SeriesSearchResponse>.Ok(new SeriesSearchResponse(series.Id, scope, seasonNumber, episodeId, label, time.GetUtcNow().UtcDateTime, indexers.Count, ordered, errors, query));
+        return Result<SeriesSearchResponse>.Ok(new SeriesSearchResponse(series.Id, scope, seasonNumber, episodeId, label, time.GetUtcNow().UtcDateTime, indexers.Count, ordered, errors, query, fallbackSeasons));
     }
 
     private static (SeriesReleaseResponse Response, int Order) Evaluate(
