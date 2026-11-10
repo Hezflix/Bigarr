@@ -46,6 +46,8 @@ public class BigarrApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Bigarr:Scheduler:Enabled", "false");
         // TheXEM is never called from the tests; the XEM tests swap in recorded answers.
         builder.UseSetting("Bigarr:Xem:Enabled", "false");
+        // Nor plex.tv: the geolocation goes to a closed port unless a test sets a fake one.
+        builder.UseSetting("Bigarr:PlexTv:BaseUrl", "http://127.0.0.1:9");
         foreach (var (key, value) in _settings)
         {
             builder.UseSetting(key, value);

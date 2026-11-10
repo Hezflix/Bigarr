@@ -7,8 +7,17 @@ public static class MediaServersExtensions
     /// <summary>The long-lived event stream: no overall timeout, the reader detects a silent connection itself.</summary>
     public const string EventsHttpClientName = "bigarr-mediaservers-events";
 
-    public static IServiceCollection AddBigarrMediaServers(this IServiceCollection services)
+    public static IServiceCollection AddBigarrMediaServers(this IServiceCollection services, IConfiguration configuration)
     {
+        var plexTv = configuration.GetSection(PlexTvOptions.Section).Get<PlexTvOptions>() ?? new PlexTvOptions();
+        services.AddHttpClient<PlexTvClient>(http =>
+            {
+                http.BaseAddress = new Uri(plexTv.BaseUrl.EndsWith('/') ? plexTv.BaseUrl : plexTv.BaseUrl + "/");
+                // A lookup holds up the recording of a stream: better no location than a stalled monitor.
+                http.Timeout = TimeSpan.FromSeconds(5);
+                http.DefaultRequestHeaders.UserAgent.ParseAdd($"Bigarr/{Features.Server.SystemEndpoints.Version}");
+            })
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
         services.AddHttpClient(HttpClientName, http =>
             {
                 http.Timeout = TimeSpan.FromSeconds(30);

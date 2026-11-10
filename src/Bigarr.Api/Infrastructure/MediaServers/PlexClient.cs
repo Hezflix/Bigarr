@@ -118,6 +118,31 @@ public sealed class PlexClient(IHttpClientFactory httpClientFactory) : IMediaSer
     }
 
     /// <summary>
+    /// Stops a stream on its player, showing <paramref name="reason"/> to the viewer. The one call that changes something on
+    /// Plex during playback: made only when someone asks for it. Needs Plex Pass and the owner's token.
+    /// </summary>
+    public async Task TerminateAsync(MediaServer server, string sessionId, string? reason, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(server);
+        ArgumentException.ThrowIfNullOrEmpty(sessionId);
+
+        var query = "?sessionId=" + Uri.EscapeDataString(sessionId);
+        if (!string.IsNullOrWhiteSpace(reason))
+        {
+            query += "&reason=" + Uri.EscapeDataString(reason.Trim());
+        }
+
+        try
+        {
+            using var response = await SendAsync(server, HttpMethod.Get, "/status/sessions/terminate" + query, ct);
+        }
+        catch (MediaServerException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            throw new MediaServerException("Plex refused to stop the stream: it takes Plex Pass and the server owner's token.", ex) { StatusCode = ex.StatusCode };
+        }
+    }
+
+    /// <summary>
     /// The server's <c>playing</c> notifications as server-sent events, until the connection drops. Plex pings every
     /// ~10 s (passed on as <see cref="PlexPlayingEvent.Ping"/>); a silent minute is taken as a dead connection.
     /// </summary>
@@ -212,7 +237,7 @@ public sealed class PlexClient(IHttpClientFactory httpClientFactory) : IMediaSer
         if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
         {
             response.Dispose();
-            throw new MediaServerException("Plex refused the token (HTTP 401).");
+            throw new MediaServerException("Plex refused the token (HTTP 401).") { StatusCode = HttpStatusCode.Unauthorized };
         }
 
         if (!response.IsSuccessStatusCode)

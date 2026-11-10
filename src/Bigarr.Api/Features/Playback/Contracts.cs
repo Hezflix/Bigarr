@@ -34,7 +34,9 @@ public sealed record PlaybackSessionResponse(
     StreamDetails Details,
     PlexTranscode? Transcode = null,
     string? PosterUrl = null,
-    string? FanartUrl = null);
+    string? FanartUrl = null,
+    PlaybackLocation? Location = null,
+    bool CanStop = false);
 
 public sealed record NowPlayingResponse(List<PlaybackServerStatus> Servers, List<PlaybackSessionResponse> Sessions);
 
@@ -78,9 +80,16 @@ public sealed record PlayStreamResponse(
     string? FilePath,
     int? VersionId,
     string? VersionName,
-    StreamDetails Details);
+    StreamDetails Details,
+    PlaybackLocation? Location = null);
 
 public sealed record PlaysPageResponse(int Page, int PageSize, int TotalRecords, List<PlayResponse> Records);
+
+/// <summary>The optional message the viewer sees on their player when the stream is stopped.</summary>
+public sealed record StopStreamRequest(string? Message);
+
+/// <summary>An address a user played from, with its place, how many streams came from it and when.</summary>
+public sealed record PlaybackAddressResponse(string IpAddress, PlaybackLocation? Location, int Streams, DateTime FirstSeenAt, DateTime LastSeenAt, string? LastPlayer, string? LastPlatform);
 
 public sealed record PlaybackUserResponse(int Id, string Name, string? ThumbUrl, bool IsOwner, int Plays, DateTime LastSeenAt);
 

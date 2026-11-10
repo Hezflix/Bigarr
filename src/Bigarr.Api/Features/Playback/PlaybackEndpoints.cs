@@ -13,6 +13,13 @@ public static class PlaybackEndpoints
         group.MapGet("/sessions", async Task<Ok<NowPlayingResponse>> (PlaybackService playback, CancellationToken ct) =>
             TypedResults.Ok(await playback.NowPlayingAsync(ct)));
 
+        // Stops a stream on its player: the one playback call that changes something on Plex, made only from this button.
+        group.MapPost("/sessions/{id:int}/stop", async Task<Results<NoContent, ProblemHttpResult>> (int id, StopStreamRequest? request, PlaybackService playback, CancellationToken ct) =>
+        {
+            var result = await playback.StopAsync(id, request?.Message, ct);
+            return result.IsSuccess ? TypedResults.NoContent() : result.Failure!.ToProblem();
+        });
+
         // sort is matched by name, case-insensitive (startedAt, user, title, version, played); newest first by default.
         group.MapGet("/plays", async Task<Results<Ok<PlaysPageResponse>, ProblemHttpResult>> (int? page, int? pageSize, int? userId, int? movieId, int? versionId, MediaItemKind? kind, bool? unmatched, string? sort, string? direction, PlaybackService playback, CancellationToken ct) =>
         {
@@ -31,6 +38,9 @@ public static class PlaybackEndpoints
 
         group.MapGet("/users", async Task<Ok<List<PlaybackUserResponse>>> (PlaybackService playback, CancellationToken ct) =>
             TypedResults.Ok(await playback.UsersAsync(ct)));
+
+        group.MapGet("/users/{id:int}/addresses", async Task<Results<Ok<List<PlaybackAddressResponse>>, NotFound>> (int id, PlaybackService playback, CancellationToken ct) =>
+            await playback.AddressesAsync(id, ct) is { } addresses ? TypedResults.Ok(addresses) : TypedResults.NotFound());
 
         group.MapGet("/movies/{movieId:int}", async Task<Ok<List<VersionPlaysResponse>>> (int movieId, PlaybackService playback, CancellationToken ct) =>
             TypedResults.Ok(await playback.MoviePlaysAsync(movieId, ct)));
@@ -51,6 +61,7 @@ public static class PlaybackEndpoints
     {
         services.AddSingleton<PlexLibraries>();
         services.AddSingleton<LiveTranscodes>();
+        services.AddSingleton<GeoLocator>();
         services.AddScoped<VersionResolver>();
         services.AddScoped<PlaybackTracker>();
         services.AddScoped<PlaybackService>();

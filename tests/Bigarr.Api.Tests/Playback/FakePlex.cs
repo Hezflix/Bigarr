@@ -65,6 +65,9 @@ public sealed class FakePlex : IAsyncDisposable
     /// <summary>Shows' TVDB ids, by rating key.</summary>
     public Dictionary<string, int> ShowTvdbIds { get; } = [];
 
+    /// <summary>Refuse to stop streams (HTTP 401), like a server without Plex Pass.</summary>
+    public bool NoPlexPass { get; set; }
+
     /// <summary>Refuse the event stream (HTTP 500) while the rest answers: Bigarr must fall back to polling.</summary>
     public bool EventsDown { get; set; }
 
@@ -158,6 +161,18 @@ public sealed class FakePlex : IAsyncDisposable
 
         lock (_lock)
         {
+            if (request.Path == "/status/sessions/terminate")
+            {
+                if (NoPlexPass)
+                {
+                    return new FakeHttpServer.Answer(401);
+                }
+
+                // The player stops: the stream leaves the list.
+                var sessionId = System.Web.HttpUtility.ParseQueryString(request.Query)["sessionId"];
+                return Streams.RemoveAll(s => s.SessionId == sessionId) > 0 ? new FakeHttpServer.Answer(200, "{}") : new FakeHttpServer.Answer(404);
+            }
+
             if (request.Path == "/status/sessions")
             {
                 return Json(new { MediaContainer = new { size = Streams.Count, Metadata = Streams.Select(SessionJson).ToList() } });

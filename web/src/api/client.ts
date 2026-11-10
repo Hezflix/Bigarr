@@ -1951,6 +1951,9 @@ export type PlexTranscode = {
   complete: boolean | null
 }
 
+/** Where a stream came from, looked up when shown: the local network, or a place for a public address. */
+export type PlaybackLocation = { local: boolean; city: string | null; region: string | null; country: string | null; countryCode: string | null }
+
 export type PlaybackSession = {
   id: number
   serverId: number
@@ -1968,6 +1971,9 @@ export type PlaybackSession = {
   /** The film's images when Bigarr manages it. */
   posterUrl: string | null
   fanartUrl: string | null
+  location: PlaybackLocation | null
+  /** Plex gave the stream's session id, so it can be stopped from Bigarr. */
+  canStop: boolean
 }
 
 export type PlaybackServerStatus = { id: number; name: string; connected: boolean; error: string | null; since: string | null }
@@ -2031,6 +2037,18 @@ export type PlayStream = {
   versionId: number | null
   versionName: string | null
   details: StreamDetails
+  location: PlaybackLocation | null
+}
+
+/** An address a user played from, newest first. */
+export type PlaybackAddress = {
+  ipAddress: string
+  location: PlaybackLocation | null
+  streams: number
+  firstSeenAt: string
+  lastSeenAt: string
+  lastPlayer: string | null
+  lastPlatform: string | null
 }
 
 export const playback = {
@@ -2041,6 +2059,9 @@ export const playback = {
     return api<PlaysPage>(`/api/v1/playback/plays?${params}`)
   },
   streams: (playId: number) => api<PlayStream[]>(`/api/v1/playback/plays/${playId}/streams`),
+  /** Stops the stream on its player (writes to Plex): only ever from the confirmation dialog. */
+  stop: (sessionId: number, message: string | null) => post<void>(`/api/v1/playback/sessions/${sessionId}/stop`, { message }),
+  addresses: (userId: number) => api<PlaybackAddress[]>(`/api/v1/playback/users/${userId}/addresses`),
   users: () => api<PlaybackUser[]>('/api/v1/playback/users'),
   moviePlays: (movieId: number) => api<VersionPlays[]>(`/api/v1/playback/movies/${movieId}`),
   settings: () => api<PlaybackSettings>('/api/v1/playback/settings'),
