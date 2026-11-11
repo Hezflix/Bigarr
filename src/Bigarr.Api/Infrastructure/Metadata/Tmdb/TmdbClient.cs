@@ -128,6 +128,30 @@ public sealed class TmdbClient(HttpClient http, IOptions<MetadataOptions> option
         return await response.Content.ReadFromJsonAsync<TmdbTvExternalIds>(Json, cancellationToken);
     }
 
+    public async Task<TmdbEpisodeGroupsResponse?> GetEpisodeGroupsAsync(int tmdbId, CancellationToken cancellationToken)
+    {
+        using var response = await http.GetAsync($"tv/{tmdbId}/episode_groups?language={Uri.EscapeDataString(options.Value.Language)}", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<TmdbEpisodeGroupsResponse>(Json, cancellationToken);
+    }
+
+    public async Task<TmdbEpisodeGroup?> GetEpisodeGroupAsync(string groupId, CancellationToken cancellationToken)
+    {
+        using var response = await http.GetAsync($"tv/episode_group/{Uri.EscapeDataString(groupId)}?language={Uri.EscapeDataString(options.Value.Language)}", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<TmdbEpisodeGroup>(Json, cancellationToken);
+    }
+
     public async Task<TmdbTvSearchResponse?> SearchTvAsync(string query, CancellationToken cancellationToken)
     {
         var url = $"search/tv?query={Uri.EscapeDataString(query)}&include_adult=false&language={Uri.EscapeDataString(options.Value.Language)}";

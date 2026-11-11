@@ -29,7 +29,6 @@ public sealed class Episode
     /// <summary>Anime numbering (TVDB's absolute number). Null for specials and shows without one.</summary>
     public int? AbsoluteEpisodeNumber { get; set; }
 
-    /// <summary>Local air date as published (Sonarr's <c>airDate</c>); what daily releases are named after.</summary>
     /// <summary>Scene numbering from TheXEM (null when XEM has no mapping): how releases number this episode.</summary>
     public int? SceneSeasonNumber { get; set; }
 
@@ -40,6 +39,7 @@ public sealed class Episode
     /// <summary>Set by the XEM extrapolation (Sonarr's rule): the scene number is a guess past the mapped range.</summary>
     public bool UnverifiedSceneNumbering { get; set; }
 
+    /// <summary>Local air date as published (Sonarr's <c>airDate</c>); what daily releases are named after.</summary>
     public DateOnly? AirDate { get; set; }
 
     /// <summary>Air date and time in UTC, from the series' air time and country (Sonarr's <c>airDateUtc</c>).</summary>
@@ -55,7 +55,28 @@ public sealed class Episode
     /// <summary>Still image (TMDB, else TVDB).</summary>
     public string? ImageUrl { get; set; }
 
+    /// <summary>
+    /// Season in the series' alternative order (<see cref="Series.Ordering"/> other than TVDB); null in the TVDB order or
+    /// when this episode has no counterpart in the alternative one. Never an identity: display and naming only.
+    /// </summary>
+    public int? OrderSeasonNumber { get; set; }
+
+    public int? OrderEpisodeNumber { get; set; }
+
+    /// <summary>Running number in the alternative order (regular seasons only); the absolute number of an absolute group.</summary>
+    public int? OrderAbsoluteNumber { get; set; }
+
     public ICollection<EpisodeTarget> Targets { get; set; } = [];
+
+    /// <summary>The episode has numbers in the alternative order.</summary>
+    public bool InOrder => OrderSeasonNumber is not null && OrderEpisodeNumber is not null;
+
+    /// <summary>Season shown and named for <paramref name="ordering"/>: the order's when it has one, else TVDB's.</summary>
+    public int DisplaySeasonNumber(EpisodeOrder ordering) => ordering != EpisodeOrder.Tvdb && InOrder ? OrderSeasonNumber!.Value : SeasonNumber;
+
+    public int DisplayEpisodeNumber(EpisodeOrder ordering) => ordering != EpisodeOrder.Tvdb && InOrder ? OrderEpisodeNumber!.Value : EpisodeNumber;
+
+    public int? DisplayAbsoluteNumber(EpisodeOrder ordering) => ordering != EpisodeOrder.Tvdb && InOrder ? OrderAbsoluteNumber ?? AbsoluteEpisodeNumber : AbsoluteEpisodeNumber;
 
     public bool IsSpecial => SeasonNumber == 0;
 

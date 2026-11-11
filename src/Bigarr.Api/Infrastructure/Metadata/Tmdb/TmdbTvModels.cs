@@ -141,3 +141,72 @@ public sealed class TmdbTvFindResponse
     [JsonPropertyName("tv_results")]
     public List<TmdbTvSearchResult> TvResults { get; set; } = [];
 }
+
+public sealed class TmdbEpisodeGroupsResponse
+{
+    public List<TmdbEpisodeGroupSummary> Results { get; set; } = [];
+}
+
+public sealed class TmdbEpisodeGroupSummary
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string? Name { get; set; }
+
+    /// <summary>1 original air date, 2 absolute, 3 DVD, 4 digital, 5 story arc, 6 production, 7 TV.</summary>
+    public int Type { get; set; }
+
+    public int GroupCount { get; set; }
+
+    public int EpisodeCount { get; set; }
+}
+
+public sealed class TmdbEpisodeGroup
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string? Name { get; set; }
+
+    public int Type { get; set; }
+
+    public List<TmdbEpisodeGroupPart> Groups { get; set; } = [];
+}
+
+/// <summary>One "season" of an episode group: its position and its episodes, each with its 0-based place.</summary>
+public sealed class TmdbEpisodeGroupPart
+{
+    public string? Name { get; set; }
+
+    public int Order { get; set; }
+
+    public List<TmdbEpisodeGroupEpisode> Episodes { get; set; } = [];
+}
+
+public sealed class TmdbEpisodeGroupEpisode
+{
+    public int Id { get; set; }
+
+    public string? Name { get; set; }
+
+    /// <summary>TMDB default-order numbers.</summary>
+    public int SeasonNumber { get; set; }
+
+    public int EpisodeNumber { get; set; }
+
+    /// <summary>0-based place in its group part.</summary>
+    public int Order { get; set; }
+
+    public string? AirDate { get; set; }
+
+    public int? Runtime { get; set; }
+}
+
+/// <summary>What the fixtures keep of TMDB's answers for one show (recorded with the real API, trimmed).</summary>
+public sealed class TmdbOrderFixture
+{
+    public List<TmdbTvSeason> Seasons { get; set; } = [];
+
+    public List<TmdbEpisodeGroupSummary> EpisodeGroups { get; set; } = [];
+
+    public Dictionary<string, TmdbEpisodeGroup> GroupDetails { get; set; } = [];
+}

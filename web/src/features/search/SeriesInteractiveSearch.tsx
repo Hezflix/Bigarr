@@ -21,7 +21,7 @@ const temporaryStyle = 'border-amber-600/30 bg-amber-500/15 text-amber-700 dark:
 const permanentStyle = 'border-red-600/30 bg-red-500/10 text-red-700 dark:border-red-400/30 dark:text-red-300'
 
 /** What is searched: an episode, a season, or the whole series. */
-export type SeriesSearchScope = { kind: 'episode'; episodeId: number; label: string } | { kind: 'season'; season: number; label: string } | { kind: 'series'; label: string }
+export type SeriesSearchScope = { kind: 'episode'; episodeId: number; label: string } | { kind: 'season'; season: number; label: string; orderSeason?: boolean } | { kind: 'series'; label: string }
 
 /** "fit" is the server's ranking (best first); the others toggle, like the film search. */
 type SortKey = 'fit' | 'age' | 'title' | 'episodes' | 'indexer' | 'size' | 'peers'
@@ -58,11 +58,11 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
   const [submitted, setSubmitted] = useState('')
   const [text, setText] = useState('')
   const [sort, setSort] = useState<Sort>({ key: 'fit', direction: 'asc' })
-  const scopeKey = scope.kind === 'episode' ? `e${scope.episodeId}` : scope.kind === 'season' ? `s${scope.season}` : 'all'
+  const scopeKey = scope.kind === 'episode' ? `e${scope.episodeId}` : scope.kind === 'season' ? `s${scope.season}${scope.orderSeason ? 'o' : ''}` : 'all'
   const query = useQuery({
     queryKey: ['seriesSearch', series.id, scopeKey, submitted],
     queryFn: () =>
-      search.series(series.id, scope.kind === 'episode' ? { episodeId: scope.episodeId } : scope.kind === 'season' ? { season: scope.season } : {}, { query: submitted || undefined }),
+      search.series(series.id, scope.kind === 'episode' ? { episodeId: scope.episodeId } : scope.kind === 'season' ? { season: scope.season, orderSeason: scope.orderSeason } : {}, { query: submitted || undefined }),
     staleTime: Number.POSITIVE_INFINITY,
     retry: false,
   })
@@ -87,6 +87,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
         indexer: release.indexer,
         publishDate: release.publishDate,
         episodeIds: release.episodes.map((e) => e.id),
+        numbering: release.numbering,
       }),
     onSuccess: async (result, { release, versionId }) => {
       const version = versionById.get(versionId)?.name ?? ''
@@ -179,6 +180,11 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
         )}
 
         {data && data.query && <p className="text-sm">{t('seriesSearch.textResults', { query: data.query })}</p>}
+        {data?.orderFallback && (
+          <p className="text-sm text-muted-foreground" data-testid="series-search-order-fallback">
+            {t('seriesSearch.orderFallback')}
+          </p>
+        )}
 
         {data &&
           (releases.length === 0 ? (
@@ -323,6 +329,16 @@ function ReleaseRow({
           <span className="flex flex-col items-start gap-1">
             {release.fullSeason && <Badge variant="outline">{t('seriesSearch.pack')}</Badge>}
             <span className="text-xs tabular-nums">{release.episodesLabel}</span>
+            {release.numbering && release.numbering !== 'tvdb' && (
+              <Badge variant="outline" title={t(`seriesSearch.numberingHint.${release.numbering}`)} data-testid="release-numbering">
+                {t(`seriesSearch.numbering.${release.numbering}`)}
+              </Badge>
+            )}
+            {release.held && (
+              <Badge variant="outline" className="border-amber-600/30 bg-amber-500/15 text-amber-700 dark:border-amber-400/30 dark:text-amber-300" data-testid="release-held">
+                {t('seriesSearch.held')}
+              </Badge>
+            )}
           </span>
         ) : (
           <span className="text-xs">—</span>

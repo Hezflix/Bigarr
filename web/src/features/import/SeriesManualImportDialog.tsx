@@ -327,18 +327,24 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
   )
 }
 
-/** Season, then the episodes of that season the file holds (several for a multi-episode file). */
-export function EpisodePicker({ seriesId, value, proposed, onChange }: { seriesId: number; value: number[]; proposed?: SeriesManualImportFile; onChange: (ids: number[]) => void }) {
+/**
+ * Season, then the episodes of that season the file holds (several for a multi-episode file). With `ordered`, seasons
+ * and numbers are those the series page shows (its order, blueprint §8), TVDB's beside them.
+ */
+export function EpisodePicker({ seriesId, value, proposed, onChange, ordered = false }: { seriesId: number; value: number[]; proposed?: SeriesManualImportFile; onChange: (ids: number[]) => void; ordered?: boolean }) {
   const { t } = useTranslation()
   const episodes = useQuery({ queryKey: ['episodes', seriesId], queryFn: () => seriesApi.episodes(seriesId) })
   const all = episodes.data ?? []
+  const seasonOf = (e: Episode) => (ordered ? e.displaySeasonNumber : e.seasonNumber)
+  const numberOf = (e: Episode) => (ordered ? e.displayEpisodeNumber : e.episodeNumber)
+  const shown = (e: Episode) => (ordered ? `S${String(e.displaySeasonNumber).padStart(2, '0')}E${String(e.displayEpisodeNumber).padStart(2, '0')}` : code(e))
   const chosen = all.filter((e) => value.includes(e.id))
-  const [season, setSeason] = useState<number | null>(chosen[0]?.seasonNumber ?? proposed?.seasonNumber ?? null)
-  const seasons = [...new Set(all.map((e) => e.seasonNumber))].sort((a, b) => a - b)
-  const inSeason = all.filter((e) => e.seasonNumber === season).sort((a, b) => a.episodeNumber - b.episodeNumber)
-  const label = chosen.length === 0 ? t('seriesImport.pickEpisodes') : chosen.map(code).join(', ')
+  const [season, setSeason] = useState<number | null>((chosen[0] ? seasonOf(chosen[0]) : null) ?? proposed?.seasonNumber ?? null)
+  const seasons = [...new Set(all.map(seasonOf))].sort((a, b) => a - b)
+  const inSeason = all.filter((e) => seasonOf(e) === season).sort((a, b) => numberOf(a) - numberOf(b))
+  const label = chosen.length === 0 ? t('seriesImport.pickEpisodes') : chosen.map(shown).join(', ')
 
-  const toggle = (e: Episode, on: boolean) => onChange(on ? [...value.filter((id) => all.find((x) => x.id === id)?.seasonNumber === e.seasonNumber), e.id] : value.filter((id) => id !== e.id))
+  const toggle = (e: Episode, on: boolean) => onChange(on ? [...value.filter((id) => { const x = all.find((y) => y.id === id); return x !== undefined && seasonOf(x) === seasonOf(e) }), e.id] : value.filter((id) => id !== e.id))
 
   return (
     <Popover>
@@ -365,8 +371,9 @@ export function EpisodePicker({ seriesId, value, proposed, onChange }: { seriesI
           {inSeason.map((e) => (
             <label key={e.id} className="flex items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-muted">
               <Checkbox checked={value.includes(e.id)} onCheckedChange={(v) => toggle(e, v === true)} />
-              <span className="tabular-nums text-muted-foreground">{code(e)}</span>
+              <span className="tabular-nums text-muted-foreground">{shown(e)}</span>
               <span className="truncate">{e.title}</span>
+              {ordered && shown(e) !== code(e) && <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground" title={t('seriesOrder.tvdbNumbers')}>{code(e)}</span>}
             </label>
           ))}
         </div>

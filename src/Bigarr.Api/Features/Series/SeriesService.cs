@@ -579,6 +579,9 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         var sync = SyncCatalogue(series, found, series.Episodes.ToList());
         await xem.RefreshSeriesAsync(series, series.Episodes.ToList(), ct);
 
+        // Both numberings stay current: the alternative order is re-read and re-linked (files are not renamed here).
+        await SeriesOrderService.RelinkAsync(metadata, logger, series, series.Episodes.Where(e => !sync.Removed.Contains(e)).ToList(), ct);
+
         foreach (var version in series.Versions)
         {
             foreach (var season in sync.NewSeasons)

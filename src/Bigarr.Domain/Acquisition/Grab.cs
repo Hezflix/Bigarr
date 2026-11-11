@@ -35,6 +35,9 @@ public sealed class Grab
 
     public DateTime GrabbedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>Series grabs: which numbering the release matched its episodes on (blueprint §8). Null for films.</summary>
+    public Tv.EpisodeNumbering? Numbering { get; set; }
+
     /// <summary>Last poll where the client still listed this download. Drives the <see cref="GrabState.Removed"/> transition.</summary>
     public DateTime? LastSeenAt { get; set; }
 

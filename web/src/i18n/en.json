@@ -490,7 +490,7 @@
     "promoteTo": "New default version",
     "lastVersion": "This is the only version: deleting it deletes the series.",
     "type": "Type",
-    "order": "Order: TVDB",
+    "order": "Order: {{order}}",
     "columns": {
       "number": "#",
       "absolute": "Abs.",
@@ -2262,7 +2262,21 @@
     "episodes": "Episodes",
     "pack": "Season pack",
     "grabFor": "Grab {{episodes}} for {{version}}",
-    "grabUnmapped": "This release maps to no episode of the series: nothing to grab"
+    "grabUnmapped": "This release maps to no episode of the series: nothing to grab",
+    "orderFallback": "TVDB numbering found no acceptable release: the series' order was asked too. A release found on the order's numbers that nothing confirms is held for your choice.",
+    "numbering": {
+      "tvdb": "TVDB",
+      "xem": "XEM",
+      "order": "Order",
+      "absolute": "Absolute"
+    },
+    "numberingHint": {
+      "tvdb": "Matched on TVDB numbering.",
+      "xem": "Matched on XEM scene numbering (mapped to TVDB's).",
+      "order": "Matched on the series' order, after TVDB found nothing acceptable.",
+      "absolute": "Matched on the absolute number (anime), the same in every order."
+    },
+    "held": "Held: confirm by hand"
   },
   "sonarrFollow": {
     "title": "Followed Sonarrs",
@@ -2367,5 +2381,79 @@
     "customFormatsReused": "Custom formats reused",
     "customFormatsRenamed": "Imported as “(Sonarr)”",
     "noFormats": "Sonarr has no custom format."
+  },
+  "seriesOrder": {
+    "open": "Order",
+    "title": "Episode order of {{series}}",
+    "description": "Which numbering the page shows and the files are named after. Episodes keep their identity: history, monitoring, search and the Sonarr follow are unaffected; only numbers, seasons and file names change.",
+    "pick": "Order",
+    "tvdb": "TVDB (default)",
+    "tmdbDefault": "TMDB (default order)",
+    "groups": "TMDB episode groups",
+    "group": "TMDB: {{name}} ({{type}})",
+    "groupSize": "{{groups}} groups, {{episodes}} episodes",
+    "groupTypes": {
+      "originalAirDate": "original air date",
+      "absolute": "absolute",
+      "dvd": "DVD",
+      "digital": "digital",
+      "storyArc": "story arc",
+      "production": "production",
+      "tv": "TV"
+    },
+    "isCurrent": "This is the order in use.",
+    "warningTitle_one": "{{count}} file will be renamed on disk",
+    "warningTitle_other": "{{count}} files will be renamed on disk",
+    "noRenameTitle": "No file moves",
+    "warning": "Confirming renames and moves the real files inside the series folder, following the templates of Settings → Media management. Nothing is deleted; hardlinked seeds keep their data.",
+    "warningLarge": "{{count}} of {{total}} files will be renamed and moved on disk. Media servers and other tools pointing at the old paths will need a rescan.",
+    "undoHint": "You can undo it afterwards (until the next order change): every moved file goes back to its current path.",
+    "understood_one": "I understand {{count}} file will be renamed on disk.",
+    "understood_other": "I understand {{count}} files will be renamed on disk.",
+    "stats": {
+      "episodesMoving": "Episodes renumbered",
+      "notInOrder": "Episodes not in this order",
+      "filesMoving": "Files renamed",
+      "filesLeft": "Files left in place"
+    },
+    "columns": {
+      "status": "Change",
+      "file": "File"
+    },
+    "status": {
+      "move": "Renamed",
+      "unchanged": "Unchanged",
+      "unmatched": "Not in order",
+      "conflict": "Conflict"
+    },
+    "showEpisodes_one": "Show the episode that changes number",
+    "showEpisodes_other": "Show the {{count}} episodes that change number",
+    "hideEpisodes": "Hide the episodes",
+    "notInOrderShort": "not in this order (TVDB {{tvdb}})",
+    "orderOnly_one": "{{count}} episode of this order has no TVDB counterpart: listed, not tracked.",
+    "orderOnly_other": "{{count}} episodes of this order have no TVDB counterpart: listed, not tracked.",
+    "apply": "Switch order",
+    "applyRename_one": "Switch and rename {{count}} file",
+    "applyRename_other": "Switch and rename {{count}} files",
+    "applied_one": "Now in {{order}}: {{count}} file renamed.",
+    "applied_other": "Now in {{order}}: {{count}} files renamed.",
+    "leftInPlace_one": "{{count}} file left where it was (flagged on the page).",
+    "leftInPlace_other": "{{count}} files left where they were (flagged on the page).",
+    "undo": "Undo",
+    "undone_one": "Back to {{order}}: {{count}} file restored.",
+    "undone_other": "Back to {{order}}: {{count}} files restored.",
+    "undoLeft_one": "{{count}} file had moved since and stays where it is.",
+    "undoLeft_other": "{{count}} files had moved since and stay where they are.",
+    "lastChange_one": "Last change: {{from}} → {{to}}, {{count}} file renamed.",
+    "lastChange_other": "Last change: {{from}} → {{to}}, {{count}} files renamed.",
+    "tvdbColumn": "TVDB",
+    "tvdbNumbers": "TVDB numbers: what releases, Sonarr and the history use.",
+    "notInOrderTitle": "Not in this order",
+    "notInOrderHint": "TVDB episodes this order has no counterpart for; their files keep their names.",
+    "flagged": "Not in order",
+    "flaggedHint": "This episode has no counterpart in the series' order: its file stays where it is. Fix it by choosing the episodes it holds.",
+    "fix": "Fix: choose the episodes this file holds",
+    "fixTitle": "Choose the episodes of this file",
+    "fixHint": "The series' order has no counterpart for this file's episode. Pick the episodes it really holds (in the order on screen); it can be renamed after them."
   }
 }

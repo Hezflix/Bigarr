@@ -791,10 +791,11 @@ export const search = {
     return api<SearchResult>(`/api/v1/search?${params}`)
   },
   /** Interactive search for a series: an episode, a season (packs and singles together) or the whole series. */
-  series: (seriesId: number, scope: { episodeId?: number; season?: number }, options: { versionId?: number; query?: string } = {}) => {
+  series: (seriesId: number, scope: { episodeId?: number; season?: number; orderSeason?: boolean }, options: { versionId?: number; query?: string } = {}) => {
     const params = new URLSearchParams()
     if (scope.episodeId) params.set('episodeId', String(scope.episodeId))
     if (scope.season !== undefined) params.set('season', String(scope.season))
+    if (scope.orderSeason) params.set('orderSeason', 'true')
     if (options.versionId) params.set('versionId', String(options.versionId))
     if (options.query?.trim()) params.set('query', options.query.trim())
     return api<SeriesSearchResult>(`/api/v1/series/${seriesId}/search?${params}`)
@@ -818,7 +819,14 @@ export type SeriesRelease = Omit<Release, 'edition' | 'parsedTitle' | 'parsedYea
   episodesLabel: string | null
   fullSeason: boolean
   versions: SeriesVersionDecision[]
+  /** Which numbering found its episodes; null when it maps to none. */
+  numbering: EpisodeNumbering | null
+  /** Found on the series' order only, nothing in the name confirms it: never grabbed automatically. */
+  held: boolean
 }
+
+/** Which numbering a release matched its episodes on (blueprint §8). */
+export type EpisodeNumbering = 'tvdb' | 'xem' | 'order' | 'absolute'
 
 export type SeriesSearchResult = {
   seriesId: number
@@ -831,6 +839,8 @@ export type SeriesSearchResult = {
   releases: SeriesRelease[]
   indexerErrors: { indexerId: number; indexer: string; kind: IndexerFailureKind; message: string }[]
   query: string | null
+  /** TVDB numbering found no acceptable release: the series' order was asked too. */
+  orderFallback: boolean
 }
 
 // ---- wanted ----------------------------------------------------------------
@@ -1022,6 +1032,8 @@ export type GrabRequest = {
   publishDate?: string | null
   /** A series grab: the shared ids of the episodes covered; `versionId` is then the series version. */
   episodeIds?: number[] | null
+  /** A series grab: the numbering the release matched on, recorded with the grab. */
+  numbering?: EpisodeNumbering | null
 }
 
 /** A grab sent to a client; in shadow mode only `shadowPickId` and `grabbedAt` are set (`shadow` is true). */
@@ -1365,6 +1377,9 @@ export const seriesFiles = {
     post<SeriesRenameResult[]>(`/api/v1/series/${seriesId}/rename`, { seriesId, ...body }),
   file: (seriesId: number, fileId: number) => api<EpisodeFileDetail>(`/api/v1/series/${seriesId}/episodefiles/${fileId}`),
   deleteFile: (seriesId: number, fileId: number) => del(`/api/v1/series/${seriesId}/episodefiles/${fileId}`),
+  /** The manual fix of a file the series' order could not place: the episodes it holds, optionally renamed. */
+  reassign: (seriesId: number, fileId: number, body: { episodeIds: number[]; rename?: boolean }) =>
+    post<OrderFileResult>(`/api/v1/series/${seriesId}/episodefiles/${fileId}/reassign`, body),
   /** Attach a file the scan could not place to episodes, where it lies. */
   assign: (seriesId: number, unmatchedId: number, body: { episodeIds: number[]; rename?: boolean; replace?: boolean; qualityId?: number | null }) =>
     post<EpisodeFileDetail>(`/api/v1/series/${seriesId}/unmatched/${unmatchedId}/assign`, body),
@@ -2704,7 +2719,13 @@ export type Series = {
   originalCountry: string | null
   originalLanguage: string | null
   seriesType: SeriesType
-  ordering: 'tvdb'
+  ordering: EpisodeOrder
+  /** The TMDB episode group when `ordering` is one. */
+  episodeGroupId: string | null
+  episodeGroupName: string | null
+  episodeGroupType: EpisodeGroupType | null
+  /** Episodes of the order with no TVDB counterpart: listed, not tracked. */
+  orderOnlyEpisodes: OrderOnlyEpisode[] | null
   genres: string[]
   alternativeTitles: { title: string; language: string | null }[]
   posterUrl: string | null
@@ -2738,7 +2759,67 @@ export type Episode = {
   isSpecial: boolean
   hasAired: boolean
   versions: EpisodeVersionState[]
+  /** Numbers in the series' alternative order; null in the TVDB order or when the order lacks the episode. */
+  orderSeasonNumber: number | null
+  orderEpisodeNumber: number | null
+  orderAbsoluteNumber: number | null
+  /** What the page shows and the files are named after. */
+  displaySeasonNumber: number
+  displayEpisodeNumber: number
+  displayAbsoluteNumber: number | null
+  /** The series shows another order and this episode has no counterpart there. */
+  notInOrder: boolean
 }
+
+// ---- series order (S6) -----------------------------------------------------
+
+export type EpisodeOrder = 'tvdb' | 'tmdbDefault' | 'tmdbEpisodeGroup'
+
+export type EpisodeGroupType = 'originalAirDate' | 'absolute' | 'dvd' | 'digital' | 'storyArc' | 'production' | 'tv'
+
+export type OrderOnlyEpisode = { seasonNumber: number; episodeNumber: number; absoluteNumber: number | null; title: string | null; airDate: string | null; tmdbId: number | null }
+
+export type OrderChoice = { ordering: EpisodeOrder; episodeGroupId: string | null; episodeGroupName: string | null; episodeGroupType: EpisodeGroupType | null }
+
+export type EpisodeGroup = { id: string; name: string; type: EpisodeGroupType; groupCount: number; episodeCount: number }
+
+export type OrderChange = {
+  id: number
+  from: OrderChoice
+  to: OrderChoice
+  appliedAt: string
+  undoneAt: string | null
+  /** The latest change, not undone: undo is offered until the next change. */
+  canUndo: boolean
+  filesMoved: number
+  unmatchedFiles: number
+}
+
+export type SeriesOrders = { seriesId: number; current: OrderChoice; groups: EpisodeGroup[]; lastChange: OrderChange | null; unavailable: string | null }
+
+export type OrderFileStatus = 'move' | 'unchanged' | 'unmatched' | 'conflict'
+
+export type OrderPreview = {
+  seriesId: number
+  from: OrderChoice
+  to: OrderChoice
+  episodes: number
+  episodesMoving: number
+  episodesNotInOrder: number
+  files: number
+  filesMoving: number
+  filesUnchanged: number
+  filesUnmatched: number
+  filesConflicting: number
+  largeChange: boolean
+  episodeChanges: { episodeId: number; title: string; tvdb: string; from: string; to: string | null }[]
+  fileChanges: { episodeFileId: number; versionId: number; versionName: string; episodes: string[]; from: string; to: string; status: OrderFileStatus; detail: string | null }[]
+  orderOnly: OrderOnlyEpisode[]
+}
+
+export type OrderFileResult = { episodeFileId: number; from: string; to: string; moved: boolean; error: string | null }
+
+export type OrderChoiceRequest = { ordering: EpisodeOrder; episodeGroupId?: string | null }
 
 export type AddSeriesRequest = {
   tvdbId: number | null
@@ -2844,4 +2925,8 @@ export const series = {
     put<void>(`/api/v1/series/${id}/versions/${versionId}/seasons/${seasonNumber}`, { monitored }),
   setEpisodes: (id: number, versionId: number, episodeIds: number[], monitored: boolean) =>
     put<void>(`/api/v1/series/${id}/versions/${versionId}/episodes`, { episodeIds, monitored }),
+  orders: (id: number) => api<SeriesOrders>(`/api/v1/series/${id}/orders`),
+  previewOrder: (id: number, body: OrderChoiceRequest) => post<OrderPreview>(`/api/v1/series/${id}/orders/preview`, body),
+  applyOrder: (id: number, body: OrderChoiceRequest) => post<{ change: OrderChange; files: OrderFileResult[] }>(`/api/v1/series/${id}/orders/apply`, body),
+  undoOrder: (id: number) => post<{ change: OrderChange; filesRestored: number; files: OrderFileResult[] }>(`/api/v1/series/${id}/orders/undo`),
 }

@@ -152,7 +152,8 @@ public sealed class SeriesAutomaticSearchService(
         var releasesSeen = 0;
         string? stop = null;
 
-        async Task RoundAsync(List<SeriesSearchCriteria> criteria, EpisodeSearchScope scope)
+        var held = 0;
+        async Task RoundAsync(List<SeriesSearchCriteria> criteria, EpisodeSearchScope scope, bool orderFallback = false)
         {
             var (releases, results) = await WholeSeriesSearch.QueryAsync(indexers, criteria, gateway, ct);
             await indexerService.FillSeriesCategoriesAsync(results.Where(r => r.Error is null).Select(r => r.Indexer), ct);
@@ -172,7 +173,13 @@ public sealed class SeriesAutomaticSearchService(
                     continue;
                 }
 
-                var judgement = SeriesReleaseJudge.Judge(release, parsed, targets, match.SceneSeasonNumber, calculator, evaluator, minimumSeeders.GetValueOrDefault(release.IndexerId), scope, versionId);
+                var judgement = SeriesReleaseJudge.Judge(release, parsed, targets, match.SceneSeasonNumber, calculator, evaluator, minimumSeeders.GetValueOrDefault(release.IndexerId), scope, versionId, orderFallback: orderFallback);
+                if (judgement.HeldReason is not null)
+                {
+                    held++;
+                    logger.LogInformation("Series search ({Trigger}) for {Series} [{Version}]: {Title} held for a manual choice (matched on the series' order only)", trigger, series.Title, version.Name, release.Title);
+                }
+
                 if (judgement.IsMapped && judgement.Decisions.FirstOrDefault() is { Approved: true } decision && judgement.Episodes.Any(e => wantedIds.Contains(e.Id)))
                 {
                     approved.Add((release, judgement, decision));
@@ -196,7 +203,7 @@ public sealed class SeriesAutomaticSearchService(
                     continue;
                 }
 
-                var grab = await grabs.GrabAsync(GrabRequest.ForEpisodes(release, versionId, episodeIds), trigger, ct);
+                var grab = await grabs.GrabAsync(GrabRequest.ForEpisodes(release, versionId, episodeIds, judgement.Numbering), trigger, ct);
                 if (!grab.IsSuccess)
                 {
                     var failure = grab.Failure!;
@@ -235,6 +242,18 @@ public sealed class SeriesAutomaticSearchService(
             }
         }
 
+        // 3. Blueprint §8: still uncovered and the series shows another order: its seasons asked by the order's numbers,
+        // the releases mapped on TVDB first, then on the order (a hit there confirmed by the release, else held).
+        var uncovered = wanted.Where(e => !taken.Contains(e.Id)).ToList();
+        if (stop is null && uncovered.Count > 0 && series.Ordering != EpisodeOrder.Tvdb)
+        {
+            var orderCriteria = SeriesSearchCriteriaBuilder.ForOrderSeasons(series, uncovered, targets.SceneNames);
+            if (orderCriteria.Count > 0)
+            {
+                await RoundAsync(orderCriteria, new EpisodeSearchScope(EpisodeSearchKind.Season, uncovered.Select(e => e.Id).ToHashSet(), null, "order"), orderFallback: true);
+            }
+        }
+
         var covered = wanted.Count(e => taken.Contains(e.Id));
         var searchedTargets = wanted.Select(e => targets.Slot(versionId, e.Id)!.Target.Id).ToList();
         await db.AcquisitionTargets.Where(t => searchedTargets.Contains(t.Id)).ExecuteUpdateAsync(s => s.SetProperty(t => t.LastSearchAt, now), ct);
@@ -242,6 +261,6 @@ public sealed class SeriesAutomaticSearchService(
         logger.LogInformation(
             "Series search ({Trigger}) for {Series} [{Version}]: {Releases} release(s), {Covered}/{Wanted} wanted episode(s) covered, {Picked} pick(s), {Grabbed} grab(s){Fallback}",
             trigger, series.Title, version.Name, releasesSeen, covered, wanted.Count, picked, grabbed, fallback.Count == 0 ? string.Empty : $", seasons searched one by one: {string.Join(", ", fallback)}");
-        return Done(covered, picked, grabbed, releasesSeen, fallback, stop);
+        return Done(covered, picked, grabbed, releasesSeen, fallback, stop ?? (held > 0 ? $"{held} release(s) matched on the series' order only, held for a manual choice (interactive search)." : null));
     }
 }

@@ -89,6 +89,7 @@ public sealed class SeriesShadowPickRecorder(BigarrDbContext db, CustomFormatSco
             CustomFormats = formats,
             CustomFormatScore = score,
             FullSeason = parsed?.FullSeason ?? false,
+            Numbering = request.Numbering ?? EpisodeNumbering.Tvdb,
             Episodes = targets
                 .OrderBy(t => t.Episode.SeasonNumber).ThenBy(t => t.Episode.EpisodeNumber)
                 .Select(t => new SeriesShadowPickEpisode

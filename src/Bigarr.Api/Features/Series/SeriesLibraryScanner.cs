@@ -484,6 +484,13 @@ public sealed class SeriesLibraryScanner(
                 // XEM scene-season name ("Show S2 - 05") is scene-numbered by its very name, so XEM applies to it.
                 int? sceneSeason = parsed?.SeriesTitle is { Length: > 0 } title && sceneSeasonByTitle.TryGetValue(SeriesTitleIndex.Clean(title), out var s) ? s : null;
                 mapping = EpisodeMapper.Map(parsed, mappable, episodes, sceneSource: sceneSeason is not null, sceneSeason);
+
+                // A series shown in another order has its library named after that order (blueprint §8): a file of
+                // its folder is read on the order's numbers first, TVDB's when the order has no such episode.
+                if (sceneSeason is null && mappable.Ordering != EpisodeOrder.Tvdb && EpisodeMapper.MapOrder(parsed, mappable, episodes) is { IsMapped: true } byOrder)
+                {
+                    mapping = byOrder;
+                }
             }
 
             if (!mapping.IsMapped)

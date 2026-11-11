@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { cn } from 'cn'
-import { BookmarkIcon, ChevronRightIcon, FilePenLineIcon, FilterIcon, FolderInputIcon, FolderSearchIcon, ListChecksIcon, PlusIcon, RefreshCwIcon, SearchIcon, StarIcon, Trash2Icon } from 'lucide-react'
+import { BookmarkIcon, ChevronRightIcon, FilePenLineIcon, FilterIcon, FolderInputIcon, FolderSearchIcon, ListChecksIcon, ListOrderedIcon, PlusIcon, RefreshCwIcon, SearchIcon, StarIcon, Trash2Icon, WrenchIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { SeriesCompareSection } from '@/features/activity/SeriesCompare'
 import { toast } from 'sonner'
@@ -49,6 +49,7 @@ import { SeriesSearchDialog, type SeriesSearchScope } from '@/features/search/Se
 import { Checkbox } from '@/components/ui/checkbox'
 import { SeriesManualImportDialog } from '@/features/import/SeriesManualImportDialog'
 import { AssignUnmatchedDialog, DeleteFilesOption, EpisodeFileActions, RenameSeriesDialog } from './SeriesFiles'
+import { OrderUndoBanner, ReassignFileDialog, SeriesOrderDialog, orderLabel } from './SeriesOrderDialog'
 
 const errorMessage = (error: unknown, fallback: string) => (error instanceof ApiError ? error.message : fallback)
 
@@ -67,12 +68,15 @@ export function SeriesDetailPage() {
   const [renameOpen, setRenameOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [deleteFiles, setDeleteFiles] = useState(false)
+  const [orderOpen, setOrderOpen] = useState(false)
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['seriesDetail', id] })
     void queryClient.invalidateQueries({ queryKey: ['seriesEpisodes', id] })
     void queryClient.invalidateQueries({ queryKey: ['seriesFiles', id] })
     void queryClient.invalidateQueries({ queryKey: ['series'] })
+    void queryClient.invalidateQueries({ queryKey: ['seriesOrders', id] })
+    void queryClient.invalidateQueries({ queryKey: ['episodes', id] })
   }
 
   // The rescan runs in the background; poll while it is queued or running, refresh what it changed once it ends.
@@ -180,7 +184,7 @@ export function SeriesDetailPage() {
             )}
             {s.firstAired && <span>{t('seriesDetail.firstAired', { date: formatDate(s.firstAired) })}</span>}
             {s.airTime && <span>{t('seriesDetail.airs', { time: s.airTime })}</span>}
-            <span>{t('seriesDetail.order')}</span>
+            <span data-testid="series-order-current">{t('seriesDetail.order', { order: orderLabel(t, s) })}</span>
           </div>
 
           <div className="mt-1 flex flex-wrap gap-2">
@@ -200,6 +204,10 @@ export function SeriesDetailPage() {
               <FilePenLineIcon />
               {t('seriesFiles.rename')}
             </Button>
+            <Button type="button" variant="outline" onClick={() => setOrderOpen(true)} data-testid="series-order-open">
+              <ListOrderedIcon />
+              {t('seriesOrder.open')}
+            </Button>
             <Button type="button" variant="outline" onClick={() => setImportOpen(true)} data-testid="series-manual-import-open">
               <FolderInputIcon />
               {t('seriesFiles.manualImport')}
@@ -209,6 +217,7 @@ export function SeriesDetailPage() {
               {t('seriesDetail.delete')}
             </Button>
           </div>
+          <OrderUndoBanner series={s} onDone={invalidate} />
         </div>
       </div>
 
@@ -251,6 +260,7 @@ export function SeriesDetailPage() {
 
       {version && files.data && <UnmatchedFiles seriesId={s.id} files={files.data.unmatched.filter((f) => f.versionId === version.id)} onChanged={invalidate} />}
 
+      {orderOpen && <SeriesOrderDialog series={s} onClose={() => setOrderOpen(false)} onDone={invalidate} />}
       {renameOpen && version && <RenameSeriesDialog series={s} versionId={version.id} onClose={() => setRenameOpen(false)} onDone={invalidate} />}
       {importOpen && <SeriesManualImportDialog seriesId={s.id} path={version?.path} onClose={() => { setImportOpen(false); invalidate() }} />}
 
@@ -678,6 +688,37 @@ function seasonOrder(a: Season, b: Season) {
   return b.seasonNumber - a.seasonNumber
 }
 
+/** A season of the order on screen, built from its episodes (the TVDB seasons carry the stored flags). */
+function orderSeason(s: Series, number: number, episodes: Episode[]): Season {
+  const stats = (versionId: number) => {
+    const states = episodes.map((e) => ({ e, v: e.versions.find((x) => x.versionId === versionId) }))
+    const monitored = states.filter((x) => x.v?.monitored).length
+    const files = states.filter((x) => x.v?.hasFile).length
+    return {
+      monitored: episodes.length > 0 && monitored === episodes.length,
+      statistics: {
+        episodeCount: states.filter((x) => x.v?.hasFile || (x.v?.monitored && x.e.hasAired)).length,
+        episodeFileCount: files,
+        monitoredEpisodeCount: monitored,
+        totalEpisodeCount: episodes.length,
+        sizeOnDisk: 0,
+      },
+    }
+  }
+  return {
+    seasonNumber: number,
+    title: null,
+    overview: null,
+    posterUrl: null,
+    episodeCount: episodes.length,
+    airedEpisodeCount: episodes.filter((e) => e.hasAired).length,
+    versions: s.versions.map((v) => ({ versionId: v.id, ...stats(v.id) })),
+  }
+}
+
+/** The block of the episodes the series' order has no counterpart for. */
+const NOT_IN_ORDER = -1
+
 function SeasonList({
   series: s,
   version,
@@ -701,34 +742,52 @@ function SeasonList({
     for (const file of files ?? []) for (const episodeId of file.episodeIds) map.set(episodeId, file)
     return map
   }, [files])
-  const seasons = useMemo(() => [...s.seasons].sort(seasonOrder), [s.seasons])
+  // Another order regroups the episodes by its own seasons (blueprint §8); TVDB's seasons otherwise.
+  const alt = s.ordering !== 'tvdb'
+  const blocks = useMemo(() => {
+    if (!alt || !episodes) {
+      const bySeason = new Map<number, Episode[]>()
+      for (const episode of episodes ?? []) bySeason.set(episode.seasonNumber, [...(bySeason.get(episode.seasonNumber) ?? []), episode])
+      return [...s.seasons].sort(seasonOrder).map((season) => ({ season, episodes: bySeason.get(season.seasonNumber) ?? [], synthetic: false }))
+    }
+
+    const byOrder = new Map<number, Episode[]>()
+    const outside: Episode[] = []
+    for (const episode of episodes) {
+      if (episode.notInOrder) outside.push(episode)
+      else byOrder.set(episode.displaySeasonNumber, [...(byOrder.get(episode.displaySeasonNumber) ?? []), episode])
+    }
+
+    const list = [...byOrder.entries()]
+      .map(([number, list]) => ({ season: orderSeason(s, number, list), episodes: list.sort((a, b) => a.displayEpisodeNumber - b.displayEpisodeNumber), synthetic: true }))
+      .sort((a, b) => seasonOrder(a.season, b.season))
+    if (outside.length > 0) list.push({ season: orderSeason(s, NOT_IN_ORDER, outside), episodes: outside, synthetic: true })
+    return list
+  }, [alt, episodes, s])
   // Open on the latest season that has episodes (TVDB lists announced seasons before their episodes).
-  const latest = (seasons.find((season) => season.seasonNumber > 0 && season.episodeCount > 0) ?? seasons.find((season) => season.seasonNumber > 0))?.seasonNumber
-  const [open, setOpen] = useState<Set<number>>(() => new Set(latest === undefined ? [] : [latest]))
-  const bySeason = useMemo(() => {
-    const map = new Map<number, Episode[]>()
-    for (const episode of episodes ?? []) map.set(episode.seasonNumber, [...(map.get(episode.seasonNumber) ?? []), episode])
-    return map
-  }, [episodes])
+  const latest = (blocks.find((b) => b.season.seasonNumber > 0 && b.season.episodeCount > 0) ?? blocks.find((b) => b.season.seasonNumber > 0))?.season.seasonNumber
+  const [open, setOpen] = useState<Set<number> | null>(null)
+  const opened = open ?? new Set(latest === undefined ? [] : [latest])
   // TVDB numbers every show absolutely; like Sonarr, only anime shows the column.
   const showAbsolute = s.seriesType === 'anime'
 
   return (
     <div className="flex flex-col gap-3" data-testid="series-seasons">
-      {seasons.map((season) => (
+      {blocks.map(({ season, episodes: list, synthetic }) => (
         <SeasonBlock
           key={season.seasonNumber}
           series={s}
           season={season}
           version={version}
-          episodes={bySeason.get(season.seasonNumber) ?? []}
+          episodes={list}
           files={fileByEpisode}
           loading={loading}
           showAbsolute={showAbsolute}
-          open={open.has(season.seasonNumber)}
+          synthetic={synthetic}
+          open={opened.has(season.seasonNumber)}
           onToggleOpen={() =>
-            setOpen((current) => {
-              const next = new Set(current)
+            setOpen(() => {
+              const next = new Set(opened)
               if (next.has(season.seasonNumber)) next.delete(season.seasonNumber)
               else next.add(season.seasonNumber)
               return next
@@ -750,19 +809,25 @@ type SeasonBlockProps = {
   files: Map<number, EpisodeFile>
   loading: boolean
   showAbsolute: boolean
+  /** A season of the series' order (or the episodes it lacks): flags and search go through its episodes. */
+  synthetic: boolean
   open: boolean
   onToggleOpen: () => void
   onChanged: () => void
   onSearch: (scope: SeriesSearchScope) => void
 }
 
-function SeasonBlock({ series: s, season, version, episodes, files, loading, showAbsolute, open, onToggleOpen, onChanged, onSearch }: SeasonBlockProps) {
+function SeasonBlock({ series: s, season, version, episodes, files, loading, showAbsolute, synthetic, open, onToggleOpen, onChanged, onSearch }: SeasonBlockProps) {
   const { t } = useTranslation()
   const state = season.versions.find((v) => v.versionId === version.id)
   const monitored = state?.monitored ?? false
-  const name = season.seasonNumber === 0 ? t('seriesDetail.specials') : t('seriesDetail.season', { number: season.seasonNumber })
+  const outside = season.seasonNumber === NOT_IN_ORDER
+  const name = outside ? t('seriesOrder.notInOrderTitle') : season.seasonNumber === 0 ? t('seriesDetail.specials') : t('seriesDetail.season', { number: season.seasonNumber })
   const toggle = useMutation({
-    mutationFn: () => seriesApi.setSeason(s.id, version.id, season.seasonNumber, !monitored),
+    mutationFn: () =>
+      synthetic
+        ? seriesApi.setEpisodes(s.id, version.id, episodes.map((e) => e.id), !monitored)
+        : seriesApi.setSeason(s.id, version.id, season.seasonNumber, !monitored),
     onSuccess: onChanged,
     onError: (error) => toast.error(errorMessage(error, t('common.unexpectedError'))),
   })
@@ -772,7 +837,7 @@ function SeasonBlock({ series: s, season, version, episodes, files, loading, sho
       <div className="flex items-center gap-3 px-4 py-3">
         <MonitorToggle
           monitored={monitored}
-          label={t('seriesDetail.toggleSeason', { number: season.seasonNumber, version: version.name })}
+          label={t('seriesDetail.toggleSeason', { number: outside ? name : season.seasonNumber, version: version.name })}
           onToggle={() => toggle.mutate()}
           disabled={toggle.isPending}
         />
@@ -783,12 +848,14 @@ function SeasonBlock({ series: s, season, version, episodes, files, loading, sho
         </button>
         {state && <span className="text-xs text-muted-foreground tabular-nums">{t('seriesDetail.monitoredEpisodes', { count: state.statistics.monitoredEpisodeCount })}</span>}
         {state && <EpisodeProgress statistics={state.statistics} monitored={monitored} className="hidden w-36 sm:flex" />}
+        {outside && <span className="hidden text-xs text-muted-foreground md:inline">{t('seriesOrder.notInOrderHint')}</span>}
         <Button
           type="button"
           size="icon"
           variant="ghost"
-          className="size-7"
-          onClick={() => onSearch({ kind: 'season', season: season.seasonNumber, label: name })}
+          className={cn('size-7', outside && 'invisible')}
+          disabled={outside}
+          onClick={() => onSearch({ kind: 'season', season: season.seasonNumber, label: name, orderSeason: synthetic })}
           aria-label={t('seriesSearch.searchSeason', { season: name })}
           title={t('seriesSearch.searchSeason', { season: name })}
           data-testid="season-search"
@@ -833,6 +900,11 @@ function EpisodeTable({
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const [fixing, setFixing] = useState<EpisodeFile | null>(null)
+  // Another order shows its numbers; TVDB's stay visible beside them (releases, Sonarr and history use them).
+  const alt = s.ordering !== 'tvdb'
+  const tvdbCode = (e: Episode) => `S${String(e.seasonNumber).padStart(2, '0')}E${String(e.episodeNumber).padStart(2, '0')}`
+  const shownCode = (e: Episode) => `S${String(e.displaySeasonNumber).padStart(2, '0')}E${String(e.displayEpisodeNumber).padStart(2, '0')}`
   const toggle = useMutation({
     mutationFn: ({ episode, monitored }: { episode: Episode; monitored: boolean }) => seriesApi.setEpisodes(s.id, version.id, [episode.id], monitored),
     // The flag flips at once; the counts follow with the refetch.
@@ -852,6 +924,7 @@ function EpisodeTable({
           <TableHead className="w-10 pl-4" aria-label={t('seriesDetail.columns.monitored')} />
           <TableHead className="w-12 text-right">{t('seriesDetail.columns.number')}</TableHead>
           {showAbsolute && <TableHead className="w-14 text-right">{t('seriesDetail.columns.absolute')}</TableHead>}
+          {alt && <TableHead className="w-20" title={t('seriesOrder.tvdbNumbers')}>{t('seriesOrder.tvdbColumn')}</TableHead>}
           <TableHead>{t('seriesDetail.columns.title')}</TableHead>
           <TableHead className="w-32">{t('seriesDetail.columns.airDate')}</TableHead>
           <TableHead className="w-56">{t('seriesDetail.columns.file')}</TableHead>
@@ -872,8 +945,13 @@ function EpisodeTable({
                   size="sm"
                 />
               </TableCell>
-              <TableCell className="text-right tabular-nums">{episode.episodeNumber}</TableCell>
-              {showAbsolute && <TableCell className="text-right text-muted-foreground tabular-nums">{episode.absoluteEpisodeNumber ?? ''}</TableCell>}
+              <TableCell className="text-right tabular-nums">{alt && episode.notInOrder ? '—' : episode.displayEpisodeNumber}</TableCell>
+              {showAbsolute && <TableCell className="text-right text-muted-foreground tabular-nums">{episode.displayAbsoluteNumber ?? ''}</TableCell>}
+              {alt && (
+                <TableCell className="text-xs text-muted-foreground tabular-nums" title={t('seriesOrder.tvdbNumbers')} data-testid="episode-tvdb">
+                  {tvdbCode(episode)}
+                </TableCell>
+              )}
               <TableCell className="max-w-0">
                 <span className="block truncate" title={episode.overview ?? episode.title}>
                   {episode.title}
@@ -886,13 +964,27 @@ function EpisodeTable({
                 <EpisodeFileCell file={files.get(episode.id)} episode={episode} />
               </TableCell>
               <TableCell className="py-1 pr-4 whitespace-nowrap text-right">
+                {episode.notInOrder && files.get(episode.id) && (
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="size-7 text-amber-700 dark:text-amber-300"
+                    onClick={() => setFixing(files.get(episode.id)!)}
+                    aria-label={t('seriesOrder.fix')}
+                    title={t('seriesOrder.fix')}
+                    data-testid="episode-file-fix"
+                  >
+                    <WrenchIcon />
+                  </Button>
+                )}
                 {files.get(episode.id) && <EpisodeFileActions seriesId={s.id} file={files.get(episode.id)!} onChanged={onChanged} />}
                 <Button
                   type="button"
                   size="icon"
                   variant="ghost"
                   className="size-7"
-                  onClick={() => onSearch({ kind: 'episode', episodeId: episode.id, label: `S${String(episode.seasonNumber).padStart(2, '0')}E${String(episode.episodeNumber).padStart(2, '0')}` })}
+                  onClick={() => onSearch({ kind: 'episode', episodeId: episode.id, label: alt && !episode.notInOrder ? `${shownCode(episode)} (TVDB ${tvdbCode(episode)})` : tvdbCode(episode) })}
                   aria-label={t('seriesSearch.searchEpisode', { title: episode.title })}
                   title={t('seriesSearch.searchEpisode', { title: episode.title })}
                   data-testid="episode-search"
@@ -904,6 +996,7 @@ function EpisodeTable({
           )
         })}
       </TableBody>
+      {fixing && <ReassignFileDialog series={s} file={fixing} onClose={() => setFixing(null)} onDone={onChanged} />}
     </Table>
   )
 }
@@ -918,6 +1011,11 @@ function EpisodeFileCell({ file, episode }: { file: EpisodeFile | undefined; epi
   const shared = file.episodeIds.length > 1
   return (
     <span className="flex min-w-0 items-center gap-1.5" title={file.path} data-testid="episode-file">
+      {episode.notInOrder && (
+        <Badge variant="outline" className="shrink-0 border-amber-600/30 bg-amber-500/15 text-amber-700 dark:border-amber-400/30 dark:text-amber-300" title={t('seriesOrder.flaggedHint')} data-testid="episode-file-flagged">
+          {t('seriesOrder.flagged')}
+        </Badge>
+      )}
       <Badge variant="outline" className="border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300">
         {file.quality}
       </Badge>

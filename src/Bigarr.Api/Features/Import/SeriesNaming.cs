@@ -31,9 +31,10 @@ public static class SeriesNaming
 
         return new SeriesNamingContext(series.Title, series.Year, series.TvdbId, series.TmdbId, series.ImdbId, version.Name)
         {
+            // The series' order names the files (blueprint §8); an episode the order lacks keeps its TVDB numbers.
             Episodes = episodes
-                .OrderBy(e => e.SeasonNumber).ThenBy(e => e.EpisodeNumber)
-                .Select(e => new EpisodeNaming(e.SeasonNumber, e.EpisodeNumber, e.AbsoluteEpisodeNumber, e.AirDate, e.Title))
+                .OrderBy(e => e.DisplaySeasonNumber(series.Ordering)).ThenBy(e => e.DisplayEpisodeNumber(series.Ordering))
+                .Select(e => new EpisodeNaming(e.DisplaySeasonNumber(series.Ordering), e.DisplayEpisodeNumber(series.Ordering), e.DisplayAbsoluteNumber(series.Ordering), e.AirDate, e.Title))
                 .ToList(),
             QualityName = facts?.QualityName,
             RevisionVersion = facts?.RevisionVersion ?? 1,
@@ -70,7 +71,7 @@ public static class SeriesNaming
             return fileName;
         }
 
-        var season = episodes.Min(e => e.SeasonNumber);
+        var season = episodes.Min(e => e.DisplaySeasonNumber(series.Ordering));
         var folder = SeriesNamingTemplate.RenderSeasonFolder(config.SeasonFolderTemplate, config.SpecialsFolderName, season, context);
         return string.IsNullOrEmpty(folder) ? fileName : Path.Combine(folder, fileName);
     }

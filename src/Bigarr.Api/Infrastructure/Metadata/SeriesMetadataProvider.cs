@@ -131,6 +131,43 @@ public sealed class SeriesMetadataProvider(
         return merged;
     }
 
+    public async Task<IReadOnlyList<EpisodeGroupSummary>> GetEpisodeGroupsAsync(int tmdbId, CancellationToken cancellationToken)
+    {
+        if (tmdb is null)
+        {
+            return [];
+        }
+
+        var groups = await tmdb.GetEpisodeGroupsAsync(tmdbId, cancellationToken);
+        return (groups?.Results ?? []).Select(TmdbOrders.Summary).ToList();
+    }
+
+    public async Task<IReadOnlyList<OrderEpisode>?> GetOrderEpisodesAsync(int tmdbId, OrderChoice order, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+        if (tmdb is null)
+        {
+            return null;
+        }
+
+        switch (order.Ordering)
+        {
+            case EpisodeOrder.TmdbDefault:
+                var tv = await tmdb.GetTvAsync(tmdbId, cancellationToken);
+                if (tv is null)
+                {
+                    return null;
+                }
+
+                return TmdbOrders.FromDefaultOrder(await tmdb.GetTvSeasonsAsync(tv.Id, tv.Seasons.Select(s => s.SeasonNumber), cancellationToken));
+            case EpisodeOrder.TmdbEpisodeGroup when !string.IsNullOrWhiteSpace(order.EpisodeGroupId):
+                var group = await tmdb.GetEpisodeGroupAsync(order.EpisodeGroupId, cancellationToken);
+                return group is null ? null : TmdbOrders.FromEpisodeGroup(group);
+            default:
+                return null;
+        }
+    }
+
     // ---- TVDB + TMDB ------------------------------------------------------------------------------------------------
 
     private async Task<SeriesMetadata> CombineAsync(TvdbSeriesExtended series, TmdbTvDetails? tv, int? tmdbId, bool withEpisodes, CancellationToken ct)

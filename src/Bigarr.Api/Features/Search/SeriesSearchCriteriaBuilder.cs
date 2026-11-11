@@ -91,6 +91,41 @@ public static class SeriesSearchCriteriaBuilder
         return criteria;
     }
 
+    /// <summary>
+    /// The fallback on the series' alternative order (blueprint §8): the episode asked by its numbers in that order (no
+    /// XEM: scene numbers are TVDB's), its absolute number in the order for an anime. Empty when the order lacks it.
+    /// </summary>
+    public static List<SeriesSearchCriteria> ForOrderEpisode(Series series, Episode episode, IReadOnlyList<SceneAlias> sceneNames)
+    {
+        ArgumentNullException.ThrowIfNull(series);
+        ArgumentNullException.ThrowIfNull(episode);
+        if (series.Ordering == EpisodeOrder.Tvdb || !episode.InOrder || series.SeriesType == SeriesType.Daily)
+        {
+            return [];
+        }
+
+        var season = episode.OrderSeasonNumber!.Value;
+        var criteria = Base(series, sceneNames, null) with { SeasonNumber = season, EpisodeNumber = episode.OrderEpisodeNumber!.Value };
+        return series.SeriesType == SeriesType.Anime && episode.OrderAbsoluteNumber is { } absolute
+            ? [criteria with { AbsoluteEpisodeNumber = absolute }]
+            : [criteria];
+    }
+
+    /// <summary>The seasons of the alternative order the episodes fall in, one request each.</summary>
+    public static List<SeriesSearchCriteria> ForOrderSeasons(Series series, IReadOnlyCollection<Episode> episodes, IReadOnlyList<SceneAlias> sceneNames)
+    {
+        ArgumentNullException.ThrowIfNull(series);
+        ArgumentNullException.ThrowIfNull(episodes);
+        if (series.Ordering == EpisodeOrder.Tvdb || series.SeriesType == SeriesType.Daily)
+        {
+            return [];
+        }
+
+        return episodes.Where(e => e.InOrder && e.OrderSeasonNumber > 0).Select(e => e.OrderSeasonNumber!.Value).Distinct().Order()
+            .Select(s => Base(series, sceneNames, null) with { SeasonNumber = s })
+            .ToList();
+    }
+
     public static List<SeriesSearchCriteria> ForSeries(Series series, IReadOnlyList<SceneAlias> sceneNames) => [Base(series, sceneNames, null)];
 
     /// <summary>The user's own words: no ids, no numbers, every indexer gets a text query.</summary>
@@ -132,5 +167,5 @@ public static class SeriesSearchCriteriaBuilder
             : [];
 
     private static bool UsesScene(Series series, Episode episode) =>
-        series.UseSceneNumbering && series.Ordering == EpisodeOrder.Tvdb && episode.SceneSeasonNumber is not null;
+        series.UseSceneNumbering && episode.SceneSeasonNumber is not null;
 }

@@ -48,8 +48,18 @@ public sealed class Series
 
     public SeriesType SeriesType { get; set; } = SeriesType.Standard;
 
-    /// <summary>Numbering in use (blueprint §8). TVDB only for now; the per-show switch comes later.</summary>
+    /// <summary>Numbering shown and used for naming (blueprint §8). Changed only through the order switch (preview, apply, undo).</summary>
     public EpisodeOrder Ordering { get; set; } = EpisodeOrder.Tvdb;
+
+    /// <summary>TMDB episode group id when <see cref="Ordering"/> is <see cref="EpisodeOrder.TmdbEpisodeGroup"/>.</summary>
+    public string? EpisodeGroupId { get; set; }
+
+    public string? EpisodeGroupName { get; set; }
+
+    public EpisodeGroupType? EpisodeGroupType { get; set; }
+
+    /// <summary>Episodes of the alternative order TVDB has no counterpart for (listed, not tracked).</summary>
+    public List<OrderOnlyEpisode> OrderOnlyEpisodes { get; set; } = [];
 
     public List<string> Genres { get; set; } = [];
 

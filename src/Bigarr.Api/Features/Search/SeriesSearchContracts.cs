@@ -44,7 +44,11 @@ public sealed record SeriesReleaseResponse(
     /// <summary>A season pack (or multi-season pack).</summary>
     bool FullSeason,
     List<SeriesVersionDecisionResponse> Versions,
-    int? SuggestedVersionId);
+    int? SuggestedVersionId,
+    /// <summary>Which numbering found the episodes: <c>tvdb</c>, <c>xem</c>, <c>order</c> (the series' order) or <c>absolute</c>.</summary>
+    Bigarr.Domain.Tv.EpisodeNumbering? Numbering = null,
+    /// <summary>A fallback hit on the series' order nothing confirms: held for a manual choice, never grabbed automatically.</summary>
+    bool Held = false);
 
 public sealed record SeriesSearchResponse(
     int SeriesId,
@@ -60,4 +64,6 @@ public sealed record SeriesSearchResponse(
     List<IndexerErrorResponse> IndexerErrors,
     string? Query = null,
     /// <summary>A whole-series search: the seasons the request by ids left uncovered, then searched one by one.</summary>
-    List<int>? FallbackSeasons = null);
+    List<int>? FallbackSeasons = null,
+    /// <summary>TVDB numbering found no acceptable release: the series' order was asked too (blueprint §8).</summary>
+    bool OrderFallback = false);
