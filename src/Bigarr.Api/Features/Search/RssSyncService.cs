@@ -92,7 +92,10 @@ public sealed class RssSyncService(
         // Every release of the feed is judged; "new" only says what this pass brought for the first time.
         var feed = new List<(Indexer Indexer, ReleaseInfo Release)>();
         var seriesFeed = new List<(Indexer Indexer, ReleaseInfo Release)>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
+        // A release is judged once per feed it comes from: a release a film feed and a series feed both list is judged
+        // as a film and as an episode, and the sighting keeps what each judgement found.
+        var seenFilms = new HashSet<string>(StringComparer.Ordinal);
+        var seenSeries = new HashSet<string>(StringComparer.Ordinal);
         var fresh = 0;
         foreach (var result in results)
         {
@@ -100,7 +103,7 @@ public sealed class RssSyncService(
             var newCount = 0;
             foreach (var (release, isSeries) in result.Releases.Select(r => (r, false)).Concat((seriesResult?.Releases ?? []).Select(r => (r, true))))
             {
-                if (!seen.Add($"{result.Indexer.Id}:{release.Guid}"))
+                if (!(isSeries ? seenSeries : seenFilms).Add($"{result.Indexer.Id}:{release.Guid}"))
                 {
                     continue; // a feed that lists a release twice
                 }
@@ -108,7 +111,7 @@ public sealed class RssSyncService(
                 (isSeries ? seriesFeed : feed).Add((result.Indexer, release));
                 if (state.MarkSeen(result.Indexer.Id, release.Guid, now))
                 {
-                    newCount++;
+                    newCount++; // counted once, whatever number of feeds list it
                 }
             }
 
@@ -122,6 +125,7 @@ public sealed class RssSyncService(
         var wouldGrab = 0;
         var grabbed = 0;
         var picked = 0;
+        var matchedAsFilm = new HashSet<string>(StringComparer.Ordinal);
         if (feed.Count > 0)
         {
             var movies = await contexts.MoviesWithVersions().ToListAsync(ct);
@@ -137,6 +141,7 @@ public sealed class RssSyncService(
                 if (entry.Movie is not null)
                 {
                     matched++;
+                    matchedAsFilm.Add(Key(entry));
                 }
 
                 if (entry.AttributedVersionId is not null)
@@ -199,7 +204,7 @@ public sealed class RssSyncService(
 
         if (seriesFeed.Count > 0)
         {
-            var pass = await seriesRss.RunAsync(seriesFeed, now, ct);
+            var pass = await seriesRss.RunAsync(seriesFeed, now, matchedAsFilm, ct);
             matched += pass.Matched;
             wouldGrab += pass.Attributed;
             grabbed += pass.Grabbed;

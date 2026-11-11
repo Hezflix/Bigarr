@@ -35,7 +35,8 @@ public sealed class SeriesRssPass(
 {
     private readonly ReleaseEvaluator _evaluator = ReleaseEvaluator.Automatic();
 
-    public async Task<SeriesRssOutcome> RunAsync(IReadOnlyList<(Indexer Indexer, ReleaseInfo Release)> feed, DateTime now, CancellationToken ct)
+    /// <param name="matchedAsFilm">Keys (<c>indexerId:guid</c>) of the releases the film half of the pass matched to a film: a release both feeds list keeps that verdict on the list when no series claims it.</param>
+    public async Task<SeriesRssOutcome> RunAsync(IReadOnlyList<(Indexer Indexer, ReleaseInfo Release)> feed, DateTime now, IReadOnlySet<string> matchedAsFilm, CancellationToken ct)
     {
         await indexerService.FillSeriesCategoriesAsync(feed.Select(f => f.Indexer).DistinctBy(i => i.Id), ct);
         var index = await BuildIndexAsync(ct);
@@ -161,6 +162,11 @@ public sealed class SeriesRssPass(
 
         foreach (var (entry, _, _, _) in judged)
         {
+            if (entry.Series is null && matchedAsFilm.Contains(Key(entry)))
+            {
+                continue;
+            }
+
             var stored = entry;
             if (entry.AttributedVersionId is not null)
             {
