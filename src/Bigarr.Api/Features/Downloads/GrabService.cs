@@ -184,6 +184,8 @@ public sealed class GrabService(
         var version = await db.SeriesVersions
             .Include(v => v.Series)
             .Include(v => v.QualityProfile).ThenInclude(p => p.FormatScores)
+            .Include(v => v.RootFolder)
+            .Include(v => v.Tags)
             .FirstOrDefaultAsync(v => v.Id == request.VersionId, ct);
         if (version is null)
         {
@@ -289,16 +291,34 @@ public sealed class GrabService(
         }
 
         db.Grabs.Add(grab);
+
+        // Two saves in one transaction: the event carries the grab id, which only exists after the first insert.
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         try
         {
             await db.SaveChangesAsync(ct);
         }
         catch (DbUpdateException ex)
         {
+            await transaction.RollbackAsync(ct);
             logger.LogWarning(ex, "Grab of {Title} for series version {Version} refused by the database; removing it from {Client}", request.Title, version.Id, chosen.Name);
             await TryRemoveAsync(chosen, downloadId!, ct);
             return Failure.Conflict("Already downloading", $"An episode of this release already has an active download for {version.Series.Title} [{version.Name}].");
         }
+
+        outbox.Publish(new EpisodeGrabbed(
+            Bigarr.Domain.Events.SeriesRef.From(version.Series),
+            SeriesVersionRef.From(version),
+            EpisodeRef.From(ordered.Select(t => t.Episode)),
+            EventSnapshots.EpisodeRelease(request.Title, grab.IndexerName, request.Size, request.Flags, version.Series, version.QualityProfile, await scorer.CalculatorAsync(ct), request.Seeders, downloadId),
+            grab.Id,
+            chosen.Name,
+            downloadId!,
+            trigger,
+            chosen.Implementation.ToString())
+        { OccurredAt = now });
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         queue.RequestRefresh();
         logger.LogInformation("Grabbed {Title} for {Series} [{Version}] ({Episodes}) → {Client} ({DownloadId}, {Trigger})", request.Title, version.Series.Title, version.Name, string.Join(", ", labels), chosen.Name, downloadId, trigger);

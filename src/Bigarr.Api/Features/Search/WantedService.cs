@@ -251,8 +251,11 @@ public sealed class WantedService(BigarrDbContext db, CustomFormatScorer scorer,
     }
 }
 
-/// <summary>Searches what is wanted and due, a bounded batch per pass (blueprint §5, M6).</summary>
-public sealed class CutoffUnmetSearchJob(WantedService wanted, AutomaticSearchService search, IOptions<SearchOptions> options) : IScheduledJob
+/// <summary>
+/// Searches what is wanted and due, a bounded batch per pass (blueprint §5, M6): film versions, then series versions'
+/// missing and cutoff-unmet episodes (S7), each with its own batch, both behind the same switch.
+/// </summary>
+public sealed class CutoffUnmetSearchJob(WantedService wanted, AutomaticSearchService search, SeriesWantedService seriesWanted, SeriesAutomaticSearchService seriesSearch, IOptions<SearchOptions> options) : IScheduledJob
 {
     public const string JobName = "cutoffUnmetSearch";
 
@@ -268,6 +271,13 @@ public sealed class CutoffUnmetSearchJob(WantedService wanted, AutomaticSearchSe
 
     public async Task<string?> RunAsync(CancellationToken ct)
     {
+        var films = await FilmsAsync(ct);
+        var series = await SeriesAsync(ct);
+        return series is null ? films : $"{films}; series: {series}";
+    }
+
+    private async Task<string> FilmsAsync(CancellationToken ct)
+    {
         var due = await wanted.DueAsync(options.Value.CutoffUnmetBatchSize, ct);
         if (due.Count == 0)
         {
@@ -281,5 +291,28 @@ public sealed class CutoffUnmetSearchJob(WantedService wanted, AutomaticSearchSe
         return noIndexer == results.Count
             ? $"{results.Count} version(s) due, no indexer with automatic search"
             : $"{results.Count} version(s) searched, {grabbed} grabbed" + (picked > 0 ? $", {picked} picked in shadow mode" : string.Empty);
+    }
+
+    /// <summary>Null when no series episode is wanted, so a films-only library keeps its one-part summary.</summary>
+    private async Task<string?> SeriesAsync(CancellationToken ct)
+    {
+        var due = await seriesWanted.DueAsync(options.Value.SeriesBatchSize, ct);
+        if (due.Count == 0)
+        {
+            return null;
+        }
+
+        int episodes = 0, covered = 0, grabbed = 0, picked = 0;
+        foreach (var group in due)
+        {
+            ct.ThrowIfCancellationRequested();
+            var result = await seriesSearch.SearchEpisodesAsync(group.VersionId, group.EpisodeIds, SearchTrigger.CutoffUnmet, ct);
+            episodes += result.Wanted;
+            covered += result.Covered;
+            grabbed += result.Grabbed;
+            picked += result.Picked;
+        }
+
+        return $"{due.Count} version(s), {episodes} episode(s) searched, {covered} covered, {grabbed} grabbed" + (picked > 0 ? $", {picked} picked in shadow mode" : string.Empty);
     }
 }

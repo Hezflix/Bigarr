@@ -4,12 +4,14 @@ using Bigarr.Api.Infrastructure.Decision;
 using Bigarr.Api.Infrastructure.Files;
 using Bigarr.Api.Infrastructure.Matching;
 using Bigarr.Api.Infrastructure.Media;
+using Bigarr.Api.Infrastructure.Events;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Infrastructure.Tv;
 using Bigarr.Decision;
 using Bigarr.Decision.Specifications;
 using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Downloads;
+using Bigarr.Domain.Events;
 using Bigarr.Domain.History;
 using Bigarr.Domain.Indexers;
 using Bigarr.Domain.Library;
@@ -87,6 +89,7 @@ public sealed class SeriesImportService(
     IMediaInfoReader probe,
     CustomFormatScorer scorer,
     SeriesTargetsFactory targetsFactory,
+    OutboxWriter outbox,
     TimeProvider time,
     ILogger<SeriesImportService> logger)
 {
@@ -498,6 +501,32 @@ public sealed class SeriesImportService(
 
             db.History.Add(line);
         }
+
+        // Sonarr's Download event, one per file: the files it replaced ride along (an upgrade), with their bin path.
+        var previousFiles = existing.Where(f => !IsSource(f))
+            .Select(f => EventSnapshots.EpisodeFile(f, existingPaths[f.Id], recycleBinPath: recycled.GetValueOrDefault(f.Id)) with { Quality = definitions.GetValueOrDefault(f.QualityId)?.Name })
+            .ToList();
+        var clientType = await EventSnapshots.DownloadClientTypeAsync(db, plan.Grab?.DownloadClientId, ct);
+        outbox.Publish(new EpisodeFileImported(
+            SeriesRef.From(series),
+            SeriesVersionRef.From(version),
+            EpisodeRef.From(episodes),
+            EventSnapshots.EpisodeFile(file, destination, sourcePath: source.FullName) with
+            {
+                Quality = definitions.GetValueOrDefault(file.QualityId)?.Name ?? facts.QualityName,
+                CustomFormats = matched.Select(m => m.Name).ToList(),
+                CustomFormatIds = matched.Select(m => m.Id).ToList(),
+                CustomFormatScore = ProfileRanking.FormatScore(version.QualityProfile, matched.Select(m => m.Id)),
+            },
+            previousFiles.Count == 0 ? null : previousFiles,
+            plan.Grab is null ? null : EventSnapshots.EpisodeRelease(plan.Grab.ReleaseTitle, plan.Grab.IndexerName, plan.Grab.Size, plan.Grab.IndexerFlags, series, null, null, infoHash: plan.Grab.InfoHash),
+            plan.Grab?.Id,
+            plan.Force,
+            outcome?.ToString() ?? "inPlace",
+            plan.Grab?.DownloadClientName,
+            clientType,
+            plan.Grab?.DownloadId)
+        { OccurredAt = now });
 
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);

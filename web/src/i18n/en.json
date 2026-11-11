@@ -40,7 +40,10 @@
     "playbackUsers": "Users",
     "playbackStats": "Stats",
     "settingsImportSonarr": "Import from Sonarr",
-    "settingsFollowedSonarrs": "Followed Sonarrs"
+    "settingsFollowedSonarrs": "Followed Sonarrs",
+    "calendar": "Calendar",
+    "seriesWanted": "Wanted",
+    "held": "Held for review"
   },
   "theme": {
     "label": "Theme",
@@ -1365,7 +1368,7 @@
     "title": "Blocklist",
     "hint": "Releases refused for a version: failed downloads land here on their own, removals from the queue when you ask. Dropping an entry lets the release be grabbed again.",
     "empty": "Nothing is blocklisted.",
-    "movie": "Movie",
+    "movie": "Title",
     "movieGone": "Movie deleted",
     "version": "Version",
     "release": "Release",
@@ -1486,7 +1489,12 @@
     "notInRadarr": "not sent in Radarr's format",
     "discordEventsHint": "Discord gets what Radarr's Discord connection posts, plus failed downloads and imports and versions added, deleted or made the default; a version's settings changing is greyed out.",
     "notInDiscord": "not posted to Discord",
-    "ignoresTags": "sent whatever the tags"
+    "ignoresTags": "sent whatever the tags",
+    "formatSonarr": "Sonarr (compatible)",
+    "formatSonarrHint": "The body Sonarr v4's webhook sends, for the series events (and health, test), so tools written for Sonarr work unchanged. A Sonarr series is a series version, seen through the view like an API key's; film events are not sent.",
+    "sonarrBadge": "Sonarr · {{view}}",
+    "sonarrEventsHint": "Sonarr's format only sends the series events Sonarr has; the others are greyed out.",
+    "notInSonarr": "not sent in Sonarr's format"
   },
   "system": {
     "title": "System",
@@ -2475,5 +2483,58 @@
     "fix": "Fix: choose the episodes this file holds",
     "fixTitle": "Choose the episodes of this file",
     "fixHint": "The series' order has no counterpart for this file's episode. Pick the episodes it really holds (in the order on screen); it can be renamed after them."
+  },
+  "seriesWanted": {
+    "title": "Wanted episodes",
+    "hint": "Aired, monitored episodes per version that have no file (missing) or a file below the version's cutoff (cutoff unmet), most recently aired first. The missing/cutoff-unmet task searches them with the same backoff as films: several episodes of a season as a season, two whole seasons or more by the show first.",
+    "hintManual": "Aired, monitored episodes per version that have no file (missing) or a file below the version's cutoff (cutoff unmet), most recently aired first. The scheduler is off: nothing is searched until you ask.",
+    "empty": "Nothing wanted: every monitored, aired episode has a file at its cutoff.",
+    "count_one": "{{count}} episode wanted",
+    "count_other": "{{count}} episodes wanted",
+    "series": "Series",
+    "episode": "Episode",
+    "aired": "Aired",
+    "searchEpisode": "Search {{episode}}"
+  },
+  "held": {
+    "title": "Held for review",
+    "hint": "Releases RSS or a search would have taken, matched on a show's alternative episode order only, with nothing in the release (air date, episode title) to confirm it. Grab one to download it for its version, or dismiss it: a dismissed release is never held again.",
+    "empty": "Nothing held.",
+    "sectionTitle_one": "{{count}} release held for review",
+    "sectionTitle_other": "{{count}} releases held for review",
+    "sectionHint": "Matched on the show's alternative order only: check the episode before grabbing.",
+    "series": "Series",
+    "episodes": "Episodes",
+    "release": "Release",
+    "reason": "Why",
+    "heldAt": "Held",
+    "seeders_one": "{{count}} seeder",
+    "seeders_other": "{{count}} seeders",
+    "source": "Held by {{source}}",
+    "grab": "Grab",
+    "dismiss": "Dismiss",
+    "grabbed": "{{title}} sent to the download client",
+    "picked": "{{title}} recorded as a pick (shadow mode)",
+    "failed": "The held release could not be handled"
+  },
+  "calendar": {
+    "title": "Calendar",
+    "today": "Today",
+    "view": "View",
+    "views": {
+      "week": "Week",
+      "month": "Month"
+    },
+    "weekOf": "Week of {{date}}",
+    "showUnmonitored": "Show unmonitored",
+    "status": {
+      "unaired": "Unaired",
+      "onAir": "On air",
+      "missing": "Missing",
+      "downloading": "Downloading",
+      "downloaded": "Downloaded",
+      "unmonitored": "Unmonitored"
+    },
+    "icalHint": "Subscribe from a calendar app with an API key (Settings → Connect):"
   }
 }

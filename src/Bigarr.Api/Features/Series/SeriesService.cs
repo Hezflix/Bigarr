@@ -18,7 +18,7 @@ using Microsoft.EntityFrameworkCore;
 /// Application rules of the Series slice: lookup, add, versions, monitoring, refresh, delete. The disk is touched only
 /// by a delete asked with <c>deleteFiles</c> (through the recycle bin); the scan and the import live elsewhere.
 /// </summary>
-public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataProvider metadata, XemService xem, Bigarr.Api.Infrastructure.Files.RecycleBin recycleBin, TimeProvider time, ILogger<SeriesService> logger)
+public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataProvider metadata, XemService xem, Bigarr.Api.Infrastructure.Files.RecycleBin recycleBin, Search.SeriesSearchQueue searches, Infrastructure.Events.OutboxWriter outbox, TimeProvider time, ILogger<SeriesService> logger)
 {
     public DateTime Now => time.GetUtcNow().UtcDateTime;
 
@@ -197,6 +197,8 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             return Failure.Conflict("Series already in the library", $"{series.Title} was added concurrently.");
         }
 
+        outbox.Publish(new Bigarr.Domain.Events.SeriesAdded(Bigarr.Domain.Events.SeriesRef.From(series), Bigarr.Domain.Events.SeriesVersionRef.From(version)) { OccurredAt = Now });
+        await db.SaveChangesAsync(ct);
         logger.LogInformation("Added series {Title} ({Source}): {Episodes} episodes, monitor {Monitor}", series.Title, found.Source, series.Episodes.Count, request.Monitor);
         return Result<Series>.Ok(series);
     }
@@ -573,6 +575,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
 
         // Tracked loads: the context links episodes, targets and season flags to the series graph.
         await db.Episodes.Where(e => e.SeriesId == seriesId).Include(e => e.Targets).LoadAsync(ct);
+        var hadEpisodes = series.Episodes.Count > 0;
 
         series.ApplyMetadata(found);
         series.LastMetadataRefreshAt = Now;
@@ -589,10 +592,17 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
                 version.Seasons.Add(new SeriesVersionSeason { Version = version, Season = season, Monitored = MonitoringRules.NewSeasonMonitored(version, season.SeasonNumber) });
             }
 
+            var oldOnes = MonitoringRules.UnmonitorAiredNewEpisodes(sync.Added, hadEpisodes, Now);
             foreach (var episode in sync.Added)
             {
-                var seasonMonitored = version.Seasons.FirstOrDefault(s => s.Season.SeasonNumber == episode.SeasonNumber)?.Monitored ?? false;
-                version.Episodes.Add(new EpisodeTarget { Version = version, Episode = episode, Monitored = episode.SeasonNumber > 0 && seasonMonitored, CreatedAt = Now });
+                var seasonMonitored = version.Seasons.FirstOrDefault(s => s.Season.SeasonNumber == episode.SeasonNumber)?.Monitored;
+                var monitored = MonitoringRules.NewEpisodeMonitored(episode.SeasonNumber, episode.EpisodeNumber, seasonMonitored) && !oldOnes.Contains(episode);
+                version.Episodes.Add(new EpisodeTarget { Version = version, Episode = episode, Monitored = monitored, CreatedAt = Now });
+            }
+
+            if (oldOnes.Count > 0)
+            {
+                logger.LogWarning("{Series} [{Version}]: {Count} old episode(s) appeared on a series that had none; aired ones left unmonitored to prevent unexpected downloads", series.Title, version.Name, oldOnes.Count);
             }
         }
 
@@ -626,6 +636,22 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
 
         await db.SaveChangesAsync(ct);
         logger.LogInformation("Refreshed series {Title}: {Added} new episodes, {Removed} gone", series.Title, sync.Added.Count, sync.Removed.Count);
+
+        // Sonarr's EpisodeRefreshedService: new monitored episodes that aired in the last two weeks (or air within a
+        // day) are searched once the refresh is saved; the rest are left to RSS.
+        foreach (var version in series.Versions.Where(v => v.Monitored))
+        {
+            var recent = version.Episodes
+                .Where(t => sync.Added.Contains(t.Episode) && t.Monitored && t.EpisodeFileId is null && MonitoringRules.SearchAfterRefresh(t.Episode, Now))
+                .Select(t => t.Episode.Id)
+                .ToList();
+            if (recent.Count > 0)
+            {
+                logger.LogInformation("{Series} [{Version}]: searching {Count} episode(s) the refresh added that aired recently", series.Title, version.Name, recent.Count);
+                searches.TryEnqueue(new Search.SeriesSearchRequest(version.Id, recent, Search.SearchTrigger.Refreshed));
+            }
+        }
+
         return Result<Series>.Ok(series);
     }
 
@@ -692,12 +718,17 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             episode.EpisodeNumber = info.EpisodeNumber;
             episode.AbsoluteEpisodeNumber = info.AbsoluteEpisodeNumber;
             episode.AirDate = info.AirDate;
-            episode.AirDateUtc = AirTimes.ToUtc(info.AirDate, series.AirTime, series.OriginalCountry);
+            episode.AirDateUtc = AirTimes.ToUtc(info.AirDate, series.AirTime, series.NetworkCountry, series.OriginalCountry);
             episode.Title = info.Title;
             episode.Overview = info.Overview;
             episode.Runtime = info.Runtime;
             episode.ImageUrl = info.ImageUrl;
         }
+
+        // Sonarr's two corrections of the provider's air times, on the episodes the provider still lists.
+        var current = series.Episodes.Where(matched.Contains).ToList();
+        AirTimes.SpreadSameDayEpisodes(current, series.Runtime);
+        AirTimes.DateDirectToVideo(current, series.Status, series.FirstAired);
 
         var removed = existing.Where(e => !matched.Contains(e)).ToList();
         return new CatalogueChanges(newSeasons, added, removed);
@@ -758,7 +789,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
                 return failed;
             }
 
-            await RemoveSeriesAsync(series, ct);
+            await RemoveSeriesAsync(series, deleteFiles, ct);
             return Result<bool>.Ok(true);
         }
 
@@ -789,6 +820,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await DeleteTargetsAsync(versionId, null, ct);
+        outbox.Publish(new Bigarr.Domain.Events.SeriesVersionDeleted(Bigarr.Domain.Events.SeriesRef.From(series), Bigarr.Domain.Events.SeriesVersionRef.From(version), deleteFiles) { OccurredAt = Now });
         db.SeriesVersions.Remove(version);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
@@ -809,7 +841,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             return failed;
         }
 
-        await RemoveSeriesAsync(series, ct);
+        await RemoveSeriesAsync(series, deleteFiles, ct);
         return Result<bool>.Ok(true);
     }
 
@@ -886,10 +918,15 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         }
     }
 
-    private async Task RemoveSeriesAsync(Series series, CancellationToken ct)
+    private async Task RemoveSeriesAsync(Series series, bool deletedFiles, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await DeleteTargetsAsync(null, series.Id, ct);
+        outbox.Publish(new Bigarr.Domain.Events.SeriesDeleted(
+            Bigarr.Domain.Events.SeriesRef.From(series),
+            deletedFiles,
+            series.Versions.OrderByDescending(v => v.IsDefault).ThenBy(v => v.Id).Select(Bigarr.Domain.Events.SeriesVersionRef.From).ToList())
+        { OccurredAt = Now });
         db.Series.Remove(series);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);

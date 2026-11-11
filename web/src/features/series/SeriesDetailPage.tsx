@@ -48,6 +48,7 @@ import { EpisodeProgress } from './EpisodeProgress'
 import { SeriesSearchDialog, type SeriesSearchScope } from '@/features/search/SeriesInteractiveSearch'
 import { Checkbox } from '@/components/ui/checkbox'
 import { SeriesManualImportDialog } from '@/features/import/SeriesManualImportDialog'
+import { HeldReleasesSection } from '@/features/activity/HeldPage'
 import { AssignUnmatchedDialog, DeleteFilesOption, EpisodeFileActions, RenameSeriesDialog } from './SeriesFiles'
 import { OrderUndoBanner, ReassignFileDialog, SeriesOrderDialog, orderLabel } from './SeriesOrderDialog'
 
@@ -259,6 +260,7 @@ export function SeriesDetailPage() {
       {searchScope && <SeriesSearchDialog key={JSON.stringify(searchScope)} series={s} scope={searchScope} onClose={() => setSearchScope(null)} />}
 
       {version && files.data && <UnmatchedFiles seriesId={s.id} files={files.data.unmatched.filter((f) => f.versionId === version.id)} onChanged={invalidate} />}
+      <HeldReleasesSection seriesId={s.id} />
 
       {orderOpen && <SeriesOrderDialog series={s} onClose={() => setOrderOpen(false)} onDone={invalidate} />}
       {renameOpen && version && <RenameSeriesDialog series={s} versionId={version.id} onClose={() => setRenameOpen(false)} onDone={invalidate} />}

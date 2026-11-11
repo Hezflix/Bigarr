@@ -141,6 +141,7 @@ public sealed class SeriesOrderService(
 
         change.UnmatchedFiles += plan.Preview.FilesUnmatched + plan.Preview.FilesConflicting;
         db.SeriesOrderChanges.Add(change);
+        renamer.PublishRenamed();
         await db.SaveChangesAsync(ct);
         foreach (var version in series.Versions)
         {
@@ -196,6 +197,7 @@ public sealed class SeriesOrderService(
             }
 
             file.RelativePath = move.From;
+            renamer.Record(series, version, file, move.To);
             foreach (var extraMove in move.Extras)
             {
                 var extra = file.Extras.FirstOrDefault(e => e.Id == extraMove.ExtraFileId);
@@ -239,6 +241,7 @@ public sealed class SeriesOrderService(
         change.From.ApplyTo(series);
         series.OrderOnlyEpisodes = [.. change.PreviousOrderOnly];
         change.UndoneAt = now;
+        renamer.PublishRenamed();
         await db.SaveChangesAsync(ct);
         foreach (var version in series.Versions)
         {
@@ -341,6 +344,7 @@ public sealed class SeriesOrderService(
             var config = await settings.GetAsync(ct);
             var target = await renamer.TargetPathAsync(config, series, version, file, ct);
             var moved = renamer.Move(series, version, file, target, now);
+            renamer.PublishRenamed();
             await db.SaveChangesAsync(ct);
             SeriesRenameService.RemoveEmptySeasonFolders(SeriesRenameService.Folder(version));
             result = new OrderFileResult(file.Id, from, file.RelativePath, moved.Renamed, moved.Error);

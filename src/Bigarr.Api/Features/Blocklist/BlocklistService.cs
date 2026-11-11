@@ -67,10 +67,45 @@ public sealed class BlocklistService(BigarrDbContext db)
             });
         }
 
+        // Series: one entry per (version, episode) pair the grab covered, read back by the episode decision (S7).
+        var episodeTargets = await db.EpisodeTargets.AsNoTracking()
+            .Include(t => t.Episode)
+            .Include(t => t.Version).ThenInclude(v => v.Series)
+            .Where(t => targetIds.Contains(t.Id))
+            .ToListAsync(ct);
+        foreach (var target in episodeTargets)
+        {
+            var exists = await db.Blocklist.AnyAsync(b => b.TargetId == target.Id
+                && ((grab.ReleaseGuid != null && b.ReleaseGuid == grab.ReleaseGuid) || (grab.ReleaseGuid == null && b.SourceTitle == grab.ReleaseTitle)), ct);
+            if (exists)
+            {
+                continue;
+            }
+
+            var entry = new BlocklistEntry
+            {
+                TargetId = target.Id,
+                ReleaseGuid = grab.ReleaseGuid,
+                InfoHash = grab.InfoHash,
+                SourceTitle = grab.ReleaseTitle,
+                IndexerId = grab.IndexerId,
+                IndexerName = grab.IndexerName,
+                Reason = reason,
+                CreatedAt = now,
+            };
+            db.Blocklist.Add(entry);
+            added.Add(entry);
+            var line = GrabService.SeriesHistory(target.Version, target, HistoryEventType.Blocklisted, grab.ReleaseTitle, grab.IndexerId, grab.IndexerName, now);
+            line.Data["reason"] = reason;
+            line.Data["releaseGuid"] = grab.ReleaseGuid ?? string.Empty;
+            line.Data["grabId"] = grab.Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            db.History.Add(line);
+        }
+
         return added;
     }
 
-    public async Task<BlocklistPageResponse> ListAsync(int? movieId, int page, int pageSize, CancellationToken ct)
+    public async Task<BlocklistPageResponse> ListAsync(int? movieId, int page, int pageSize, CancellationToken ct, int? seriesId = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
@@ -84,9 +119,41 @@ public sealed class BlocklistService(BigarrDbContext db)
             query = query.Where(x => x.Version != null && x.Version.MovieId == movieId);
         }
 
+        if (seriesId is not null)
+        {
+            query = query.Where(x => db.EpisodeTargets.Any(t => t.Id == x.Entry.TargetId && t.Version.SeriesId == seriesId));
+        }
+
         var total = await query.CountAsync(ct);
         var rows = await query.OrderByDescending(x => x.Entry.CreatedAt).ThenByDescending(x => x.Entry.Id).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
-        return new BlocklistPageResponse(rows.Select(x => ToResponse(x.Entry, x.Version)).ToList(), total, page, pageSize);
+
+        // Series entries point at (version, episode) pairs: their show, version and episode are read for the page only.
+        var pairIds = rows.Where(r => r.Version is null).Select(r => r.Entry.TargetId).ToList();
+        var pairs = pairIds.Count == 0
+            ? []
+            : await db.EpisodeTargets.AsNoTracking().Where(t => pairIds.Contains(t.Id))
+                .Select(t => new { t.Id, t.Version.Name, t.Version.SeriesId, t.Version.Series.Title, t.Version.Series.Year, t.Version.Series.Images, t.Episode.SeasonNumber, t.Episode.EpisodeNumber })
+                .ToDictionaryAsync(t => t.Id, ct);
+        return new BlocklistPageResponse(
+            rows.Select(x =>
+            {
+                var response = ToResponse(x.Entry, x.Version);
+                return pairs.GetValueOrDefault(x.Entry.TargetId) is { } pair
+                    ? response with
+                    {
+                        VersionName = pair.Name,
+                        MovieYear = pair.Year,
+                        PosterUrl = pair.Images.FirstOrDefault(i => i.Type == ImageType.Poster)?.RemoteUrl,
+                        Quality = GrabService.EpisodeQualityOf(x.Entry.SourceTitle),
+                        SeriesId = pair.SeriesId,
+                        SeriesTitle = pair.Title,
+                        Episode = $"S{pair.SeasonNumber:00}E{pair.EpisodeNumber:00}",
+                    }
+                    : response;
+            }).ToList(),
+            total,
+            page,
+            pageSize);
     }
 
     public async Task<Result<bool>> DeleteAsync(int id, CancellationToken ct)

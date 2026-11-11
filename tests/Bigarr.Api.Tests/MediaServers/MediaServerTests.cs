@@ -8,6 +8,7 @@ using Bigarr.Api.Tests.Auth;
 using Bigarr.Api.Tests.Compat;
 using Bigarr.Api.Tests.Hosting;
 using Bigarr.Domain.Events;
+using Bigarr.Domain.Library;
 using Bigarr.Domain.MediaServers;
 using Bigarr.Domain.Movies;
 using Microsoft.Extensions.DependencyInjection;
@@ -110,6 +111,55 @@ public sealed class MediaServerTests(BigarrApiFactory factory) : IClassFixture<B
         Assert.Null(MediaServerRefresher.ChangeOf(Event(new VersionDeleted(movie, version, false))));
         Assert.Null(MediaServerRefresher.ChangeOf(Event(new ReleaseGrabbed(movie, version, new ReleaseRef("t", null, null, 0), 1, "qbt", "abc", "rss"))));
         Assert.Null(MediaServerRefresher.ChangeOf(Event(new VersionUpdated(movie, version))));
+    }
+
+    [Fact]
+    public void Series_events_ask_for_the_season_folder_of_each_file_and_the_versions_folder_when_it_goes()
+    {
+        var show = new SeriesRef(1, 81189, 1396, null, "Breaking Bad", 2008, Bigarr.Domain.Tv.SeriesType.Standard);
+        var version = new SeriesVersionRef(2, "1080p", true, true, "HD", "/data/tv/Breaking Bad (2008)");
+        var pilot = new EpisodeRef(3, 1, 1, "Pilot");
+        var file = new FileRef(4, "/data/tv/Breaking Bad (2008)/Season 1/Breaking Bad - S01E01.mkv", "Bluray-1080p", 1);
+
+        var imported = Assert.Single(MediaServerRefresher.ChangesOf(Event(new EpisodeFileImported(show, version, [pilot], file, null, null, null, false, "Hardlinked"))));
+        Assert.Equal(new MediaServerRefresher.FolderChange("/data/tv/Breaking Bad (2008)/Season 1", MediaChange.Created, MediaKind.Series), imported);
+        var upgraded = Assert.Single(MediaServerRefresher.ChangesOf(Event(new EpisodeFileImported(show, version, [pilot], file, [file with { Id = 5 }], null, null, false, "Hardlinked"))));
+        Assert.Equal(MediaChange.Modified, upgraded.Change);
+
+        // A rename can move a file to another season folder: both folders are scanned.
+        var renamed = MediaServerRefresher.ChangesOf(Event(new EpisodeFileRenamed(show, version, [new RenamedFileRef(file, "/data/tv/Breaking Bad (2008)/Season 01/old.mkv")])));
+        Assert.Equal(["/data/tv/Breaking Bad (2008)/Season 01", "/data/tv/Breaking Bad (2008)/Season 1"], renamed.Select(c => c.Folder).Order(StringComparer.Ordinal).ToArray());
+
+        Assert.Equal(MediaChange.Deleted, Assert.Single(MediaServerRefresher.ChangesOf(Event(new EpisodeFileDeleted(show, version, [pilot], file, "manual")))).Change);
+        Assert.Equal("/data/tv/Breaking Bad (2008)", Assert.Single(MediaServerRefresher.ChangesOf(Event(new SeriesDeleted(show, true, [version])))).Folder);
+        Assert.Empty(MediaServerRefresher.ChangesOf(Event(new SeriesDeleted(show, false, [version]))));
+        Assert.Equal("/data/tv/Breaking Bad (2008)", Assert.Single(MediaServerRefresher.ChangesOf(Event(new SeriesVersionDeleted(show, version, true)))).Folder);
+        Assert.Empty(MediaServerRefresher.ChangesOf(Event(new EpisodeGrabbed(show, version, [pilot], new ReleaseRef("t", null, null, 0), 1, "qbt", "abc", "rss"))));
+    }
+
+    [Fact]
+    public async Task An_episode_import_makes_plex_scan_its_tv_section_under_its_own_path()
+    {
+        var session = await CompatTestHelpers.SessionAsync(factory);
+        await using var plex = await FakeHttpServer.StartAsync();
+        plex.Responder = Plex;
+        var created = await session.PostAsJsonAsync("/api/v1/mediaservers", new { name = "Plex TV", kind = "plex", url = plex.Url, token = "plex-token", enabled = true, pathMappings = new[] { new { from = "/data", to = "/mnt/media" } } });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+            var show = new SeriesRef(1, 81189, 1396, null, "Breaking Bad", 2008, Bigarr.Domain.Tv.SeriesType.Standard);
+            var version = new SeriesVersionRef(2, "1080p", true, true, "HD", "/data/tv/Breaking Bad (2008)");
+            scope.ServiceProvider.GetRequiredService<OutboxWriter>().Publish(new EpisodeFileImported(
+                show, version, [new EpisodeRef(3, 1, 1, "Pilot")], new FileRef(4, "/data/tv/Breaking Bad (2008)/Season 1/Breaking Bad - S01E01.mkv", "Bluray-1080p", 1), null, null, null, false, "Hardlinked"));
+            await db.SaveChangesAsync();
+        }
+
+        // The TV section (2) scans the season folder, translated; the movie section is left alone.
+        var refresh = await plex.WaitForAsync(r => r.Path == "/library/sections/2/refresh" && r.Query.Contains("path=", StringComparison.Ordinal));
+        Assert.Contains(Uri.EscapeDataString("/mnt/media/tv/Breaking Bad (2008)/Season 1"), refresh.Query, StringComparison.Ordinal);
+        Assert.DoesNotContain(plex.Requests, r => r.Path == "/library/sections/1/refresh");
     }
 
     private static ServerEvent Event(DomainEvent domainEvent) => new(1, domainEvent.Type, EventJson.Serialize(domainEvent), DateTime.UtcNow);

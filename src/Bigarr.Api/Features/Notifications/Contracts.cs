@@ -38,7 +38,7 @@ public sealed record NotificationEndpointResponse(
 /// <param name="RadarrEventType">What the Radarr format sends it as; null when that format does not send it.</param>
 /// <param name="IgnoresTags">About no film: sent whatever the endpoint's tags.</param>
 /// <param name="SentToDiscord">Whether the Discord format posts a message for it.</param>
-public sealed record NotificationEventTypeResponse(string Type, string Description, string? RadarrEventType, bool IgnoresTags, bool SentToDiscord);
+public sealed record NotificationEventTypeResponse(string Type, string Description, string? RadarrEventType, bool IgnoresTags, bool SentToDiscord, string? SonarrEventType = null);
 
 public sealed record WebhookTestResponse(int? StatusCode, int ElapsedMs);
 

@@ -10,7 +10,9 @@ using Bigarr.Api.Infrastructure.Tv;
 using Bigarr.Decision;
 using Bigarr.Decision.Specifications;
 using Bigarr.Domain.Acquisition;
+using Bigarr.Api.Infrastructure.Events;
 using Bigarr.Domain.Downloads;
+using Bigarr.Domain.Events;
 using Bigarr.Domain.History;
 using Bigarr.Domain.Indexers;
 using Bigarr.Domain.Library;
@@ -41,6 +43,7 @@ public sealed class SeriesManualImportService(
     CustomFormatScorer scorer,
     RecycleBin recycleBin,
     QueueState queue,
+    OutboxWriter outbox,
     TimeProvider time,
     ILogger<SeriesManualImportService> logger)
 {
@@ -452,6 +455,17 @@ public sealed class SeriesManualImportService(
             db.History.Add(line);
         }
 
+        outbox.Publish(new EpisodeFileImported(
+            SeriesRef.From(version.Series),
+            SeriesVersionRef.From(version),
+            EpisodeRef.From(episodes),
+            EventSnapshots.EpisodeFile(file, path) with { Quality = quality.Quality.Name },
+            held.Count == 0 ? null : held.Select(f => EventSnapshots.EpisodeFile(f, Path.Combine(folder, f.RelativePath))).ToList(),
+            null,
+            null,
+            Manual: true,
+            "inPlace")
+        { OccurredAt = now });
         await db.SaveChangesAsync(ct);
 
         if (request.Rename)
@@ -459,6 +473,7 @@ public sealed class SeriesManualImportService(
             var loaded = await db.EpisodeFiles.Include(f => f.Quality).Include(f => f.Extras).Include(f => f.Episodes).ThenInclude(t => t.Episode).FirstAsync(f => f.Id == file.Id, ct);
             var target = await renamer.TargetPathAsync(config, version.Series, version, loaded, ct);
             var moved = renamer.Move(version.Series, version, loaded, target, now);
+            renamer.PublishRenamed();
             await db.SaveChangesAsync(ct);
             if (!moved.Renamed && moved.Error is not null)
             {
@@ -548,7 +563,14 @@ public sealed class SeriesManualImportService(
         }
 
         var now = time.GetUtcNow().UtcDateTime;
-        foreach (var target in file.Episodes)
+        outbox.Publish(new EpisodeFileDeleted(
+            SeriesRef.From(file.Version.Series),
+            SeriesVersionRef.From(file.Version),
+            EpisodeRef.From(file.Episodes.Select(t => t.Episode)),
+            EventSnapshots.EpisodeFile(file, path, recycleBinPath: recycled),
+            "manual")
+        { OccurredAt = now });
+        foreach (var target in file.Episodes.ToList())
         {
             var line = GrabService.SeriesHistory(file.Version, target, HistoryEventType.FileDeleted, file.OriginalReleaseTitle, null, null, now);
             line.Data["path"] = path;

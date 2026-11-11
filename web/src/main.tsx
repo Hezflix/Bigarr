@@ -76,6 +76,9 @@ const playbackStatsRoute = createRoute({ getParentRoute: () => appRoute, path: '
 const playbackUsersRoute = createRoute({ getParentRoute: () => appRoute, path: '/playback/users', component: lazyRouteComponent(() => import('./features/playback/UsersPage'), 'UsersPage') })
 const playbackUserRoute = createRoute({ getParentRoute: () => appRoute, path: '/playback/users/$userId', component: lazyRouteComponent(() => import('./features/playback/UserPage'), 'UserPage') })
 const wantedRoute = createRoute({ getParentRoute: () => appRoute, path: '/wanted', component: lazyRouteComponent(() => import('./features/wanted/WantedPage'), 'WantedPage') })
+const seriesWantedRoute = createRoute({ getParentRoute: () => appRoute, path: '/series/wanted', component: lazyRouteComponent(() => import('./features/wanted/SeriesWantedPage'), 'SeriesWantedPage') })
+const calendarRoute = createRoute({ getParentRoute: () => appRoute, path: '/calendar', component: lazyRouteComponent(() => import('./features/calendar/CalendarPage'), 'CalendarPage') })
+const heldRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/held', component: lazyRouteComponent(() => import('./features/activity/HeldPage'), 'HeldPage') })
 const systemRoute = createRoute({ getParentRoute: () => appRoute, path: '/system/status', component: lazyRouteComponent(() => import('./features/system/SystemPage'), 'SystemPage') })
 const librarySettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/library', component: lazyRouteComponent(() => import('./features/settings/LibrarySettingsPage'), 'LibrarySettingsPage') })
 const mediaManagementRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/mediamanagement', component: lazyRouteComponent(() => import('./features/settings/MediaManagementPage'), 'MediaManagementPage') })
@@ -105,8 +108,11 @@ const router = createRouter({
       movieRoute,
       seriesLibraryRoute,
       addSeriesRoute,
+      seriesWantedRoute,
+      calendarRoute,
       seriesRoute,
       queueRoute,
+      heldRoute,
       releasesRoute,
       historyRoute,
       blocklistRoute,

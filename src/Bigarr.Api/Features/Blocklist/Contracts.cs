@@ -15,7 +15,16 @@ public sealed record BlocklistEntryResponse(
     int? IndexerId,
     string? IndexerName,
     string? Reason,
-    DateTime CreatedAt);
+    DateTime CreatedAt)
+{
+    /// <summary>A series entry: the show, its version and the episode the release was blocked for.</summary>
+    public int? SeriesId { get; init; }
+
+    public string? SeriesTitle { get; init; }
+
+    /// <summary><c>S01E05</c>.</summary>
+    public string? Episode { get; init; }
+}
 
 public sealed record BlocklistPageResponse(List<BlocklistEntryResponse> Items, int Total, int Page, int PageSize);
 

@@ -1479,14 +1479,19 @@ export type BlocklistEntry = {
   indexerName: string | null
   reason: string | null
   createdAt: string
+  /** A series entry: the show and the episode the release is blocked for (`S01E05`). */
+  seriesId?: number | null
+  seriesTitle?: string | null
+  episode?: string | null
 }
 
 export type BlocklistPage = { items: BlocklistEntry[]; total: number; page: number; pageSize: number }
 
 export const blocklist = {
-  list: (options: { movieId?: number; page?: number; pageSize?: number } = {}) => {
+  list: (options: { movieId?: number; seriesId?: number; page?: number; pageSize?: number } = {}) => {
     const params = new URLSearchParams()
     if (options.movieId) params.set('movieId', String(options.movieId))
+    if (options.seriesId) params.set('seriesId', String(options.seriesId))
     params.set('page', String(options.page ?? 1))
     params.set('pageSize', String(options.pageSize ?? 50))
     return api<BlocklistPage>(`/api/v1/blocklist?${params.toString()}`)
@@ -1499,9 +1504,10 @@ export const blocklist = {
 
 /**
  * `bigarr`: Bigarr's own body for every event. `radarr`: Radarr's webhook payloads, for tools written for Radarr.
- * `discord`: embeds for a Discord channel webhook, laid out like Radarr's Discord connection.
+ * `sonarr`: Sonarr v4's webhook payloads for the series events, for tools written for Sonarr.
+ * `discord`: embeds for a Discord channel webhook, laid out like Radarr's (films) and Sonarr's (series) Discord connections.
  */
-export type WebhookFormat = 'bigarr' | 'radarr' | 'discord'
+export type WebhookFormat = 'bigarr' | 'radarr' | 'sonarr' | 'discord'
 
 export const discordGrabFields = [
   'overview',
@@ -1601,6 +1607,8 @@ export type NotificationEventType = {
   ignoresTags: boolean
   /** Whether the Discord format posts a message for it. */
   sentToDiscord: boolean
+  /** What the Sonarr format sends it as; null when that format does not send it. */
+  sonarrEventType: string | null
 }
 
 export type WebhookTestResult = { statusCode: number | null; elapsedMs: number }
@@ -2955,4 +2963,105 @@ export const series = {
   previewOrder: (id: number, body: OrderChoiceRequest) => post<OrderPreview>(`/api/v1/series/${id}/orders/preview`, body),
   applyOrder: (id: number, body: OrderChoiceRequest) => post<{ change: OrderChange; files: OrderFileResult[] }>(`/api/v1/series/${id}/orders/apply`, body),
   undoOrder: (id: number) => post<{ change: OrderChange; filesRestored: number; files: OrderFileResult[] }>(`/api/v1/series/${id}/orders/undo`),
+}
+
+// ---- series automation (S7) ------------------------------------------------
+
+export type SeriesWantedItem = {
+  targetId: number
+  seriesId: number
+  seriesTitle: string
+  year: number | null
+  posterUrl: string | null
+  versionId: number
+  versionName: string
+  qualityProfile: string
+  episodeId: number
+  seasonNumber: number
+  episodeNumber: number
+  absoluteEpisodeNumber: number | null
+  episodeTitle: string
+  airDateUtc: string | null
+  kind: WantedFilter
+  currentQuality: string | null
+  currentScore: number | null
+  cutoffQuality: string
+  lastSearchAt: string | null
+  searchAttempts: number
+  /** When the missing/cutoff-unmet job may search it again; null means at its next pass. */
+  nextSearchAt: string | null
+}
+
+export type SeriesWantedPage = { items: SeriesWantedItem[]; total: number; page: number; pageSize: number }
+
+export const seriesWanted = {
+  list: (filter?: WantedFilter, page = 1, pageSize = 50, seriesId?: number) =>
+    api<SeriesWantedPage>(`/api/v1/series/wanted?page=${page}&pageSize=${pageSize}${filter ? `&filter=${filter}` : ''}${seriesId ? `&seriesId=${seriesId}` : ''}`),
+  /** These rows, or every row of the filter when none is given; queued, searched one version at a time. */
+  search: (targetIds?: number[], filter?: WantedFilter) => post<{ queued: number }>('/api/v1/series/wanted/search', { targetIds: targetIds ?? null, filter: filter ?? null }),
+}
+
+export type HeldRelease = {
+  id: number
+  seriesId: number
+  seriesTitle: string
+  seriesYear: number | null
+  posterUrl: string | null
+  versionId: number
+  versionName: string
+  episodeIds: number[]
+  /** `S01E05`, `S01E05-E06`: TVDB numbers. */
+  episodes: string
+  title: string
+  quality: string | null
+  customFormatScore: number
+  size: number
+  seeders: number | null
+  indexer: string | null
+  publishDate: string | null
+  reason: string
+  source: string
+  heldAt: string
+  lastSeenAt: string
+  dismissedAt: string | null
+}
+
+export const heldReleases = {
+  list: (seriesId?: number, includeDismissed = false) =>
+    api<HeldRelease[]>(`/api/v1/series/held?includeDismissed=${includeDismissed}${seriesId ? `&seriesId=${seriesId}` : ''}`),
+  grab: (id: number) => post<GrabResult>(`/api/v1/series/held/${id}/grab`),
+  dismiss: (id: number) => post<void>(`/api/v1/series/held/${id}/dismiss`),
+}
+
+/** Sonarr's calendar legend. */
+export type CalendarStatus = 'unaired' | 'onAir' | 'missing' | 'downloading' | 'downloaded' | 'unmonitored'
+
+export type CalendarEpisode = {
+  seriesId: number
+  seriesTitle: string
+  seriesType: SeriesType
+  network: string | null
+  posterUrl: string | null
+  versionId: number
+  versionName: string
+  isDefaultVersion: boolean
+  episodeId: number
+  seasonNumber: number
+  episodeNumber: number
+  absoluteEpisodeNumber: number | null
+  title: string
+  airDate: string | null
+  airDateUtc: string | null
+  runtime: number | null
+  monitored: boolean
+  hasFile: boolean
+  quality: string | null
+  status: CalendarStatus
+}
+
+export const calendar = {
+  /** `start` and `end` are UTC instants, the end excluded; at most 62 days. */
+  list: (start: Date, end: Date, unmonitored = false) =>
+    api<CalendarEpisode[]>(`/api/v1/calendar?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}&unmonitored=${unmonitored}`),
+  icsUrl: '/api/v1/calendar/bigarr.ics',
 }

@@ -78,7 +78,7 @@ public static partial class MockSeriesReleases
         return names.Select((n, i) => Build(indexer, n.Name, n.SizeGb, n.Seeders, n.AgeDays, i, criteria.TvdbId, now)).ToList();
     }
 
-    /// <summary>The series feed: a few new episodes of the fixture catalogue's shows (standard, anime, daily).</summary>
+    /// <summary>The series feed: a few new episodes of the fixture catalogue's shows (standard, anime, daily, one named by an alternative order).</summary>
     public static List<ReleaseInfo> Recent(Indexer indexer, DateTimeOffset now)
     {
         var today = DateOnly.FromDateTime(now.UtcDateTime);
@@ -89,6 +89,9 @@ public static partial class MockSeriesReleases
             ("[SubsPlease] Sousou no Frieren S2 - 05 (1080p) [A1B2C3D4].mkv", 1.4, null),
             ($"The.Daily.Show.{today.AddDays(-1).ToString("yyyy.MM.dd", CultureInfo.InvariantCulture)}.1080p.WEB.h264-EDITH", 1.5, null),
             ("Some.Unknown.Show.S01E01.1080p.WEB.h264-GRP", 1.2, null),
+
+            // Named by Breaking Bad's DVD order (TVDB has no season 6): held for review when the show uses that order.
+            ("Breaking.Bad.S06E06.1080p.WEB-DL.DDP5.1.H.264-NTb", 1.9, null),
         };
 
         return names.Select((n, i) => Build(indexer, n.Name, n.SizeGb, 100 - i, i % 3, 100 + i, n.TvdbId, now)).OrderByDescending(r => r.PublishDate).ToList();

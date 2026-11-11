@@ -37,6 +37,9 @@ public sealed record SeriesMetadata
     /// <summary>ISO 639-1.</summary>
     public string? OriginalLanguage { get; init; }
 
+    /// <summary>ISO 3166-1 alpha-2, lower case, of the network: its time zone is the air time's (<see cref="Tv.AirTimes"/>).</summary>
+    public string? NetworkCountry { get; init; }
+
     public IReadOnlyList<string> Genres { get; init; } = [];
 
     public IReadOnlyList<AlternativeTitle> AlternativeTitles { get; init; } = [];

@@ -212,6 +212,8 @@ public sealed class SeriesMetadataProvider(
             Runtime = series.AverageRuntime is > 0 ? series.AverageRuntime : tv?.EpisodeRunTime.FirstOrDefault() is > 0 and var r ? r : null,
             AirTime = NullIfBlank(series.AirsTime),
             OriginalCountry = country,
+            NetworkCountry = IsoCodes.Country(series.OriginalNetwork?.Country) ?? IsoCodes.Country(series.LatestNetwork?.Country)
+                ?? NullIfBlank(tv?.Networks.FirstOrDefault()?.OriginCountry)?.ToLowerInvariant(),
             OriginalLanguage = originalLanguage,
             Genres = genres,
             AlternativeTitles = alternatives,
@@ -342,6 +344,7 @@ public sealed class SeriesMetadataProvider(
             Network = tv.Networks.FirstOrDefault()?.Name,
             Runtime = tv.EpisodeRunTime.FirstOrDefault() is > 0 and var r ? r : null,
             OriginalCountry = tv.OriginCountry.FirstOrDefault()?.ToLowerInvariant(),
+            NetworkCountry = NullIfBlank(tv.Networks.FirstOrDefault()?.OriginCountry)?.ToLowerInvariant(),
             OriginalLanguage = NullIfBlank(tv.OriginalLanguage),
             Genres = genres,
             AlternativeTitles = AlternativeTitles(title, [(tv.OriginalName, null), .. (tv.AlternativeTitles?.Results ?? []).Select(a => (a.Title, a.Iso31661))]),

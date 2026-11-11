@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using Bigarr.Domain.Library;
 using Bigarr.Domain.MediaServers;
 
 namespace Bigarr.Api.Infrastructure.MediaServers;
@@ -40,18 +41,19 @@ public sealed class PlexClient(IHttpClientFactory httpClientFactory) : IMediaSer
         return root.RootElement.GetProperty("MediaContainer").TryGetProperty("machineIdentifier", out var id) ? id.GetString() : null;
     }
 
-    public async Task NotifyAsync(MediaServer server, string path, MediaChange change, CancellationToken ct)
+    public async Task NotifyAsync(MediaServer server, string path, MediaChange change, CancellationToken ct, MediaKind kind = MediaKind.Movies)
     {
         ArgumentNullException.ThrowIfNull(server);
         ArgumentNullException.ThrowIfNull(path);
 
-        var sections = (await SectionsAsync(server, ct)).Where(s => s.IsMovies).ToList();
+        // A show's folder is scanned by a TV section (Sonarr's Plex connection), a film's by a movie section.
+        var sections = (await SectionsAsync(server, ct)).Where(s => kind == MediaKind.Series ? s.IsShows : s.IsMovies).ToList();
         if (sections.Count == 0)
         {
-            throw new MediaServerException("Plex has no movie library.");
+            throw new MediaServerException(kind == MediaKind.Series ? "Plex has no TV library." : "Plex has no movie library.");
         }
 
-        // The section whose folder contains the path scans just that path; when none does, every movie section is scanned.
+        // The section whose folder contains the path scans just that path; when none does, every section of the kind is scanned.
         var matching = sections.Where(s => s.Locations.Any(l => IsUnder(path, l))).ToList();
         foreach (var section in matching.Count > 0 ? matching : sections)
         {

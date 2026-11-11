@@ -2881,6 +2881,110 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("EpisodeFiles", (string)null);
                 });
 
+            modelBuilder.Entity("Bigarr.Domain.Tv.HeldRelease", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("CustomFormatScore")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("DismissedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DownloadUrl")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EpisodeIds")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Episodes")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Flags")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Guid")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("HeldAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("IndexerId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("IndexerName")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InfoHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("LastSeenAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MagnetUrl")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Numbering")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Protocol")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset?>("PublishDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Quality")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("Seeders")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("VersionId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SeriesId");
+
+                    b.HasIndex("VersionId", "Guid")
+                        .IsUnique();
+
+                    b.ToTable("HeldReleases", (string)null);
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Tv.SceneName", b =>
                 {
                     b.Property<int>("Id")
@@ -2997,6 +3101,10 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Network")
                         .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NetworkCountry")
+                        .HasMaxLength(8)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("OrderOnlyEpisodes")
@@ -3959,6 +4067,17 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Quality");
 
                     b.Navigation("Revision")
+                        .IsRequired();
+
+                    b.Navigation("Version");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.HeldRelease", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Tv.SeriesVersion", "Version")
+                        .WithMany()
+                        .HasForeignKey("VersionId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Version");

@@ -645,6 +645,19 @@ public sealed class ImportService(
             });
         }
 
+        // Sonarr's ManualInteractionRequired: about the episodes still waiting for a file from this grab.
+        var version = episodes.FirstOrDefault()?.Version;
+        outbox.Publish(new EpisodeImportFailed(
+            version?.Series is { } show ? SeriesRef.From(show) : null,
+            version is null ? null : SeriesVersionRef.From(version),
+            EpisodeRef.From(episodes.Where(t => t.EpisodeFileId is null && t.Episode is not null).Select(t => t.Episode)),
+            new ReleaseRef(grab.ReleaseTitle, GrabService.EpisodeQualityOf(grab.ReleaseTitle), grab.IndexerName, grab.Size, null, null, grab.InfoHash),
+            grab.Id,
+            details.Count == 0 ? reason : $"{reason} {string.Join(" ", details)}",
+            grab.DownloadClientName,
+            await EventSnapshots.DownloadClientTypeAsync(db, grab.DownloadClientId, ct),
+            grab.DownloadId)
+        { OccurredAt = now });
         await db.SaveChangesAsync(ct);
         logger.LogWarning("Import of {Title} failed: {Reason} {Details}", grab.ReleaseTitle, reason, string.Join(" | ", details));
     }

@@ -31,6 +31,7 @@ public sealed class SeriesRssPass(
     ReleaseSightings sightings,
     RssFeedState state,
     Indexers.IndexerService indexerService,
+    HeldReleaseService held,
     ILogger<SeriesRssPass> logger)
 {
     private readonly ReleaseEvaluator _evaluator = ReleaseEvaluator.Automatic();
@@ -170,6 +171,16 @@ public sealed class SeriesRssPass(
             }
 
             state.Upsert(stored);
+        }
+
+        // Releases matched on the series' order only wait for the user (Activity → Held), per version they would go to.
+        var heldNow = judged
+            .Where(j => j.Judgement?.HeldReason is not null && j.Targets is not null)
+            .SelectMany(j => HeldReleaseService.HeldFor(j.Judgement!).Select(versionId => (VersionId: versionId, j.Targets!.Series.Id, j.Release, Judgement: j.Judgement!)))
+            .GroupBy(h => (h.VersionId, h.Id));
+        foreach (var group in heldNow)
+        {
+            await held.RecordAsync(group.Key.VersionId, group.Key.Id, group.Select(h => (h.Release, h.Judgement)).ToList(), RssSyncService.GrabTrigger, ct);
         }
 
         if (sightings.Enabled)

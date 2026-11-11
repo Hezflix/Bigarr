@@ -63,15 +63,17 @@ public sealed class OutboxDispatcher(IServiceScopeFactory scopeFactory, OutboxSi
 
         var endpoints = await db.NotificationEndpoints.AsNoTracking().Include(e => e.Tags).Where(e => e.Enabled).ToListAsync(ct);
         var parsed = endpoints.Count == 0 ? [] : events.ToDictionary(e => e.Id, e => EventJson.Deserialize(e.Type, e.Payload));
-        var tags = await LiveTagsAsync(db, endpoints, parsed.Values, ct);
+        var (tags, seriesTags) = await LiveTagsAsync(db, endpoints, parsed.Values, ct);
         IEnumerable<int> TagsOf(VersionRef version) => version.Tags is { Count: > 0 } snapshot ? snapshot.Select(t => t.Id) : tags.GetValueOrDefault(version.Id) ?? [];
+        // A series version's tags add to its show's; the snapshot only has the version's, so the live ones win while the version exists.
+        IEnumerable<int> SeriesTagsOf(SeriesVersionRef version) => seriesTags.GetValueOrDefault(version.Id) ?? (version.Tags ?? []).Select(t => t.Id);
 
         var deliveries = 0;
         foreach (var outboxEvent in events)
         {
             foreach (var endpoint in endpoints)
             {
-                foreach (var versionId in WebhookRouting.Deliveries(endpoint, outboxEvent.Type, parsed.GetValueOrDefault(outboxEvent.Id), TagsOf))
+                foreach (var versionId in WebhookRouting.Deliveries(endpoint, outboxEvent.Type, parsed.GetValueOrDefault(outboxEvent.Id), TagsOf, SeriesTagsOf))
                 {
                     db.WebhookDeliveries.Add(new WebhookDelivery
                     {
@@ -110,23 +112,27 @@ public sealed class OutboxDispatcher(IServiceScopeFactory scopeFactory, OutboxSi
     /// The snapshot's tags decide; a version whose snapshot has none may just not have had them loaded by the slice
     /// that published, so its current tags are read, once per batch and only when an endpoint filters on tags.
     /// </summary>
-    private static async Task<Dictionary<int, List<int>>> LiveTagsAsync(BigarrDbContext db, List<NotificationEndpoint> endpoints, IEnumerable<DomainEvent?> events, CancellationToken ct)
+    private static async Task<(Dictionary<int, List<int>> Films, Dictionary<int, List<int>> Series)> LiveTagsAsync(BigarrDbContext db, List<NotificationEndpoint> endpoints, IEnumerable<DomainEvent?> events, CancellationToken ct)
     {
         if (!endpoints.Any(e => e.Tags.Count > 0))
         {
-            return [];
+            return ([], []);
         }
 
-        var ids = events.OfType<DomainEvent>().SelectMany(WebhookRouting.Subjects).Where(v => v.Tags is not { Count: > 0 }).Select(v => v.Id).Distinct().ToList();
-        if (ids.Count == 0)
-        {
-            return [];
-        }
+        var known = events.OfType<DomainEvent>().ToList();
+        var ids = known.SelectMany(WebhookRouting.Subjects).Where(v => v.Tags is not { Count: > 0 }).Select(v => v.Id).Distinct().ToList();
+        var seriesIds = known.SelectMany(WebhookRouting.SeriesSubjects).Select(v => v.Id).Distinct().ToList();
+        var films = ids.Count == 0
+            ? []
+            : (await db.MovieVersions.AsNoTracking().Where(v => ids.Contains(v.Id)).Select(v => new { v.Id, Tags = v.Tags.Select(t => t.Id).ToList() }).ToListAsync(ct))
+                .ToDictionary(r => r.Id, r => r.Tags);
 
-        var rows = await db.MovieVersions.AsNoTracking()
-            .Where(v => ids.Contains(v.Id))
-            .Select(v => new { v.Id, Tags = v.Tags.Select(t => t.Id).ToList() })
-            .ToListAsync(ct);
-        return rows.ToDictionary(r => r.Id, r => r.Tags);
+        // A series version's tags add to its series' (Sonarr has them on the series): both count.
+        var series = seriesIds.Count == 0
+            ? []
+            : (await db.SeriesVersions.AsNoTracking().Where(v => seriesIds.Contains(v.Id))
+                    .Select(v => new { v.Id, Tags = v.Tags.Select(t => t.Id).Concat(v.Series.Tags.Select(t => t.Id)).ToList() }).ToListAsync(ct))
+                .ToDictionary(r => r.Id, r => r.Tags.Distinct().ToList());
+        return (films, series);
     }
 }

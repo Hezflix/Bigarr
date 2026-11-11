@@ -167,6 +167,13 @@ internal static class ImportTestHelpers
         return $"Queue: {string.Join(" | ", queue.Items.Select(i => $"{i.Title} {i.State} [{string.Join("; ", i.StatusMessages.Select(m => m.Title + ": " + string.Join(" ", m.Messages)))}]"))}. History: {string.Join(" | ", history.Select(h => $"{h.EventType} {h.SourceTitle} {string.Join(",", h.Data.Select(d => d.Key + "=" + d.Value))}"))}";
     }
 
+    /// <summary>
+    /// Waits until the import of a grab is over: a series import commits each file on its own and ends the grab after the
+    /// last one, so its files show while the grab is still active (and its episodes not yet wanted again).
+    /// </summary>
+    public static Task WaitOffQueueAsync(HttpClient client, int grabId) =>
+        WaitUntilAsync<object>(async () => (await RefreshAsync(client)).Items.All(i => i.GrabId != grabId) ? new object() : null, $"grab {grabId} to leave the queue");
+
     /// <summary>Polls <paramref name="probe"/> until it returns a value; background workers run in the test host.</summary>
     public static async Task<T> WaitUntilAsync<T>(Func<Task<T?>> probe, string what, TimeSpan? timeout = null)
         where T : class

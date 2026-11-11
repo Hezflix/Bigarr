@@ -28,6 +28,9 @@ public sealed class HealthCheckService(
     QueueState queue,
     IMediaInfoReader probe,
     IMetadataProvider metadata,
+    ISeriesMetadataProvider seriesMetadata,
+    Infrastructure.Xem.XemMappedIds xem,
+    IOptions<Infrastructure.Xem.XemOptions> xemOptions,
     MediaManagementService mediaManagement,
     SchedulerState scheduler,
     IOptions<RssSyncOptions> rss,
@@ -146,6 +149,8 @@ public sealed class HealthCheckService(
             issues.Add(new HealthIssue("metadataRefresh", HealthIssueType.Warning, $"The metadata refresh did not finish: {refresh.LastError}"));
         }
 
+        await SeriesChecksAsync(issues, allIndexers, ct);
+
         var failingServers = await db.MediaServers.AsNoTracking()
             .Where(s => s.Enabled && s.LastErrorAt != null && (s.LastRefreshAt == null || s.LastErrorAt > s.LastRefreshAt))
             .Select(s => new { s.Name, s.Kind, s.LastError })
@@ -166,6 +171,53 @@ public sealed class HealthCheckService(
         }
 
         return issues.OrderByDescending(i => i.Type).ThenBy(i => i.Source, StringComparer.Ordinal).ThenBy(i => i.Message, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>
+    /// What the series loop needs (S7): a TVDB key (the fixture catalogue knows three shows), a series refresh that goes
+    /// through, TheXEM reachable for scene-numbered shows, indexers that search TV, a root folder for series; and the
+    /// releases held for review, counted so they are not forgotten.
+    /// </summary>
+    private async Task SeriesChecksAsync(List<HealthIssue> issues, List<Indexer> allIndexers, CancellationToken ct)
+    {
+        if (!await db.Series.AnyAsync(ct))
+        {
+            return;
+        }
+
+        if (seriesMetadata.Name == "fixtures")
+        {
+            issues.Add(new HealthIssue("seriesMetadata", HealthIssueType.Warning,
+                "No TVDB API key: series come from the embedded fixture catalogue of three shows and are never refreshed on their own. Set Bigarr__Tvdb__ApiKey (and Bigarr__Tmdb__ApiKey for images)."));
+        }
+
+        if (scheduler.TryGet(Series.SeriesRefreshJob.JobName, out var refresh) && refresh.LastSucceeded == false)
+        {
+            issues.Add(new HealthIssue("seriesRefresh", HealthIssueType.Warning, $"The series refresh did not finish (TVDB or TMDB failing): {refresh.LastError}"));
+        }
+
+        if (xemOptions.Value.Enabled && xem.LastFailure is { } failure && await db.Series.AnyAsync(s => s.UseSceneNumbering, ct))
+        {
+            issues.Add(new HealthIssue("xem", HealthIssueType.Warning, $"TheXEM is unreachable since {failure.At:yyyy-MM-dd HH:mm} UTC: scene numbers stay as last read. {failure.Message}"));
+        }
+
+        if (!await db.RootFolders.AnyAsync(r => r.Kind == MediaKind.Series, ct))
+        {
+            issues.Add(new HealthIssue("rootFolders", HealthIssueType.Warning, "No root folder holds series: new series cannot be added. Add one (kind: series) in Settings → Library."));
+        }
+
+        // Prowlarr pushes movie categories only: the TV ones come from the capabilities, read on the first series search.
+        var searching = allIndexers.Where(i => i.EnableRss || i.EnableAutomaticSearch).ToList();
+        if (searching.Count > 0 && searching.All(i => i.TvCategories.Count == 0 && i.AnimeCategories.Count == 0))
+        {
+            issues.Add(new HealthIssue("indexers", HealthIssueType.Warning, "No indexer has TV categories: series releases cannot be searched or picked from RSS. Bigarr reads them from each indexer's capabilities at the next RSS sync or series search; if this stays, the indexers offer no TV category."));
+        }
+
+        var held = await db.HeldReleases.CountAsync(h => h.DismissedAt == null, ct);
+        if (held > 0)
+        {
+            issues.Add(new HealthIssue("heldReleases", HealthIssueType.Notice, $"{held} release(s) held for review: matched on a series' alternative order only. Grab or dismiss them in Activity → Held."));
+        }
     }
 }
 

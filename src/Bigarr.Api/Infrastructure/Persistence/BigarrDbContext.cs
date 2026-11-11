@@ -118,6 +118,8 @@ public sealed class BigarrDbContext(DbContextOptions<BigarrDbContext> options) :
 
     public DbSet<SeriesExclusion> SeriesExclusions => Set<SeriesExclusion>();
 
+    public DbSet<HeldRelease> HeldReleases => Set<HeldRelease>();
+
     public DbSet<MediaServerUser> MediaServerUsers => Set<MediaServerUser>();
 
     public DbSet<MediaServerItem> MediaServerItems => Set<MediaServerItem>();

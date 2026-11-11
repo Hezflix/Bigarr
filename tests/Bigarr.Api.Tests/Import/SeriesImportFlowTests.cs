@@ -101,7 +101,7 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
             Assert.Equal("WEBDL-1080p", upgrade.Data["previousQuality"]);
             Assert.Equal("Hardlinked", upgrade.Data["transfer"]);
             Assert.Equal(7, history.Count(h => h.EventType == HistoryEventType.Grabbed && h.SourceTitle == pack.Title));
-            Assert.DoesNotContain((await RefreshAsync(client)).Items, i => i.GrabId == grab.GrabId); // imported: off the queue
+            await WaitOffQueueAsync(client, grab.GrabId!.Value); // imported: off the queue
 
             // 3. A better single replaces one episode.
             var e02Id = (await SeriesSetup.EpisodeAsync(client, series.Id, 1, 2)).Id;
@@ -371,7 +371,10 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
         while (true)
         {
             var files = (await client.GetFromJsonAsync<SeriesFilesResponse>($"/api/v1/series/{seriesId}/files", Json))!.Files;
-            if (until(files))
+
+            // Each file is committed on its own and the grab ends after the last one: wait for the import to be over
+            // too, or the next grab of these episodes meets a download still active.
+            if (until(files) && (await RefreshAsync(client)).Items.All(i => i.SeriesId != seriesId || i.State is not (GrabState.ImportPending or GrabState.Importing)))
             {
                 return files;
             }

@@ -20,6 +20,7 @@ public sealed class SeriesConfiguration : IEntityTypeConfiguration<Series>
         builder.Property(s => s.Network).HasMaxLength(255);
         builder.Property(s => s.AirTime).HasMaxLength(16);
         builder.Property(s => s.OriginalCountry).HasMaxLength(8);
+        builder.Property(s => s.NetworkCountry).HasMaxLength(8);
         builder.Property(s => s.OriginalLanguage).HasMaxLength(8);
         builder.Property(s => s.AlternativeTitles).HasJsonConversion();
         builder.Property(s => s.Images).HasJsonConversion();

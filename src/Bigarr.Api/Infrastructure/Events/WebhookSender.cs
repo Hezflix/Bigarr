@@ -130,15 +130,19 @@ public sealed class WebhookSender(IServiceScopeFactory scopeFactory, WebhookSign
             {
                 WebhookFormat.Radarr => RadarrWebhook.Body(delivery.EventType, delivery.Event.Payload, delivery.VersionId, settings.ApplicationUrl),
                 WebhookFormat.Discord => DiscordWebhook.Body(delivery.EventType, delivery.Event.Payload, delivery.Endpoint.Discord),
+                WebhookFormat.Sonarr => Features.Notifications.Sonarr.SonarrWebhook.Body(delivery.EventType, delivery.Event.Payload, delivery.VersionId, settings.ApplicationUrl),
                 _ => WebhookClient.Body(delivery.EventType, delivery.EventId, delivery.Event.Payload, delivery.Event.CreatedAt, settings.ApplicationUrl),
             };
             if (body is null)
             {
                 // The endpoint switched format after the delivery was created, to one that has nothing for this event.
                 delivery.NextAttemptAt = null;
-                delivery.LastError = delivery.Endpoint.Format == WebhookFormat.Discord
-                    ? "The Discord format posts nothing for this event."
-                    : "Radarr's webhook format has nothing for this event.";
+                delivery.LastError = delivery.Endpoint.Format switch
+                {
+                    WebhookFormat.Discord => "The Discord format posts nothing for this event.",
+                    WebhookFormat.Sonarr => "Sonarr's webhook format has nothing for this event.",
+                    _ => "Radarr's webhook format has nothing for this event.",
+                };
                 continue;
             }
 
