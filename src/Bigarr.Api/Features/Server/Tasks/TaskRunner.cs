@@ -43,6 +43,11 @@ public sealed class TaskRunner(IServiceScopeFactory scopeFactory, SchedulerState
             {
                 _alwaysOn.Add(job.Name);
             }
+
+            if (job.LongRunning)
+            {
+                _longRunning.Add(job.Name);
+            }
         }
     }
 
@@ -78,6 +83,11 @@ public sealed class TaskRunner(IServiceScopeFactory scopeFactory, SchedulerState
 
     public DateTime? NextDue() =>
         ScheduledNames().Select(n => state.NextRunAt(n)).Where(n => n is not null).Min();
+
+    /// <summary>The jobs that run in their own lane (<see cref="IScheduledJob.LongRunning"/>).</summary>
+    private readonly HashSet<string> _longRunning = new(StringComparer.Ordinal);
+
+    public bool IsLongRunning(string name) => _longRunning.Contains(name);
 
     /// <summary>Whether anything runs on its own: false with the scheduler disabled and no always-on job.</summary>
     public bool AnyScheduled => options.Value.Enabled || _alwaysOn.Count > 0;
@@ -184,23 +194,21 @@ public sealed class SchedulerRunner(TaskRunner runner, SchedulerSignal signal, I
                 }
             }
 
+            var lanes = new List<Task>();
             while (!stoppingToken.IsCancellationRequested)
             {
                 var now = time.GetUtcNow().UtcDateTime;
+                lanes.RemoveAll(t => t.IsCompleted);
                 foreach (var name in runner.Due(now))
                 {
-                    try
+                    if (runner.IsLongRunning(name))
                     {
-                        await runner.RunAsync(name, stoppingToken);
+                        // Its own lane: the loop goes on with the short jobs; the job's lock keeps it to one run at a time.
+                        lanes.Add(Task.Run(() => RunOneAsync(name, stoppingToken), stoppingToken));
+                        continue;
                     }
-                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                    {
-                        throw;
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogError(ex, "Scheduled run of {Task} crashed", name);
-                    }
+
+                    await RunOneAsync(name, stoppingToken);
                 }
 
                 var next = runner.NextDue();
@@ -212,6 +220,22 @@ public sealed class SchedulerRunner(TaskRunner runner, SchedulerSignal signal, I
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // shutting down
+        }
+    }
+
+    private async Task RunOneAsync(string name, CancellationToken stoppingToken)
+    {
+        try
+        {
+            await runner.RunAsync(name, stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // shutting down
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Scheduled run of {Task} crashed", name);
         }
     }
 }

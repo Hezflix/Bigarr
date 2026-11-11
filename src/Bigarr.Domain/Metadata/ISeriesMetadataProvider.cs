@@ -12,6 +12,12 @@ public interface ISeriesMetadataProvider
     /// <summary><c>tvdb+tmdb</c>, <c>tvdb</c>, <c>tmdb</c> or <c>fixtures</c>; surfaced in the system status.</summary>
     string Name { get; }
 
+    /// <summary>
+    /// Whether episode lists can come from TVDB (a TVDB key is set, or the fixture catalogue). Without it, a show that
+    /// has a TVDB id must keep the episode list it has: TMDB's numbering never replaces TVDB's.
+    /// </summary>
+    bool CanNumberByTvdb => true;
+
     /// <summary>The show; with <paramref name="withEpisodes"/>, its seasons and episodes too (one or more extra requests). Null when unknown.</summary>
     Task<SeriesMetadata?> GetByTvdbIdAsync(int tvdbId, bool withEpisodes, CancellationToken cancellationToken);
 

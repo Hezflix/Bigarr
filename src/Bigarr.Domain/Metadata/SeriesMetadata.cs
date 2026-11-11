@@ -56,6 +56,12 @@ public sealed record SeriesMetadata
     /// <summary><c>tvdb+tmdb</c>, <c>tvdb</c>, <c>tmdb</c> or <c>fixtures</c>: where the numbering came from.</summary>
     public string? Source { get; init; }
 
+    /// <summary>
+    /// The episode list is TMDB's own numbering (no TVDB answer behind it). Only right for a show TVDB does not know:
+    /// for one that has a TVDB id, TMDB's list must never replace TVDB's (S1, blueprint §8).
+    /// </summary>
+    public bool NumberedByTmdb => string.Equals(Source, "tmdb", StringComparison.Ordinal);
+
     public IReadOnlyList<SeasonMetadata> Seasons { get; init; } = [];
 
     public IReadOnlyList<EpisodeMetadata> Episodes { get; init; } = [];

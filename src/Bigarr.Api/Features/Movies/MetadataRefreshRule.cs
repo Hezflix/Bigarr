@@ -19,8 +19,14 @@ public sealed class MetadataRefreshOptions
     /// <summary>Provider failures in a row that stop a run: TMDB is down or refuses the key, so the films left wait for the next run.</summary>
     public int RefreshMaxConsecutiveFailures { get; set; } = 10;
 
-    /// <summary>The series refresh task's cadence: Sonarr's RefreshSeries runs every 12 hours, its rule decides which shows are asked.</summary>
-    public int SeriesRefreshIntervalHours { get; set; } = 12;
+    /// <summary>
+    /// The series refresh task's cadence. Sonarr's rule decides which shows are due (never twice within 6 hours); the
+    /// task runs every hour and refreshes a bounded batch, so a library just imported is spread over many passes.
+    /// </summary>
+    public int SeriesRefreshIntervalHours { get; set; } = 1;
+
+    /// <summary>Series refreshed per pass at most (each a few TVDB and TMDB calls).</summary>
+    public int SeriesRefreshBatchSize { get; set; } = 50;
 
     public TimeSpan RefreshInterval => TimeSpan.FromHours(Math.Max(1, RefreshIntervalHours));
 

@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 /// <summary>What <see cref="SeriesRefreshRule"/> reads of a show.</summary>
-public sealed record SeriesRefreshCandidate(int SeriesId, string SortTitle, DateTime? LastRefreshAt, SeriesStatus Status, DateTime? LastEpisodeAirDateUtc, bool AiredEpisodeWithoutTitle);
+public sealed record SeriesRefreshCandidate(int SeriesId, string SortTitle, DateTime? LastRefreshAt, SeriesStatus Status, DateTime? LastEpisodeAirDateUtc, bool AiredEpisodeWithoutTitle, int? TvdbId = null);
 
 /// <summary>
 /// Sonarr's <c>ShouldRefreshSeries</c>, word for word: a show not refreshed for 30 days is due; one with an aired
@@ -53,7 +53,7 @@ public static class SeriesRefreshRule
 /// recently (<see cref="SeriesService.RefreshAsync"/>). Saved show by show; a streak of provider failures stops the run.
 /// With the fixture catalogue it never runs on its own, and by hand it skips the shows the catalogue does not know.
 /// </summary>
-public sealed class SeriesRefreshJob(BigarrDbContext db, SeriesService series, ISeriesMetadataProvider metadata, IOptions<MetadataRefreshOptions> options, TimeProvider time, ILogger<SeriesRefreshJob> logger) : IScheduledJob
+public sealed class SeriesRefreshJob(BigarrDbContext db, SeriesService series, ISeriesMetadataProvider metadata, SeriesRefreshAlerts alerts, IOptions<MetadataRefreshOptions> options, TimeProvider time, ILogger<SeriesRefreshJob> logger) : IScheduledJob
 {
     public const string JobName = "seriesRefresh";
 
@@ -67,6 +67,9 @@ public sealed class SeriesRefreshJob(BigarrDbContext db, SeriesService series, I
 
     public TimeSpan InitialDelay => TimeSpan.FromMinutes(Math.Max(0, options.Value.RefreshInitialDelayMinutes));
 
+    /// <summary>Hundreds of provider calls: its own lane, so RSS and the follows keep their cadence meanwhile.</summary>
+    public bool LongRunning => true;
+
     private bool OnFixtures => metadata.Name == "fixtures";
 
     public async Task<string?> RunAsync(CancellationToken ct)
@@ -79,18 +82,44 @@ public sealed class SeriesRefreshJob(BigarrDbContext db, SeriesService series, I
                 s.LastMetadataRefreshAt,
                 s.Status,
                 s.Episodes.Max(e => e.AirDateUtc),
-                s.Episodes.Any(e => e.SeasonNumber > 0 && e.AirDateUtc != null && e.AirDateUtc < now && e.Title == Infrastructure.Metadata.SeriesMetadataProvider.UntitledEpisode)))
+                s.Episodes.Any(e => e.SeasonNumber > 0 && e.AirDateUtc != null && e.AirDateUtc < now && e.Title == Infrastructure.Metadata.SeriesMetadataProvider.UntitledEpisode),
+                s.TvdbId))
             .ToListAsync(ct);
-        var due = shows.Where(s => SeriesRefreshRule.IsDue(s, now)).OrderBy(s => s.SortTitle, StringComparer.Ordinal).ToList();
+        var allDue = shows.Where(s => SeriesRefreshRule.IsDue(s, now)).ToList();
+
+        // Without TVDB, a show with a TVDB id keeps its episode list (TMDB's numbering never replaces it): not asked at
+        // all, said once for the pass and in the health check.
+        var waitingForTvdb = 0;
+        if (!metadata.CanNumberByTvdb)
+        {
+            waitingForTvdb = allDue.Count(s => s.TvdbId is not null);
+            allDue = allDue.Where(s => s.TvdbId is null).ToList();
+            if (waitingForTvdb > 0)
+            {
+                alerts.TvdbFailed("No TVDB API key", now);
+                logger.LogWarning("Series refresh: no TVDB API key, the episode lists of {Count} series with a TVDB id are not refreshed", waitingForTvdb);
+            }
+        }
+
+        // Spread: a bounded batch per pass, the shows refreshed before first (they keep Sonarr's cadence), then those
+        // never refreshed (a library just imported), in title order.
+        var batch = Math.Max(1, options.Value.SeriesRefreshBatchSize);
+        var due = allDue
+            .OrderBy(s => s.LastRefreshAt is null)
+            .ThenBy(s => s.LastRefreshAt ?? DateTime.MinValue)
+            .ThenBy(s => s.SortTitle, StringComparer.Ordinal)
+            .Take(batch)
+            .ToList();
+        var tail = waitingForTvdb > 0 ? $", {waitingForTvdb} waiting for a TVDB key" : string.Empty;
         if (due.Count == 0)
         {
-            return $"Nothing due among {shows.Count} series";
+            return $"Nothing due among {shows.Count} series{tail}";
         }
 
         var spacing = options.Value.RefreshSpacing;
         var maxFailures = Math.Max(1, options.Value.RefreshMaxConsecutiveFailures);
         var nextCallAt = DateTimeOffset.MinValue;
-        int refreshed = 0, failed = 0, skipped = 0, streak = 0;
+        int refreshed = 0, failed = 0, skipped = 0, refused = 0, tvdbDown = 0, streak = 0;
         foreach (var show in due)
         {
             var wait = nextCallAt - time.GetUtcNow();
@@ -120,6 +149,18 @@ public sealed class SeriesRefreshJob(BigarrDbContext db, SeriesService series, I
                 continue; // deleted since the list was read
             }
 
+            if (result.Failure.StatusCode == StatusCodes.Status409Conflict)
+            {
+                refused++; // the safety net kept the episodes; the health check names the show
+                continue;
+            }
+
+            if (result.Failure.StatusCode == StatusCodes.Status503ServiceUnavailable)
+            {
+                tvdbDown++; // TVDB had no list for this id: kept as it is
+                continue;
+            }
+
             failed++;
             streak++;
             logger.LogWarning("Series refresh of {Series} failed: {Error}", show.SeriesId, result.Failure.Detail ?? result.Failure.Title);
@@ -130,7 +171,11 @@ public sealed class SeriesRefreshJob(BigarrDbContext db, SeriesService series, I
             }
         }
 
-        return $"{due.Count} of {shows.Count} series due, {refreshed} refreshed, {failed} failed" + (skipped > 0 ? $", {skipped} not in the fixture catalogue" : string.Empty);
+        return $"{due.Count} of {allDue.Count} due series refreshed this pass ({shows.Count} in all), {refreshed} refreshed, {failed} failed"
+            + (refused > 0 ? $", {refused} refused by the safety net" : string.Empty)
+            + (tvdbDown > 0 ? $", {tvdbDown} without a TVDB episode list" : string.Empty)
+            + (skipped > 0 ? $", {skipped} not in the fixture catalogue" : string.Empty)
+            + tail;
     }
 
     private async Task<bool> KnownToFixturesAsync(int seriesId, CancellationToken ct)

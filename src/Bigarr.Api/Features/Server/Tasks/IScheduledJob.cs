@@ -25,6 +25,12 @@ public interface IScheduledJob
     /// </summary>
     bool RunsWhenSchedulerDisabled => false;
 
+    /// <summary>
+    /// Takes minutes (a pass over the whole library): run in its own lane, beside the others, so the short jobs (RSS,
+    /// the follows, health) keep their cadence while it runs.
+    /// </summary>
+    bool LongRunning => false;
+
     /// <summary>Does the work and returns one line about it ("15 releases, 2 grabbed"), or null.</summary>
     Task<string?> RunAsync(CancellationToken ct);
 }

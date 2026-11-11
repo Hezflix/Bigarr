@@ -19,5 +19,8 @@ public sealed class SceneMappingRefreshJob(XemService xem, IOptions<XemOptions> 
 
     public TimeSpan InitialDelay => TimeSpan.FromMinutes(5);
 
+    /// <summary>A pass over the whole library: its own lane.</summary>
+    public bool LongRunning => true;
+
     public Task<string?> RunAsync(CancellationToken ct) => xem.RefreshAllAsync(ct)!;
 }
