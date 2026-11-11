@@ -17,6 +17,7 @@ import { DecisionBadge, formatCodec, formatOffset, itemLabel, locationText } fro
 import { StopStreamDialog } from './StopStreamDialog'
 import { StreamTracks } from './StreamTracks'
 import { useLivePositions } from './livePosition'
+import { hideBroken, sizedImage } from './imageSize'
 
 type View = 'cards' | 'rows'
 
@@ -58,7 +59,6 @@ function LiveProgress({ session, live, className }: { session: PlaybackSession; 
   )
 }
 /** TMDB serves smaller files under the same path: a blurred backdrop needs no more than w300. */
-const tmdbSize = (url: string, width: number) => url.replace('/original/', `/w${width}/`)
 
 /**
  * The streams playing now on the followed Plex servers, refreshed every 10 s. Cards (poster, tracks, transcoder) or
@@ -154,7 +154,7 @@ function Title({ session }: { session: PlaybackSession }) {
 
 function PosterImage({ session, width, className }: { session: PlaybackSession; width: number; className: string }) {
   return session.posterUrl ? (
-    <img src={tmdbSize(session.posterUrl, width)} alt="" className={cn('aspect-[2/3] shrink-0 rounded-md object-cover shadow-sm', className)} />
+    <img src={sizedImage(session.posterUrl, width)} onError={hideBroken} alt="" className={cn('aspect-[2/3] shrink-0 rounded-md object-cover shadow-sm', className)} />
   ) : (
     <div className={cn('flex aspect-[2/3] shrink-0 items-center justify-center rounded-md bg-muted text-xs font-semibold text-muted-foreground', className)} aria-hidden="true">
       {session.item.title.slice(0, 2).toUpperCase()}
@@ -254,7 +254,7 @@ function SessionCard({ session, live, onStop }: { session: PlaybackSession; live
     <Card className="group/tile relative h-full gap-0 overflow-hidden p-0" data-session={session.id} data-severity={severityKeys[severity(session)]}>
       <div className="relative isolate h-28">
         {session.fanartUrl ? (
-          <img src={tmdbSize(session.fanartUrl, 780)} alt="" aria-hidden="true" className="absolute inset-0 -z-10 size-full object-cover" />
+          <img src={sizedImage(session.fanartUrl, 780)} onError={hideBroken} alt="" aria-hidden="true" className="absolute inset-0 -z-10 size-full object-cover" />
         ) : (
           <div className="absolute inset-0 -z-10 bg-muted" />
         )}
