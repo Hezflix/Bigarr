@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { cn } from 'cn'
-import { PencilIcon, SearchIcon } from 'lucide-react'
+import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, PencilIcon, SearchIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, playback, type PlaybackUser } from '@/api/client'
@@ -15,20 +15,51 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatDateTime } from '@/i18n'
+
+type SortKey = 'name' | 'plays' | 'lastSeen' | 'access'
+type Sort = { key: SortKey; direction: 'asc' | 'desc' }
+
+/** Names sort A to Z first; numbers, dates and access the most first (on the server before off). */
+const firstDirection = (key: SortKey): Sort['direction'] => (key === 'name' ? 'asc' : 'desc')
+
+/** On, then off, then not known: the unknown last whichever the direction. */
+const accessRank = (u: PlaybackUser) => (u.onServer === null ? null : u.onServer ? 1 : 0)
+
+function compare(a: PlaybackUser, b: PlaybackUser, sort: Sort): number {
+  const sign = sort.direction === 'asc' ? 1 : -1
+  const byName = a.name.localeCompare(b.name)
+  switch (sort.key) {
+    case 'name':
+      return sign * byName
+    case 'plays':
+      return sign * (a.plays - b.plays) || byName
+    case 'lastSeen':
+      return sign * a.lastSeenAt.localeCompare(b.lastSeenAt) || byName
+    case 'access': {
+      const ra = accessRank(a)
+      const rb = accessRank(b)
+      if (ra === rb) return b.plays - a.plays || byName
+      if (ra === null) return 1
+      if (rb === null) return -1
+      return sign * (ra - rb)
+    }
+  }
+}
 
 /** The people who play from the followed servers, the most active first, with the name Bigarr shows and whether their plays are kept. */
 export function UsersPage() {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState<PlaybackUser | null>(null)
+  const [sort, setSort] = useState<Sort>({ key: 'plays', direction: 'desc' })
   const users = useQuery({ queryKey: ['playback', 'users'], queryFn: playback.users })
   const shown = useMemo(() => {
     const needle = search.trim().toLowerCase()
-    return (users.data ?? [])
-      .filter((u) => u.name.toLowerCase().includes(needle) || u.serverName.toLowerCase().includes(needle))
-      .sort((a, b) => b.plays - a.plays || a.name.localeCompare(b.name))
-  }, [users.data, search])
+    return (users.data ?? []).filter((u) => u.name.toLowerCase().includes(needle) || u.serverName.toLowerCase().includes(needle)).sort((a, b) => compare(a, b, sort))
+  }, [users.data, search, sort])
+  const onSort = (key: SortKey) => setSort((current) => (current.key === key ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: firstDirection(key) }))
 
   return (
     <>
@@ -51,10 +82,18 @@ export function UsersPage() {
           <Table data-testid="users-table">
             <TableHeader>
               <TableRow>
-                <TableHead>{t('playback.user')}</TableHead>
-                <TableHead className="text-right">{t('playback.plays')}</TableHead>
-                <TableHead>{t('playback.lastSeen')}</TableHead>
-                <TableHead>{t('playback.history')}</TableHead>
+                <SortHead column="name" sort={sort} onSort={onSort}>
+                  {t('playback.user')}
+                </SortHead>
+                <SortHead column="plays" sort={sort} onSort={onSort} className="text-right">
+                  {t('playback.plays')}
+                </SortHead>
+                <SortHead column="lastSeen" sort={sort} onSort={onSort}>
+                  {t('playback.lastSeen')}
+                </SortHead>
+                <SortHead column="access" sort={sort} onSort={onSort}>
+                  {t('playback.access')}
+                </SortHead>
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
@@ -71,11 +110,14 @@ export function UsersPage() {
                         {user.name !== user.serverName && <span className="truncate text-xs text-muted-foreground">{user.serverName}</span>}
                       </span>
                       {user.isOwner && <Badge variant="secondary">{t('playback.owner')}</Badge>}
+                      {!user.keepHistory && <Badge variant="outline">{t('playback.historyOff')}</Badge>}
                     </span>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{user.plays}</TableCell>
                   <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(user.lastSeenAt)}</TableCell>
-                  <TableCell>{user.keepHistory ? <span className="text-sm text-muted-foreground">{t('playback.kept')}</span> : <Badge variant="outline">{t('playback.notKept')}</Badge>}</TableCell>
+                  <TableCell>
+                    <Access user={user} />
+                  </TableCell>
                   <TableCell>
                     <Button variant="ghost" size="icon" onClick={() => setEditing(user)} aria-label={t('playback.editUser', { name: user.name })} data-testid="edit-user">
                       <PencilIcon />
@@ -89,6 +131,50 @@ export function UsersPage() {
       )}
       {editing && <EditUserDialog user={editing} onClose={() => setEditing(null)} />}
     </>
+  )
+}
+
+/** A header that sorts its column, the library table's way: the sorted one shows its direction, the others a hint on hover. */
+function SortHead({ column, sort, onSort, className, children }: { column: SortKey; sort: Sort; onSort: (key: SortKey) => void; className?: string; children: ReactNode }) {
+  const { t } = useTranslation()
+  const active = sort.key === column
+  const Arrow = !active ? ArrowUpDownIcon : sort.direction === 'asc' ? ArrowUpIcon : ArrowDownIcon
+  const right = className?.includes('text-right')
+  return (
+    <TableHead className={className} aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button
+        type="button"
+        className={cn(
+          'group/sort -mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/50',
+          right && 'flex-row-reverse',
+          active && 'text-foreground',
+        )}
+        onClick={() => onSort(column)}
+        aria-label={t('playback.sortBy', { column: typeof children === 'string' ? children : column })}
+        data-testid={`sort-${column}`}
+      >
+        {children}
+        <Arrow className={cn('size-3 shrink-0', !active && 'opacity-0 group-hover/sort:opacity-50 group-focus-visible/sort:opacity-50')} aria-hidden="true" />
+      </button>
+    </TableHead>
+  )
+}
+
+/** On or off the server, with where Bigarr knows it from on hover: plex.tv and when, or the Tautulli import. */
+function Access({ user }: { user: PlaybackUser }) {
+  const { t } = useTranslation()
+  if (user.onServer === null) return <span className="text-sm text-muted-foreground">{t('playback.accessUnknown')}</span>
+  const label = user.onServer ? <span className="text-sm">{t('playback.accessOn')}</span> : <Badge variant="outline">{t('playback.accessOff')}</Badge>
+  if (user.isOwner && user.onServerCheckedAt === null) return label
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="cursor-default" data-testid="access">
+          {label}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{user.onServerCheckedAt ? t('playback.accessChecked', { date: formatDateTime(user.onServerCheckedAt) }) : t('playback.accessFromImport')}</TooltipContent>
+    </Tooltip>
   )
 }
 

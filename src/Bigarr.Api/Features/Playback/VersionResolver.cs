@@ -13,6 +13,7 @@ public sealed record ResolvedVersion(int? MovieId, int? VersionId, string? Versi
 /// Which version a played file belongs to, from the surest clue to the weakest:
 /// <list type="number">
 /// <item>the file itself: the server's path through the path mappings is a version's file;</item>
+/// <item>the version chosen when the item was linked to its film by hand;</item>
 /// <item>the server's library: its folders hold exactly one of the film's versions (Films → 1080p, Films 4K → 4k);</item>
 /// <item>the film's versions: only one has a file, or only one has the played resolution.</item>
 /// </list>
@@ -29,7 +30,8 @@ public sealed class VersionResolver(BigarrDbContext db)
         ArgumentNullException.ThrowIfNull(libraryFolders);
 
         var filePath = serverFilePath is null ? null : server.TranslateFromServer(serverFilePath);
-        if (filePath is not null && await ByPathAsync(filePath, ct) is { } byPath)
+        // A film linked by hand is not overruled by a file of another film: the link is the owner's word.
+        if (filePath is not null && await ByPathAsync(filePath, ct) is { } byPath && (!item.LinkedByHand || byPath.MovieId == item.MovieId))
         {
             return byPath;
         }
@@ -43,6 +45,11 @@ public sealed class VersionResolver(BigarrDbContext db)
             .Where(v => v.MovieId == movieId)
             .Select(v => new Candidate(v.Id, v.Name, v.RootFolder.Path, v.File != null, v.File != null ? v.File.Quality.Resolution : null))
             .ToListAsync(ct);
+
+        if (item.LinkedVersionId is { } linked && versions.FirstOrDefault(v => v.Id == linked) is { } chosenByHand)
+        {
+            return new ResolvedVersion(movieId, chosenByHand.Id, chosenByHand.Name, filePath);
+        }
 
         var folders = libraryFolders.Select(server.TranslateFromServer).ToList();
         if (folders.Count > 0 && Single(versions.Where(v => folders.Any(f => PlexClient.IsUnder(v.RootPath, f) || PlexClient.IsUnder(f, v.RootPath)))) is { } inLibrary)

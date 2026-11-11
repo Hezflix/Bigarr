@@ -1091,11 +1091,21 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("LinkedByHand")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("LinkedVersionId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("MediaServerId")
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("MovieId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("OriginalTitle")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("RatingKey")
                         .IsRequired()
@@ -1150,6 +1160,8 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("LinkedVersionId");
+
                     b.HasIndex("MovieId");
 
                     b.HasIndex("ShowTvdbId");
@@ -1195,6 +1207,12 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool?>("OnServer")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("OnServerCheckedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ThumbUrl")
@@ -3109,6 +3127,11 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Bigarr.Domain.Playback.MediaServerItem", b =>
                 {
+                    b.HasOne("Bigarr.Domain.Movies.MovieVersion", "LinkedVersion")
+                        .WithMany()
+                        .HasForeignKey("LinkedVersionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Bigarr.Domain.MediaServers.MediaServer", "MediaServer")
                         .WithMany()
                         .HasForeignKey("MediaServerId")
@@ -3119,6 +3142,8 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("MovieId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("LinkedVersion");
 
                     b.Navigation("MediaServer");
 

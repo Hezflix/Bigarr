@@ -428,6 +428,12 @@ public sealed class TautulliImportService(
                 }
 
                 user.ThumbUrl ??= account.Thumb;
+
+                // Tautulli's word on who left the server, until plex.tv gives its own.
+                if (user.OnServerCheckedAt is null)
+                {
+                    user.OnServer = user.IsOwner || !account.Deleted;
+                }
             }
 
             entities[tautulliId] = user;
@@ -473,6 +479,7 @@ public sealed class TautulliImportService(
                 ImdbId = plan.ImdbId,
                 TvdbId = plan.TvdbId,
                 Title = context.Films.Title(plan.MovieId) ?? plan.Title,
+                OriginalTitle = source.OriginalTitle,
                 Year = plan.MovieId is not null ? context.Films.Year(plan.MovieId) ?? plan.Year : plan.Year,
                 DurationMs = plan.DurationMs,
                 CreditsStartMs = plan.CreditsStartMs,

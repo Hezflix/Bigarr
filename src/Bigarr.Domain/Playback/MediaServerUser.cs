@@ -30,6 +30,15 @@ public sealed class MediaServerUser
     /// <summary>Off: the user's sessions show in Now playing but no play is written.</summary>
     public bool KeepHistory { get; set; } = true;
 
+    /// <summary>
+    /// The server is still shared with the account, as plex.tv last said (the owner always is). Null until known; a
+    /// Tautulli import can give a first idea, which plex.tv then overrules.
+    /// </summary>
+    public bool? OnServer { get; set; }
+
+    /// <summary>When plex.tv last answered about <see cref="OnServer"/>; null while it is only the import's idea.</summary>
+    public DateTime? OnServerCheckedAt { get; set; }
+
     public DateTime FirstSeenAt { get; set; }
 
     public DateTime LastSeenAt { get; set; }

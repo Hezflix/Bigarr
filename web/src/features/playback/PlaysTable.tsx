@@ -1,12 +1,14 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowDownIcon, ArrowUpIcon, CheckIcon } from 'lucide-react'
+import { ArrowDownIcon, ArrowUpIcon, CheckIcon, LinkIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { Play, PlaySortKey } from '@/api/client'
+import type { Play, PlaybackItemRef, PlaySortKey } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatDateTime } from '@/i18n'
 import { DecisionBadge, formatPlayed, itemLabel } from './format'
+import { LinkFilmDialog } from './LinkFilmDialog'
 
 export type PlaySort = { key: PlaySortKey; direction: 'asc' | 'desc' }
 
@@ -30,6 +32,7 @@ export function PlaysTable({
   onSelect?: (play: Play) => void
 }) {
   const { t } = useTranslation()
+  const [linking, setLinking] = useState<PlaybackItemRef | null>(null)
   const head = (key: PlaySortKey, label: string, className?: string) =>
     sort && onSort ? (
       <SortableHead column={key} sort={sort} onSort={onSort} className={className}>
@@ -62,7 +65,7 @@ export function PlaysTable({
                 key={play.id}
                 data-play={play.id}
                 className={onSelect ? 'cursor-pointer' : undefined}
-                onClick={onSelect ? (e) => !(e.target as HTMLElement).closest('a') && onSelect(play) : undefined}
+                onClick={onSelect ? (e) => !(e.target as HTMLElement).closest('a, button') && onSelect(play) : undefined}
               >
                 <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(play.startedAt)}</TableCell>
                 {showUser && <TableCell className="whitespace-nowrap">{play.user.name}</TableCell>}
@@ -74,6 +77,13 @@ export function PlaysTable({
                       </Link>
                     ) : (
                       <span>{itemLabel(play.item)}</span>
+                    )}
+                    {/* A film the import or the server's ids could not tie to a Bigarr film: link it from here. */}
+                    {play.item.kind === 'movie' && play.movieId === null && play.item.movieId === null && (
+                      <Button type="button" variant="ghost" size="sm" className="ml-1.5 h-6 gap-1 px-1.5 text-xs text-muted-foreground" onClick={() => setLinking(play.item)} data-testid="link-play">
+                        <LinkIcon className="size-3" aria-hidden="true" />
+                        {t('playback.link.action')}
+                      </Button>
                     )}
                   </TableCell>
                 )}
@@ -106,6 +116,7 @@ export function PlaysTable({
           })}
         </TableBody>
       </Table>
+      <LinkFilmDialog item={linking} onClose={() => setLinking(null)} />
     </div>
   )
 }

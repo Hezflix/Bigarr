@@ -7,6 +7,7 @@ public sealed record PlaybackServerStatus(int Id, string Name, bool Connected, s
 
 public sealed record PlaybackUserRef(int Id, string Name, string? ThumbUrl);
 
+/// <summary><c>Title</c> is the Bigarr film's when linked; <c>ServerTitle</c> the one the server or Tautulli gave.</summary>
 public sealed record PlaybackItemRef(
     int Id,
     MediaItemKind Kind,
@@ -17,8 +18,14 @@ public sealed record PlaybackItemRef(
     int? EpisodeNumber,
     long? DurationMs,
     string? LibraryTitle,
-    int? MovieId);
+    int? MovieId,
+    string? ServerTitle = null,
+    bool LinkedByHand = false);
 
+/// <summary>
+/// <c>PositionAgeMs</c>: how long ago the server gave <c>ViewOffsetMs</c>, so a page can move the position on from
+/// there until the next refresh.
+/// </summary>
 public sealed record PlaybackSessionResponse(
     int Id,
     int ServerId,
@@ -36,7 +43,8 @@ public sealed record PlaybackSessionResponse(
     string? PosterUrl = null,
     string? FanartUrl = null,
     PlaybackLocation? Location = null,
-    bool CanStop = false);
+    bool CanStop = false,
+    long PositionAgeMs = 0);
 
 public sealed record NowPlayingResponse(List<PlaybackServerStatus> Servers, List<PlaybackSessionResponse> Sessions);
 
@@ -109,8 +117,12 @@ public sealed record PlayFilter(
     string? Search = null,
     bool Unmatched = false);
 
-/// <summary><c>Name</c> is the one Bigarr shows (the display name when set), <c>ServerName</c> the account's on the server.</summary>
-public sealed record PlaybackUserResponse(int Id, string Name, string? ThumbUrl, bool IsOwner, int Plays, DateTime LastSeenAt, string ServerName, bool KeepHistory);
+/// <summary>
+/// <c>Name</c> is the one Bigarr shows (the display name when set), <c>ServerName</c> the account's on the server.
+/// <c>OnServer</c>: the server is still shared with them, null when not known; <c>OnServerCheckedAt</c> when plex.tv said
+/// so, null when it is the Tautulli import's idea.
+/// </summary>
+public sealed record PlaybackUserResponse(int Id, string Name, string? ThumbUrl, bool IsOwner, int Plays, DateTime LastSeenAt, string ServerName, bool KeepHistory, bool? OnServer = null, DateTime? OnServerCheckedAt = null);
 
 /// <summary>
 /// The user page's numbers: plays and watch time over the last day, week, month and since the start, players, decisions.

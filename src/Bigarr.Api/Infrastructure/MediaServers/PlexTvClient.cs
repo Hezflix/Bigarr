@@ -1,5 +1,7 @@
 using System.Net;
 using System.Text.Json;
+using System.Xml;
+using System.Xml.Linq;
 
 namespace Bigarr.Api.Infrastructure.MediaServers;
 
@@ -18,8 +20,14 @@ public sealed class PlexTvOptions
 }
 
 /// <summary>
-/// plex.tv's own API with a server owner's token. Only the geolocation of an address for now
-/// (<c>/api/v2/geoip?ip_address=</c>), the lookup Plex Web and Tautulli use.
+/// A plex.tv account the owner shares with (<c>/api/users</c>): <c>Servers</c> are the machine identifiers of the
+/// owner's servers it was given, an invitation not yet accepted left out; <c>Home</c> is a Plex Home member.
+/// </summary>
+public sealed record PlexTvFriend(string Id, string? Username, bool Home, IReadOnlyList<string> Servers);
+
+/// <summary>
+/// plex.tv's own API with a server owner's token: the geolocation of an address (<c>/api/v2/geoip?ip_address=</c>,
+/// the lookup Plex Web and Tautulli use) and the accounts the owner shares with (<c>/api/users</c>, Tautulli's list).
 /// </summary>
 public sealed class PlexTvClient(HttpClient http)
 {
@@ -30,25 +38,8 @@ public sealed class PlexTvClient(HttpClient http)
     {
         ArgumentException.ThrowIfNullOrEmpty(ipAddress);
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, "api/v2/geoip?ip_address=" + Uri.EscapeDataString(ipAddress));
-        request.Headers.TryAddWithoutValidation("X-Plex-Token", token.Trim());
-        request.Headers.TryAddWithoutValidation("X-Plex-Client-Identifier", "bigarr");
-        request.Headers.TryAddWithoutValidation("X-Plex-Product", "Bigarr");
-        request.Headers.Accept.ParseAdd("application/json");
-
-        HttpResponseMessage response;
-        try
-        {
-            response = await http.SendAsync(request, ct);
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
-        {
-            throw new MediaServerException(ex is TaskCanceledException ? "plex.tv did not answer before the timeout." : $"plex.tv could not be reached: {ex.Message}", ex);
-        }
+        using var request = Request("api/v2/geoip?ip_address=" + Uri.EscapeDataString(ipAddress), token, "application/json");
+        var response = await SendAsync(request, "the geolocation", ct);
 
         using (response)
         {
@@ -71,6 +62,73 @@ public sealed class PlexTvClient(HttpClient http)
             {
                 throw new MediaServerException("plex.tv answered something that is not JSON to the geolocation.", ex);
             }
+        }
+    }
+
+    /// <summary>The owner's friends and Plex Home members, with the servers shared with each.</summary>
+    public async Task<List<PlexTvFriend>> FriendsAsync(string token, CancellationToken ct)
+    {
+        using var request = Request("api/users", token, "application/xml");
+        using var response = await SendAsync(request, "the list of users", ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new MediaServerException($"plex.tv answered HTTP {(int)response.StatusCode} to the list of users.") { StatusCode = response.StatusCode };
+        }
+
+        try
+        {
+            await using var body = await response.Content.ReadAsStreamAsync(ct);
+            return ParseFriends(await XDocument.LoadAsync(body, LoadOptions.None, ct));
+        }
+        catch (XmlException ex)
+        {
+            throw new MediaServerException("plex.tv answered something that is not XML to the list of users.", ex);
+        }
+    }
+
+    /// <summary><c>&lt;MediaContainer&gt;&lt;User id username home&gt;&lt;Server machineIdentifier pending/&gt;…</c></summary>
+    public static List<PlexTvFriend> ParseFriends(XDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        return document.Root?.Elements("User")
+            .Select(u => (Id: (string?)u.Attribute("id"), User: u))
+            .Where(u => !string.IsNullOrWhiteSpace(u.Id))
+            .Select(u => new PlexTvFriend(
+                u.Id!.Trim(),
+                (string?)u.User.Attribute("username") ?? (string?)u.User.Attribute("title"),
+                (string?)u.User.Attribute("home") == "1",
+                u.User.Elements("Server")
+                    .Where(s => (string?)s.Attribute("pending") != "1")
+                    .Select(s => (string?)s.Attribute("machineIdentifier"))
+                    .OfType<string>()
+                    .ToList()))
+            .ToList() ?? [];
+    }
+
+    private static HttpRequestMessage Request(string path, string token, string accept)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, path);
+        request.Headers.TryAddWithoutValidation("X-Plex-Token", token.Trim());
+        request.Headers.TryAddWithoutValidation("X-Plex-Client-Identifier", "bigarr");
+        request.Headers.TryAddWithoutValidation("X-Plex-Product", "Bigarr");
+        request.Headers.Accept.ParseAdd(accept);
+        return request;
+    }
+
+    private async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, string what, CancellationToken ct)
+    {
+        try
+        {
+            return await http.SendAsync(request, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            throw new MediaServerException(ex is TaskCanceledException ? $"plex.tv did not answer {what} before the timeout." : $"plex.tv could not be reached: {ex.Message}", ex);
         }
     }
 

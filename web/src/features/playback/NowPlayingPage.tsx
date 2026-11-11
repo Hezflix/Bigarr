@@ -16,6 +16,7 @@ import { formatDateTime, formatTime } from '@/i18n'
 import { DecisionBadge, formatCodec, formatOffset, itemLabel, locationText } from './format'
 import { StopStreamDialog } from './StopStreamDialog'
 import { StreamTracks } from './StreamTracks'
+import { useLivePositions } from './livePosition'
 
 type View = 'cards' | 'rows'
 
@@ -38,8 +39,24 @@ export function severity(session: PlaybackSession): 0 | 1 | 2 {
 
 const severityKeys = ['fine', 'transcoding', 'slow'] as const
 
-const remainingMs = (s: PlaybackSession) => Math.max(0, (s.item.durationMs ?? 0) - s.viewOffsetMs)
-const progressOf = (s: PlaybackSession) => (s.item.durationMs ? Math.min(100, (s.viewOffsetMs / s.item.durationMs) * 100) : 0)
+/** Where a stream is now: the server's position moved on locally between refreshes (see `useLivePositions`). */
+type Live = ReturnType<typeof useLivePositions>
+
+const remainingMs = (s: PlaybackSession, offsetMs: number) => Math.max(0, (s.item.durationMs ?? 0) - offsetMs)
+const progressOf = (s: PlaybackSession, offsetMs: number) => (s.item.durationMs ? Math.min(100, (offsetMs / s.item.durationMs) * 100) : 0)
+
+/** The bar glides from one second to the next while playing; a jump, a pause or reduced motion moves it at once. */
+function LiveProgress({ session, live, className }: { session: PlaybackSession; live: Live; className?: string }) {
+  const { t } = useTranslation()
+  return (
+    <Progress
+      value={progressOf(session, live.positionOf(session))}
+      className={className}
+      indicatorClassName={live.glides(session) ? 'duration-1000 ease-linear motion-reduce:transition-none' : 'transition-none'}
+      aria-label={t('playback.progress')}
+    />
+  )
+}
 /** TMDB serves smaller files under the same path: a blurred backdrop needs no more than w300. */
 const tmdbSize = (url: string, width: number) => url.replace('/original/', `/w${width}/`)
 
@@ -51,6 +68,7 @@ export function NowPlayingPage() {
   const { t } = useTranslation()
   const query = useQuery({ queryKey: ['playback', 'now'], queryFn: playback.nowPlaying, refetchInterval: 10_000 })
   const data = query.data
+  const live = useLivePositions(data?.sessions, query.dataUpdatedAt)
   const [view, setView] = useState<View>(storedView)
   const [stopping, setStopping] = useState<PlaybackSession | null>(null)
   const choose = (next: View) => {
@@ -98,11 +116,11 @@ export function NowPlayingPage() {
       {data && data.sessions.length > 0 && view === 'cards' && (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,30rem),1fr))] gap-4" data-testid="now-playing">
           {data.sessions.map((session) => (
-            <SessionCard key={session.id} session={session} onStop={setStopping} />
+            <SessionCard key={session.id} session={session} live={live} onStop={setStopping} />
           ))}
         </div>
       )}
-      {data && data.sessions.length > 0 && view === 'rows' && <SessionRows sessions={data.sessions} onStop={setStopping} />}
+      {data && data.sessions.length > 0 && view === 'rows' && <SessionRows sessions={data.sessions} live={live} onStop={setStopping} />}
       <StopStreamDialog session={stopping} onClose={() => setStopping(null)} />
     </>
   )
@@ -145,9 +163,9 @@ function PosterImage({ session, width, className }: { session: PlaybackSession; 
 }
 
 /** "Started 09/11/2026, 21:05 · ends 23:51" on hover of the position or the time left. */
-function Times({ session, children, className }: { session: PlaybackSession; children: React.ReactNode; className?: string }) {
+function Times({ session, live, children, className }: { session: PlaybackSession; live: Live; children: React.ReactNode; className?: string }) {
   const { t } = useTranslation()
-  const ends = session.state !== 'paused' && session.item.durationMs ? formatTime(Date.now() + remainingMs(session)) : null
+  const ends = session.state !== 'paused' && session.item.durationMs ? formatTime(Date.now() + remainingMs(session, live.positionOf(session))) : null
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -225,10 +243,11 @@ function FactsGrid({ session }: { session: PlaybackSession }) {
  * platform, the decision and the version on it; the facts grid under it; the progress pinned to the bottom so it lines
  * up across a row whatever the number of facts.
  */
-function SessionCard({ session, onStop }: { session: PlaybackSession; onStop: (session: PlaybackSession) => void }) {
+function SessionCard({ session, live, onStop }: { session: PlaybackSession; live: Live; onStop: (session: PlaybackSession) => void }) {
   const { t } = useTranslation()
   const d = session.details
   const player = [d.playerTitle ?? d.playerProduct, d.playerPlatform].filter(Boolean).join(' · ')
+  const position = live.positionOf(session)
   const network = [d.bandwidth !== null ? t('playback.mbps', { value: (d.bandwidth / 1000).toFixed(1) }) : null, d.ipAddress, locationText(session.location, t('playback.localNetwork'), true)].filter(Boolean).join(' · ')
 
   return (
@@ -269,11 +288,11 @@ function SessionCard({ session, onStop }: { session: PlaybackSession; onStop: (s
         <FactsGrid session={session} />
         {/* Pinned to the bottom: the bar sits at the same height on every tile of a row. */}
         <div className="mt-auto flex flex-col gap-1">
-          <Progress value={progressOf(session)} aria-label={t('playback.progress')} />
+          <LiveProgress session={session} live={live} />
           <div className="flex flex-wrap justify-between gap-x-3 text-xs tabular-nums text-muted-foreground">
-            <Times session={session}>
-              {formatOffset(session.viewOffsetMs)} / {session.item.durationMs ? formatOffset(session.item.durationMs) : '?'}
-              {session.state !== 'paused' && session.item.durationMs ? ` · ${t('playback.ends', { time: formatTime(Date.now() + remainingMs(session)) })}` : ''}
+            <Times session={session} live={live}>
+              {formatOffset(position)} / {session.item.durationMs ? formatOffset(session.item.durationMs) : '?'}
+              {session.state !== 'paused' && session.item.durationMs ? ` · ${t('playback.ends', { time: formatTime(Date.now() + remainingMs(session, position)) })}` : ''}
             </Times>
             {/* LAN or WAN shows in the address and its place. */}
             <span className="min-w-0 truncate" title={locationText(session.location, t('playback.localNetwork')) ?? undefined} data-testid="network">
@@ -329,7 +348,7 @@ function Avatar({ name, url, className }: { name: string; url: string | null; cl
 }
 
 /** One line per stream, for evenings with many; a click opens the same details as a card under the row. */
-function SessionRows({ sessions, onStop }: { sessions: PlaybackSession[]; onStop: (session: PlaybackSession) => void }) {
+function SessionRows({ sessions, live, onStop }: { sessions: PlaybackSession[]; live: Live; onStop: (session: PlaybackSession) => void }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState<number | null>(null)
 
@@ -338,6 +357,7 @@ function SessionRows({ sessions, onStop }: { sessions: PlaybackSession[]; onStop
       {sessions.map((session) => {
         const d = session.details
         const expanded = open === session.id
+        const position = live.positionOf(session)
         return (
           <div key={session.id} className="relative" data-session={session.id}>
             <div
@@ -364,10 +384,10 @@ function SessionRows({ sessions, onStop }: { sessions: PlaybackSession[]; onStop
                 <DecisionBadge decision={d.decision} />
               </span>
               <span className="hidden w-36 lg:block">
-                <Progress value={progressOf(session)} className="h-1.5" aria-label={t('playback.progress')} />
+                <LiveProgress session={session} live={live} className="h-1.5" />
               </span>
-              <Times session={session} className="hidden w-24 text-right text-xs tabular-nums text-muted-foreground md:block">
-                {t('playback.left', { time: formatOffset(remainingMs(session)) })}
+              <Times session={session} live={live} className="hidden w-24 text-right text-xs tabular-nums text-muted-foreground md:block">
+                {t('playback.left', { time: formatOffset(remainingMs(session, position)) })}
               </Times>
               <span className="hidden w-20 text-right text-xs tabular-nums text-muted-foreground md:block">{d.bandwidth !== null && t('playback.mbps', { value: (d.bandwidth / 1000).toFixed(1) })}</span>
               <ChevronDownIcon className={cn('size-4 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-180')} />
@@ -393,7 +413,7 @@ function SessionRows({ sessions, onStop }: { sessions: PlaybackSession[]; onStop
                   )}
                   <dt className="text-muted-foreground">{t('playback.position')}</dt>
                   <dd className="tabular-nums">
-                    {formatOffset(session.viewOffsetMs)} / {session.item.durationMs ? formatOffset(session.item.durationMs) : '?'}
+                    {formatOffset(position)} / {session.item.durationMs ? formatOffset(session.item.durationMs) : '?'}
                   </dd>
                   <dt className="text-muted-foreground">{t('playback.since')}</dt>
                   <dd>{formatDateTime(session.startedAt)}</dd>

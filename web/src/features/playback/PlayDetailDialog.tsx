@@ -1,17 +1,23 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { LinkIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { playback, type Play } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDateTime } from '@/i18n'
 import { DecisionBadge, formatOffset, formatPlayed, itemLabel, locationText } from './format'
+import { LinkFilmDialog } from './LinkFilmDialog'
 import { StreamTracks } from './StreamTracks'
 
 /** A play and the sessions it was made of: player, network, what happened to each track, the file. */
 export function PlayDetailDialog({ play, onClose }: { play: Play | null; onClose: () => void }) {
   const { t } = useTranslation()
   const streams = useQuery({ queryKey: ['playback', 'streams', play?.id], queryFn: () => playback.streams(play!.id), enabled: play !== null })
+  const [linking, setLinking] = useState(false)
+  const linked = play !== null && (play.movieId !== null || play.item.movieId !== null)
 
   return (
     <Dialog open={play !== null} onOpenChange={(open) => !open && onClose()}>
@@ -28,7 +34,14 @@ export function PlayDetailDialog({ play, onClose }: { play: Play | null; onClose
                 <Badge variant="outline">{formatPlayed(play.playedSeconds)}</Badge>
                 {play.pausedSeconds > 0 && <Badge variant="outline">{t('playback.pausedFor', { time: formatPlayed(play.pausedSeconds) })}</Badge>}
                 {play.watched && <Badge variant="outline">{t('playback.watched')}</Badge>}
+                {play.item.kind === 'movie' && (
+                  <Button type="button" variant="outline" size="sm" className="ml-auto h-7 gap-1.5" onClick={() => setLinking(true)} data-testid="detail-link">
+                    <LinkIcon className="size-3.5" aria-hidden="true" />
+                    {linked ? t('playback.link.change') : t('playback.link.action')}
+                  </Button>
+                )}
               </div>
+              {play.item.serverTitle && play.item.serverTitle !== play.item.title && <p className="text-xs text-muted-foreground">{t('playback.link.serverTitle', { title: play.item.serverTitle })}</p>}
             </DialogHeader>
             <div className="flex flex-col gap-4">
               {streams.isPending && <Skeleton className="h-40 w-full" />}
@@ -90,6 +103,8 @@ export function PlayDetailDialog({ play, onClose }: { play: Play | null; onClose
           </>
         )}
       </DialogContent>
+      {/* The play's title and film change: the details close once the link is saved. */}
+      <LinkFilmDialog item={linking && play ? { ...play.item, movieId: play.movieId ?? play.item.movieId } : null} onClose={() => setLinking(false)} onLinked={onClose} />
     </Dialog>
   )
 }

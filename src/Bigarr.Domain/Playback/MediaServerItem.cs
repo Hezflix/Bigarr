@@ -38,6 +38,9 @@ public sealed class MediaServerItem
 
     public required string Title { get; set; }
 
+    /// <summary>The title in the film's own language, when the server (or Tautulli) gave one: a clue to link it by.</summary>
+    public string? OriginalTitle { get; set; }
+
     public int? Year { get; set; }
 
     public long? DurationMs { get; set; }
@@ -71,6 +74,17 @@ public sealed class MediaServerItem
     public int? MovieId { get; set; }
 
     public Movie? Movie { get; set; }
+
+    /// <summary>
+    /// <see cref="MovieId"/> was chosen by hand (linked, or unlinked when null): the item's ids no longer decide it, so a
+    /// refresh from the server keeps it.
+    /// </summary>
+    public bool LinkedByHand { get; set; }
+
+    /// <summary>The version chosen with a link by hand: the plays whose file does not tell their version get this one.</summary>
+    public int? LinkedVersionId { get; set; }
+
+    public MovieVersion? LinkedVersion { get; set; }
 
     public DateTime FirstSeenAt { get; set; }
 

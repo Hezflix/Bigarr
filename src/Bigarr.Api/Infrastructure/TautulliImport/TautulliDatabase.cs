@@ -25,7 +25,8 @@ public sealed record TautulliItem(
     string? GrandparentTitle,
     int? SeasonNumber,
     int? EpisodeNumber,
-    bool Live)
+    bool Live,
+    string? OriginalTitle = null)
 {
     public string? Guid => Guids.Count > 0 ? Guids[0] : null;
 }
@@ -181,7 +182,8 @@ public sealed class TautulliDatabase : IDisposable
             command.CommandText = $"""
                 SELECT h.rating_key, COALESCE(m.media_type, h.media_type), m.title, {Col(m, "year", "m")}, {Col(m, "duration", "m")},
                        {Col(m, "marker_credits_first", "m")}, h.section_id, {Col(m, "parent_rating_key", "m")}, {Col(m, "grandparent_rating_key", "m")},
-                       {Col(m, "grandparent_title", "m")}, {Col(m, "parent_media_index", "m")}, {Col(m, "media_index", "m")}, {Col(m, "live", "m")}
+                       {Col(m, "grandparent_title", "m")}, {Col(m, "parent_media_index", "m")}, {Col(m, "media_index", "m")}, {Col(m, "live", "m")},
+                       {Col(m, "original_title", "m")}
                 FROM session_history h
                 JOIN (SELECT h2.rating_key AS rk, MAX(h2.id) AS last
                       FROM session_history h2 JOIN session_history_metadata m2 ON m2.id = h2.id GROUP BY h2.rating_key) l ON l.last = h.id
@@ -205,7 +207,8 @@ public sealed class TautulliDatabase : IDisposable
                     Text(reader, 9),
                     Int(reader, 10),
                     Int(reader, 11),
-                    Long(reader, 12) == 1);
+                    Long(reader, 12) == 1,
+                    Text(reader, 13) is { } original && !string.Equals(original, Text(reader, 2), StringComparison.Ordinal) ? original : null);
             }
         }
 

@@ -1910,7 +1910,21 @@ export type PlaybackItemRef = {
   durationMs: number | null
   libraryTitle: string | null
   movieId: number | null
+  /** The title the server (or Tautulli) gave, under which a film not linked is kept. Set on plays. */
+  serverTitle?: string | null
+  /** The film was chosen by hand, or unlinked by hand when `movieId` is null. */
+  linkedByHand?: boolean
 }
+
+export type SuggestionReason = 'sameTmdbId' | 'sameImdbId' | 'tmdbSearch' | 'titleAndYear' | 'sameTitle' | 'closeTitle'
+
+/** A library film the played item may be: why, the surest reason first, and how many versions it has. */
+export type LinkSuggestion = { movieId: number; title: string; year: number | null; posterUrl: string | null; versions: number; score: number; reasons: SuggestionReason[] }
+
+/** `tmdbSearched` is false when TMDB could not be reached: the library alone was looked at. */
+export type LinkSuggestions = { itemId: number; suggestions: LinkSuggestion[]; tmdbSearched: boolean }
+
+export type ItemLink = { itemId: number; movieId: number | null; versionId: number | null; linkedByHand: boolean; plays: number }
 
 /** What the media server says about a stream: every field may be missing. */
 export type StreamDetails = {
@@ -1980,6 +1994,8 @@ export type PlaybackSession = {
   location: PlaybackLocation | null
   /** Plex gave the stream's session id, so it can be stopped from Bigarr. */
   canStop: boolean
+  /** How long ago the server gave `viewOffsetMs`. */
+  positionAgeMs: number
 }
 
 export type PlaybackServerStatus = { id: number; name: string; connected: boolean; error: string | null; since: string | null }
@@ -2011,7 +2027,20 @@ export type Play = {
 export type PlaysPage = { page: number; pageSize: number; totalRecords: number; records: Play[] }
 
 /** `name` is the one Bigarr shows (the display name when set), `serverName` the account's on the server. */
-export type PlaybackUser = { id: number; name: string; thumbUrl: string | null; isOwner: boolean; plays: number; lastSeenAt: string; serverName: string; keepHistory: boolean }
+export type PlaybackUser = {
+  id: number
+  name: string
+  thumbUrl: string | null
+  isOwner: boolean
+  plays: number
+  lastSeenAt: string
+  serverName: string
+  keepHistory: boolean
+  /** The server is still shared with them (plex.tv's list), null when not known yet. */
+  onServer: boolean | null
+  /** When plex.tv said so; null when it is the Tautulli import's idea. */
+  onServerCheckedAt: string | null
+}
 
 export type VersionPlays = { versionId: number | null; versionName: string | null; plays: number; users: number; transcodes: number; lastPlayedAt: string | null }
 
@@ -2130,6 +2159,10 @@ export const playback = {
   user: (id: number) => api<PlaybackUserStats>(`/api/v1/playback/users/${id}`),
   updateUser: (id: number, body: UpdatePlaybackUser) => put<PlaybackUserStats>(`/api/v1/playback/users/${id}`, body),
   playVersions: () => api<string[]>('/api/v1/playback/plays/versions'),
+  /** All the plays of the item follow; a null film unlinks it. */
+  /** Asked for by hand from the link picker; never run on its own. */
+  linkSuggestions: (itemId: number) => api<LinkSuggestions>(`/api/v1/playback/items/${itemId}/suggestions`),
+  linkItem: (itemId: number, movieId: number | null, versionId: number | null = null) => put<ItemLink>(`/api/v1/playback/items/${itemId}/link`, { movieId, versionId }),
   stats: (days: number | null, userId: number | null = null) =>
     api<PlaybackStats>(
       `/api/v1/playback/stats?${new URLSearchParams({ ...(days === null ? {} : { days: String(days) }), ...(userId === null ? {} : { userId: String(userId) }), tz: Intl.DateTimeFormat().resolvedOptions().timeZone })}`,

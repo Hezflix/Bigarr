@@ -86,6 +86,11 @@ public sealed class TautulliImportTests(BigarrApiFactory factory) : IClassFixtur
             Assert.Equal("Owner", users["1"].DisplayName);
             Assert.Equal("Alice", users["9002"].DisplayName);
             Assert.False(users["9003"].KeepHistory);
+
+            // Tautulli's deleted flag is a first idea of who left the server, until plex.tv says.
+            Assert.True(users["9002"].OnServer);
+            Assert.False(users["9003"].OnServer);
+            Assert.Null(users["9003"].OnServerCheckedAt);
             Assert.Equal(DateTime.UnixEpoch.AddSeconds(T0 + 20_000), users["9003"].FirstSeenAt);
 
             var plays = await db.Plays.AsNoTracking().Include(p => p.Item).Include(p => p.Streams).Where(p => p.Source == PlaySource.Tautulli).ToListAsync();
@@ -135,6 +140,7 @@ public sealed class TautulliImportTests(BigarrApiFactory factory) : IClassFixtur
             Assert.True(bare.Details.Local);
 
             var items = await db.MediaServerItems.AsNoTracking().Where(i => i.MediaServerId == serverId).ToDictionaryAsync(i => i.RatingKey);
+            Assert.Equal("Un classique inventé", items["30"].OriginalTitle);
             Assert.False(items.ContainsKey("70"));
             Assert.Equal(70001, items["801"].ShowTvdbId);
             Assert.Equal(70001, items["802"].ShowTvdbId);
@@ -360,7 +366,8 @@ internal static class InventedTautulli
                 parent_rating_key INTEGER, grandparent_rating_key INTEGER, media_type TEXT, section_id INTEGER, view_offset INTEGER DEFAULT 0);
             CREATE TABLE session_history_metadata (id INTEGER PRIMARY KEY, rating_key INTEGER, parent_rating_key INTEGER, grandparent_rating_key INTEGER,
                 title TEXT, parent_title TEXT, grandparent_title TEXT, full_title TEXT, media_index INTEGER, parent_media_index INTEGER, media_type TEXT,
-                year INTEGER, duration INTEGER DEFAULT 0, guid TEXT, live INTEGER DEFAULT 0, marker_credits_first INTEGER DEFAULT NULL, marker_credits_final INTEGER DEFAULT NULL);
+                year INTEGER, duration INTEGER DEFAULT 0, guid TEXT, live INTEGER DEFAULT 0, marker_credits_first INTEGER DEFAULT NULL, marker_credits_final INTEGER DEFAULT NULL,
+                original_title TEXT);
             CREATE TABLE session_history_media_info (id INTEGER PRIMARY KEY, rating_key INTEGER, video_decision TEXT, audio_decision TEXT, transcode_decision TEXT,
                 duration INTEGER DEFAULT 0, container TEXT, bitrate INTEGER, video_codec TEXT, video_resolution TEXT, video_dynamic_range TEXT, audio_codec TEXT,
                 audio_channels INTEGER, transcode_hw_decoding INTEGER, transcode_hw_encoding INTEGER, stream_container TEXT, stream_bitrate INTEGER,
@@ -386,6 +393,7 @@ internal static class InventedTautulli
         // Bob, deleted since, saw a film by the legacy IMDb agent; no reference id, and a media info row from an older Tautulli.
         Row(path, 4, null, T0 + 20_000, T0 + 26_000, 30, 9003, "bob", 5_990_000, "movie", 3);
         Metadata(path, [4], 30, "Invented Classic", 1975, 6_000_000, "com.plexapp.agents.imdb://tt0990103?lang=en");
+        Run(path, "UPDATE session_history_metadata SET original_title = 'Un classique inventé' WHERE id = 4");
         Run(path, "INSERT INTO session_history_media_info (id, rating_key, video_decision) VALUES (4, 30, 'direct play')");
 
         // A film only Plex can name, in the 4K library: transcoded for Alice, and the owner's view Bigarr followed live.
