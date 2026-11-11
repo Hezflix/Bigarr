@@ -231,6 +231,12 @@ public sealed class QBittorrentClientTests
     {
         var handler = new StubHttpHandler(request =>
         {
+            if (request.RequestUri!.Query.Contains("category=bigarr-tv", StringComparison.Ordinal))
+            {
+                // The series category is listed too, and tells its torrents apart.
+                return Json($$"""[{"hash":"eeee","name":"Show.S01.1080p.WEB-DL-GRP","state":"uploading","progress":1,"size":10,"total_size":10,"amount_left":0,"eta":8640000,"category":"bigarr-tv"}]""");
+            }
+
             Assert.Contains("category=bigarr-movies", request.RequestUri!.Query);
             return Json($$"""
                 [
@@ -245,7 +251,9 @@ public sealed class QBittorrentClientTests
 
         var items = await NewClient(handler).GetItemsAsync(Client(username: null), CancellationToken.None);
 
-        Assert.Equal(5, items.Count);
+        Assert.Equal(6, items.Count);
+        Assert.Equal("bigarr-tv", items[5].Category);
+        Assert.Equal("bigarr-movies", items[0].Category);
         var downloading = items[0];
         Assert.Equal(Hash, downloading.DownloadId);
         Assert.Equal(DownloadItemStatus.Downloading, downloading.Status);

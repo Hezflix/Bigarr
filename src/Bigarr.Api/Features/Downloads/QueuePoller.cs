@@ -83,6 +83,11 @@ public sealed class QueuePoller(
             .ToListAsync(ct);
         var versionIds = grabs.SelectMany(g => g.Targets.Select(t => t.TargetId)).Distinct().ToList();
         var versions = await db.MovieVersions.AsNoTracking().Include(v => v.Movie).Include(v => v.QualityProfile).Where(v => versionIds.Contains(v.Id)).ToDictionaryAsync(v => v.Id, ct);
+        var episodeTargets = await db.EpisodeTargets.AsNoTracking()
+            .Include(t => t.Episode)
+            .Include(t => t.Version).ThenInclude(v => v.Series)
+            .Where(t => versionIds.Contains(t.Id))
+            .ToDictionaryAsync(t => t.Id, ct);
         var clientsById = clients.ToDictionary(c => c.Id);
 
         var rows = new List<QueueItemResponse>();
@@ -93,6 +98,7 @@ public sealed class QueuePoller(
         foreach (var grab in grabs)
         {
             var version = grab.Targets.Select(t => versions.GetValueOrDefault(t.TargetId)).FirstOrDefault(v => v is not null);
+            var episodes = grab.Targets.Select(t => episodeTargets.GetValueOrDefault(t.TargetId)).OfType<Bigarr.Domain.Tv.EpisodeTarget>().ToList();
             var messages = grab.StatusMessages.Select(m => new StatusMessage { Title = m.Title, Messages = [.. m.Messages], Severity = m.Severity }).ToList();
             DownloadItem? item = null;
 
@@ -121,7 +127,7 @@ public sealed class QueuePoller(
                     var failure = Advance(grab, item, now, settings, messages);
                     if (failure is not null)
                     {
-                        var replace = await HandleFailureAsync(grab, client, version, failure, settings, messages, now, ct);
+                        var replace = await HandleFailureAsync(grab, client, version, episodes, failure, settings, messages, now, ct);
                         if (replace is not null)
                         {
                             searchAfterSave.Add(replace.Value);
@@ -165,7 +171,7 @@ public sealed class QueuePoller(
                 continue;
             }
 
-            rows.Add(Row(grab, item, version, clientsById.GetValueOrDefault(grab.DownloadClientId ?? 0), messages, now));
+            rows.Add(Row(grab, item, version, episodes, clientsById.GetValueOrDefault(grab.DownloadClientId ?? 0), messages, now));
         }
 
         // Torrents of our category that Bigarr never grabbed (added by hand, or from a wiped database).
@@ -179,12 +185,14 @@ public sealed class QueuePoller(
             var client = clientsById[clientId];
             foreach (var item in items.Where(i => !matchedItems.Contains((clientId, i.DownloadId)) && !hidden.Contains(i.DownloadId)))
             {
+                var series = client.IsSeriesCategory(item.Category);
                 rows.Add(new QueueItemResponse(
-                    null, item.DownloadId, item.Title, GrabService.QualityOf(item.Title), null, null, null, null, null, null,
+                    null, item.DownloadId, item.Title, series ? GrabService.EpisodeQualityOf(item.Title) : GrabService.QualityOf(item.Title), null, null, null, null, null, null,
                     item.Status, item.TotalSize, item.RemainingSize, item.Progress, item.DownloadRate, EtaSeconds(item),
                     client.Id, client.Name, null, null, item.OutputPath,
-                    [new StatusMessage { Title = "Not grabbed by Bigarr", Messages = ["This torrent was added to the category by hand. Once complete, the import will match it to a movie by its title."], Severity = StatusSeverity.Info }],
-                    item.AddedAt?.UtcDateTime ?? now, false));
+                    [new StatusMessage { Title = "Not grabbed by Bigarr", Messages = [series ? "This torrent was added to the series category by hand. Once complete, the import will match its files to episodes by their names." : "This torrent was added to the category by hand. Once complete, the import will match it to a movie by its title."], Severity = StatusSeverity.Info }],
+                    item.AddedAt?.UtcDateTime ?? now, false)
+                { Series = series });
             }
         }
 
@@ -237,7 +245,8 @@ public sealed class QueuePoller(
                 LastSeenAt = now,
             };
             grab.TransitionTo(GrabState.ImportPending);
-            grab.StatusMessages.Add(new StatusMessage { Title = "Added by hand", Messages = [$"Found complete in {client.Name} without a grab; the import matches it to a movie by its title."], Severity = StatusSeverity.Info });
+            var what = client.IsSeriesCategory(item.Category) ? "its files to episodes by their names" : "it to a movie by its title";
+            grab.StatusMessages.Add(new StatusMessage { Title = "Added by hand", Messages = [$"Found complete in {client.Name} without a grab; the import matches {what}."], Severity = StatusSeverity.Info });
             db.Grabs.Add(grab);
             adopted.Add(grab);
             known.Add(item.DownloadId);
@@ -314,7 +323,7 @@ public sealed class QueuePoller(
     /// one-shot), the torrent leaves the client, and the journal and the outbox get the event. Returns the version to
     /// search for a replacement, which the caller queues after the save.
     /// </summary>
-    private async Task<int?> HandleFailureAsync(Grab grab, DownloadClient client, MovieVersion? version, string reason, DownloadsOptions settings, List<StatusMessage> messages, DateTime now, CancellationToken ct)
+    private async Task<int?> HandleFailureAsync(Grab grab, DownloadClient client, MovieVersion? version, List<Bigarr.Domain.Tv.EpisodeTarget> episodes, string reason, DownloadsOptions settings, List<StatusMessage> messages, DateTime now, CancellationToken ct)
     {
         grab.TransitionTo(GrabState.DownloadFailed);
         state.Forget(grab.Id);
@@ -357,6 +366,23 @@ public sealed class QueuePoller(
             messages.Add(note);
         }
 
+        foreach (var target in episodes)
+        {
+            // Series: journaled per episode. Blocklisting and the replacement search come with series automation.
+            var line = GrabService.SeriesHistory(target.Version, target, HistoryEventType.DownloadFailed, grab.ReleaseTitle, grab.IndexerId, grab.IndexerName, now);
+            line.Data["reason"] = reason;
+            line.Data["downloadClient"] = grab.DownloadClientName ?? string.Empty;
+            line.Data["downloadId"] = grab.DownloadId ?? string.Empty;
+            line.Data["removedFromClient"] = removed ? "true" : "false";
+            db.History.Add(line);
+        }
+
+        if (episodes.Count > 0)
+        {
+            logger.LogWarning("{Title} failed in {Client}: {Reason}. {FollowUp}", grab.ReleaseTitle, client.Name, reason, string.Join(" ", followUp));
+            return null;
+        }
+
         db.History.Add(new HistoryEvent
         {
             TargetId = version?.Id,
@@ -394,19 +420,21 @@ public sealed class QueuePoller(
         return searching ? version!.Id : null;
     }
 
-    private static QueueItemResponse Row(Grab grab, DownloadItem? item, MovieVersion? version, DownloadClient? client, List<StatusMessage> messages, DateTime now)
+    private static QueueItemResponse Row(Grab grab, DownloadItem? item, MovieVersion? version, List<Bigarr.Domain.Tv.EpisodeTarget> episodes, DownloadClient? client, List<StatusMessage> messages, DateTime now)
     {
         var status = item?.Status ?? (grab.State == GrabState.DownloadFailed ? DownloadItemStatus.Failed : DownloadItemStatus.Unknown);
+        var seriesVersion = episodes.FirstOrDefault()?.Version;
+        var isSeries = seriesVersion is not null || (client?.IsSeriesCategory(item?.Category) ?? false);
         return new QueueItemResponse(
             grab.Id,
             grab.DownloadId ?? string.Empty,
             grab.ReleaseTitle,
-            GrabService.QualityOf(grab.ReleaseTitle),
+            isSeries ? GrabService.EpisodeQualityOf(grab.ReleaseTitle) : GrabService.QualityOf(grab.ReleaseTitle),
             version?.MovieId,
             version?.Movie.Title,
             version?.Movie.Year,
-            version?.Id,
-            version?.Name,
+            version?.Id ?? seriesVersion?.Id,
+            version?.Name ?? seriesVersion?.Name,
             grab.State,
             status,
             item?.TotalSize ?? grab.Size,
@@ -421,7 +449,17 @@ public sealed class QueuePoller(
             item?.OutputPath,
             messages,
             grab.GrabbedAt,
-            true);
+            true)
+        {
+            Series = isSeries,
+            SeriesId = seriesVersion?.SeriesId,
+            SeriesTitle = seriesVersion?.Series.Title,
+            SeriesYear = seriesVersion?.Series.Year,
+            Episodes = episodes
+                .OrderBy(t => t.Episode.SeasonNumber).ThenBy(t => t.Episode.EpisodeNumber)
+                .Select(t => new QueueEpisodeResponse(t.EpisodeId, t.Episode.SeasonNumber, t.Episode.EpisodeNumber, t.Episode.AbsoluteEpisodeNumber, t.Episode.Title, t.EpisodeFileId is not null))
+                .ToList(),
+        };
     }
 
     private static int? EtaSeconds(DownloadItem item) => item.Eta is { } eta ? (int)Math.Min(int.MaxValue, eta.TotalSeconds) : null;

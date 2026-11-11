@@ -36,7 +36,12 @@ public sealed class QBittorrentClient(IHttpClientFactory httpClientFactory, Torr
             throw new DownloadClientException(DownloadClientFailureKind.Request, $"{client.BaseUrl} answered but not like qBittorrent's API. Check the URL base.");
         }
 
-        var created = await EnsureCategoryAsync(client, cancellationToken);
+        var created = await EnsureCategoryAsync(client, client.Category, cancellationToken);
+        if (!string.Equals(client.SeriesCategory, client.Category, StringComparison.Ordinal))
+        {
+            created |= await EnsureCategoryAsync(client, client.SeriesCategory, cancellationToken);
+        }
+
         return new DownloadClientInfo(version, apiVersion, client.Category, created);
     }
 
@@ -80,7 +85,8 @@ public sealed class QBittorrentClient(IHttpClientFactory httpClientFactory, Torr
             throw new DownloadClientException(DownloadClientFailureKind.InvalidRelease, "The magnet link carries no info hash; qBittorrent could not be asked about it afterwards.");
         }
 
-        await EnsureCategoryAsync(client, cancellationToken);
+        var category = string.IsNullOrWhiteSpace(request.Category) ? client.Category : request.Category;
+        await EnsureCategoryAsync(client, category, cancellationToken);
 
         using var form = new MultipartFormDataContent();
         if (file is not null)
@@ -94,7 +100,7 @@ public sealed class QBittorrentClient(IHttpClientFactory httpClientFactory, Torr
             form.Add(new StringContent(magnet!), "urls");
         }
 
-        form.Add(new StringContent(client.Category), "category");
+        form.Add(new StringContent(category), "category");
         // 4.x reads "paused", 5.x reads "stopped"; the other one is ignored.
         form.Add(new StringContent(client.AddPaused ? "true" : "false"), "paused");
         form.Add(new StringContent(client.AddPaused ? "true" : "false"), "stopped");
@@ -135,7 +141,14 @@ public sealed class QBittorrentClient(IHttpClientFactory httpClientFactory, Torr
         ArgumentNullException.ThrowIfNull(client);
 
         var listed = await GetJsonAsync<List<QBittorrentTorrent>>(client, $"/api/v2/torrents/info?category={Uri.EscapeDataString(client.Category)}", cancellationToken);
-        return listed.Select(Map).ToList();
+        var items = listed.Select(Map).ToList();
+        if (!string.IsNullOrWhiteSpace(client.SeriesCategory) && !string.Equals(client.SeriesCategory, client.Category, StringComparison.Ordinal))
+        {
+            var series = await GetJsonAsync<List<QBittorrentTorrent>>(client, $"/api/v2/torrents/info?category={Uri.EscapeDataString(client.SeriesCategory)}", cancellationToken);
+            items.AddRange(series.Select(Map));
+        }
+
+        return items;
     }
 
     public async Task RemoveAsync(DownloadClient client, string downloadId, bool deleteFiles, CancellationToken cancellationToken)
@@ -194,29 +207,30 @@ public sealed class QBittorrentClient(IHttpClientFactory httpClientFactory, Torr
             torrent.SeedingTime > 0 ? TimeSpan.FromSeconds(torrent.SeedingTime) : null,
             torrent.NumSeeds,
             torrent.AddedOn > 0 ? DateTimeOffset.FromUnixTimeSeconds(torrent.AddedOn) : null,
-            torrent.CompletionOn > 0 ? DateTimeOffset.FromUnixTimeSeconds(torrent.CompletionOn) : null);
+            torrent.CompletionOn > 0 ? DateTimeOffset.FromUnixTimeSeconds(torrent.CompletionOn) : null,
+            string.IsNullOrEmpty(torrent.Category) ? null : torrent.Category);
     }
 
     private async Task<List<QBittorrentTorrent>> GetTorrentsAsync(DownloadClient client, string hash, CancellationToken cancellationToken) =>
         await GetJsonAsync<List<QBittorrentTorrent>>(client, $"/api/v2/torrents/info?hashes={Uri.EscapeDataString(hash)}", cancellationToken);
 
     /// <summary>True when the category had to be created.</summary>
-    private async Task<bool> EnsureCategoryAsync(DownloadClient client, CancellationToken cancellationToken)
+    private async Task<bool> EnsureCategoryAsync(DownloadClient client, string category, CancellationToken cancellationToken)
     {
         var categories = await GetJsonAsync<Dictionary<string, QBittorrentCategory>>(client, "/api/v2/torrents/categories", cancellationToken);
-        if (categories.ContainsKey(client.Category))
+        if (categories.ContainsKey(category))
         {
             return false;
         }
 
-        using var form = new FormUrlEncodedContent(new Dictionary<string, string> { ["category"] = client.Category });
+        using var form = new FormUrlEncodedContent(new Dictionary<string, string> { ["category"] = category });
         using var response = await SendAsync(client, () => new HttpRequestMessage(HttpMethod.Post, client.BaseUrl + "/api/v2/torrents/createCategory") { Content = form }, cancellationToken, allowConflict: true);
         if (response.StatusCode == HttpStatusCode.Conflict)
         {
             return false; // created meanwhile
         }
 
-        logger.LogInformation("Created category {Category} in qBittorrent {Client}", client.Category, client.Name);
+        logger.LogInformation("Created category {Category} in qBittorrent {Client}", category, client.Name);
         return true;
     }
 
