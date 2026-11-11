@@ -28,6 +28,24 @@ public static class WebhookRouting
     /// <summary>Radarr's event type for a Bigarr one, or null when the Radarr format does not send it.</summary>
     public static string? RadarrEventType(string eventType) => RadarrTypes.GetValueOrDefault(eventType);
 
+    /// <summary>Sonarr's <c>WebhookEventType</c> for each Bigarr event it has a counterpart for (series events, health, test).</summary>
+    private static readonly Dictionary<string, string> SonarrTypes = new (Type Event, string Sonarr)[]
+    {
+        (typeof(EpisodeGrabbed), "Grab"),
+        (typeof(EpisodeFileImported), "Download"),
+        (typeof(EpisodeFileRenamed), "Rename"),
+        (typeof(SeriesAdded), "SeriesAdd"),
+        (typeof(SeriesDeleted), "SeriesDelete"),
+        (typeof(EpisodeFileDeleted), "EpisodeFileDelete"),
+        (typeof(HealthIssueRaised), "Health"),
+        (typeof(HealthIssueResolved), "HealthRestored"),
+        (typeof(EpisodeImportFailed), "ManualInteractionRequired"),
+        (typeof(TestEvent), "Test"),
+    }.ToDictionary(e => DomainEventCatalog.NameOf(e.Event), e => e.Sonarr, StringComparer.Ordinal);
+
+    /// <summary>Sonarr's event type for a Bigarr one, or null when the Sonarr format does not send it.</summary>
+    public static string? SonarrEventType(string eventType) => SonarrTypes.GetValueOrDefault(eventType);
+
     /// <summary>
     /// What Radarr's Discord connection posts, plus what Bigarr adds and a human wants to read: the failures, and a
     /// version added, deleted or made the default. A version's settings changing stays out of the channel: it fires on
@@ -38,6 +56,8 @@ public static class WebhookRouting
         typeof(ReleaseGrabbed), typeof(FileImported), typeof(FileUpgraded), typeof(FileRenamed), typeof(MovieAdded), typeof(MovieDeleted),
         typeof(FileDeleted), typeof(HealthIssueRaised), typeof(HealthIssueResolved), typeof(ImportFailed), typeof(DownloadFailed), typeof(TestEvent),
         typeof(VersionAdded), typeof(VersionDeleted), typeof(DefaultVersionChanged),
+        typeof(EpisodeGrabbed), typeof(EpisodeFileImported), typeof(EpisodeFileRenamed), typeof(SeriesAdded), typeof(SeriesDeleted),
+        typeof(EpisodeFileDeleted), typeof(EpisodeImportFailed), typeof(EpisodeDownloadFailed), typeof(SeriesVersionDeleted),
     }.Select(DomainEventCatalog.NameOf).ToHashSet(StringComparer.Ordinal);
 
     /// <summary>True when the Discord format posts a message for the event type.</summary>
@@ -62,6 +82,21 @@ public static class WebhookRouting
         _ => [],
     };
 
+    /// <summary>The series versions an event is about. Empty for film events, health and test.</summary>
+    public static IReadOnlyList<SeriesVersionRef> SeriesSubjects(DomainEvent domainEvent) => domainEvent switch
+    {
+        SeriesAdded e => [e.Version],
+        SeriesDeleted e => e.Versions ?? [],
+        SeriesVersionDeleted e => [e.Version],
+        EpisodeGrabbed e => [e.Version],
+        EpisodeFileImported e => [e.Version],
+        EpisodeFileRenamed e => [e.Version],
+        EpisodeFileDeleted e => [e.Version],
+        EpisodeDownloadFailed { Version: { } version } => [version],
+        EpisodeImportFailed { Version: { } version } => [version],
+        _ => [],
+    };
+
     private static readonly HashSet<string> FilmlessTypes = new[] { typeof(HealthIssueRaised), typeof(HealthIssueResolved), typeof(TestEvent) }
         .Select(DomainEventCatalog.NameOf)
         .ToHashSet(StringComparer.Ordinal);
@@ -83,14 +118,36 @@ public static class WebhookRouting
     /// </summary>
     /// <param name="domainEvent">The parsed payload; null when its type is no longer in the catalogue.</param>
     /// <param name="tagsOf">The tag ids of a version the event is about.</param>
-    public static List<int?> Deliveries(NotificationEndpoint endpoint, string eventType, DomainEvent? domainEvent, Func<VersionRef, IEnumerable<int>> tagsOf)
+    /// <param name="seriesTagsOf">The tag ids of a series version the event is about; none when null.</param>
+    public static List<int?> Deliveries(NotificationEndpoint endpoint, string eventType, DomainEvent? domainEvent, Func<VersionRef, IEnumerable<int>> tagsOf, Func<SeriesVersionRef, IEnumerable<int>>? seriesTagsOf = null)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
         ArgumentNullException.ThrowIfNull(tagsOf);
+        seriesTagsOf ??= v => (v.Tags ?? []).Select(t => t.Id);
 
         if (!endpoint.Subscribes(eventType))
         {
             return [];
+        }
+
+        if (endpoint.Format == WebhookFormat.Sonarr)
+        {
+            if (domainEvent is null || SonarrEventType(eventType) is null)
+            {
+                return [];
+            }
+
+            if (IgnoresTags(domainEvent))
+            {
+                return [null];
+            }
+
+            // Each series version is a Sonarr series: judged on its own, through the endpoint's view and tags.
+            return SeriesSubjects(domainEvent)
+                .Where(v => endpoint.View.Sees(v.Name, v.IsDefault) && endpoint.Matches(seriesTagsOf(v)))
+                .Select(v => (int?)v.Id)
+                .Distinct()
+                .ToList();
         }
 
         if (endpoint.Format == WebhookFormat.Radarr)
@@ -123,6 +180,8 @@ public static class WebhookRouting
             return [null];
         }
 
-        return domainEvent is not null && Subjects(domainEvent).Any(v => endpoint.Matches(tagsOf(v))) ? [null] : [];
+        return domainEvent is not null && (Subjects(domainEvent).Any(v => endpoint.Matches(tagsOf(v))) || SeriesSubjects(domainEvent).Any(v => endpoint.Matches(seriesTagsOf(v))))
+            ? [null]
+            : [];
     }
 }

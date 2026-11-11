@@ -15,7 +15,7 @@ namespace Bigarr.Api.Features.Notifications.Discord;
 /// default, which Radarr cannot have. Built from the event's snapshot only, like the other formats. Every text is cut
 /// to Discord's limits: a long overview never gets a message refused.
 /// </summary>
-public static class DiscordWebhook
+public static partial class DiscordWebhook
 {
     public const string InstanceName = "Bigarr";
 
@@ -93,10 +93,10 @@ public static class DiscordWebhook
             ImportFailed e => ImportFailure(s, e, at),
             DownloadFailed e => Grab(s, e.Movie, e.Version, e.Release, "Download Failed", DiscordColor.Danger, at, Reason(e)),
             TestEvent e => Embed(s, null, "Test message from Bigarr", e.Message, DiscordColor.Standard, at, null, null, null),
-            _ => null,
+            _ => SeriesEmbed(s, domainEvent, at),
         };
 
-        return embed is null ? null : Fit(new DiscordPayload(domainEvent is FileRenamed ? "Renamed" : null, s.Username, s.Avatar, [embed]));
+        return embed is null ? null : Fit(new DiscordPayload(domainEvent is FileRenamed or EpisodeFileRenamed ? "Renamed" : null, s.Username, s.Avatar, [embed]));
     }
 
     /// <summary>What the test button posts: the test embed, under the endpoint's name and avatar.</summary>

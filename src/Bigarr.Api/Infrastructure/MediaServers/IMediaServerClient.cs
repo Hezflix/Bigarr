@@ -1,3 +1,4 @@
+using Bigarr.Domain.Library;
 using Bigarr.Domain.MediaServers;
 
 namespace Bigarr.Api.Infrastructure.MediaServers;
@@ -25,8 +26,8 @@ public interface IMediaServerClient
 
     Task<MediaServerInfo> TestAsync(MediaServer server, CancellationToken ct);
 
-    /// <summary>Scans one folder, already translated to the server's own paths.</summary>
-    Task NotifyAsync(MediaServer server, string path, MediaChange change, CancellationToken ct);
+    /// <summary>Scans one folder, already translated to the server's own paths; <paramref name="kind"/> picks the libraries to fall back to.</summary>
+    Task NotifyAsync(MediaServer server, string path, MediaChange change, CancellationToken ct, MediaKind kind = MediaKind.Movies);
 
     Task RefreshAllAsync(MediaServer server, CancellationToken ct);
 }

@@ -3,6 +3,7 @@ using System.Threading.Channels;
 using Bigarr.Api.Infrastructure.Events;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Events;
+using Bigarr.Domain.Library;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bigarr.Api.Infrastructure.MediaServers;
@@ -20,7 +21,10 @@ public sealed class MediaServerRefresher(EventStream stream, IServiceScopeFactor
 
     private readonly Channel<RefreshWork> _work = Channel.CreateUnbounded<RefreshWork>();
 
-    public sealed record RefreshWork(int ServerId, string Path, MediaChange Change, int Attempt);
+    public sealed record RefreshWork(int ServerId, string Path, MediaChange Change, int Attempt, MediaKind Kind = MediaKind.Movies);
+
+    /// <summary>A folder an event changed, and whether it holds films or a show (which Plex sections to fall back to).</summary>
+    public sealed record FolderChange(string Folder, MediaChange Change, MediaKind Kind);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -34,17 +38,51 @@ public sealed class MediaServerRefresher(EventStream stream, IServiceScopeFactor
         }
     }
 
-    /// <summary>The folder a dispatched event changed, or null when the event is not about files on disk. Pure, for the tests.</summary>
-    public static (string Folder, MediaChange Change)? ChangeOf(ServerEvent serverEvent)
+    /// <summary>The first folder a dispatched event changed, or null when the event is not about files on disk. Pure, for the tests.</summary>
+    public static (string Folder, MediaChange Change)? ChangeOf(ServerEvent serverEvent) =>
+        ChangesOf(serverEvent).FirstOrDefault() is { } first ? (first.Folder, first.Change) : null;
+
+    /// <summary>
+    /// Every folder a dispatched event changed: a film's folder, or for a show the season folder of each file (a rename
+    /// can touch several), the version's folder when it went. Pure, for the tests.
+    /// </summary>
+    public static List<FolderChange> ChangesOf(ServerEvent serverEvent)
     {
         ArgumentNullException.ThrowIfNull(serverEvent);
 
         if (!Types.TryGetValue(serverEvent.Type, out var type))
         {
-            return null;
+            return [];
         }
 
         var domainEvent = (DomainEvent?)JsonSerializer.Deserialize(serverEvent.Payload, type, EventJson.Options);
+        if (SeriesChanges(domainEvent) is { } series)
+        {
+            return series.Where(c => !string.IsNullOrEmpty(c.Folder)).DistinctBy(c => (c.Folder, c.Change)).ToList();
+        }
+
+        return FilmChange(domainEvent) is { } film ? [new FolderChange(film.Folder, film.Change, MediaKind.Movies)] : [];
+    }
+
+    private static List<FolderChange>? SeriesChanges(DomainEvent? domainEvent)
+    {
+        static FolderChange? In(string filePath, MediaChange change) =>
+            Path.GetDirectoryName(filePath) is { Length: > 0 } folder ? new FolderChange(folder, change, MediaKind.Series) : null;
+
+        return domainEvent switch
+        {
+            EpisodeFileImported e => [In(e.File.Path, e.IsUpgrade ? MediaChange.Modified : MediaChange.Created)!],
+            EpisodeFileRenamed e => e.Files.SelectMany(f => new[] { In(f.File.Path, MediaChange.Modified), In(f.PreviousPath, MediaChange.Modified) }).OfType<FolderChange>().ToList(),
+            EpisodeFileDeleted e => [In(e.File.Path, MediaChange.Deleted)!],
+            SeriesVersionDeleted { DeletedFiles: true } e => e.Version.Folder is { } folder ? [new FolderChange(folder, MediaChange.Deleted, MediaKind.Series)] : [],
+            SeriesDeleted { DeletedFiles: true } e => (e.Versions ?? []).Select(v => v.Folder).OfType<string>().Distinct().Select(f => new FolderChange(f, MediaChange.Deleted, MediaKind.Series)).ToList(),
+            EpisodeFileImported or EpisodeFileRenamed or EpisodeFileDeleted or SeriesVersionDeleted or SeriesDeleted => [],
+            _ => null,
+        };
+    }
+
+    private static (string Folder, MediaChange Change)? FilmChange(DomainEvent? domainEvent)
+    {
         return domainEvent switch
         {
             FileImported e => Folder(e.File.Path, MediaChange.Created),
@@ -69,7 +107,8 @@ public sealed class MediaServerRefresher(EventStream stream, IServiceScopeFactor
         {
             try
             {
-                if (ChangeOf(serverEvent) is not { } change)
+                var changes = ChangesOf(serverEvent);
+                if (changes.Count == 0)
                 {
                     continue;
                 }
@@ -79,7 +118,10 @@ public sealed class MediaServerRefresher(EventStream stream, IServiceScopeFactor
                 var servers = await db.MediaServers.AsNoTracking().Where(s => s.Enabled).Select(s => s.Id).ToListAsync(ct);
                 foreach (var serverId in servers)
                 {
-                    _work.Writer.TryWrite(new RefreshWork(serverId, change.Folder, change.Change, 0));
+                    foreach (var change in changes)
+                    {
+                        _work.Writer.TryWrite(new RefreshWork(serverId, change.Folder, change.Change, 0, change.Kind));
+                    }
                 }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -135,7 +177,7 @@ public sealed class MediaServerRefresher(EventStream stream, IServiceScopeFactor
         try
         {
             var translated = server.Translate(work.Path);
-            await clients.For(server.Kind).NotifyAsync(server, translated, work.Change, ct);
+            await clients.For(server.Kind).NotifyAsync(server, translated, work.Change, ct, work.Kind);
             server.LastRefreshAt = now;
             server.LastError = null;
             await db.SaveChangesAsync(ct);

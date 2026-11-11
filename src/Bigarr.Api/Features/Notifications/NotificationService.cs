@@ -148,6 +148,7 @@ public sealed class NotificationService(
         {
             WebhookFormat.Radarr => await webhooks.SendAsync(endpoint, "test", RadarrWebhook.Serialize(RadarrWebhook.Test(options.Value.ApplicationUrl ?? string.Empty)), "test", ct),
             WebhookFormat.Discord => await webhooks.SendAsync(endpoint, "test", DiscordWebhook.Serialize(DiscordWebhook.Test(message, now, endpoint.Discord)), "test", ct),
+            WebhookFormat.Sonarr => await webhooks.SendAsync(endpoint, "test", Sonarr.SonarrWebhook.Serialize(Sonarr.SonarrWebhook.Test(options.Value.ApplicationUrl ?? string.Empty)), "test", ct),
             _ => await webhooks.PostAsync(endpoint, "test", 0, EventJson.Serialize(new TestEvent(message) { OccurredAt = now }), now, "test", ct),
         };
         if (!result.Success)
@@ -245,6 +246,12 @@ public sealed class NotificationService(
         if (unsent.Count > 0)
         {
             return Failure.Invalid("Not sent in Radarr's format", $"Radarr's webhook has no counterpart for: {string.Join(", ", unsent)}.");
+        }
+
+        var unsentSonarr = request.Format == WebhookFormat.Sonarr ? (request.Events ?? []).Where(e => WebhookRouting.SonarrEventType(e) is null).ToList() : [];
+        if (unsentSonarr.Count > 0)
+        {
+            return Failure.Invalid("Not sent in Sonarr's format", $"Sonarr's webhook has no counterpart for: {string.Join(", ", unsentSonarr)}.");
         }
 
         var unposted = request.Format == WebhookFormat.Discord ? (request.Events ?? []).Where(e => !WebhookRouting.SentToDiscord(e)).ToList() : [];

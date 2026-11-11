@@ -17,8 +17,37 @@ using Series = Bigarr.Domain.Tv.Series;
 /// preview first, then the moves, journaled per episode as <see cref="HistoryEventType.Renamed"/>. Extras follow their file.
 /// The version folder itself never moves.
 /// </summary>
-public sealed class SeriesRenameService(BigarrDbContext db, MediaManagementService settings, CustomFormatScorer scorer, TimeProvider time, ILogger<SeriesRenameService> logger)
+public sealed class SeriesRenameService(BigarrDbContext db, MediaManagementService settings, CustomFormatScorer scorer, Infrastructure.Events.OutboxWriter outbox, TimeProvider time, ILogger<SeriesRenameService> logger)
 {
+    /// <summary>Files moved since the last <see cref="PublishRenamed"/>, for Sonarr's Rename event (one per series version).</summary>
+    private readonly List<(Series Series, SeriesVersion Version, EpisodeFile File, string PreviousRelativePath)> _renamed = [];
+
+    /// <summary>Notes a file moved outside <see cref="Move"/> (the order undo), for the next <see cref="PublishRenamed"/>.</summary>
+    public void Record(Series series, SeriesVersion version, EpisodeFile file, string previousRelativePath) => _renamed.Add((series, version, file, previousRelativePath));
+
+    /// <summary>
+    /// One <see cref="Bigarr.Domain.Events.EpisodeFileRenamed"/> per series version for the files moved since the last
+    /// call, added to the unit of work: the caller's save commits it with the moves.
+    /// </summary>
+    public void PublishRenamed()
+    {
+        foreach (var group in _renamed.GroupBy(r => r.Version.Id))
+        {
+            var (series, version, _, _) = group.First();
+            var folder = Folder(version);
+            outbox.Publish(new Bigarr.Domain.Events.EpisodeFileRenamed(
+                Bigarr.Domain.Events.SeriesRef.From(series),
+                Bigarr.Domain.Events.SeriesVersionRef.From(version),
+                group.Select(r => new Bigarr.Domain.Events.RenamedFileRef(
+                    Infrastructure.Events.EventSnapshots.EpisodeFile(r.File, Path.Combine(folder, r.File.RelativePath)),
+                    Path.Combine(folder, r.PreviousRelativePath),
+                    r.PreviousRelativePath)).ToList())
+            { OccurredAt = time.GetUtcNow().UtcDateTime });
+        }
+
+        _renamed.Clear();
+    }
+
     public async Task<Result<List<SeriesRenamePreviewResponse>>> PreviewAsync(int seriesId, int? versionId, int? seasonNumber, CancellationToken ct)
     {
         var series = await LoadAsync(seriesId, tracking: false, ct);
@@ -62,6 +91,7 @@ public sealed class SeriesRenameService(BigarrDbContext db, MediaManagementServi
             results.Add(Move(series, version, file, target, now));
         }
 
+        PublishRenamed();
         await db.SaveChangesAsync(ct);
         foreach (var version in series.Versions)
         {
@@ -135,6 +165,7 @@ public sealed class SeriesRenameService(BigarrDbContext db, MediaManagementServi
 
         var previous = file.RelativePath;
         file.RelativePath = target;
+        _renamed.Add((series, version, file, previous));
         var extrasRenamed = RenameExtras(file, folder, extraTargets);
         foreach (var episodeTarget in file.Episodes)
         {

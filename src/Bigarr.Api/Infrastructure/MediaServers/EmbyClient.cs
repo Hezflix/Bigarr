@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Bigarr.Domain.Library;
 using Bigarr.Domain.MediaServers;
 
 namespace Bigarr.Api.Infrastructure.MediaServers;
@@ -31,7 +32,7 @@ public sealed class EmbyClient(IHttpClientFactory httpClientFactory) : IMediaSer
         return new MediaServerInfo(name, version, libraries);
     }
 
-    public async Task NotifyAsync(MediaServer server, string path, MediaChange change, CancellationToken ct)
+    public async Task NotifyAsync(MediaServer server, string path, MediaChange change, CancellationToken ct, MediaKind kind = MediaKind.Movies)
     {
         ArgumentNullException.ThrowIfNull(server);
         ArgumentNullException.ThrowIfNull(path);

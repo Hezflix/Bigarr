@@ -47,7 +47,7 @@ public sealed class WebhookClient(IHttpClientFactory httpClientFactory, IOptions
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, endpoint.Url);
             request.Content = new StringContent(body, Encoding.UTF8, "application/json");
-            if (endpoint.Format is WebhookFormat.Radarr or WebhookFormat.Discord)
+            if (endpoint.Format is WebhookFormat.Radarr or WebhookFormat.Sonarr or WebhookFormat.Discord)
             {
                 // What Radarr's WebhookProxy and DiscordProxy send besides the JSON content type.
                 request.Headers.Accept.ParseAdd("application/json");

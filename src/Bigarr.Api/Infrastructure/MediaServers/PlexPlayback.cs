@@ -83,6 +83,8 @@ public sealed record PlexAccount(string Id, string Name, string? Thumb);
 public sealed record PlexSection(string Key, string Title, string? Type, IReadOnlyList<string> Locations)
 {
     public bool IsMovies => string.Equals(Type, "movie", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsShows => string.Equals(Type, "show", StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>

@@ -14,4 +14,10 @@ public enum WebhookFormat
     /// Radarr's Discord connection, tuned by <see cref="DiscordSettings"/>.
     /// </summary>
     Discord = 3,
+
+    /// <summary>
+    /// Sonarr's webhook payloads (v4), so tools written for Sonarr work unchanged: series events only (and health, test);
+    /// each series version is one Sonarr series, as the compat API will show it.
+    /// </summary>
+    Sonarr = 4,
 }

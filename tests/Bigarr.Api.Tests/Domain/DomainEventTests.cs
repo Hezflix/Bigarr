@@ -7,6 +7,12 @@ namespace Bigarr.Api.Tests.Domain;
 
 public sealed class DomainEventTests
 {
+    private static readonly SeriesRef Show = new(4, 81189, 1396, "tt0903747", "Breaking Bad", 2008, Bigarr.Domain.Tv.SeriesType.Standard);
+
+    private static readonly SeriesVersionRef ShowVersion = new(5, "1080p", true, true, "HD-1080p");
+
+    private static readonly EpisodeRef Pilot = new(6, 1, 1, "Pilot");
+
     [Fact]
     public void Every_event_type_is_in_the_catalogue_and_serializes_camel_case_without_the_type_property()
     {
@@ -30,6 +36,15 @@ public sealed class DomainEventTests
             new HealthIssueRaised("indexers", HealthIssueType.Warning, "No indexer"),
             new HealthIssueResolved("indexers", "No indexer"),
             new TestEvent("hi"),
+            new SeriesAdded(Show, ShowVersion),
+            new SeriesDeleted(Show, true, [ShowVersion]),
+            new SeriesVersionDeleted(Show, ShowVersion, false),
+            new EpisodeGrabbed(Show, ShowVersion, [Pilot], new ReleaseRef("Breaking.Bad.S01E01.1080p", "WEBDL-1080p", "Mock", 1), 7, "qbt", "abc", "rss"),
+            new EpisodeFileImported(Show, ShowVersion, [Pilot], new FileRef(3, "/x", "WEBDL-1080p", 1), [new FileRef(2, "/y", "HDTV-720p", 1)], null, 7, false, "Hardlinked"),
+            new EpisodeFileRenamed(Show, ShowVersion, [new RenamedFileRef(new FileRef(3, "/x2", null, 1), "/x")]),
+            new EpisodeFileDeleted(Show, ShowVersion, [Pilot], new FileRef(3, "/x", null, 1), "manual"),
+            new EpisodeDownloadFailed(Show, ShowVersion, [Pilot], new ReleaseRef("t", null, null, 0), 7, "Stalled", true, true),
+            new EpisodeImportFailed(Show, ShowVersion, [Pilot], new ReleaseRef("t", null, null, 0), 7, "No video"),
         ];
 
         foreach (var domainEvent in events)

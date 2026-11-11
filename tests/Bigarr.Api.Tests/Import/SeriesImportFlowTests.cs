@@ -101,7 +101,7 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
             Assert.Equal("WEBDL-1080p", upgrade.Data["previousQuality"]);
             Assert.Equal("Hardlinked", upgrade.Data["transfer"]);
             Assert.Equal(7, history.Count(h => h.EventType == HistoryEventType.Grabbed && h.SourceTitle == pack.Title));
-            Assert.DoesNotContain((await RefreshAsync(client)).Items, i => i.GrabId == grab.GrabId); // imported: off the queue
+            await WaitOffQueueAsync(client, grab.GrabId!.Value); // imported: off the queue
 
             // 3. A better single replaces one episode.
             var e02Id = (await SeriesSetup.EpisodeAsync(client, series.Id, 1, 2)).Id;
@@ -388,4 +388,20 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
 
     private static Task<List<HistoryEventResponse>> SeriesHistoryAsync(HttpClient client, int seriesId) =>
         client.GetFromJsonAsync<List<HistoryEventResponse>>($"/api/v1/history?seriesId={seriesId}&limit=1000", Json)!;
+
+    /// <summary>The grab's last file is saved a moment after the files show: the queue drops it at the next poll after that.</summary>
+    private static async Task WaitOffQueueAsync(HttpClient client, int grabId)
+    {
+        for (var attempt = 0; attempt < 100; attempt++)
+        {
+            if ((await RefreshAsync(client)).Items.All(i => i.GrabId != grabId))
+            {
+                return;
+            }
+
+            await Task.Delay(100);
+        }
+
+        Assert.Fail($"Grab {grabId} is still on the queue.");
+    }
 }
