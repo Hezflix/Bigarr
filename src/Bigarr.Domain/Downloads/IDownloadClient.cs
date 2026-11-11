@@ -14,7 +14,7 @@ public interface IDownloadClient
     /// <summary>Adds the release and returns the identifier the client will list it under (the info hash, lower case).</summary>
     Task<string> AddAsync(DownloadClient client, DownloadRequest request, CancellationToken cancellationToken);
 
-    /// <summary>Everything in the client's category, tracked by Bigarr or not.</summary>
+    /// <summary>Everything in the client's categories (films and series), tracked by Bigarr or not.</summary>
     Task<IReadOnlyList<DownloadItem>> GetItemsAsync(DownloadClient client, CancellationToken cancellationToken);
 
     Task RemoveAsync(DownloadClient client, string downloadId, bool deleteFiles, CancellationToken cancellationToken);
@@ -31,7 +31,14 @@ public sealed record DownloadRequest(
     long Size,
     /// <summary>Seed criteria of the indexer, applied per torrent when the client supports it.</summary>
     double? SeedRatio = null,
-    TimeSpan? SeedTime = null);
+    TimeSpan? SeedTime = null,
+    /// <summary>The category to file it under; null takes the client's film category.</summary>
+    string? Category = null,
+    /// <summary>
+    /// Episodes a series release covers (<c>S01E01</c>…). Real clients ignore it; the mock client writes one file per
+    /// episode so a season pack arrives as a multi-file torrent.
+    /// </summary>
+    IReadOnlyList<string>? EpisodeLabels = null);
 
 public enum DownloadItemStatus
 {
@@ -74,4 +81,6 @@ public sealed record DownloadItem(
     TimeSpan? SeedingTime,
     int? Seeders,
     DateTimeOffset? AddedAt,
-    DateTimeOffset? CompletedAt);
+    DateTimeOffset? CompletedAt,
+    /// <summary>The client's category for it: tells a series download from a film one.</summary>
+    string? Category = null);

@@ -316,6 +316,13 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int>("Priority")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("SeriesCategory")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("bigarr-tv");
+
                     b.Property<string>("UrlBase")
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");
@@ -540,6 +547,20 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int>("Id")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("AnimeEpisodeTemplate")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}");
+
+                    b.Property<string>("DailyEpisodeTemplate")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("{Series Title} - {Air-Date} - {Episode Title} {Quality Full}");
+
                     b.Property<string>("ExtraFileExtensions")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -558,6 +579,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<bool>("ImportExtraFiles")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("MultiEpisodeStyle")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("RecycleBinPath")
                         .HasMaxLength(1024)
                         .HasColumnType("TEXT");
@@ -565,14 +589,45 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int>("RecycleBinRetentionDays")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("RenameEpisodes")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("RenameFiles")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("SeasonFolderTemplate")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("Season {season:00}");
 
                     b.Property<int>("SeasonPackUpgrade")
                         .HasColumnType("INTEGER");
 
                     b.Property<double>("SeasonPackUpgradeThreshold")
                         .HasColumnType("REAL");
+
+                    b.Property<string>("SeriesFolderTemplate")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("{Series TitleYear}");
+
+                    b.Property<string>("SpecialsFolderName")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("Specials");
+
+                    b.Property<string>("StandardEpisodeTemplate")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}");
 
                     b.Property<int>("TransferMode")
                         .HasColumnType("INTEGER");
@@ -2694,6 +2749,48 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("Episodes", (string)null);
                 });
 
+            modelBuilder.Entity("Bigarr.Domain.Tv.EpisodeExtraFile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("DateAdded")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("EpisodeFileId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Extension")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Forced")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("HearingImpaired")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Language")
+                        .HasMaxLength(8)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RelativePath")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EpisodeFileId");
+
+                    b.ToTable("EpisodeExtraFiles", (string)null);
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Tv.EpisodeFile", b =>
                 {
                     b.Property<int>("Id")
@@ -3713,6 +3810,17 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Series");
                 });
 
+            modelBuilder.Entity("Bigarr.Domain.Tv.EpisodeExtraFile", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Tv.EpisodeFile", "EpisodeFile")
+                        .WithMany("Extras")
+                        .HasForeignKey("EpisodeFileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("EpisodeFile");
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Tv.EpisodeFile", b =>
                 {
                     b.HasOne("Bigarr.Domain.Quality.QualityDefinition", "Quality")
@@ -4008,6 +4116,8 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Bigarr.Domain.Tv.EpisodeFile", b =>
                 {
                     b.Navigation("Episodes");
+
+                    b.Navigation("Extras");
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Tv.Series", b =>

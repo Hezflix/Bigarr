@@ -50,6 +50,8 @@ public sealed class BigarrDbContext(DbContextOptions<BigarrDbContext> options) :
 
     public DbSet<EpisodeFile> EpisodeFiles => Set<EpisodeFile>();
 
+    public DbSet<EpisodeExtraFile> EpisodeExtraFiles => Set<EpisodeExtraFile>();
+
     public DbSet<UnmatchedEpisodeFile> UnmatchedEpisodeFiles => Set<UnmatchedEpisodeFile>();
 
     public DbSet<SceneName> SceneNames => Set<SceneName>();

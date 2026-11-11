@@ -6,7 +6,7 @@ namespace Bigarr.Domain.Tv;
 
 /// <summary>
 /// A physical file of a series version. One file can hold several episodes (<c>S01E01E02</c>): the episode targets
-/// point here, never the other way round. Nothing creates these yet: the scan and the import come with the parser.
+/// point here, never the other way round. Created by the series scan and the import.
 /// </summary>
 public sealed class EpisodeFile
 {
@@ -45,4 +45,7 @@ public sealed class EpisodeFile
     public MediaInfo? MediaInfo { get; set; }
 
     public ICollection<EpisodeTarget> Episodes { get; set; } = [];
+
+    /// <summary>Subtitles and other side files imported with it.</summary>
+    public ICollection<EpisodeExtraFile> Extras { get; set; } = [];
 }

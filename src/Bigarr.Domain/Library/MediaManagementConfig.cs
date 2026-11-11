@@ -72,5 +72,60 @@ public sealed class MediaManagementConfig
     /// <summary>Percent of the pack's episodes that must be upgraded in <see cref="SeasonPackUpgrade.Threshold"/> mode.</summary>
     public double SeasonPackUpgradeThreshold { get; set; } = 100;
 
+    // ---- series naming (Sonarr's media management, defaults from Sonarr v4) -------------------------------------------
+
+    public const string DefaultSeriesFolderTemplate = "{Series TitleYear}";
+
+    public const string DefaultSeasonFolderTemplate = "Season {season:00}";
+
+    public const string DefaultSpecialsFolderName = "Specials";
+
+    public const string DefaultStandardEpisodeTemplate = "{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}";
+
+    public const string DefaultDailyEpisodeTemplate = "{Series Title} - {Air-Date} - {Episode Title} {Quality Full}";
+
+    public const string DefaultAnimeEpisodeTemplate = "{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}";
+
+    /// <summary>Off: imported episodes keep the name they had in the download (Sonarr's "Rename Episodes").</summary>
+    public bool RenameEpisodes { get; set; } = true;
+
+    /// <summary>Applied when a series version is created; the folder name is then frozen, like a film's.</summary>
+    public string SeriesFolderTemplate { get; set; } = DefaultSeriesFolderTemplate;
+
+    public string SeasonFolderTemplate { get; set; } = DefaultSeasonFolderTemplate;
+
+    /// <summary>Season 0's folder (Sonarr's "Specials Folder Format").</summary>
+    public string SpecialsFolderName { get; set; } = DefaultSpecialsFolderName;
+
+    public string StandardEpisodeTemplate { get; set; } = DefaultStandardEpisodeTemplate;
+
+    public string DailyEpisodeTemplate { get; set; } = DefaultDailyEpisodeTemplate;
+
+    public string AnimeEpisodeTemplate { get; set; } = DefaultAnimeEpisodeTemplate;
+
+    public MultiEpisodeStyle MultiEpisodeStyle { get; set; } = MultiEpisodeStyle.PrefixedRange;
+
     public static MediaManagementConfig Default() => new();
+}
+
+/// <summary>How a file holding several episodes is numbered (Sonarr's values and order).</summary>
+public enum MultiEpisodeStyle
+{
+    /// <summary><c>S01E01-02-03</c>.</summary>
+    Extend = 0,
+
+    /// <summary><c>S01E01 - S01E02 - S01E03</c>.</summary>
+    Duplicate = 1,
+
+    /// <summary><c>S01E01E02E03</c>.</summary>
+    Repeat = 2,
+
+    /// <summary><c>S01E01-E02-E03</c>.</summary>
+    Scene = 3,
+
+    /// <summary><c>S01E01-03</c>.</summary>
+    Range = 4,
+
+    /// <summary><c>S01E01-E03</c> (Sonarr's default).</summary>
+    PrefixedRange = 5,
 }
