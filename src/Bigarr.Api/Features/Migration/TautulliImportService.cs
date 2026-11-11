@@ -413,7 +413,9 @@ public sealed class TautulliImportService(
                     IsOwner = externalId == OwnerExternalId,
                     KeepHistory = account?.KeepHistory ?? true,
                     FirstSeenAt = stamp,
-                    LastSeenAt = stamp,
+
+                    // Seen when they played: SeenDatesAsync dates the ones with a history, the others were never seen.
+                    LastSeenAt = null,
                 };
                 db.MediaServerUsers.Add(user);
                 existing[externalId] = user;

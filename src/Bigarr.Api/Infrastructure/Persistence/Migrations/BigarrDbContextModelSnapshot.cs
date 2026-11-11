@@ -1210,7 +1210,7 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<bool>("KeepHistory")
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTime>("LastSeenAt")
+                    b.Property<DateTime?>("LastSeenAt")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("MediaServerId")

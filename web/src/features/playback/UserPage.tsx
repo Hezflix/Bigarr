@@ -57,7 +57,7 @@ export function UserPage() {
           </span>
           <span className="text-sm text-muted-foreground">
             {u.displayName && `${t('playback.onServer', { name: u.name })} · `}
-            {t('playback.firstSeen', { date: formatDate(u.firstSeenAt) })} · {t('playback.lastSeenAt', { date: formatDateTime(u.lastSeenAt) })}
+            {t('playback.firstSeen', { date: formatDate(u.firstSeenAt) })} · {u.lastSeenAt ? t('playback.lastSeenAt', { date: formatDateTime(u.lastSeenAt) }) : t('playback.neverSeen')}
           </span>
         </div>
         <Button variant="outline" size="sm" className="ml-auto" onClick={() => setEditing(true)} data-testid="edit-user">

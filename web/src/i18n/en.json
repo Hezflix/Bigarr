@@ -2109,6 +2109,8 @@
     "decisionShare": "Direct play or transcode",
     "allTime": "All time",
     "lastSeenAt": "last seen {{date}}",
+    "never": "Never",
+    "neverSeen": "never seen playing",
     "onServer": "{{name}} on the server",
     "edit": "Edit",
     "firstSeen": "First seen {{date}}",
