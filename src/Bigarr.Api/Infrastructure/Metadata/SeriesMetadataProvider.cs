@@ -31,6 +31,12 @@ public sealed class SeriesMetadataProvider(
         _ => "tmdb",
     };
 
+    public bool CanNumberByTvdb => tvdb is not null;
+
+    /// <summary>
+    /// Without a TVDB key the answer is TMDB's show (and, with <paramref name="withEpisodes"/>, TMDB's numbering, marked
+    /// <see cref="SeriesMetadata.NumberedByTmdb"/>): good for a lookup, never to replace a TVDB episode list.
+    /// </summary>
     public async Task<SeriesMetadata?> GetByTvdbIdAsync(int tvdbId, bool withEpisodes, CancellationToken cancellationToken)
     {
         if (tvdb is null)

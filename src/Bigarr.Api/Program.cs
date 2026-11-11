@@ -95,6 +95,7 @@ builder.Services.AddScoped<MovieQueries>();
 builder.Services.AddSingleton<SearchQueue>();
 builder.Services.AddHostedService<SearchRunner>();
 builder.Services.AddSingleton<SeriesSearchQueue>();
+builder.Services.AddSingleton<SeriesRefreshAlerts>();
 builder.Services.AddHostedService<SeriesSearchRunner>();
 builder.Services.AddScoped<BlocklistService>();
 builder.Services.AddScoped<NotificationService>();

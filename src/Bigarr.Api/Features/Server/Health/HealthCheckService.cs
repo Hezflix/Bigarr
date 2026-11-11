@@ -29,6 +29,7 @@ public sealed class HealthCheckService(
     IMediaInfoReader probe,
     IMetadataProvider metadata,
     ISeriesMetadataProvider seriesMetadata,
+    Series.SeriesRefreshAlerts refreshAlerts,
     Infrastructure.Xem.XemMappedIds xem,
     IOptions<Infrastructure.Xem.XemOptions> xemOptions,
     MediaManagementService mediaManagement,
@@ -189,6 +190,24 @@ public sealed class HealthCheckService(
         {
             issues.Add(new HealthIssue("seriesMetadata", HealthIssueType.Warning,
                 "No TVDB API key: series come from the embedded fixture catalogue of three shows and are never refreshed on their own. Set Bigarr__Tvdb__ApiKey (and Bigarr__Tmdb__ApiKey for images)."));
+        }
+        else if (!seriesMetadata.CanNumberByTvdb && await db.Series.AnyAsync(s => s.TvdbId != null, ct))
+        {
+            var count = await db.Series.CountAsync(s => s.TvdbId != null, ct);
+            issues.Add(new HealthIssue("seriesMetadata", HealthIssueType.Warning,
+                $"TVDB key missing: series episode lists are not refreshed ({count} series with a TVDB id keep the episodes they have; TMDB's numbering never replaces TVDB's). Set Bigarr__Tvdb__ApiKey."));
+        }
+        else if (refreshAlerts.TvdbUnavailable is { } tvdb)
+        {
+            issues.Add(new HealthIssue("seriesMetadata", HealthIssueType.Warning,
+                $"TVDB failing since {tvdb.At:yyyy-MM-dd HH:mm} UTC: series episode lists are not refreshed until it answers ({tvdb.Reason})."));
+        }
+
+        if (refreshAlerts.Refused.Count > 0)
+        {
+            var refused = refreshAlerts.Refused.Values.Take(3).ToList();
+            issues.Add(new HealthIssue("seriesRefresh", HealthIssueType.Warning,
+                $"The safety net refused the refresh of {refreshAlerts.Refused.Count} series, their episodes are unchanged: {string.Join(" · ", refused)}{(refreshAlerts.Refused.Count > refused.Count ? " · …" : string.Empty)}"));
         }
 
         if (scheduler.TryGet(Series.SeriesRefreshJob.JobName, out var refresh) && refresh.LastSucceeded == false)

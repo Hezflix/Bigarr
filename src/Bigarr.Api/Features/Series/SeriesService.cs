@@ -18,7 +18,7 @@ using Microsoft.EntityFrameworkCore;
 /// Application rules of the Series slice: lookup, add, versions, monitoring, refresh, delete. The disk is touched only
 /// by a delete asked with <c>deleteFiles</c> (through the recycle bin); the scan and the import live elsewhere.
 /// </summary>
-public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataProvider metadata, XemService xem, Bigarr.Api.Infrastructure.Files.RecycleBin recycleBin, Search.SeriesSearchQueue searches, Infrastructure.Events.OutboxWriter outbox, TimeProvider time, ILogger<SeriesService> logger)
+public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataProvider metadata, XemService xem, Bigarr.Api.Infrastructure.Files.RecycleBin recycleBin, Search.SeriesSearchQueue searches, Infrastructure.Events.OutboxWriter outbox, SeriesRefreshAlerts alerts, TimeProvider time, ILogger<SeriesService> logger)
 {
     public DateTime Now => time.GetUtcNow().UtcDateTime;
 
@@ -155,6 +155,13 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         if (found is null)
         {
             return Failure.NotFound(request.TvdbId is not null ? $"TVDB series {request.TvdbId}" : $"TMDB series {request.TmdbId}");
+        }
+
+        // A show TVDB knows is numbered by TVDB (S1): without a TVDB answer it is not added with TMDB's numbering, which
+        // a later refresh with TVDB would have to throw away. Only a show without a TVDB id takes TMDB's list.
+        if (found.NumberedByTmdb && found.TvdbId is not null)
+        {
+            return new Failure(StatusCodes.Status503ServiceUnavailable, "TVDB unavailable", $"{found.Title} is on TVDB (id {found.TvdbId}): its episodes are numbered by TVDB, which needs Bigarr__Tvdb__ApiKey (or TVDB is not answering).");
         }
 
         // Asked by TMDB id, found under a TVDB id the library already has (or the other way round).
@@ -551,6 +558,14 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             return Failure.NotFound("Series");
         }
 
+        // A show TVDB identifies is numbered by TVDB only (S1): without a TVDB key its episode list is left as it is,
+        // never replaced by TMDB's numbering, and no provider is asked.
+        if (series.TvdbId is not null && !metadata.CanNumberByTvdb)
+        {
+            alerts.TvdbFailed("No TVDB API key", Now);
+            return TvdbUnavailable(series, "no TVDB API key is set");
+        }
+
         SeriesMetadata? found;
         try
         {
@@ -562,7 +577,23 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         }
         catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
         {
+            if (series.TvdbId is not null)
+            {
+                alerts.TvdbFailed(ex.Message, Now);
+            }
+
             return new Failure(StatusCodes.Status502BadGateway, "Metadata provider unavailable", ex.Message);
+        }
+
+        if (series.TvdbId is not null)
+        {
+            if (found is { NumberedByTmdb: true })
+            {
+                // TVDB did not answer for this id (TMDB still knows the show): TMDB's list must not stand in for TVDB's.
+                return TvdbUnavailable(series, "TVDB has no episode list for this TVDB id; TMDB's numbering is not used for a show TVDB identifies");
+            }
+
+            alerts.TvdbAnswered();
         }
 
         if (found is null)
@@ -577,10 +608,26 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         await db.Episodes.Where(e => e.SeriesId == seriesId).Include(e => e.Targets).LoadAsync(ct);
         var hadEpisodes = series.Episodes.Count > 0;
 
+        var before = series.Episodes.Count;
         series.ApplyMetadata(found);
         series.LastMetadataRefreshAt = Now;
         var sync = SyncCatalogue(series, found, series.Episodes.ToList());
-        await xem.RefreshSeriesAsync(series, series.Episodes.ToList(), ct);
+
+        // Safety net: a refresh that would drop most of a show's episodes and bring as many new ones is not an update
+        // but a different numbering (ids that no longer match): nothing is changed, the health check says it.
+        if (RefreshSafety.Refuses(before, sync.Removed.Count, sync.Added.Count))
+        {
+            var detail = $"{series.Title}: the refresh would remove {sync.Removed.Count} of {before} episodes and add {sync.Added.Count}; refused, nothing changed";
+            db.ChangeTracker.Clear();
+            alerts.Refuse(seriesId, detail);
+            logger.LogWarning("Series refresh refused for {Detail}", detail);
+            return new Failure(StatusCodes.Status409Conflict, "Refresh refused", detail);
+        }
+
+        alerts.Accepted(seriesId);
+
+        // TheXEM's map is read again only for new episodes or when it is older than the slow schedule's cadence.
+        await xem.RefreshSeriesAsync(series, series.Episodes.ToList(), ct, sync.Added.Count > 0 ? null : xem.RefreshInterval);
 
         // Both numberings stay current: the alternative order is re-read and re-linked (files are not renamed here).
         await SeriesOrderService.RelinkAsync(metadata, logger, series, series.Episodes.Where(e => !sync.Removed.Contains(e)).ToList(), ct);
@@ -624,6 +671,12 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
                 continue;
             }
 
+            if (episode.Targets.Any(t => t.Monitored))
+            {
+                logger.LogWarning("{Series}: S{Season:00}E{Episode:00} is gone from the provider but a version monitors it; kept", series.Title, episode.SeasonNumber, episode.EpisodeNumber);
+                continue;
+            }
+
             db.EpisodeTargets.RemoveRange(episode.Targets);
             db.Episodes.Remove(episode);
         }
@@ -653,6 +706,12 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         }
 
         return Result<Series>.Ok(series);
+    }
+
+    private Failure TvdbUnavailable(Series series, string why)
+    {
+        logger.LogDebug("{Series}: episode list not refreshed, {Why}", series.Title, why);
+        return new Failure(StatusCodes.Status503ServiceUnavailable, "TVDB unavailable", $"{series.Title}: episode list not refreshed, {why}.");
     }
 
     private sealed record CatalogueChanges(List<Season> NewSeasons, List<Episode> Added, List<Episode> Removed);
@@ -702,6 +761,11 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             {
                 episode = c;
             }
+            else if (info.TvdbId is null && ConfirmedByNumber(existing, matched, info) is { } d)
+            {
+                // No id to go by: the same numbers confirmed by the air date (±2 days) or the title (S6's linking rule).
+                episode = d;
+            }
 
             if (episode is null || matched.Contains(episode))
             {
@@ -712,8 +776,8 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
 
             matched.Add(episode);
             episode.Season = seasons[info.SeasonNumber];
-            episode.TvdbId = info.TvdbId;
-            episode.TmdbId = info.TmdbId;
+            episode.TvdbId = info.TvdbId ?? episode.TvdbId;
+            episode.TmdbId = info.TmdbId ?? episode.TmdbId;
             episode.SeasonNumber = info.SeasonNumber;
             episode.EpisodeNumber = info.EpisodeNumber;
             episode.AbsoluteEpisodeNumber = info.AbsoluteEpisodeNumber;
@@ -733,6 +797,14 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         var removed = existing.Where(e => !matched.Contains(e)).ToList();
         return new CatalogueChanges(newSeasons, added, removed);
     }
+
+    private static Episode? ConfirmedByNumber(IReadOnlyCollection<Episode> existing, HashSet<Episode> matched, EpisodeMetadata info) =>
+        existing.FirstOrDefault(e =>
+            !matched.Contains(e)
+            && e.SeasonNumber == info.SeasonNumber
+            && e.EpisodeNumber == info.EpisodeNumber
+            && ((e.AirDate is { } stored && info.AirDate is { } incoming && Math.Abs(stored.DayNumber - incoming.DayNumber) <= 2)
+                || Infrastructure.Tv.EpisodeOrderLinker.SameTitle(e.Title, info.Title)));
 
     // ---- default & delete -------------------------------------------------------------------------------------------
 

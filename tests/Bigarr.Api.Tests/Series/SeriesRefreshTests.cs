@@ -21,6 +21,7 @@ public sealed class SeriesRefreshTests : IDisposable
     private readonly SqliteTestDatabase _database = new();
     private readonly FakeProvider _provider = new();
     private readonly Bigarr.Api.Features.Search.SeriesSearchQueue _searches = new();
+    private readonly SeriesRefreshAlerts _alerts = new();
 
     public void Dispose() => _database.Dispose();
 
@@ -37,6 +38,9 @@ public sealed class SeriesRefreshTests : IDisposable
         {
             var target = await db.EpisodeTargets.SingleAsync(t => t.VersionId == hd && t.Episode.TvdbId == 102);
             target.Monitored = false;
+
+            // S01E03 is dropped by the provider below: nobody monitors it, so it may go.
+            (await db.EpisodeTargets.SingleAsync(t => t.VersionId == hd && t.Episode.TvdbId == 103)).Monitored = false;
             await db.SaveChangesAsync();
         }
 
@@ -125,7 +129,9 @@ public sealed class SeriesRefreshTests : IDisposable
             var targets = await db.EpisodeTargets.Include(t => t.Episode).Where(t => t.Episode.SeriesId == seriesId).ToListAsync();
             EpisodeTarget Target(int tvdbId, int versionId) => targets.Single(t => t.Episode.TvdbId == tvdbId && t.VersionId == versionId);
 
-            // 102: an ended grab of the 4K version; 103: a shadow pick; 104: a history line. 105 has nothing.
+            // 102: an ended grab of the 4K version; 103: a shadow pick; 104: a history line. 105 has nothing, and nobody
+            // monitors it (a monitored episode is kept too).
+            Target(105, hd).Monitored = false;
             var grab = new Grab { ReleaseTitle = "Demo.Show.S01E02.2160p.WEB-DL-GRP" };
             grab.AddTarget(Target(102, uhd));
             grab.TransitionTo(GrabState.Removed);
@@ -270,6 +276,251 @@ public sealed class SeriesRefreshTests : IDisposable
         Assert.Equal("us", (await check.Series.SingleAsync()).NetworkCountry);
     }
 
+    /// <summary>
+    /// The incident: a library whose episodes carry TVDB ids and no TMDB ids (as a Sonarr import leaves them), refreshed
+    /// by a provider without a TVDB key, used to get TMDB's own numbering for the TVDB id, drop every TVDB episode and
+    /// add TMDB's next to them. Now nothing about the episodes changes and the health check is told.
+    /// </summary>
+    [Fact]
+    public async Task Without_a_tvdb_key_a_refresh_leaves_the_tvdb_episode_list_alone()
+    {
+        _provider.Show = Show([1, 2], Ep(101, 1, 1), Ep(102, 1, 2), Ep(103, 1, 3), Ep(201, 2, 1), Ep(202, 2, 2));
+        var (seriesId, hd, _) = await SeedAsync();
+        await using (var db = _database.CreateContext())
+        {
+            // Nobody monitors season 2 and nothing is on disk: the old refresh deleted such episodes.
+            foreach (var target in await db.EpisodeTargets.Where(t => t.Episode.SeasonNumber == 2).ToListAsync())
+            {
+                target.Monitored = false;
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        var before = await SnapshotAsync(seriesId);
+
+        // What a keyless provider answers for the TVDB id: TMDB's numbering, episodes without TVDB ids, TMDB's seasons.
+        _provider.CanNumberByTvdb = false;
+        _provider.Show = Show([1], TmdbEp(9001, 1, 1), TmdbEp(9002, 1, 2), TmdbEp(9003, 1, 3), TmdbEp(9004, 1, 4), TmdbEp(9005, 1, 5)) with { Source = "tmdb" };
+        var calls = _provider.Calls;
+        await using (var db = _database.CreateContext())
+        {
+            var result = await Service(db).RefreshAsync(seriesId, CancellationToken.None);
+            Assert.False(result.IsSuccess);
+            Assert.Equal(503, result.Failure!.StatusCode);
+        }
+
+        Assert.Equal(calls, _provider.Calls); // no provider asked at all
+        Assert.Equal(before, await SnapshotAsync(seriesId));
+        Assert.Equal("No TVDB API key", _alerts.TvdbUnavailable?.Reason);
+
+        // With a key whose TVDB has no list for the id (TMDB answers instead): kept as well.
+        _provider.CanNumberByTvdb = true;
+        await using (var db = _database.CreateContext())
+        {
+            Assert.Equal(503, (await Service(db).RefreshAsync(seriesId, CancellationToken.None)).Failure!.StatusCode);
+        }
+
+        Assert.Equal(before, await SnapshotAsync(seriesId));
+
+        // TVDB answers again: the normal refresh, numbering by TVDB ids, the alert gone.
+        _provider.Show = Show([1, 2], Ep(101, 1, 1), Ep(102, 1, 2), Ep(103, 1, 3), Ep(104, 1, 4), Ep(201, 2, 1), Ep(202, 2, 2));
+        await using (var db = _database.CreateContext())
+        {
+            Assert.True((await Service(db).RefreshAsync(seriesId, CancellationToken.None)).IsSuccess);
+        }
+
+        var after = await SnapshotAsync(seriesId);
+        Assert.Equal(before.Count + 1, after.Count);
+        Assert.Contains(after, e => e.StartsWith("104 S01E04", StringComparison.Ordinal));
+        Assert.Null(_alerts.TvdbUnavailable);
+        Assert.True(await HdMonitorsAsync(hd, 104));
+    }
+
+    [Fact]
+    public async Task A_show_with_a_tvdb_id_is_not_added_with_tmdbs_numbering()
+    {
+        await using var db = _database.CreateContext();
+        _provider.CanNumberByTvdb = false;
+        _provider.Show = Show([1], TmdbEp(9001, 1, 1)) with { Source = "tmdb" };
+        var (rootId, profileId) = await RootAndProfileAsync(db);
+        var added = await Service(db).AddSeriesAsync(new AddSeriesRequest(profileId, rootId, TvdbId: 1), CancellationToken.None);
+
+        Assert.False(added.IsSuccess);
+        Assert.Equal(503, added.Failure!.StatusCode);
+        Assert.False(await db.Series.AnyAsync());
+    }
+
+    [Fact]
+    public async Task The_safety_net_refuses_a_refresh_that_would_replace_most_episodes()
+    {
+        _provider.Show = Show([1], Ep(101, 1, 1), Ep(102, 1, 2), Ep(103, 1, 3), Ep(104, 1, 4), Ep(105, 1, 5), Ep(106, 1, 6));
+        var (seriesId, _, _) = await SeedAsync();
+        await using (var db = _database.CreateContext())
+        {
+            foreach (var target in await db.EpisodeTargets.ToListAsync())
+            {
+                target.Monitored = false; // nothing protects them but the safety net
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        var before = await SnapshotAsync(seriesId);
+
+        // Six episodes under ids the show never had: a different list, not an update.
+        _provider.Show = Show([1], Ep(901, 1, 1), Ep(902, 1, 2), Ep(903, 1, 3), Ep(904, 1, 4), Ep(905, 1, 5), Ep(906, 1, 6));
+        await using (var db = _database.CreateContext())
+        {
+            var result = await Service(db).RefreshAsync(seriesId, CancellationToken.None);
+            Assert.Equal(409, result.Failure!.StatusCode);
+        }
+
+        Assert.Equal(before, await SnapshotAsync(seriesId));
+        Assert.Contains("would remove 6 of 6 episodes and add 6", _alerts.Refused[seriesId], StringComparison.Ordinal);
+
+        // Half of them renumbered under new ids is still an update (not more than half gone).
+        _provider.Show = Show([1], Ep(101, 1, 1), Ep(102, 1, 2), Ep(103, 1, 3), Ep(904, 1, 4), Ep(905, 1, 5), Ep(906, 1, 6));
+        await using (var db = _database.CreateContext())
+        {
+            Assert.True((await Service(db).RefreshAsync(seriesId, CancellationToken.None)).IsSuccess);
+        }
+
+        Assert.False(_alerts.Refused.ContainsKey(seriesId));
+    }
+
+    [Fact]
+    public async Task An_episode_without_ids_matches_the_stored_one_by_numbers_and_air_date_or_title()
+    {
+        _provider.Show = Show([1], Ep(101, 1, 1), Ep(102, 1, 2), Ep(103, 1, 3));
+        var (seriesId, _, _) = await SeedAsync();
+        var ids = await EpisodeIdsAsync(seriesId);
+
+        // The provider lists S01E02 without a TVDB id, a day off; S01E03 without one, same title, the date unknown.
+        _provider.Show = Show(
+            [1],
+            Ep(101, 1, 1),
+            Ep(102, 1, 2) with { TvdbId = null, TmdbId = 7002, AirDate = Ep(102, 1, 2).AirDate!.Value.AddDays(1) },
+            Ep(103, 1, 3) with { TvdbId = null, TmdbId = 7003, AirDate = null });
+        await using (var db = _database.CreateContext())
+        {
+            Assert.True((await Service(db).RefreshAsync(seriesId, CancellationToken.None)).IsSuccess);
+        }
+
+        await using var check = _database.CreateContext();
+        var episodes = await check.Episodes.Where(e => e.SeriesId == seriesId).ToListAsync();
+        Assert.Equal(3, episodes.Count);
+        var second = episodes.Single(e => e.Id == ids[102]);
+        Assert.Equal(102, second.TvdbId); // the TVDB id is kept, the TMDB id learnt
+        Assert.Equal(7002, second.TmdbId);
+        Assert.Equal(103, episodes.Single(e => e.Id == ids[103]).TvdbId);
+    }
+
+    [Fact]
+    public async Task A_dropped_episode_a_version_monitors_is_kept()
+    {
+        _provider.Show = Show([1], Ep(101, 1, 1), Ep(102, 1, 2), Ep(103, 1, 3), Ep(104, 1, 4));
+        var (seriesId, _, _) = await SeedAsync();
+
+        _provider.Show = Show([1], Ep(101, 1, 1), Ep(102, 1, 2), Ep(103, 1, 3));
+        await using (var db = _database.CreateContext())
+        {
+            Assert.True((await Service(db).RefreshAsync(seriesId, CancellationToken.None)).IsSuccess);
+        }
+
+        await using var check = _database.CreateContext();
+        Assert.True(await check.Episodes.AnyAsync(e => e.TvdbId == 104));
+    }
+
+    [Fact]
+    public async Task The_refresh_job_without_a_tvdb_key_asks_nothing_about_shows_with_a_tvdb_id()
+    {
+        _provider.Show = Show([1], Ep(101, 1, 1), Ep(102, 1, 2));
+        var (seriesId, _, _) = await SeedAsync();
+        await using (var db = _database.CreateContext())
+        {
+            await db.Series.Where(s => s.Id == seriesId).ExecuteUpdateAsync(u => u.SetProperty(s => s.LastMetadataRefreshAt, (DateTime?)null));
+        }
+
+        var before = await SnapshotAsync(seriesId);
+        _provider.CanNumberByTvdb = false;
+        var calls = _provider.Calls;
+        await using (var db = _database.CreateContext())
+        {
+            var summary = await Job(db).RunAsync(CancellationToken.None);
+            Assert.Contains("1 waiting for a TVDB key", summary, StringComparison.Ordinal);
+        }
+
+        Assert.Equal(calls, _provider.Calls);
+        Assert.Equal(before, await SnapshotAsync(seriesId));
+        Assert.NotNull(_alerts.TvdbUnavailable);
+    }
+
+    [Fact]
+    public async Task The_refresh_job_spreads_a_library_never_refreshed_over_passes()
+    {
+        _provider.Show = Show([1], Ep(101, 1, 1));
+        var (seriesId, _, _) = await SeedAsync();
+        await using (var db = _database.CreateContext())
+        {
+            await db.Series.Where(s => s.Id == seriesId).ExecuteUpdateAsync(u => u.SetProperty(s => s.LastMetadataRefreshAt, (DateTime?)null));
+        }
+
+        await using (var db = _database.CreateContext())
+        {
+            var summary = await Job(db, batch: 1).RunAsync(CancellationToken.None);
+            Assert.StartsWith("1 of 1 due series refreshed this pass", summary, StringComparison.Ordinal);
+        }
+
+        // Refreshed: Sonarr's rule keeps it out of the next pass (refreshed less than 6 hours ago).
+        await using (var db = _database.CreateContext())
+        {
+            Assert.StartsWith("Nothing due", await Job(db, batch: 1).RunAsync(CancellationToken.None), StringComparison.Ordinal);
+        }
+    }
+
+    private static async Task<(int RootId, int ProfileId)> RootAndProfileAsync(BigarrDbContext db)
+    {
+        var root = db.RootFolders.Add(new RootFolder { Path = "/data/tv", Kind = MediaKind.Series }).Entity;
+        var profile = db.QualityProfiles.Add(new QualityProfile { Name = "1080p", PreferredLanguage = "en", Cutoff = TestData.BlurayQualityId, Kind = ProfileKind.Series }).Entity;
+        await db.SaveChangesAsync();
+        return (root.Id, profile.Id);
+    }
+
+    private SeriesRefreshJob Job(BigarrDbContext db, int batch = 50) => new(
+        db,
+        Service(db),
+        _provider,
+        _alerts,
+        Microsoft.Extensions.Options.Options.Create(new Bigarr.Api.Features.Movies.MetadataRefreshOptions { RefreshFilmsPerSecond = 0, SeriesRefreshBatchSize = batch }),
+        new FixedTimeProvider(Now),
+        NullLogger<SeriesRefreshJob>.Instance);
+
+    /// <summary>Every episode as "tvdbId S01E02 tmdbId", in order: what a refresh must leave alone.</summary>
+    private async Task<List<string>> SnapshotAsync(int seriesId)
+    {
+        await using var db = _database.CreateContext();
+        return (await db.Episodes.Where(e => e.SeriesId == seriesId).ToListAsync())
+            .OrderBy(e => e.SeasonNumber).ThenBy(e => e.EpisodeNumber).ThenBy(e => e.Id)
+            .Select(e => $"{e.TvdbId} S{e.SeasonNumber:00}E{e.EpisodeNumber:00} {e.TmdbId} #{e.Id}")
+            .ToList();
+    }
+
+    private async Task<bool> HdMonitorsAsync(int hd, int tvdbId)
+    {
+        await using var db = _database.CreateContext();
+        return await db.EpisodeTargets.Where(t => t.VersionId == hd && t.Episode.TvdbId == tvdbId).Select(t => t.Monitored).SingleAsync();
+    }
+
+    private static EpisodeMetadata TmdbEp(int tmdbId, int season, int number) => new()
+    {
+        TmdbId = tmdbId,
+        SeasonNumber = season,
+        EpisodeNumber = number,
+        AirDate = new DateOnly(2021, 1, 1).AddDays(number),
+        Title = $"TMDB episode {tmdbId}",
+    };
+
     private async Task<(int SeriesId, int Hd, int Uhd)> SeedAsync()
     {
         await using var db = _database.CreateContext();
@@ -301,7 +552,7 @@ public sealed class SeriesRefreshTests : IDisposable
             .SingleAsync();
 
     private SeriesService Service(BigarrDbContext db) =>
-        new(db, _provider, XemFakes.Disabled(db, new FixedTimeProvider(Now)), new Bigarr.Api.Infrastructure.Files.RecycleBin(new FixedTimeProvider(Now), NullLogger<Bigarr.Api.Infrastructure.Files.RecycleBin>.Instance), _searches, new Bigarr.Api.Infrastructure.Events.OutboxWriter(db, new FixedTimeProvider(Now)), new FixedTimeProvider(Now), NullLogger<SeriesService>.Instance);
+        new(db, _provider, XemFakes.Disabled(db, new FixedTimeProvider(Now)), new Bigarr.Api.Infrastructure.Files.RecycleBin(new FixedTimeProvider(Now), NullLogger<Bigarr.Api.Infrastructure.Files.RecycleBin>.Instance), _searches, new Bigarr.Api.Infrastructure.Events.OutboxWriter(db, new FixedTimeProvider(Now)), _alerts, new FixedTimeProvider(Now), NullLogger<SeriesService>.Instance);
 
     private static SeriesMetadata Show(int[] seasons, params EpisodeMetadata[] episodes) => new()
     {
@@ -330,8 +581,15 @@ public sealed class SeriesRefreshTests : IDisposable
 
         public string Name => "fake";
 
-        public Task<SeriesMetadata?> GetByTvdbIdAsync(int tvdbId, bool withEpisodes, CancellationToken cancellationToken) =>
-            Task.FromResult(Show is not null && Show.TvdbId == tvdbId ? Show : null);
+        public bool CanNumberByTvdb { get; set; } = true;
+
+        public int Calls { get; private set; }
+
+        public Task<SeriesMetadata?> GetByTvdbIdAsync(int tvdbId, bool withEpisodes, CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromResult(Show is not null && Show.TvdbId == tvdbId ? Show : null);
+        }
 
         public Task<SeriesMetadata?> GetByTmdbIdAsync(int tmdbId, bool withEpisodes, CancellationToken cancellationToken) =>
             Task.FromResult(Show is not null && Show.TmdbId == tmdbId ? Show : null);

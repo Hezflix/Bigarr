@@ -61,12 +61,20 @@ public sealed class XemService(BigarrDbContext db, IXemClient client, XemMappedI
 {
     public bool Enabled => options.Value.Enabled;
 
+    /// <summary>The slow schedule's cadence (<see cref="XemOptions.RefreshIntervalHours"/>).</summary>
+    public TimeSpan RefreshInterval => TimeSpan.FromHours(Math.Max(1, options.Value.RefreshIntervalHours));
+
     /// <summary>
     /// Fetches the series' mapping and writes scene numbers onto <paramref name="episodes"/> (tracked or new; the caller
     /// saves). Returns false when nothing could be fetched. Scene numbers map onto TVDB's numbers, which every episode
     /// keeps whatever order the series shows (blueprint §8): kept current for every series.
     /// </summary>
-    public async Task<bool> RefreshSeriesAsync(Domain.Tv.Series series, IReadOnlyCollection<Episode> episodes, CancellationToken ct)
+    /// <param name="maxAge">
+    /// From a metadata refresh that brought no new episode: a mapping read more recently than this is kept (the slow
+    /// schedule reads every mapped show anyway), and when TheXEM's list of mapped shows cannot be read, no show is asked
+    /// one by one. Null asks whenever the show is on TheXEM's list (adding a show, new episodes, the slow schedule).
+    /// </param>
+    public async Task<bool> RefreshSeriesAsync(Domain.Tv.Series series, IReadOnlyCollection<Episode> episodes, CancellationToken ct, TimeSpan? maxAge = null)
     {
         ArgumentNullException.ThrowIfNull(series);
         if (!Enabled || series.TvdbId is not { } tvdbId)
@@ -74,9 +82,18 @@ public sealed class XemService(BigarrDbContext db, IXemClient client, XemMappedI
             return false;
         }
 
+        if (maxAge is { } age && series.SceneNumberingRefreshedAt is { } last && time.GetUtcNow().UtcDateTime - last < age)
+        {
+            return true;
+        }
+
         try
         {
             var mapped = await mappedIds.GetAsync(client, logger, ct);
+            if (mapped is null && maxAge is not null)
+            {
+                return false;
+            }
             IReadOnlyList<XemMapping> mappings = mapped is not null && !mapped.Contains(tvdbId) && !series.UseSceneNumbering
                 ? []
                 : await client.GetMappingsAsync(tvdbId, ct);
