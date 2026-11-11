@@ -2278,7 +2278,8 @@ export type PlaybackUser = {
   thumbUrl: string | null
   isOwner: boolean
   plays: number
-  lastSeenAt: string
+  /** Null: never seen play (an account the Tautulli import brought with no history). */
+  lastSeenAt: string | null
   serverName: string
   keepHistory: boolean
   /** The server is still shared with them (plex.tv's list), null when not known yet. */
@@ -2328,7 +2329,8 @@ export type PlaybackUserStats = {
   isOwner: boolean
   keepHistory: boolean
   firstSeenAt: string
-  lastSeenAt: string
+  /** Null: never seen play (an account the Tautulli import brought with no history). */
+  lastSeenAt: string | null
   lastPlayedAt: string | null
   watchTime: WatchTime[]
   players: { player: string; platform: string | null; plays: number; seconds: number; lastPlayedAt: string }[]

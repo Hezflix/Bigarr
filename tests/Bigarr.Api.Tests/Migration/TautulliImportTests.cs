@@ -41,7 +41,7 @@ public sealed class TautulliImportTests(BigarrApiFactory factory) : IClassFixtur
         // Preview: counted from Tautulli alone, Plex asked only for its libraries.
         var preview = await (await session.PostAsJsonAsync("/api/v1/migration/tautulli/preview", new { path, mediaServerId = serverId })).ReadJsonAsync();
         Assert.Equal("v2.99.0", preview.GetProperty("tautulliVersion").GetString());
-        Assert.Equal(3, preview.GetProperty("users").GetInt32());
+        Assert.Equal(4, preview.GetProperty("users").GetInt32());
         Assert.Equal(1, preview.GetProperty("deletedUsers").GetInt32());
         Assert.Equal(1, preview.GetProperty("usersKnown").GetInt32());
         Assert.Equal(12, preview.GetProperty("historyRows").GetInt32());
@@ -63,7 +63,7 @@ public sealed class TautulliImportTests(BigarrApiFactory factory) : IClassFixtur
         var report = await ImportAsync(session, path, serverId);
         Assert.Equal(11, report.GetProperty("total").GetInt32());
         Assert.Equal(11, report.GetProperty("processed").GetInt32());
-        Assert.Equal(2, report.GetProperty("usersAdded").GetInt32());
+        Assert.Equal(3, report.GetProperty("usersAdded").GetInt32());
         Assert.Equal(8, report.GetProperty("itemsAdded").GetInt32());
         Assert.Equal(9, report.GetProperty("playsAdded").GetInt32());
         Assert.Equal(10, report.GetProperty("streamsAdded").GetInt32());
@@ -82,7 +82,12 @@ public sealed class TautulliImportTests(BigarrApiFactory factory) : IClassFixtur
         {
             var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
             var users = await db.MediaServerUsers.AsNoTracking().Where(u => u.MediaServerId == serverId).ToDictionaryAsync(u => u.ExternalId);
-            Assert.Equal(["1", "9002", "9003"], users.Keys.Order(StringComparer.Ordinal));
+            Assert.Equal(["1", "9002", "9003", "9004"], users.Keys.Order(StringComparer.Ordinal));
+
+            // Dora is in Tautulli's accounts and never played: never seen, not seen at the import.
+            Assert.Null(users["9004"].LastSeenAt);
+            Assert.NotNull(users["9002"].LastSeenAt);
+            Assert.NotEqual(users["9002"].FirstSeenAt, users["9002"].LastSeenAt);
             Assert.Equal("Owner", users["1"].DisplayName);
             Assert.Equal("Alice", users["9002"].DisplayName);
             Assert.False(users["9003"].KeepHistory);
@@ -371,7 +376,8 @@ internal static class InventedTautulli
             INSERT INTO users (user_id, username, friendly_name, thumb, email, is_admin, keep_history, deleted_user, user_token, server_token) VALUES
                 (9001, 'owner-account', 'Owner', 'https://example.invalid/owner.png', 'owner@example.invalid', 1, 1, 0, 'token-a', 'token-b'),
                 (9002, 'alice', 'Alice', NULL, 'alice@example.invalid', 0, 1, 0, 'token-c', NULL),
-                (9003, 'bob', 'bob', NULL, NULL, 0, 0, 1, NULL, NULL);
+                (9003, 'bob', 'bob', NULL, NULL, 0, 0, 1, NULL, NULL),
+                (9004, 'dora', 'Dora', NULL, NULL, 0, 1, 0, NULL, NULL);
             CREATE TABLE session_history (id INTEGER PRIMARY KEY AUTOINCREMENT, reference_id INTEGER, started INTEGER, stopped INTEGER, rating_key INTEGER,
                 user_id INTEGER, user TEXT, ip_address TEXT, paused_counter INTEGER DEFAULT 0, player TEXT, product TEXT, product_version TEXT, platform TEXT,
                 platform_version TEXT, profile TEXT, machine_id TEXT, bandwidth INTEGER, location TEXT, quality_profile TEXT, secure INTEGER, relayed INTEGER,

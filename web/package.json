@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "test": "bun test test",
     "preview": "vite preview",
     "gen:api": "openapi-typescript http://localhost:7979/openapi/v1.json -o src/api/generated/schema.d.ts"
   },

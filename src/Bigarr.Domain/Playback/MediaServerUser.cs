@@ -41,7 +41,11 @@ public sealed class MediaServerUser
 
     public DateTime FirstSeenAt { get; set; }
 
-    public DateTime LastSeenAt { get; set; }
+    /// <summary>
+    /// When they were last seen playing: the start of a live stream, or the end of their last imported play. Null for
+    /// someone never seen play: an account the Tautulli import brought along with no history.
+    /// </summary>
+    public DateTime? LastSeenAt { get; set; }
 
     public string ShownName => string.IsNullOrWhiteSpace(DisplayName) ? Name : DisplayName;
 }

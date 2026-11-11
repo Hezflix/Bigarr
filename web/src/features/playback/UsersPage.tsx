@@ -17,36 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatDateTime } from '@/i18n'
-
-type SortKey = 'name' | 'plays' | 'lastSeen' | 'access'
-type Sort = { key: SortKey; direction: 'asc' | 'desc' }
-
-/** Names sort A to Z first; numbers, dates and access the most first (on the server before off). */
-const firstDirection = (key: SortKey): Sort['direction'] => (key === 'name' ? 'asc' : 'desc')
-
-/** On, then off, then not known: the unknown last whichever the direction. */
-const accessRank = (u: PlaybackUser) => (u.onServer === null ? null : u.onServer ? 1 : 0)
-
-function compare(a: PlaybackUser, b: PlaybackUser, sort: Sort): number {
-  const sign = sort.direction === 'asc' ? 1 : -1
-  const byName = a.name.localeCompare(b.name)
-  switch (sort.key) {
-    case 'name':
-      return sign * byName
-    case 'plays':
-      return sign * (a.plays - b.plays) || byName
-    case 'lastSeen':
-      return sign * a.lastSeenAt.localeCompare(b.lastSeenAt) || byName
-    case 'access': {
-      const ra = accessRank(a)
-      const rb = accessRank(b)
-      if (ra === rb) return b.plays - a.plays || byName
-      if (ra === null) return 1
-      if (rb === null) return -1
-      return sign * (ra - rb)
-    }
-  }
-}
+import { compareUsers, firstDirection, type Sort, type SortKey } from './userSort'
 
 /** The people who play from the followed servers, the most active first, with the name Bigarr shows and whether their plays are kept. */
 export function UsersPage() {
@@ -57,7 +28,7 @@ export function UsersPage() {
   const users = useQuery({ queryKey: ['playback', 'users'], queryFn: playback.users })
   const shown = useMemo(() => {
     const needle = search.trim().toLowerCase()
-    return (users.data ?? []).filter((u) => u.name.toLowerCase().includes(needle) || u.serverName.toLowerCase().includes(needle)).sort((a, b) => compare(a, b, sort))
+    return (users.data ?? []).filter((u) => u.name.toLowerCase().includes(needle) || u.serverName.toLowerCase().includes(needle)).sort((a, b) => compareUsers(a, b, sort))
   }, [users.data, search, sort])
   const onSort = (key: SortKey) => setSort((current) => (current.key === key ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: firstDirection(key) }))
 
@@ -114,7 +85,7 @@ export function UsersPage() {
                     </span>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{user.plays}</TableCell>
-                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(user.lastSeenAt)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{user.lastSeenAt ? formatDateTime(user.lastSeenAt) : t('playback.never')}</TableCell>
                   <TableCell>
                     <Access user={user} />
                   </TableCell>
