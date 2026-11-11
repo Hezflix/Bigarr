@@ -1507,6 +1507,27 @@ export const series = {
   undoOrder: (id: number) => post<{ change: OrderChange; filesRestored: number; files: OrderFileResult[] }>(`/api/v1/series/${id}/orders/undo`),
 }
 
+// ---- specials that are films (S8) ------------------------------------------
+
+export type FilmConfidence = NonNullable<Schemas['FilmConfidence']>
+export type FilmPlacementSource = Schemas['FilmPlacementSource']
+export type SeriesFilmVersionLink = Schemas['SeriesFilmVersionLinkResponse']
+export type SeriesFilmLink = Schemas['SeriesFilmLinkResponse']
+export type SeriesFilm = Schemas['SeriesFilmResponse']
+export type SeriesFilms = Schemas['SeriesFilmsResponse']
+export type AddSeriesFilmRequest = Partial<Schemas['AddSeriesFilmRequest']> & { episodeId: number }
+export type MovieSeriesLink = Schemas['MovieSeriesLinkResponse']
+export type EpisodeFilmOwner = Schemas['EpisodeFilmOwner']
+
+export const seriesFilms = {
+  list: (seriesId: number) => api<SeriesFilms>(`/api/v1/series/${seriesId}/films`),
+  add: (seriesId: number, body: AddSeriesFilmRequest) => post<SeriesFilms>(`/api/v1/series/${seriesId}/films`, body),
+  detect: (seriesId: number) => post<SeriesFilms>(`/api/v1/series/${seriesId}/films/detect`),
+  remove: (seriesId: number, episodeId: number) => del(`/api/v1/series/${seriesId}/films/${episodeId}`),
+  setAutoAdd: (autoAdd: boolean) => put<void>('/api/v1/settings/series-films', { autoAdd }),
+  forMovie: (movieId: number) => api<MovieSeriesLink[]>(`/api/v1/movies/${movieId}/series-links`),
+}
+
 // ---- series automation ------------------------------------------------
 
 export type SeriesWantedItem = Schemas['SeriesWantedItemResponse']

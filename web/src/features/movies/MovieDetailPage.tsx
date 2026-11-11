@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { EyeIcon, EyeOffIcon, FileXIcon, PlusIcon, RefreshCwIcon, SearchIcon, StarIcon, Trash2Icon } from 'lucide-react'
+import { EyeIcon, EyeOffIcon, FileXIcon, PlusIcon, RefreshCwIcon, SearchIcon, StarIcon, Trash2Icon, TvIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, customFormats, history, movies, quality, rootFolders, rootsOfKind, search, shadow, type MediaInfo, type MinimumAvailability, type Movie, type Version, type VersionMode, profilesFor} from '@/api/client'
+import { ApiError, customFormats, history, movies, seriesFilms, quality, rootFolders, rootsOfKind, search, shadow, type MediaInfo, type MinimumAvailability, type Movie, type Version, type VersionMode, profilesFor} from '@/api/client'
 import { Poster } from '@/components/Poster'
 import { StatusBadge } from '@/components/StatusBadge'
 import { CompareTable } from '@/features/activity/CompareTable'
@@ -147,6 +147,8 @@ export function MovieDetailPage() {
           </div>
 
           {m.overview && <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">{m.overview}</p>}
+
+          <SeriesLinks movieId={m.id} />
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <a
@@ -784,5 +786,27 @@ function AddVersionDialog({ movie, onAdded }: { movie: Movie; onAdded: () => voi
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** "Also special S00E02 of Show (after season 1)": the shows this film is a special of (S8). */
+function SeriesLinks({ movieId }: { movieId: number }) {
+  const { t } = useTranslation()
+  const links = useQuery({ queryKey: ['movieSeriesLinks', movieId], queryFn: () => seriesFilms.forMovie(movieId) })
+  if (!links.data || links.data.length === 0) return null
+
+  return (
+    <div className="flex flex-col gap-0.5 text-sm" data-testid="movie-series-links">
+      {links.data.map((link) => (
+        <span key={link.episodeId} className="flex flex-wrap items-center gap-1">
+          <TvIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          {t('seriesFilms.alsoSpecial', { label: link.label })}{' '}
+          <Link to="/series/$seriesId" params={{ seriesId: String(link.seriesId) }} className="font-medium underline-offset-4 hover:underline">
+            {link.seriesTitle}
+          </Link>
+          {link.placementLabel && <span className="text-muted-foreground">({link.placementLabel})</span>}
+        </span>
+      ))}
+    </div>
   )
 }

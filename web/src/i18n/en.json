@@ -2652,5 +2652,54 @@
       "confirmFilms_one": "Delete {{count}} series",
       "confirmFilms_other": "Delete {{count}} series"
     }
+  },
+  "seriesFilms": {
+    "title_one": "Films in this series ({{count}})",
+    "title_other": "Films in this series ({{count}})",
+    "hint": "Specials that are films. Added as a film, a special is searched, grabbed and upgraded by the film engine with a film profile, and appears here as a hardlink of the film's file (one copy on disk).",
+    "autoAdd": "Add new films on their own",
+    "columns": {
+      "special": "Special",
+      "title": "Title",
+      "placement": "Placement",
+      "runtime": "Runtime",
+      "film": "Film"
+    },
+    "confidence": {
+      "flagged": "TVDB film",
+      "likely": "Likely film"
+    },
+    "placementSource": {
+      "none": "",
+      "tvdb": "From TVDB",
+      "airDate": "From the air dates"
+    },
+    "minutes_one": "{{count}} min",
+    "minutes_other": "{{count}} min",
+    "add": "Add as film",
+    "addTitle": "Add {{label}} as a film",
+    "addHint": "{{title}} becomes a film of the library. The film engine searches, grabs and upgrades it; the special follows as a hardlink of its file.",
+    "addExisting": "{{title}} is already a film of the library: the special is linked to it as it is.",
+    "added": "{{title}} added as a film",
+    "rootFolder": "Film root folder",
+    "noFilmRoot": "No film root folder",
+    "profile": "Quality profile",
+    "searchOnAdd": "Search for the film now",
+    "unlink": "Unlink",
+    "unlinkHint": "The film stays a film; the special becomes an episode of the series again and keeps its file.",
+    "unlinked": "{{label}} unlinked",
+    "inLibrary": "Already in the films",
+    "notAdded": "Not added",
+    "noTmdb": "No TMDB film found",
+    "autoAdded": "auto",
+    "waitingForFilm": "Waiting for the film's file",
+    "linkedIn": "Hardlinked in {{version}}",
+    "pendingIn": "Not linked yet in {{version}}",
+    "linkFailed": "Hardlink failed (not copied): see Health",
+    "film": "Film",
+    "ownedBy": "Owned by the film {{title}}: searched and upgraded as a film",
+    "hardlinkOf": "Hardlink of the film's file {{path}}",
+    "alsoSpecial": "Also special {{label}} of",
+    "filmPick": "Film's pick: {{film}}"
   }
 }

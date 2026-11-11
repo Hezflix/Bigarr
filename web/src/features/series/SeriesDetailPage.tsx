@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useParams } from '@tanstack/react-router'
+import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { cn } from 'cn'
-import { BookmarkIcon, ChevronRightIcon, FilePenLineIcon, FilterIcon, FolderInputIcon, FolderSearchIcon, ListChecksIcon, ListOrderedIcon, PlusIcon, RefreshCwIcon, SearchIcon, StarIcon, Trash2Icon, WrenchIcon } from 'lucide-react'
+import { BookmarkIcon, ChevronRightIcon, ClapperboardIcon, Link2Icon, FilePenLineIcon, FilterIcon, FolderInputIcon, FolderSearchIcon, ListChecksIcon, ListOrderedIcon, PlusIcon, RefreshCwIcon, SearchIcon, StarIcon, Trash2Icon, WrenchIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { SeriesCompareSection } from '@/features/activity/SeriesCompare'
 import { toast } from 'sonner'
@@ -45,6 +45,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatBytes, formatDate } from '@/i18n'
 import { EpisodeProgress } from './EpisodeProgress'
+import { SeriesFilmsSection } from './SeriesFilmsSection'
 import { SeriesSearchDialog, type SeriesSearchScope } from '@/features/search/SeriesInteractiveSearch'
 import { Checkbox } from '@/components/ui/checkbox'
 import { SeriesManualImportDialog } from '@/features/import/SeriesManualImportDialog'
@@ -78,6 +79,7 @@ export function SeriesDetailPage() {
     void queryClient.invalidateQueries({ queryKey: ['series'] })
     void queryClient.invalidateQueries({ queryKey: ['seriesOrders', id] })
     void queryClient.invalidateQueries({ queryKey: ['episodes', id] })
+    void queryClient.invalidateQueries({ queryKey: ['seriesFilms', id] })
   }
 
   // The rescan runs in the background; poll while it is queued or running, refresh what it changed once it ends.
@@ -256,6 +258,8 @@ export function SeriesDetailPage() {
           onSearch={setSearchScope}
         />
       )}
+
+      <SeriesFilmsSection seriesId={s.id} onChanged={invalidate} />
 
       {searchScope && <SeriesSearchDialog key={JSON.stringify(searchScope)} series={s} scope={searchScope} onClose={() => setSearchScope(null)} />}
 
@@ -956,8 +960,24 @@ function EpisodeTable({
                 </TableCell>
               )}
               <TableCell className="max-w-0">
-                <span className="block truncate" title={episode.overview ?? episode.title}>
-                  {episode.title}
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate" title={episode.overview ?? episode.title}>
+                    {episode.title}
+                  </span>
+                  {episode.ownedByFilm && (
+                    <Link
+                      to="/movies/$movieId"
+                      params={{ movieId: String(episode.ownedByFilm.movieId) }}
+                      className="shrink-0"
+                      title={t('seriesFilms.ownedBy', { title: episode.ownedByFilm.title })}
+                      data-testid="episode-owned-by-film"
+                    >
+                      <Badge variant="secondary">
+                        <ClapperboardIcon />
+                        {t('seriesFilms.film')}
+                      </Badge>
+                    </Link>
+                  )}
                 </span>
               </TableCell>
               <TableCell className="tabular-nums" title={episode.hasAired ? undefined : t('seriesDetail.unaired')}>
@@ -981,8 +1001,8 @@ function EpisodeTable({
                     <WrenchIcon />
                   </Button>
                 )}
-                {file && <EpisodeFileActions seriesId={s.id} file={file} onChanged={onChanged} />}
-                <Button
+                {file && !file.linkedFromPath && <EpisodeFileActions seriesId={s.id} file={file} onChanged={onChanged} />}
+                {!episode.ownedByFilm && <Button
                   type="button"
                   size="icon"
                   variant="ghost"
@@ -993,7 +1013,7 @@ function EpisodeTable({
                   data-testid="episode-search"
                 >
                   <SearchIcon />
-                </Button>
+                </Button>}
               </TableCell>
             </TableRow>
           )
@@ -1018,6 +1038,11 @@ function EpisodeFileCell({ file, episode }: { file: EpisodeFile | undefined; epi
         <Badge variant="outline" className="shrink-0 border-amber-600/30 bg-amber-500/15 text-amber-700 dark:border-amber-400/30 dark:text-amber-300" title={t('seriesOrder.flaggedHint')} data-testid="episode-file-flagged">
           {t('seriesOrder.flagged')}
         </Badge>
+      )}
+      {file.linkedFromPath && (
+        <span className="shrink-0 text-muted-foreground" title={t('seriesFilms.hardlinkOf', { path: file.linkedFromPath })} data-testid="episode-file-film-link">
+          <Link2Icon className="size-3.5" />
+        </span>
       )}
       <Badge variant="outline" className="border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300">
         {file.quality}

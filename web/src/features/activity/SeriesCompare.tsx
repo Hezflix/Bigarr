@@ -500,12 +500,17 @@ function PickCard({ pick }: { pick: SeriesComparePick }) {
   return (
     <div className="rounded-lg border p-3 text-sm" data-testid="series-compare-pick">
       <p className="font-medium">{t('compare.bigarrCard')}</p>
+      {pick.film && (
+        <p className="text-xs text-muted-foreground" data-testid="series-compare-film-pick">
+          {t('seriesFilms.filmPick', { film: pick.film })}
+        </p>
+      )}
       <p className="break-all">{pick.title}</p>
       <p className="text-xs text-muted-foreground">
         {pick.episodes} · {pick.quality ?? '?'} · {formatBytes(pick.size)} · {pick.indexer ?? '?'} · score {pick.customFormatScore} ·{' '}
         {t(`compare.triggers.${pick.trigger.replace(':', '_')}`, { defaultValue: pick.trigger })}
       </p>
-      <div className="mt-2 flex flex-col gap-1">
+      {!pick.film && <div className="mt-2 flex flex-col gap-1">
         <span className="text-xs font-medium">{t('compare.sonarrSays')}</span>
         {view === null ? (
           <span className="text-xs text-muted-foreground">{t('compare.sonarrNotAskedYet')}</span>
@@ -523,7 +528,7 @@ function PickCard({ pick }: { pick: SeriesComparePick }) {
             </span>
           </>
         )}
-      </div>
+      </div>}
     </div>
   )
 }
