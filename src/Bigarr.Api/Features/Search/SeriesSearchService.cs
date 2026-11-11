@@ -24,7 +24,8 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
 {
     private readonly ReleaseEvaluator _evaluator = ReleaseEvaluator.Interactive();
 
-    public async Task<Result<SeriesSearchResponse>> SearchAsync(int seriesId, int? episodeId, int? seasonNumber, int? versionId, string? query, CancellationToken ct)
+    /// <param name="orderSeason"><paramref name="seasonNumber"/> is a season of the series' alternative order (its page shows that order).</param>
+    public async Task<Result<SeriesSearchResponse>> SearchAsync(int seriesId, int? episodeId, int? seasonNumber, int? versionId, string? query, CancellationToken ct, bool orderSeason = false)
     {
         var targets = await targetsFactory.LoadAsync(seriesId, ct);
         if (targets is null)
@@ -54,6 +55,22 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
             label = $"S{episode.SeasonNumber:00}E{episode.EpisodeNumber:00}";
             requested = [episode.Id];
             criteria = SeriesSearchCriteriaBuilder.ForEpisode(series, episode, targets.SceneNames);
+        }
+        else if (seasonNumber is not null && orderSeason && series.Ordering != EpisodeOrder.Tvdb)
+        {
+            // A season of the order on screen: its episodes, asked first by the TVDB seasons they fall in.
+            var seasonEpisodes = targets.Episodes.Where(e => e.InOrder && e.OrderSeasonNumber == seasonNumber).ToList();
+            if (seasonEpisodes.Count == 0)
+            {
+                return Failure.NotFound("Season");
+            }
+
+            scope = "season";
+            label = seasonNumber == 0 ? "Specials" : $"Season {seasonNumber}";
+            requested = seasonEpisodes.Select(e => e.Id).ToHashSet();
+            criteria = seasonEpisodes.GroupBy(e => e.SeasonNumber).OrderBy(g => g.Key)
+                .SelectMany(g => SeriesSearchCriteriaBuilder.ForSeason(series, g.Key, targets.Episodes.Where(e => e.SeasonNumber == g.Key).ToList(), targets.SceneNames))
+                .ToList();
         }
         else if (seasonNumber is not null)
         {
@@ -117,9 +134,34 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
             }
         }
 
-        logger.LogInformation("Interactive search for {Series} {Label}{Query}: {Releases} release(s) from {Indexers} indexer(s) in {Elapsed} ms{Fallback}",
+        // Blueprint §8: TVDB numbering found no acceptable release for what was asked: the series' alternative order is
+        // tried, on the releases already found and with a request by the order's numbers. A hit there is confirmed by
+        // the release (air date, episode title) or held for a manual choice.
+        var orderFallback = false;
+        if (series.Ordering != EpisodeOrder.Tvdb && query is null && scope != "series"
+            && !releases.Any(r => r.Response.MatchesSeries && r.Response.Versions.Any(v => v.Approved) && r.Response.Episodes.Any(e => requested.Contains(e.Id))))
+        {
+            orderFallback = true;
+            var asked = targets.Episodes.Where(e => requested.Contains(e.Id)).ToList();
+            var orderCriteria = scope == "episode"
+                ? SeriesSearchCriteriaBuilder.ForOrderEpisode(series, asked[0], targets.SceneNames)
+                : SeriesSearchCriteriaBuilder.ForOrderSeasons(series, asked, targets.SceneNames);
+            var all = new List<ReleaseInfo>(found);
+            if (orderCriteria.Count > 0)
+            {
+                var seen = found.Select(r => (r.IndexerId, r.Guid)).ToHashSet();
+                var (more, moreResults) = await WholeSeriesSearch.QueryAsync(indexers, orderCriteria, gateway, ct);
+                results.AddRange(moreResults.Where(r => r.Error is not null && results.All(e => e.Indexer.Id != r.Indexer.Id || e.Error is null)));
+                all.AddRange(more.Where(r => seen.Add((r.IndexerId, r.Guid))));
+            }
+
+            releases = all.Select(release => Evaluate(release, targets, index, searchScope, versionId, minimumSeeders.GetValueOrDefault(release.IndexerId), calculator, orderFallback: true)).ToList();
+        }
+
+        logger.LogInformation("Interactive search for {Series} {Label}{Query}: {Releases} release(s) from {Indexers} indexer(s) in {Elapsed} ms{Fallback}{Order}",
             series.Title, label, query is null ? string.Empty : $" by text '{query}'", releases.Count, indexers.Count, stopwatch.ElapsedMilliseconds,
-            fallbackSeasons.Count == 0 ? string.Empty : $", then season by season: {string.Join(", ", fallbackSeasons)}");
+            fallbackSeasons.Count == 0 ? string.Empty : $", then season by season: {string.Join(", ", fallbackSeasons)}",
+            orderFallback ? ", then on the series' order" : string.Empty);
 
         await indexerService.FillSeriesCategoriesAsync(results.Where(r => r.Error is null).Select(r => r.Indexer).DistinctBy(i => i.Id), ct);
 
@@ -141,7 +183,7 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
             .Select(r => new IndexerErrorResponse(r.Indexer.Id, r.Indexer.Name, r.Error!.Kind, r.Error.Message))
             .ToList();
 
-        return Result<SeriesSearchResponse>.Ok(new SeriesSearchResponse(series.Id, scope, seasonNumber, episodeId, label, time.GetUtcNow().UtcDateTime, indexers.Count, ordered, errors, query, fallbackSeasons));
+        return Result<SeriesSearchResponse>.Ok(new SeriesSearchResponse(series.Id, scope, seasonNumber, episodeId, label, time.GetUtcNow().UtcDateTime, indexers.Count, ordered, errors, query, fallbackSeasons, orderFallback));
     }
 
     private static (SeriesReleaseResponse Response, int Order) Evaluate(
@@ -151,7 +193,8 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
         EpisodeSearchScope scope,
         int? versionId,
         int minimumSeeders,
-        CustomFormatCalculator calculator)
+        CustomFormatCalculator calculator,
+        bool orderFallback = false)
     {
         var series = targets.Series;
         var parsed = SeriesReleaseJudge.TryParse(release.Title);
@@ -193,7 +236,7 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
             sceneSeason ??= index.SceneSeasonFor(parsed.SeriesTitle, series.TvdbId);
         }
 
-        var judgement = SeriesReleaseJudge.Judge(release, parsed, targets, sceneSeason, calculator, ReleaseEvaluator.Interactive(), minimumSeeders, scope, versionId, sceneSource: !special);
+        var judgement = SeriesReleaseJudge.Judge(release, parsed, targets, sceneSeason, calculator, ReleaseEvaluator.Interactive(), minimumSeeders, scope, versionId, sceneSource: !special, orderFallback: orderFallback && !special);
         if (judgement.UnmatchedReason is { } reason)
         {
             rejections.Add(new RejectionResponse(reason, false));
@@ -246,6 +289,8 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
             judgement.Episodes.Count == 0 ? null : SeriesReleaseJudge.Label(judgement.Episodes),
             parsed?.FullSeason ?? false,
             versions,
-            suggested), 0);
+            suggested,
+            judgement.IsMapped ? judgement.Numbering : null,
+            judgement.HeldReason is not null), 0);
     }
 }

@@ -33,7 +33,7 @@ public static class SearchEndpoints
         // Interactive search for a series: an episode (episodeId), a season (season) or the whole series (neither), judged
         // by every version of the series (or one). A query replaces the show's ids and titles with the user's own text.
         app.MapGet("/api/v1/series/{id:int}/search", async Task<Results<Ok<SeriesSearchResponse>, ValidationProblem, ProblemHttpResult>> (
-                int id, int? episodeId, int? season, int? versionId, string? query, SeriesSearchService search, CancellationToken ct) =>
+                int id, int? episodeId, int? season, int? versionId, string? query, SeriesSearchService search, CancellationToken ct, bool orderSeason = false) =>
             {
                 if (query?.Trim().Length > MaxQueryLength)
                 {
@@ -45,7 +45,7 @@ public static class SearchEndpoints
                     return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["season"] = ["Search an episode or a season, not both."] });
                 }
 
-                var result = await search.SearchAsync(id, episodeId, season, versionId, query, ct);
+                var result = await search.SearchAsync(id, episodeId, season, versionId, query, ct, orderSeason);
                 return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
             })
             .WithTags("Search")

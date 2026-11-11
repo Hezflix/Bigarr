@@ -257,6 +257,7 @@ public sealed class GrabService(
             IndexerFlags = request.Flags,
             Protocol = request.Protocol,
             GrabbedAt = now,
+            Numbering = request.Numbering ?? Bigarr.Domain.Tv.EpisodeNumbering.Tvdb,
         };
         foreach (var target in ordered)
         {
@@ -268,6 +269,7 @@ public sealed class GrabService(
             history.Data["size"] = request.Size.ToString(System.Globalization.CultureInfo.InvariantCulture);
             history.Data["releaseGuid"] = request.Guid;
             history.Data["trigger"] = trigger;
+            history.Data["numbering"] = NumberingName(grab.Numbering!.Value);
             if (ordered.Count > 1)
             {
                 history.Data["episodes"] = string.Join(", ", labels);
@@ -327,6 +329,10 @@ public sealed class GrabService(
 
         return (null, null, new Failure(StatusCodes.Status502BadGateway, "No download client accepted the release", string.Join(" · ", errors)));
     }
+
+    /// <summary><c>tvdb</c>, <c>xem</c>, <c>order</c>, <c>absolute</c>: as the API writes the enum.</summary>
+    public static string NumberingName(Bigarr.Domain.Tv.EpisodeNumbering numbering) =>
+        System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(numbering.ToString());
 
     /// <summary><c>S01E05</c>; specials are season 0.</summary>
     public static string EpisodeLabel(Bigarr.Domain.Tv.Episode episode)

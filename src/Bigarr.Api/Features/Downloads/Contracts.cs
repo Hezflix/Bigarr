@@ -65,12 +65,14 @@ public sealed record GrabRequest(
     /// A series grab: the shared ids of the episodes the release covers, and <see cref="VersionId"/> is then the series
     /// version. One <c>GrabTarget</c> per (version, episode) pair.
     /// </summary>
-    List<int>? EpisodeIds = null)
+    List<int>? EpisodeIds = null,
+    /// <summary>A series grab: which numbering the release matched its episodes on (the search returns it).</summary>
+    Bigarr.Domain.Tv.EpisodeNumbering? Numbering = null)
 {
     public bool IsSeries => EpisodeIds is { Count: > 0 };
 
-    public static GrabRequest ForEpisodes(ReleaseInfo release, int seriesVersionId, IEnumerable<int> episodeIds) =>
-        From(release, seriesVersionId) with { EpisodeIds = episodeIds.Distinct().ToList() };
+    public static GrabRequest ForEpisodes(ReleaseInfo release, int seriesVersionId, IEnumerable<int> episodeIds, Bigarr.Domain.Tv.EpisodeNumbering? numbering = null) =>
+        From(release, seriesVersionId) with { EpisodeIds = episodeIds.Distinct().ToList(), Numbering = numbering };
 
     /// <summary>What the automatic paths (RSS, searches) send: the release as the indexer returned it.</summary>
     public static GrabRequest From(ReleaseInfo release, int versionId)

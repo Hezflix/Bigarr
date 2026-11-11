@@ -17,6 +17,9 @@ public sealed record EpisodeMapping(EpisodeMappingStatus Status, IReadOnlyList<E
 {
     public bool IsMapped => Status == EpisodeMappingStatus.Mapped;
 
+    /// <summary>Which numbering found the episodes (recorded on grabs and picks); meaningful when mapped.</summary>
+    public EpisodeNumbering Numbering { get; init; } = EpisodeNumbering.Tvdb;
+
     public static EpisodeMapping Failed(EpisodeMappingStatus status, string detail) => new(status, [], detail);
 }
 
@@ -34,7 +37,8 @@ public sealed record MappableSeries(int Id, string Title, SeriesType Type, Episo
 /// Maps a <see cref="ParsedEpisodeInfo"/> to episodes of one series, following Sonarr's <c>ParsingService.GetEpisodes</c>:
 /// season/episode numbers in TVDB order, absolute numbers for anime, the air date for daily shows, every episode of
 /// the season(s) for a pack. XEM scene numbers are used only when the source is scene-numbered (a release, or a file
-/// named after an XEM scene name) and the series follows the TVDB order. Where Sonarr would pick one candidate among
+/// named after an XEM scene name), against TVDB's numbers (every episode keeps them, whatever order the series shows);
+/// <see cref="MapOrder"/> reads the series' alternative order instead, as a verified fallback. Where Sonarr would pick one candidate among
 /// several, this reports <see cref="EpisodeMappingStatus.Ambiguous"/> instead: nothing is guessed silently.
 /// Pure: no database, no HTTP. Shared by the series scan now and by search, RSS and import later.
 /// </summary>
@@ -52,6 +56,29 @@ public static class EpisodeMapper
         bool sceneSource,
         int? sceneSeasonNumber = null)
     {
+        var mapping = MapTvdb(parsed, series, episodes, sceneSource, sceneSeasonNumber);
+        if (!mapping.IsMapped || parsed is null)
+        {
+            return mapping;
+        }
+
+        // Which numbering it was: absolute numbers (anime), XEM scene numbers (they differ from TVDB's), else TVDB.
+        var useScene = sceneSource && series.UseSceneNumbering;
+        var numbering = parsed.IsAbsoluteNumbering && !parsed.Special && !parsed.FullSeason
+            ? EpisodeNumbering.Absolute
+            : useScene && mapping.Episodes.Any(e => e.SceneSeasonNumber is not null && (e.SceneSeasonNumber != e.SeasonNumber || e.SceneEpisodeNumber != e.EpisodeNumber))
+                ? EpisodeNumbering.Xem
+                : EpisodeNumbering.Tvdb;
+        return mapping with { Numbering = numbering };
+    }
+
+    /// <summary>
+    /// The fallback on the series' alternative order (blueprint §8): season/episode numbers, season packs and absolute
+    /// numbers read in the order's numbering. Only for a series whose order is not TVDB, and only when TVDB found
+    /// nothing acceptable: the caller verifies the hit. Air dates are order-independent: a daily name is not remapped.
+    /// </summary>
+    public static EpisodeMapping MapOrder(ParsedEpisodeInfo? parsed, MappableSeries series, IReadOnlyCollection<Episode> episodes)
+    {
         ArgumentNullException.ThrowIfNull(series);
         ArgumentNullException.ThrowIfNull(episodes);
 
@@ -60,8 +87,93 @@ public static class EpisodeMapper
             return EpisodeMapping.Failed(EpisodeMappingStatus.NotParsable, "No season/episode, absolute number or air date in the name.");
         }
 
-        // Scene numbers are TVDB-order numbers: another order (S6) maps on its own numbers only.
-        var useScene = sceneSource && series.Ordering == EpisodeOrder.Tvdb;
+        if (series.Ordering == EpisodeOrder.Tvdb)
+        {
+            return EpisodeMapping.Failed(EpisodeMappingStatus.EpisodeNotFound, "The series uses the TVDB order.");
+        }
+
+        if (parsed.IsDaily)
+        {
+            return EpisodeMapping.Failed(EpisodeMappingStatus.EpisodeNotFound, "An air date names the same episode in every order.");
+        }
+
+        var inOrder = episodes.Where(e => e.InOrder).ToList();
+        if (parsed.FullSeason)
+        {
+            var seasons = parsed.SeasonNumbers.ToHashSet();
+            var pack = inOrder.Where(e => seasons.Contains(e.OrderSeasonNumber!.Value)).ToList();
+            return pack.Count == 0
+                ? EpisodeMapping.Failed(EpisodeMappingStatus.EpisodeNotFound, $"No episode in season {string.Join(", ", parsed.SeasonNumbers)} of the order.")
+                : new EpisodeMapping(EpisodeMappingStatus.Mapped, Ordered(pack)) { Numbering = EpisodeNumbering.Order };
+        }
+
+        var result = new List<Episode>();
+        var missing = new List<string>();
+        if (parsed.IsAbsoluteNumbering && parsed.AbsoluteEpisodeNumbers.Length > 0 && !parsed.Special)
+        {
+            foreach (var absolute in parsed.AbsoluteEpisodeNumbers)
+            {
+                var found = inOrder.Where(e => e.OrderAbsoluteNumber == absolute).ToList();
+                if (found.Count > 1)
+                {
+                    return EpisodeMapping.Failed(EpisodeMappingStatus.Ambiguous, $"Absolute {absolute} of the order is {Describe(found)}.");
+                }
+
+                if (found.Count == 0)
+                {
+                    missing.Add(absolute.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                }
+
+                result.AddRange(found);
+            }
+        }
+        else if (parsed.SeasonNumbers.Count > 0 && parsed.EpisodeNumbers.Length > 0)
+        {
+            var season = parsed.SeasonNumbers[0];
+            foreach (var number in parsed.EpisodeNumbers)
+            {
+                var found = inOrder.Where(e => e.OrderSeasonNumber == season && e.OrderEpisodeNumber == number).ToList();
+                if (found.Count > 1)
+                {
+                    return EpisodeMapping.Failed(EpisodeMappingStatus.Ambiguous, $"S{season:00}E{number:00} of the order is listed {found.Count} times.");
+                }
+
+                if (found.Count == 0)
+                {
+                    missing.Add($"S{season:00}E{number:00}");
+                }
+
+                result.AddRange(found);
+            }
+        }
+        else
+        {
+            return EpisodeMapping.Failed(EpisodeMappingStatus.NotParsable, "No episode number.");
+        }
+
+        return missing.Count > 0 || result.Count == 0
+            ? EpisodeMapping.Failed(EpisodeMappingStatus.EpisodeNotFound, $"No episode {string.Join(", ", missing)} in the order.")
+            : new EpisodeMapping(EpisodeMappingStatus.Mapped, Ordered(result)) { Numbering = EpisodeNumbering.Order };
+    }
+
+    private static EpisodeMapping MapTvdb(
+        ParsedEpisodeInfo? parsed,
+        MappableSeries series,
+        IReadOnlyCollection<Episode> episodes,
+        bool sceneSource,
+        int? sceneSeasonNumber)
+    {
+        ArgumentNullException.ThrowIfNull(series);
+        ArgumentNullException.ThrowIfNull(episodes);
+
+        if (parsed is null)
+        {
+            return EpisodeMapping.Failed(EpisodeMappingStatus.NotParsable, "No season/episode, absolute number or air date in the name.");
+        }
+
+        // Scene numbers map to TVDB's numbers, which every episode keeps whatever the series' display order: XEM
+        // serves the TVDB pass only, never the fallback on the alternative order (blueprint §8).
+        var useScene = sceneSource;
         if (!useScene)
         {
             sceneSeasonNumber = null;

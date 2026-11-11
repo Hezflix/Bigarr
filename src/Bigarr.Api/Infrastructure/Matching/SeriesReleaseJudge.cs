@@ -22,6 +22,15 @@ public sealed record SeriesJudgement(
     ReleaseDecision? Attributed)
 {
     public bool IsMapped => UnmatchedReason is null && Episodes.Count > 0;
+
+    /// <summary>Which numbering the episodes were found on (TVDB, XEM, the series' order, absolute).</summary>
+    public EpisodeNumbering Numbering { get; init; } = EpisodeNumbering.Tvdb;
+
+    /// <summary>
+    /// A fallback hit on the series' order that nothing in the release confirms: every version rejects it so nothing
+    /// grabs it automatically; the user may grab it by hand from the interactive search (blueprint §8).
+    /// </summary>
+    public string? HeldReason { get; init; }
 }
 
 /// <summary>
@@ -45,6 +54,7 @@ public static class SeriesReleaseJudge
     }
 
     /// <param name="sceneSeasonNumber">The scene season the release's series title stands for (an XEM name like "Show S2").</param>
+    /// <param name="orderFallback">Try the series' alternative order when TVDB numbering finds nothing (or nothing asked).</param>
     public static SeriesJudgement Judge(
         ReleaseInfo release,
         ParsedEpisodeInfo? parsed,
@@ -55,7 +65,8 @@ public static class SeriesReleaseJudge
         int minimumSeeders,
         EpisodeSearchScope? scope = null,
         int? versionId = null,
-        bool sceneSource = true)
+        bool sceneSource = true,
+        bool orderFallback = false)
     {
         ArgumentNullException.ThrowIfNull(release);
         ArgumentNullException.ThrowIfNull(targets);
@@ -70,6 +81,26 @@ public static class SeriesReleaseJudge
         var series = targets.Series;
         var formats = calculator.Match(CustomFormatScorer.EpisodeReleaseInput(parsed, release, series.Year, series.OriginalLanguage));
         var mapping = EpisodeMapper.Map(parsed, targets.Mappable, targets.Episodes.ToList(), sceneSource, sceneSource ? sceneSeasonNumber : null);
+
+        // TVDB numbering first (XEM, absolute); the series' alternative order only when TVDB maps to nothing, or (in a
+        // search) to nothing of what was asked. A hit there must be confirmed by the release, else it is held.
+        string? held = null;
+        if (orderFallback && series.Ordering != EpisodeOrder.Tvdb && (!mapping.IsMapped || (scope is not null && !mapping.Episodes.Any(e => scope.EpisodeIds.Contains(e.Id)))))
+        {
+            var byOrder = EpisodeMapper.MapOrder(parsed, targets.Mappable, targets.Episodes.ToList());
+            if (byOrder.IsMapped && (scope is null || byOrder.Episodes.Any(e => scope.EpisodeIds.Contains(e.Id))))
+            {
+                var verdict = OrderFallbackCheck.Verify(release.Title, parsed, byOrder.Episodes);
+                if (verdict.Contradiction is { } contradiction)
+                {
+                    return new SeriesJudgement(parsed, [], $"Matched on the series' order, but {contradiction}", formats, [], null) { Numbering = EpisodeNumbering.Order };
+                }
+
+                mapping = byOrder;
+                held = verdict.Confirmed ? null : HeldMessage;
+            }
+        }
+
         if (!mapping.IsMapped)
         {
             return new SeriesJudgement(parsed, [], Describe(mapping), formats, [], null);
@@ -81,8 +112,15 @@ public static class SeriesReleaseJudge
             Search = scope,
         };
         var decisions = targets.ContextsFor(mapping.Episodes, versionId).Select(context => evaluator.Evaluate(candidate, context)).ToList();
-        return new SeriesJudgement(parsed, mapping.Episodes, null, formats, decisions, VersionAttribution.Choose(decisions));
+        if (held is not null)
+        {
+            decisions = decisions.Select(d => d with { Rejections = [.. d.Rejections, new Rejection(held)] }).ToList();
+        }
+
+        return new SeriesJudgement(parsed, mapping.Episodes, null, formats, decisions, VersionAttribution.Choose(decisions)) { Numbering = mapping.Numbering, HeldReason = held };
     }
+
+    public const string HeldMessage = "Ambiguous: matched on the series' order only, nothing in the release confirms it (air date, episode title). Held for a manual choice";
 
     /// <summary>
     /// Sonarr's <c>ParseSpecialEpisodeTitle</c>: a release whose name carries no episode number (or only a possible

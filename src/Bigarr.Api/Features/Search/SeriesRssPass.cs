@@ -103,7 +103,7 @@ public sealed class SeriesRssPass(
 
             if (show is not null)
             {
-                judgement = SeriesReleaseJudge.Judge(release, parsed, show, special ? null : match.SceneSeasonNumber, calculator, _evaluator, indexer.MinimumSeeders, sceneSource: !special);
+                judgement = SeriesReleaseJudge.Judge(release, parsed, show, special ? null : match.SceneSeasonNumber, calculator, _evaluator, indexer.MinimumSeeders, sceneSource: !special, orderFallback: !special);
             }
 
             judged.Add((Entry(release, parsed, show, judgement, reason ?? judgement?.UnmatchedReason, now), release, judgement, show));
@@ -135,7 +135,7 @@ public sealed class SeriesRssPass(
 
             taken.UnionWith(targetIds);
             var versionId = ((EpisodeTarget)attributed.Target.Target).VersionId;
-            var grab = await grabs.GrabAsync(GrabRequest.ForEpisodes(release, versionId, judgement.Episodes.Select(e => e.Id)), RssSyncService.GrabTrigger, ct);
+            var grab = await grabs.GrabAsync(GrabRequest.ForEpisodes(release, versionId, judgement.Episodes.Select(e => e.Id), judgement.Numbering), RssSyncService.GrabTrigger, ct);
             if (grab.IsSuccess && grab.Value!.ShadowPickId is { } pickId)
             {
                 picked++;
