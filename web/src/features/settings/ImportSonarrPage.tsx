@@ -140,6 +140,7 @@ function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: Son
   const [importHistory, setImportHistory] = useState(true)
   const [importBlocklist, setImportBlocklist] = useState(true)
   const [importProfileQualities, setImportProfileQualities] = useState(true)
+  const [importCustomFormats, setImportCustomFormats] = useState(true)
   const [keepMonitored, setKeepMonitored] = useState(true)
   const [follow, setFollow] = useState(false)
 
@@ -160,6 +161,7 @@ function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: Son
         importHistory,
         importBlocklist,
         importProfileQualities,
+        importCustomFormats,
         keepMonitored,
         follow,
       }
@@ -203,6 +205,45 @@ function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: Son
         <h2 className="text-xl font-semibold tracking-tight">{t('importRadarr.profiles')}</h2>
         <ProfileMappingTable preview={shaped} value={profileMap} onChange={setProfileMap} labels={labels} kind="series" allowCreate />
         <p className="max-w-3xl text-xs text-muted-foreground">{t('importSonarr.profilesHint')}</p>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-xl font-semibold tracking-tight">{t('importSonarr.customFormats')}</h2>
+        <p className="max-w-3xl text-xs text-muted-foreground">{t('importSonarr.customFormatsHint')}</p>
+        {(preview.customFormats ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t('importSonarr.noFormats')}</p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border">
+            <Table data-testid="sonarr-formats">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('importSonarr.formatSonarr')}</TableHead>
+                  <TableHead>{t('importSonarr.formatOutcome')}</TableHead>
+                  <TableHead>{t('importSonarr.formatBigarr')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {preview.customFormats!.map((f) => (
+                  <TableRow key={f.sonarrId}>
+                    <TableCell className="font-medium">{f.sonarrName}</TableCell>
+                    <TableCell>
+                      <Badge variant={f.outcome === 'reused' ? 'secondary' : 'outline'}>{t(`importSonarr.formatOutcomes.${f.outcome}`)}</Badge>
+                    </TableCell>
+                    <TableCell className="whitespace-normal">
+                      {f.bigarrName}
+                      {f.notes.map((note) => (
+                        <span key={note} className="block text-xs text-amber-700 dark:text-amber-300">
+                          {note}
+                        </span>
+                      ))}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+        <Toggle id="sonarr-import-custom-formats" label={t('importSonarr.importCustomFormats')} checked={importCustomFormats} onChange={setImportCustomFormats} />
       </section>
 
       <section className="flex flex-col gap-3">
@@ -273,6 +314,9 @@ function RunStep({ status, onAgain }: { status: SonarrImportStatus; onAgain: () 
     ['importRadarr.exclusionsAdded', status.exclusionsAdded],
     ['importRadarr.historyAdded', status.historyAdded],
     ['importRadarr.blocklistAdded', status.blocklistAdded],
+    ['importSonarr.customFormatsAdded', status.customFormatsAdded ?? 0],
+    ['importSonarr.customFormatsReused', status.customFormatsReused ?? 0],
+    ['importSonarr.customFormatsRenamed', status.customFormatsRenamed ?? 0],
     ['importRadarr.profilesScored', status.profilesScored],
     ['importRadarr.profileQualitiesCopied', status.profileQualitiesCopied],
   ] as const

@@ -971,7 +971,9 @@
       "LanguageSpecification": "Language",
       "IndexerFlagSpecification": "Indexer flag",
       "SizeSpecification": "Size",
-      "YearSpecification": "Year"
+      "YearSpecification": "Year",
+      "ReleaseTypeSpecification": "Release type (series)",
+      "UnsupportedSpecification": "Not evaluated"
     },
     "field": {
       "value": "Value",
@@ -980,7 +982,8 @@
       "max": "Max",
       "exceptLanguage": "Any language except this one",
       "gb": "GB"
-    }
+    },
+    "noteBadge": "Note"
   },
   "downloadClients": {
     "title": "Download clients",
@@ -2242,7 +2245,7 @@
     "sonarrProfile": "Sonarr profile",
     "series": "Series",
     "sonarrPath": "Sonarr path",
-    "profilesHint": "Only Series and Both profiles can be chosen. “Create a Series profile from Sonarr's” adds one named after it with its qualities and scores. Sonarr's custom formats are not imported (Bigarr's are shared with films); scores are copied for the formats Bigarr has under the same name.",
+    "profilesHint": "Only Series and Both profiles can be chosen. “Create a Series profile from Sonarr's” adds one named after it with its qualities and scores.",
     "rootFoldersHint": "Only series root folders can be chosen. The Sonarr path is read as is on this host when it is reachable; otherwise pick the root folder where the same shows live, added on the Library settings page.",
     "noTags": "Sonarr has no tags in use.",
     "importProfileQualities": "Give each mapped profile the qualities, cutoff and scores of its Sonarr profile",
@@ -2258,6 +2261,22 @@
     "issueTitle": "Series",
     "issueTvdb": "TVDB",
     "again": "Import another Sonarr",
-    "createProfile": "Create a Series profile from Sonarr's"
+    "createProfile": "Create a Series profile from Sonarr's",
+    "customFormats": "Custom formats",
+    "customFormatsHint": "Bigarr's formats are one library shared with films. A Sonarr format Bigarr already has under the same name and definition is reused; the same name with another definition comes in as “name (Sonarr)”; any other is created. Their scores only go to the Series profiles of this import. Indexer flags, languages and sources are translated to Bigarr's numbering; a specification Bigarr cannot evaluate is kept, marked and listed.",
+    "formatSonarr": "Sonarr format",
+    "formatOutcome": "Outcome",
+    "formatBigarr": "In Bigarr",
+    "formatOutcomes": {
+      "new": "New",
+      "reused": "Reused",
+      "renamed": "Renamed",
+      "updated": "Updated"
+    },
+    "importCustomFormats": "Import custom formats and give the Series profiles Sonarr's format scores and thresholds",
+    "customFormatsAdded": "Custom formats added",
+    "customFormatsReused": "Custom formats reused",
+    "customFormatsRenamed": "Imported as “(Sonarr)”",
+    "noFormats": "Sonarr has no custom format."
   }
 }

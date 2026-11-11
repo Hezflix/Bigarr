@@ -111,7 +111,15 @@ export function CustomFormatsPage() {
           <TableBody>
             {list.data?.map((f) => (
               <TableRow key={f.id} data-testid={`format-${f.id}`}>
-                <TableCell className="align-top font-medium">{f.name}</TableCell>
+                <TableCell className="align-top font-medium">
+                  {f.name}
+                  {f.note && (
+                    <Badge variant="outline" className="ml-2 border-amber-600/30 bg-amber-500/15 text-amber-700 dark:border-amber-400/30 dark:text-amber-300" title={f.note}>
+                      {t('customFormats.noteBadge')}
+                    </Badge>
+                  )}
+                  {f.note && <span className="block text-xs font-normal whitespace-normal text-muted-foreground">{f.note}</span>}
+                </TableCell>
                 <TableCell className="align-top">
                   <ConditionsSummary format={f} />
                 </TableCell>

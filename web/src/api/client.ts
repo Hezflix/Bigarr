@@ -493,6 +493,8 @@ export type CustomFormat = {
   /** Scores the guide file suggested, by profile family (default…); shown as a hint, never applied on its own. */
   trashScores: Record<string, number> | null
   scores: { qualityProfileId: number; qualityProfile: string; score: number }[]
+  /** Set when an import changed or could not evaluate part of the format (a Sonarr specification Bigarr lacks…). */
+  note?: string | null
 }
 
 /** `scores` is the full list: a profile left out or at zero loses its score. */
@@ -1687,7 +1689,12 @@ export type SonarrImportPreview = {
   tags: RadarrTagPreview[]
   /** Sonarr v3 language profiles, for information only. */
   languageProfiles: string[]
+  /** What the import would do with each Sonarr custom format. */
+  customFormats: SonarrFormatPreview[] | null
 }
+
+/** `new`, `reused` (same name and definition), `renamed` (imported as "name (Sonarr)"), `updated`. */
+export type SonarrFormatPreview = { sonarrId: number; sonarrName: string; outcome: 'new' | 'reused' | 'renamed' | 'updated'; bigarrName: string; notes: string[] }
 
 export type SonarrImportRequest = {
   url: string
@@ -1704,8 +1711,10 @@ export type SonarrImportRequest = {
   keepMonitored: boolean
   /** Shadow mode: keep following this Sonarr with the same mapping once the import is done. */
   follow?: boolean
-  /** Give each mapped profile the qualities, cutoff and scores of its Sonarr profile (unless a followed Radarr owns it). */
+  /** Give each mapped Series profile the qualities and cutoff of its Sonarr profile. */
   importProfileQualities?: boolean
+  /** Bring Sonarr's custom formats and give the Series profiles Sonarr's scores and thresholds. */
+  importCustomFormats?: boolean
 }
 
 /** `tvdbId` is null for a line about a profile; `seriesId` is set when the series is in Bigarr. */
@@ -1734,6 +1743,12 @@ export type SonarrImportStatus = {
   current: string | null
   error: string | null
   issues: SonarrImportIssue[]
+  profilesCreated: number
+  qualitySizesUpdated: number
+  customFormatsAdded: number
+  customFormatsReused: number
+  customFormatsRenamed: number
+  customFormatsUpdated: number
 }
 
 export const sonarrMigration = {
