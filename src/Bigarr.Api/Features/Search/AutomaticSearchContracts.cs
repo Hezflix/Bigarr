@@ -13,6 +13,9 @@ public enum SearchTrigger
 
     /// <summary>The cutoff-unmet job.</summary>
     CutoffUnmet = 4,
+
+    /// <summary>Series: episodes a metadata refresh added that aired in the last two weeks (Sonarr's EpisodeRefreshedService).</summary>
+    Refreshed = 5,
 }
 
 public enum AutomaticSearchOutcome

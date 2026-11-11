@@ -37,7 +37,7 @@ public sealed class Series
     /// <summary>Typical episode length in minutes.</summary>
     public int? Runtime { get; set; }
 
-    /// <summary>Local air time as the provider gives it (<c>21:00</c>), in the time zone of <see cref="OriginalCountry"/>.</summary>
+    /// <summary>Local air time as the provider gives it (<c>21:00</c>), in the time zone of the network (<see cref="AirTimes"/>).</summary>
     public string? AirTime { get; set; }
 
     /// <summary>ISO 3166-1 alpha-2, lower case (<c>us</c>, <c>jp</c>).</summary>
@@ -45,6 +45,9 @@ public sealed class Series
 
     /// <summary>ISO 639-1 code.</summary>
     public string? OriginalLanguage { get; set; }
+
+    /// <summary>ISO 3166-1 alpha-2 of the network's country (<c>us</c> for Netflix): whose clock <see cref="AirTime"/> reads.</summary>
+    public string? NetworkCountry { get; set; }
 
     public SeriesType SeriesType { get; set; } = SeriesType.Standard;
 
@@ -132,6 +135,7 @@ public sealed class Series
         AirTime = metadata.AirTime;
         OriginalCountry = metadata.OriginalCountry;
         OriginalLanguage = metadata.OriginalLanguage;
+        NetworkCountry = metadata.NetworkCountry;
         Genres = [.. metadata.Genres];
         AlternativeTitles = [.. metadata.AlternativeTitles];
         Images = [.. metadata.Images];

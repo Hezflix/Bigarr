@@ -48,6 +48,9 @@ public sealed class TmdbTvDetails
 public sealed class TmdbNetwork
 {
     public string? Name { get; set; }
+
+    /// <summary>ISO 3166-1 alpha-2 (<c>US</c>).</summary>
+    public string? OriginCountry { get; set; }
 }
 
 public sealed class TmdbTvSeasonSummary

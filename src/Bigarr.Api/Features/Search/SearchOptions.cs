@@ -17,6 +17,9 @@ public sealed class SearchOptions
 
     public int CutoffUnmetInitialDelayMinutes { get; set; } = 5;
 
+    /// <summary>Series versions searched per pass (each with its due episodes, grouped by season), the longest-unsearched first.</summary>
+    public int SeriesBatchSize { get; set; } = 10;
+
     /// <summary>First wait after an empty search; doubles with every further empty search.</summary>
     public int BackoffBaseMinutes { get; set; } = 60;
 

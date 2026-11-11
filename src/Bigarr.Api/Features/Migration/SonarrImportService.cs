@@ -940,7 +940,7 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
             SceneAbsoluteEpisodeNumber = scene ? info.SceneAbsoluteEpisodeNumber : null,
             UnverifiedSceneNumbering = scene && info.UnverifiedSceneNumbering,
             AirDate = airDate,
-            AirDateUtc = info.AirDateUtc is { } utc ? Utc(utc) : AirTimes.ToUtc(airDate, series.AirTime, series.OriginalCountry),
+            AirDateUtc = info.AirDateUtc is { } utc ? Utc(utc) : AirTimes.ToUtc(airDate, series.AirTime, series.NetworkCountry, series.OriginalCountry),
             Title = string.IsNullOrWhiteSpace(info.Title) ? "TBA" : info.Title.Trim(),
             Overview = NullIfBlank(info.Overview),
             Runtime = info.Runtime > 0 ? info.Runtime : null,

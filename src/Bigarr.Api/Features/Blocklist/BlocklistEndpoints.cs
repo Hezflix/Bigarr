@@ -9,8 +9,8 @@ public static class BlocklistEndpoints
     {
         var group = app.MapGroup("/api/v1/blocklist").WithTags("Blocklist").RequireAuthorization(AuthPolicies.Api);
 
-        group.MapGet("/", async Task<Ok<BlocklistPageResponse>> (int? movieId, int? page, int? pageSize, BlocklistService blocklist, CancellationToken ct) =>
-            TypedResults.Ok(await blocklist.ListAsync(movieId, page ?? 1, pageSize ?? 50, ct)));
+        group.MapGet("/", async Task<Ok<BlocklistPageResponse>> (int? movieId, int? seriesId, int? page, int? pageSize, BlocklistService blocklist, CancellationToken ct) =>
+            TypedResults.Ok(await blocklist.ListAsync(movieId, page ?? 1, pageSize ?? 50, ct, seriesId)));
 
         group.MapDelete("/{id:int}", async Task<Results<NoContent, ProblemHttpResult>> (int id, BlocklistService blocklist, CancellationToken ct) =>
         {

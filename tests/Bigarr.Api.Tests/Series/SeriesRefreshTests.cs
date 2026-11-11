@@ -20,6 +20,7 @@ public sealed class SeriesRefreshTests : IDisposable
 
     private readonly SqliteTestDatabase _database = new();
     private readonly FakeProvider _provider = new();
+    private readonly Bigarr.Api.Features.Search.SeriesSearchQueue _searches = new();
 
     public void Dispose() => _database.Dispose();
 
@@ -171,6 +172,104 @@ public sealed class SeriesRefreshTests : IDisposable
         Assert.Equal(1, await check.Episodes.CountAsync());
     }
 
+    [Fact]
+    public async Task New_episodes_follow_sonarrs_rules_and_the_recent_ones_are_searched_after_the_refresh()
+    {
+        _provider.Show = Show([0, 1], Ep(100, 0, 1), Ep(101, 1, 1));
+        var (seriesId, hd, uhd) = await SeedAsync();
+        Assert.False(_searches.Reader.TryRead(out _));
+
+        // The default version monitors the specials season, the 4K one does not.
+        await using (var db = _database.CreateContext())
+        {
+            var specials = await db.SeriesVersionSeasons.SingleAsync(s => s.VersionId == hd && s.Season.SeasonNumber == 0);
+            specials.Monitored = true;
+            await db.SaveChangesAsync();
+        }
+
+        // A new special, an episode 0 of season 2, a season 1 episode aired five days ago, one airing tonight (20:00 New
+        // York, 13 hours from now), one in a month.
+        var now = Now.UtcDateTime;
+        _provider.Show = Show(
+            [0, 1, 2],
+            Ep(100, 0, 1), Ep(101, 1, 1), Ep(110, 0, 2), Ep(200, 2, 0),
+            Ep(102, 1, 2) with { AirDate = DateOnly.FromDateTime(now.AddDays(-5)) },
+            Ep(103, 1, 3) with { AirDate = DateOnly.FromDateTime(now) },
+            Ep(104, 1, 4) with { AirDate = DateOnly.FromDateTime(now.AddDays(30)) });
+        await using (var db = _database.CreateContext())
+        {
+            Assert.True((await Service(db).RefreshAsync(seriesId, CancellationToken.None)).IsSuccess);
+        }
+
+        await using var check = _database.CreateContext();
+        var targets = await check.EpisodeTargets.Include(t => t.Episode).Where(t => t.VersionId == hd).ToDictionaryAsync(t => t.Episode.TvdbId!.Value);
+        Assert.True(targets[110].Monitored); // Sonarr: a new special follows season 0's flag
+        Assert.False(await check.EpisodeTargets.Where(t => t.VersionId == uhd && t.Episode.TvdbId == 110).Select(t => t.Monitored).SingleAsync());
+        Assert.False(targets[200].Monitored); // Sonarr: episode 0 outside season 1
+        Assert.True(targets[102].Monitored);
+        Assert.True(targets[103].Monitored);
+        Assert.True(targets[104].Monitored);
+
+        // Sonarr's EpisodeRefreshedService: aired within 14 days or airing within a day, monitored, no file; the 4K
+        // version monitors nothing new and is not searched.
+        Assert.True(_searches.Reader.TryRead(out var request));
+        Assert.Equal(hd, request!.VersionId);
+        Assert.Equal(Bigarr.Api.Features.Search.SearchTrigger.Refreshed, request.Trigger);
+        Assert.Equal([targets[102].EpisodeId, targets[103].EpisodeId], request.EpisodeIds!.Order().ToArray());
+        Assert.False(_searches.Reader.TryRead(out _));
+        Assert.DoesNotContain(await check.EpisodeTargets.Where(t => t.VersionId == uhd && t.Episode.TvdbId == 102).Select(t => t.Monitored).ToListAsync(), m => m);
+    }
+
+    [Fact]
+    public async Task Old_episodes_appearing_on_a_series_that_had_none_are_not_monitored()
+    {
+        _provider.Show = Show([1]);
+        var (seriesId, hd, _) = await SeedAsync();
+
+        // The provider found the show's episodes again: two aired years ago, one airing tonight, one next week.
+        var now = Now.UtcDateTime;
+        _provider.Show = Show(
+            [1],
+            Ep(101, 1, 1),
+            Ep(102, 1, 2),
+            Ep(103, 1, 3) with { AirDate = DateOnly.FromDateTime(now) },
+            Ep(104, 1, 4) with { AirDate = DateOnly.FromDateTime(now.AddDays(7)) });
+        await using (var db = _database.CreateContext())
+        {
+            Assert.True((await Service(db).RefreshAsync(seriesId, CancellationToken.None)).IsSuccess);
+        }
+
+        await using var check = _database.CreateContext();
+        var monitored = await check.EpisodeTargets.Include(t => t.Episode).Where(t => t.VersionId == hd).ToDictionaryAsync(t => t.Episode.TvdbId!.Value, t => t.Monitored);
+        Assert.False(monitored[101]);
+        Assert.False(monitored[102]);
+        Assert.True(monitored[103]);
+        Assert.True(monitored[104]);
+    }
+
+    [Fact]
+    public async Task A_refresh_recomputes_air_times_in_the_networks_zone_and_spreads_a_double_bill()
+    {
+        _provider.Show = Show([1], Ep(101, 1, 1), Ep(102, 1, 2));
+        var (seriesId, _, _) = await SeedAsync();
+
+        // The show is British, its network is Netflix: Sonarr's air times read New York time (The Crown, recorded).
+        _provider.Show = Show(
+            [1],
+            Ep(101, 1, 1) with { AirDate = new DateOnly(2017, 12, 8) },
+            Ep(102, 1, 2) with { AirDate = new DateOnly(2017, 12, 8) }) with { AirTime = "08:00", OriginalCountry = "gb", NetworkCountry = "us", Runtime = 57 };
+        await using (var db = _database.CreateContext())
+        {
+            Assert.True((await Service(db).RefreshAsync(seriesId, CancellationToken.None)).IsSuccess);
+        }
+
+        await using var check = _database.CreateContext();
+        var times = await check.Episodes.Where(e => e.SeriesId == seriesId).OrderBy(e => e.EpisodeNumber).Select(e => e.AirDateUtc).ToListAsync();
+        Assert.Equal(new DateTime(2017, 12, 8, 13, 0, 0, DateTimeKind.Utc), times[0]);
+        Assert.Equal(new DateTime(2017, 12, 8, 13, 57, 0, DateTimeKind.Utc), times[1]); // Sonarr's AdjustMultiEpisodeAirTime
+        Assert.Equal("us", (await check.Series.SingleAsync()).NetworkCountry);
+    }
+
     private async Task<(int SeriesId, int Hd, int Uhd)> SeedAsync()
     {
         await using var db = _database.CreateContext();
@@ -202,7 +301,7 @@ public sealed class SeriesRefreshTests : IDisposable
             .SingleAsync();
 
     private SeriesService Service(BigarrDbContext db) =>
-        new(db, _provider, XemFakes.Disabled(db, new FixedTimeProvider(Now)), new Bigarr.Api.Infrastructure.Files.RecycleBin(new FixedTimeProvider(Now), NullLogger<Bigarr.Api.Infrastructure.Files.RecycleBin>.Instance), new FixedTimeProvider(Now), NullLogger<SeriesService>.Instance);
+        new(db, _provider, XemFakes.Disabled(db, new FixedTimeProvider(Now)), new Bigarr.Api.Infrastructure.Files.RecycleBin(new FixedTimeProvider(Now), NullLogger<Bigarr.Api.Infrastructure.Files.RecycleBin>.Instance), _searches, new Bigarr.Api.Infrastructure.Events.OutboxWriter(db, new FixedTimeProvider(Now)), new FixedTimeProvider(Now), NullLogger<SeriesService>.Instance);
 
     private static SeriesMetadata Show(int[] seasons, params EpisodeMetadata[] episodes) => new()
     {

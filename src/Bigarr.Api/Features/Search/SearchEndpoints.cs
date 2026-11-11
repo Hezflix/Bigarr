@@ -95,7 +95,7 @@ public static class SearchEndpoints
         return app;
     }
 
-    private static bool TryParseFilter(string? filter, out WantedFilter? kind)
+    internal static bool TryParseFilter(string? filter, out WantedFilter? kind)
     {
         kind = null;
         if (string.IsNullOrWhiteSpace(filter))

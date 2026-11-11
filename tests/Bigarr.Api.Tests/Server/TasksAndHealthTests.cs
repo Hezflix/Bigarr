@@ -19,7 +19,7 @@ public sealed class TasksAndHealthTests(BigarrApiFactory factory) : IClassFixtur
         var client = await ClientAsync(factory);
 
         var tasks = (await client.GetFromJsonAsync<List<ScheduledTaskResponse>>("/api/v1/system/tasks", Json))!;
-        Assert.Equal([Bigarr.Api.Features.Server.Backup.BackupJob.JobName, CutoffUnmetSearchJob.JobName, HealthCheckJob.JobName, MediaMaintenanceJob.JobName, Bigarr.Api.Features.Movies.MetadataRefreshJob.JobName, Bigarr.Api.Features.Playback.PlexHistoryJob.JobName, Bigarr.Api.Features.Playback.ServerAccessJob.JobName, Bigarr.Api.Features.Shadow.RadarrFollowJob.JobName, RssSyncJob.JobName, Bigarr.Api.Features.Series.SceneMappingRefreshJob.JobName, Bigarr.Api.Features.Shadow.SonarrFollowJob.JobName], tasks.Select(t => t.Name).OrderBy(n => n, StringComparer.Ordinal));
+        Assert.Equal([Bigarr.Api.Features.Server.Backup.BackupJob.JobName, CutoffUnmetSearchJob.JobName, HealthCheckJob.JobName, MediaMaintenanceJob.JobName, Bigarr.Api.Features.Movies.MetadataRefreshJob.JobName, Bigarr.Api.Features.Playback.PlexHistoryJob.JobName, Bigarr.Api.Features.Playback.ServerAccessJob.JobName, Bigarr.Api.Features.Shadow.RadarrFollowJob.JobName, RssSyncJob.JobName, Bigarr.Api.Features.Series.SceneMappingRefreshJob.JobName, Bigarr.Api.Features.Series.SeriesRefreshJob.JobName, Bigarr.Api.Features.Shadow.SonarrFollowJob.JobName], tasks.Select(t => t.Name).OrderBy(n => n, StringComparer.Ordinal));
 
         // The scheduler is off in the tests, like in shadow mode: only the read-only Plex jobs keep their schedule.
         var scheduled = tasks.Where(t => t.Enabled).ToList();

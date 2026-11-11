@@ -18,7 +18,11 @@ public static class IsoCodes
         ["deu"] = "de", ["esp"] = "es", ["ita"] = "it", ["chn"] = "cn", ["twn"] = "tw", ["ind"] = "in", ["bra"] = "br",
         ["mex"] = "mx", ["swe"] = "se", ["dnk"] = "dk", ["nor"] = "no", ["nld"] = "nl", ["irl"] = "ie", ["nzl"] = "nz",
         ["rus"] = "ru", ["bel"] = "be", ["fin"] = "fi", ["pol"] = "pl", ["tur"] = "tr", ["tha"] = "th", ["arg"] = "ar",
-        ["isr"] = "il", ["zaf"] = "za", ["aut"] = "at", ["che"] = "ch", ["prt"] = "pt",
+        ["isr"] = "il", ["zaf"] = "za", ["aut"] = "at", ["che"] = "ch", ["prt"] = "pt", ["hkg"] = "hk", ["phl"] = "ph",
+        ["idn"] = "id", ["mys"] = "my", ["sgp"] = "sg", ["vnm"] = "vn", ["egy"] = "eg", ["nga"] = "ng", ["are"] = "ae",
+        ["sau"] = "sa", ["grc"] = "gr", ["cze"] = "cz", ["svk"] = "sk", ["hun"] = "hu", ["rou"] = "ro", ["bgr"] = "bg",
+        ["hrv"] = "hr", ["srb"] = "rs", ["svn"] = "si", ["est"] = "ee", ["lva"] = "lv", ["ltu"] = "lt", ["ukr"] = "ua",
+        ["isl"] = "is", ["lux"] = "lu", ["chl"] = "cl", ["col"] = "co", ["per"] = "pe",
     };
 
     /// <summary>Two-letter language code, or null when unknown.</summary>

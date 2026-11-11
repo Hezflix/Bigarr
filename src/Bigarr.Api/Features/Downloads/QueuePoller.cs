@@ -29,6 +29,7 @@ public sealed class QueuePoller(
     QueueState state,
     ImportQueue imports,
     SearchQueue searches,
+    SeriesSearchQueue seriesSearches,
     BlocklistService blocklist,
     OutboxWriter outbox,
     IOptions<DownloadsOptions> options,
@@ -86,6 +87,10 @@ public sealed class QueuePoller(
         var episodeTargets = await db.EpisodeTargets.AsNoTracking()
             .Include(t => t.Episode)
             .Include(t => t.Version).ThenInclude(v => v.Series)
+            .Include(t => t.Version).ThenInclude(v => v.RootFolder)
+            .Include(t => t.Version).ThenInclude(v => v.QualityProfile)
+            .Include(t => t.Version).ThenInclude(v => v.Tags)
+            .AsSplitQuery()
             .Where(t => versionIds.Contains(t.Id))
             .ToDictionaryAsync(t => t.Id, ct);
         var clientsById = clients.ToDictionary(c => c.Id);
@@ -94,6 +99,7 @@ public sealed class QueuePoller(
         var matchedItems = new HashSet<(int ClientId, string DownloadId)>();
         var readyToImport = new List<int>();
         var searchAfterSave = new List<int>();
+        var seriesSearchAfterSave = new List<SeriesSearchRequest>();
 
         foreach (var grab in grabs)
         {
@@ -127,10 +133,15 @@ public sealed class QueuePoller(
                     var failure = Advance(grab, item, now, settings, messages);
                     if (failure is not null)
                     {
-                        var replace = await HandleFailureAsync(grab, client, version, episodes, failure, settings, messages, now, ct);
+                        var (replace, replaceEpisodes) = await HandleFailureAsync(grab, client, version, episodes, failure, settings, messages, now, ct);
                         if (replace is not null)
                         {
                             searchAfterSave.Add(replace.Value);
+                        }
+
+                        if (replaceEpisodes is not null)
+                        {
+                            seriesSearchAfterSave.Add(replaceEpisodes);
                         }
                     }
                     else if (grab.State == GrabState.ImportPending && item.Status == DownloadItemStatus.Completed)
@@ -210,6 +221,11 @@ public sealed class QueuePoller(
         foreach (var versionId in searchAfterSave)
         {
             searches.TryEnqueue(versionId, SearchTrigger.FailedDownload);
+        }
+
+        foreach (var request in seriesSearchAfterSave)
+        {
+            seriesSearches.TryEnqueue(request);
         }
 
         var ordered = rows.OrderByDescending(r => r.Tracked).ThenByDescending(r => r.AddedAt).ToList();
@@ -320,10 +336,11 @@ public sealed class QueuePoller(
 
     /// <summary>
     /// Failed handling (blueprint §5): the grab fails, the release is blocklisted for its version (the default one for a
-    /// one-shot), the torrent leaves the client, and the journal and the outbox get the event. Returns the version to
-    /// search for a replacement, which the caller queues after the save.
+    /// one-shot; every (version, episode) pair of a series grab), the torrent leaves the client, and the journal and the
+    /// outbox get the event. Returns the film version, or the series episodes, to search for a replacement (Sonarr's
+    /// RedownloadFailedDownloadService), which the caller queues after the save.
     /// </summary>
-    private async Task<int?> HandleFailureAsync(Grab grab, DownloadClient client, MovieVersion? version, List<Bigarr.Domain.Tv.EpisodeTarget> episodes, string reason, DownloadsOptions settings, List<StatusMessage> messages, DateTime now, CancellationToken ct)
+    private async Task<(int? Version, SeriesSearchRequest? Episodes)> HandleFailureAsync(Grab grab, DownloadClient client, MovieVersion? version, List<Bigarr.Domain.Tv.EpisodeTarget> episodes, string reason, DownloadsOptions settings, List<StatusMessage> messages, DateTime now, CancellationToken ct)
     {
         grab.TransitionTo(GrabState.DownloadFailed);
         state.Forget(grab.Id);
@@ -353,7 +370,11 @@ public sealed class QueuePoller(
             }
         }
 
-        var searching = settings.SearchAfterFailure && version is not null && version.Monitored;
+        var seriesVersion = episodes.FirstOrDefault()?.Version;
+        var replaceEpisodes = episodes.Where(t => t.Monitored).Select(t => t.EpisodeId).Distinct().ToList();
+        var searching = settings.SearchAfterFailure && (version is not null
+            ? version.Monitored
+            : seriesVersion is not null && seriesVersion.Monitored && replaceEpisodes.Count > 0);
         if (searching)
         {
             followUp.Add("Searching for a replacement.");
@@ -368,19 +389,30 @@ public sealed class QueuePoller(
 
         foreach (var target in episodes)
         {
-            // Series: journaled per episode. Blocklisting and the replacement search come with series automation.
             var line = GrabService.SeriesHistory(target.Version, target, HistoryEventType.DownloadFailed, grab.ReleaseTitle, grab.IndexerId, grab.IndexerName, now);
             line.Data["reason"] = reason;
             line.Data["downloadClient"] = grab.DownloadClientName ?? string.Empty;
             line.Data["downloadId"] = grab.DownloadId ?? string.Empty;
+            line.Data["blocklisted"] = blocked.Any(b => b.TargetId == target.Id) ? "true" : "false";
             line.Data["removedFromClient"] = removed ? "true" : "false";
+            line.Data["searchQueued"] = searching && replaceEpisodes.Contains(target.EpisodeId) ? "true" : "false";
             db.History.Add(line);
         }
 
         if (episodes.Count > 0)
         {
+            outbox.Publish(new EpisodeDownloadFailed(
+                SeriesRef.From(seriesVersion!.Series),
+                SeriesVersionRef.From(seriesVersion),
+                EpisodeRef.From(episodes.Select(t => t.Episode)),
+                new ReleaseRef(grab.ReleaseTitle, GrabService.EpisodeQualityOf(grab.ReleaseTitle), grab.IndexerName, grab.Size, null, null, grab.InfoHash),
+                grab.Id,
+                reason,
+                blocked.Count > 0,
+                searching)
+            { OccurredAt = now });
             logger.LogWarning("{Title} failed in {Client}: {Reason}. {FollowUp}", grab.ReleaseTitle, client.Name, reason, string.Join(" ", followUp));
-            return null;
+            return (null, searching ? new SeriesSearchRequest(seriesVersion.Id, replaceEpisodes, SearchTrigger.FailedDownload) : null);
         }
 
         db.History.Add(new HistoryEvent
@@ -417,7 +449,7 @@ public sealed class QueuePoller(
         { OccurredAt = now });
 
         logger.LogWarning("{Title} failed in {Client}: {Reason}. {FollowUp}", grab.ReleaseTitle, client.Name, reason, string.Join(" ", followUp));
-        return searching ? version!.Id : null;
+        return (searching ? version!.Id : null, null);
     }
 
     private static QueueItemResponse Row(Grab grab, DownloadItem? item, MovieVersion? version, List<Bigarr.Domain.Tv.EpisodeTarget> episodes, DownloadClient? client, List<StatusMessage> messages, DateTime now)

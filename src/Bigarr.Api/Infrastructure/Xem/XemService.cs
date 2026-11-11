@@ -14,6 +14,13 @@ public sealed class XemMappedIds(TimeProvider time)
     private HashSet<int>? _ids;
     private DateTimeOffset _fetchedAt;
 
+    /// <summary>The last time TheXEM could not be read, and why; cleared by the next answer. Read by the health check.</summary>
+    public (DateTimeOffset At, string Message)? LastFailure { get; private set; }
+
+    public void Failed(string message) => LastFailure = (time.GetUtcNow(), message);
+
+    public void Answered() => LastFailure = null;
+
     /// <summary>Null when the list could not be fetched yet: callers then ask for the series' mapping directly.</summary>
     public async Task<HashSet<int>?> GetAsync(IXemClient client, ILogger logger, CancellationToken ct)
     {
@@ -29,9 +36,11 @@ public sealed class XemMappedIds(TimeProvider time)
             {
                 _ids = [.. await client.GetMappedTvdbIdsAsync(ct)];
                 _fetchedAt = time.GetUtcNow();
+                Answered();
             }
             catch (Exception ex) when (XemService.IsUnreachable(ex, ct))
             {
+                Failed(ex.Message);
                 logger.LogWarning("TheXEM series list unavailable: {Message}", ex.Message);
             }
 
@@ -85,6 +94,7 @@ public sealed class XemService(BigarrDbContext db, IXemClient client, XemMappedI
         }
         catch (Exception ex) when (IsUnreachable(ex, ct))
         {
+            mappedIds.Failed(ex.Message);
             logger.LogWarning("TheXEM unavailable for {Title} (tvdb {TvdbId}), scene numbers kept as they were: {Message}", series.Title, tvdbId, ex.Message);
             return false;
         }
@@ -102,9 +112,11 @@ public sealed class XemService(BigarrDbContext db, IXemClient client, XemMappedI
         try
         {
             names = await client.GetNamesAsync(ct);
+            mappedIds.Answered();
         }
         catch (Exception ex) when (IsUnreachable(ex, ct))
         {
+            mappedIds.Failed(ex.Message);
             logger.LogWarning("TheXEM scene names unavailable, the previous list stays: {Message}", ex.Message);
             return null;
         }

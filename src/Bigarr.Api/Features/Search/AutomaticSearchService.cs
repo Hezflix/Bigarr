@@ -202,6 +202,7 @@ public sealed class AutomaticSearchService(
         SearchTrigger.Added => "search:added",
         SearchTrigger.FailedDownload => "search:failed",
         SearchTrigger.CutoffUnmet => "search:cutoffUnmet",
+        SearchTrigger.Refreshed => "search:refreshed",
         _ => "search",
     };
 }

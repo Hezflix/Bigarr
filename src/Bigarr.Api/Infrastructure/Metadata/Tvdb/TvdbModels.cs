@@ -127,6 +127,9 @@ public sealed class TvdbStatus
 public sealed class TvdbCompany
 {
     public string? Name { get; set; }
+
+    /// <summary>ISO 3166-1 alpha-3 (<c>usa</c>).</summary>
+    public string? Country { get; set; }
 }
 
 public sealed class TvdbNamed

@@ -49,7 +49,39 @@ public static class MonitoringRules
                  || (openEnded && n == latest));
     }
 
-    /// <summary>A season that appears on a refresh: wanted when the version takes new items, never for specials.</summary>
+    /// <summary>A season that appears on a refresh: wanted when the version takes new items, never for specials (Sonarr's <c>UpdateSeasons</c>).</summary>
     public static bool NewSeasonMonitored(SeriesVersion version, int seasonNumber) =>
         seasonNumber > 0 && version.MonitorNewItems == NewItemMonitoring.All;
+
+    /// <summary>
+    /// An episode that appears on a refresh, Sonarr's <c>GetMonitoredStatus</c>: it follows its season's flag (a season
+    /// the version has no flag for counts as monitored); an episode 0 outside season 1 is not monitored. A new special is
+    /// monitored when the version monitors season 0, like any other season; a season 0 without a flag is not monitored
+    /// (Sonarr's <c>UpdateSeasons</c> never monitors a new season 0).
+    /// </summary>
+    public static bool NewEpisodeMonitored(int seasonNumber, int episodeNumber, bool? seasonMonitored) =>
+        !(episodeNumber == 0 && seasonNumber != 1) && (seasonMonitored ?? seasonNumber > 0);
+
+    /// <summary>
+    /// Sonarr's <c>UnmonitorReaddedEpisodes</c>: when a refresh brings episodes that aired more than two weeks ago to a
+    /// series that had none (the provider lost them and found them again), the ones that aired more than a day ago are
+    /// not monitored, so nothing old is downloaded unexpectedly. A series that already had episodes keeps the flags.
+    /// </summary>
+    public static IReadOnlySet<Episode> UnmonitorAiredNewEpisodes(IReadOnlyCollection<Episode> added, bool hadEpisodes, DateTime now)
+    {
+        ArgumentNullException.ThrowIfNull(added);
+        if (hadEpisodes || !added.Any(e => e.AirDateUtc is { } utc && utc < now.AddDays(-14)))
+        {
+            return new HashSet<Episode>();
+        }
+
+        return added.Where(e => e.AirDateUtc is { } utc && utc < now.AddDays(-1)).ToHashSet();
+    }
+
+    /// <summary>Sonarr's <c>EpisodeRefreshedService</c> window: aired in the last 14 days or airing within a day.</summary>
+    public static bool SearchAfterRefresh(Episode episode, DateTime now)
+    {
+        ArgumentNullException.ThrowIfNull(episode);
+        return episode.AirDateUtc is { } utc && utc >= now.AddDays(-14) && utc <= now.AddDays(1);
+    }
 }
