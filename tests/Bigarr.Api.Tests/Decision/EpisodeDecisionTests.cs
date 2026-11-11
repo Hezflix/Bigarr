@@ -40,7 +40,7 @@ public sealed class EpisodeDecisionTests
     /// <summary>20 to 200 MB per minute for every quality: easy sums.</summary>
     private static readonly Dictionary<int, QualityDefinition> Definitions = ParserQuality.DefaultQualityDefinitions.ToDictionary(
         d => d.Quality.Id,
-        d => new QualityDefinition { Id = d.Quality.Id, Name = d.Quality.Name, Resolution = d.Quality.Resolution, MinSize = 20, MaxSize = 200 });
+        d => new QualityDefinition { Id = d.Quality.Id, Name = d.Quality.Name, Resolution = d.Quality.Resolution, MinSize = 20, MaxSize = 200, SeriesMinSize = 20, SeriesMaxSize = 200 });
 
     private static SeriesVersion Version(int id = 1, AcquisitionConstraints? constraints = null) =>
         new() { Id = id, Name = $"v{id}", QualityProfileId = 1, Constraints = constraints, FolderName = "Show (2020)" };
@@ -136,6 +136,20 @@ public sealed class EpisodeDecisionTests
         // An episode's own runtime wins over the series'.
         var longEpisode = Context(Version(), [new Ep(1, 1, Runtime: 180)]);
         Assert.True(Interactive.Evaluate(Candidate("Show.S01E01.1080p.BluRay.x264-GRP", 30), longEpisode).Approved);
+    }
+
+    [Fact]
+    public void Episodes_are_sized_with_the_series_limits_not_the_film_ones()
+    {
+        // Film sizes of 100–400 MB/min would refuse a 2 GB episode of 45 min; the series ones (Sonarr's 4–155) accept it.
+        var definitions = Definitions.ToDictionary(kv => kv.Key, kv => new QualityDefinition
+        {
+            Id = kv.Value.Id, Name = kv.Value.Name, Resolution = kv.Value.Resolution, MinSize = 100, MaxSize = 400, SeriesMinSize = 4, SeriesMaxSize = 155,
+        });
+        var context = Context(Version(), [new Ep(1, 1)]) with { Definitions = definitions };
+        Assert.True(Interactive.Evaluate(Candidate("Show.S01E01.1080p.BluRay.x264-GRP", 2), context).Approved);
+        var tooBig = Interactive.Evaluate(Candidate("Show.S01E01.1080p.BluRay.x264-GRP", 8), context);
+        Assert.Contains(tooBig.Rejections, r => r.Reason == "8 GB is larger than the maximum 6.8 GB for Bluray-1080p (45 min)");
     }
 
     [Fact]

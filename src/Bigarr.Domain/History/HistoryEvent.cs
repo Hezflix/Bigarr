@@ -23,6 +23,13 @@ public sealed class HistoryEvent
 
     public string? MovieTitle { get; set; }
 
+    /// <summary>The series of an episode line; with <see cref="TvdbId"/> and <see cref="SeriesTitle"/> as snapshots.</summary>
+    public int? SeriesId { get; set; }
+
+    public int? TvdbId { get; set; }
+
+    public string? SeriesTitle { get; set; }
+
     public string? VersionName { get; set; }
 
     public HistoryEventType EventType { get; set; }

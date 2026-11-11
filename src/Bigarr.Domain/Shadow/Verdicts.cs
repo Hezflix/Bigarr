@@ -19,7 +19,9 @@ public sealed record BigarrVerdict(
     string? CurrentQuality,
     int? CurrentScore,
     /// <summary>The "file" was Bigarr's own latest pick, made before Radarr grabbed: the file Bigarr would have had.</summary>
-    bool CurrentIsPick = false);
+    bool CurrentIsPick = false,
+    /// <summary>Series: the episodes Bigarr's parser and mapper read in the title (<c>S01E05</c>, a season's range).</summary>
+    string? Episodes = null);
 
 /// <summary>
 /// What a Radarr made of a release Bigarr picked: its own parse (<c>GET /api/v3/parse</c>: the film it maps the title
@@ -39,3 +41,22 @@ public sealed record RadarrView(
 
 /// <summary>One version's verdict on a release the RSS pass saw.</summary>
 public sealed record SightingVerdict(string VersionName, bool Approved, List<string> Rejections, int CustomFormatScore);
+
+/// <summary>
+/// What a Sonarr made of a release Bigarr picked for a series: its own parse (<c>GET /api/v3/parse</c>: the series and
+/// episodes it maps the title to, the quality, its custom formats and score) and the state of those episodes in Sonarr.
+/// </summary>
+public sealed record SonarrView(
+    /// <summary>TVDB id of the Sonarr series the title maps to; null when Sonarr maps it to none.</summary>
+    int? TvdbId,
+    /// <summary>The episodes Sonarr maps it to, as <c>S01E05</c> or <c>S01E01–S01E10 (10 episodes)</c>.</summary>
+    string? Episodes,
+    string? Quality,
+    List<string> CustomFormats,
+    int CustomFormatScore,
+    /// <summary>Every episode it maps to is monitored in Sonarr.</summary>
+    bool? Monitored,
+    /// <summary>How many of those episodes already have a file in Sonarr.</summary>
+    int? EpisodesWithFile,
+    /// <summary>Set when Sonarr could not be asked; the rest is then empty.</summary>
+    string? Error = null);

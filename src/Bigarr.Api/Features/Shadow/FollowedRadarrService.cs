@@ -33,7 +33,9 @@ public sealed class FollowedRadarrService(
         await db.ShadowPicks.MaxAsync(p => (DateTime?)p.PickedAt, ct),
         await db.RadarrGrabs.CountAsync(ct),
         await db.ReleaseSightings.CountAsync(ct),
-        await ListAsync(ct));
+        await ListAsync(ct),
+        await db.SeriesShadowPicks.CountAsync(ct),
+        await db.SonarrGrabs.CountAsync(ct));
 
     public async Task<List<FollowedRadarrResponse>> ListAsync(CancellationToken ct)
     {

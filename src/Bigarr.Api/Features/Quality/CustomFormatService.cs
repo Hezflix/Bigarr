@@ -26,6 +26,15 @@ public sealed class CustomFormatService(BigarrDbContext db, CustomFormatScorer s
     public const int MaxNameLength = 128;
 
     /// <summary>Radarr's implementation names with the fields the editor needs to build each condition by hand.</summary>
+    /// <summary>Sonarr's release types (episodes only; a film never matches).</summary>
+    private static readonly List<SpecificationOptionDto> ReleaseTypes =
+    [
+        new(1, "Single episode"),
+        new(2, "Multi-episode"),
+        new(3, "Season pack"),
+        new(4, "Multi-season pack"),
+    ];
+
     public static CustomFormatSchemaResponse Schema()
     {
         List<SpecificationFieldSchemaDto> regex = [new("value", "regex", true)];
@@ -49,6 +58,7 @@ public sealed class CustomFormatService(BigarrDbContext db, CustomFormatScorer s
             new("IndexerFlagSpecification", [new("value", "select", true, flags)]),
             new("SizeSpecification", range),
             new("YearSpecification", range),
+            new("ReleaseTypeSpecification", [new("value", "select", true, ReleaseTypes)]),
         ]);
     }
 
@@ -473,6 +483,7 @@ public sealed class CustomFormatService(BigarrDbContext db, CustomFormatScorer s
             specifications,
             format.TrashId,
             trashScores is null ? null : new Dictionary<string, int>(trashScores),
-            format.Scores.OrderBy(s => s.QualityProfile?.Name).Select(s => new CustomFormatScoreDto(s.QualityProfileId, s.QualityProfile?.Name ?? $"#{s.QualityProfileId}", s.Score)).ToList());
+            format.Scores.OrderBy(s => s.QualityProfile?.Name).Select(s => new CustomFormatScoreDto(s.QualityProfileId, s.QualityProfile?.Name ?? $"#{s.QualityProfileId}", s.Score)).ToList(),
+            format.Note);
     }
 }

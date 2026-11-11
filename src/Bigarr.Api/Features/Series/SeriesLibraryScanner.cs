@@ -226,7 +226,7 @@ public sealed class SeriesLibraryScanner(
 
         db.ChangeTracker.Clear();
         var profile = await db.QualityProfiles.AsNoTracking().FirstAsync(p => p.Id == profileId, ct);
-        var name = VersionNaming.Unique(VersionNaming.FromProfile(profile.Name), versions.Select(v => v.Name));
+        var name = VersionNaming.Unique(VersionNaming.FromSeriesProfile(profile.Name), versions.Select(v => v.Name));
         var added = await seriesService.AddVersionAsync(
             seriesId,
             new AddSeriesVersionRequest(name, profileId, root.Id, folderName, MonitoringOption.None, Monitored: false),
@@ -299,14 +299,16 @@ public sealed class SeriesLibraryScanner(
     /// <summary>The system profile by the resolution of the first file that tells one (as the film scan does).</summary>
     private async Task<int> ProfileForAsync(List<FileInfo> files, CancellationToken ct)
     {
-        var profiles = await db.QualityProfiles.AsNoTracking().OrderBy(p => p.Id).Select(p => new { p.Id, p.Name }).ToListAsync(ct);
+        var profiles = await db.QualityProfiles.AsNoTracking()
+            .Where(p => p.Kind == Domain.Quality.ProfileKind.Series || p.Kind == Domain.Quality.ProfileKind.Both)
+            .OrderBy(p => p.Id).Select(p => new { p.Id, p.Name }).ToListAsync(ct);
         if (profiles.Count == 0)
         {
-            throw new InvalidOperationException("No quality profile is seeded; the scan has nothing to file versions under.");
+            throw new InvalidOperationException("No series quality profile is seeded; the scan has nothing to file versions under.");
         }
 
-        var hd = profiles.FirstOrDefault(p => p.Name == QualitySeeder.HdProfileName)?.Id ?? profiles[0].Id;
-        var uhd = profiles.FirstOrDefault(p => p.Name == QualitySeeder.UhdProfileName)?.Id ?? hd;
+        var hd = profiles.FirstOrDefault(p => p.Name == QualitySeeder.SeriesHdProfileName)?.Id ?? profiles[0].Id;
+        var uhd = profiles.FirstOrDefault(p => p.Name == QualitySeeder.SeriesUhdProfileName)?.Id ?? hd;
         var resolution = files.Select(f => TryParsePath(f.FullName)?.Quality?.Quality.Resolution ?? 0).FirstOrDefault(r => r > 0);
         return resolution >= QualitySeeder.UhdResolution ? uhd : hd;
     }
@@ -357,7 +359,7 @@ public sealed class SeriesLibraryScanner(
         }
 
         var files = EnumerateVideoFiles(folder).ToList();
-        var profileId = request.QualityProfileId is { } chosen && await db.QualityProfiles.AnyAsync(p => p.Id == chosen, ct)
+        var profileId = request.QualityProfileId is { } chosen && await db.QualityProfiles.AnyAsync(p => p.Id == chosen && (p.Kind == Domain.Quality.ProfileKind.Series || p.Kind == Domain.Quality.ProfileKind.Both), ct)
             ? chosen
             : await ProfileForAsync(files, ct);
 

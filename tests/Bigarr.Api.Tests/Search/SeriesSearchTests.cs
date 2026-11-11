@@ -257,7 +257,7 @@ internal static class SeriesSetup
         }
 
         var profiles = (await client.GetFromJsonAsync<List<QualityProfileSummary>>("/api/v1/qualityprofiles", Json))!;
-        var hd = profiles.Single(p => p.Name == QualitySeeder.HdProfileName);
+        var hd = profiles.Single(p => p.Name == QualitySeeder.SeriesHdProfileName);
         var roots = (await client.GetFromJsonAsync<List<RootFolderResponse>>("/api/v1/rootfolders", Json))!.Where(r => r.Kind == MediaKind.Series).ToList();
         if (roots.Count == 0)
         {

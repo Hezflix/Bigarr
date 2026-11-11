@@ -24,6 +24,13 @@ public static class VersionNaming
         return slug.Length == 0 ? Fallback : slug;
     }
 
+    /// <summary>A series profile's name without its leading "Series" word: <c>Series 1080p</c> gives the version <c>1080p</c>.</summary>
+    public static string FromSeriesProfile(string profileName)
+    {
+        var slug = FromProfile(profileName);
+        return slug.StartsWith("series-", StringComparison.Ordinal) && slug.Length > "series-".Length ? slug["series-".Length..] : slug;
+    }
+
     /// <summary>Appends <c>-2</c>, <c>-3</c>… until the name is free among <paramref name="existing"/>.</summary>
     public static string Unique(string baseName, IEnumerable<string> existing)
     {

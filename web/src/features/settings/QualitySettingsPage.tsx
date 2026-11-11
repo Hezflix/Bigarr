@@ -13,6 +13,7 @@ import {
   type QualityProfileDetail,
   type QualityProfileItem,
   type QualityProfileRequest,
+  type ProfileKind,
 } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -77,6 +78,7 @@ export function QualitySettingsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>{t('quality.name')}</TableHead>
+                <TableHead>{t('quality.kind')}</TableHead>
                 <TableHead>{t('quality.cutoff')}</TableHead>
                 <TableHead>{t('quality.upgrades')}</TableHead>
                 <TableHead>{t('quality.language')}</TableHead>
@@ -91,6 +93,9 @@ export function QualitySettingsPage() {
                       {p.name}
                       {p.isSystem && <Badge variant="secondary">{t('quality.system')}</Badge>}
                     </span>
+                  </TableCell>
+                  <TableCell className="align-top">
+                    <Badge variant="outline">{t(`quality.kinds.${p.kind}`)}</Badge>
                   </TableCell>
                   <TableCell className="align-top">{cutoffLabel(p.cutoff, definitions.data)}</TableCell>
                   <TableCell className="align-top">{p.upgradeAllowed ? t('quality.upgradesOn') : t('quality.upgradesOff')}</TableCell>
@@ -260,6 +265,24 @@ function ProfileDialog({ profileId, onClose, onSaved }: { profileId: number | nu
                 <Input id="profile-name" value={form.name} onChange={(e) => set('name', e.target.value)} autoFocus />
               </div>
               <div className="grid grid-cols-1 gap-2">
+                <Label htmlFor="profile-kind">{t('quality.kind')}</Label>
+                <Select value={form.kind} onValueChange={(value) => set('kind', value as ProfileKind)}>
+                  <SelectTrigger id="profile-kind" className="w-full" data-testid="profile-kind">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(['movies', 'series', 'both'] as const).map((kind) => (
+                      <SelectItem key={kind} value={kind}>
+                        {t(`quality.kinds.${kind}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {source.data && source.data.id > 0 ? t('quality.kindInUse', { films: source.data.versionCount, series: source.data.seriesVersionCount }) : t('quality.kindHint')}
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
                 <Label htmlFor="profile-language">{t('quality.language')}</Label>
                 <Input id="profile-language" value={form.preferredLanguage} onChange={(e) => set('preferredLanguage', e.target.value)} placeholder="en" maxLength={8} />
                 <p className="text-xs text-muted-foreground">{t('quality.languageHint')}</p>
@@ -397,15 +420,26 @@ function toRequest(detail: QualityProfileDetail): QualityProfileRequest {
     minUpgradeFormatScore: detail.minUpgradeFormatScore,
     preferredLanguage: detail.preferredLanguage,
     formatScores: detail.formatScores.map((s) => ({ customFormatId: s.customFormatId, score: s.score })),
+    kind: detail.kind,
   }
 }
 
 function DefinitionsSection({ definitions }: { definitions: QualityDefinition[] | undefined }) {
   const { t } = useTranslation()
+  const [kind, setKind] = useState<'movies' | 'series'>('movies')
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-xl font-semibold tracking-tight">{t('quality.definitions')}</h2>
-      <p className="max-w-3xl text-sm text-muted-foreground">{t('quality.definitionsHint')}</p>
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="text-xl font-semibold tracking-tight">{t('quality.definitions')}</h2>
+        <div className="flex rounded-md border p-0.5" role="tablist" aria-label={t('quality.definitions')} data-testid="definitions-kind">
+          {(['movies', 'series'] as const).map((value) => (
+            <Button key={value} type="button" role="tab" aria-selected={kind === value} variant={kind === value ? 'secondary' : 'ghost'} size="sm" onClick={() => setKind(value)}>
+              {value === 'movies' ? t('quality.sizesFilms') : t('quality.sizesSeries')}
+            </Button>
+          ))}
+        </div>
+      </div>
+      <p className="max-w-3xl text-sm text-muted-foreground">{kind === 'movies' ? t('quality.definitionsHint') : t('quality.seriesDefinitionsHint')}</p>
       <div className="overflow-x-auto rounded-lg border">
         <Table data-testid="definitions-table">
           <TableHeader>
@@ -417,20 +451,24 @@ function DefinitionsSection({ definitions }: { definitions: QualityDefinition[] 
               <TableHead>{t('quality.maxSize')}</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>{definitions?.map((d) => <DefinitionRow key={d.id} definition={d} />)}</TableBody>
+          <TableBody>{definitions?.map((d) => <DefinitionRow key={`${kind}-${d.id}`} definition={d} kind={kind} />)}</TableBody>
         </Table>
       </div>
     </section>
   )
 }
 
-function DefinitionRow({ definition }: { definition: QualityDefinition }) {
+function DefinitionRow({ definition, kind }: { definition: QualityDefinition; kind: 'movies' | 'series' }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const sizes =
+    kind === 'movies'
+      ? { min: definition.minSize, preferred: definition.preferredSize, max: definition.maxSize }
+      : { min: definition.seriesMinSize, preferred: definition.seriesPreferredSize, max: definition.seriesMaxSize }
   const [title, setTitle] = useState(definition.title ?? '')
-  const [min, setMin] = useState(definition.minSize?.toString() ?? '')
-  const [preferred, setPreferred] = useState(definition.preferredSize?.toString() ?? '')
-  const [max, setMax] = useState(definition.maxSize?.toString() ?? '')
+  const [min, setMin] = useState(sizes.min?.toString() ?? '')
+  const [preferred, setPreferred] = useState(sizes.preferred?.toString() ?? '')
+  const [max, setMax] = useState(sizes.max?.toString() ?? '')
 
   const save = useMutation({
     mutationFn: () =>
@@ -439,6 +477,7 @@ function DefinitionRow({ definition }: { definition: QualityDefinition }) {
         minSize: min === '' ? null : Number(min),
         preferredSize: preferred === '' ? null : Number(preferred),
         maxSize: max === '' ? null : Number(max),
+        kind,
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['qualityDefinitions'] }),
     onError: (e) => toast.error(e instanceof ApiError ? e.message : t('quality.saveFailed')),
@@ -446,9 +485,9 @@ function DefinitionRow({ definition }: { definition: QualityDefinition }) {
 
   const changed =
     title.trim() !== (definition.title ?? '') ||
-    (min === '' ? null : Number(min)) !== definition.minSize ||
-    (preferred === '' ? null : Number(preferred)) !== definition.preferredSize ||
-    (max === '' ? null : Number(max)) !== definition.maxSize
+    (min === '' ? null : Number(min)) !== sizes.min ||
+    (preferred === '' ? null : Number(preferred)) !== sizes.preferred ||
+    (max === '' ? null : Number(max)) !== sizes.max
   const commit = () => {
     if (changed && !save.isPending) save.mutate()
   }

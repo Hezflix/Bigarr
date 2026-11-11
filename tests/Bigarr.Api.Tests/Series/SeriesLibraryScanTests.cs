@@ -173,11 +173,12 @@ public sealed class SeriesLibraryScanTests(SeriesScanApiFactory factory) : IClas
         Assert.Equal(MediaKind.Series, shows.Kind);
 
         var profiles = await client.GetFromJsonAsync<List<Bigarr.Api.Features.Quality.QualityProfileSummary>>("/api/v1/qualityprofiles", Json);
-        var profileId = profiles!.First().Id;
+        var profileId = profiles!.First(p => p.Kind == Bigarr.Domain.Quality.ProfileKind.Series).Id;
+        var filmProfileId = profiles!.First(p => p.Kind == Bigarr.Domain.Quality.ProfileKind.Movies).Id;
 
         var seriesOnFilmRoot = await client.PostAsJsonAsync("/api/v1/series", new AddSeriesRequest(profileId, films.Id, TvdbId: 81189));
         Assert.Equal(HttpStatusCode.BadRequest, seriesOnFilmRoot.StatusCode);
-        var movieOnSeriesRoot = await client.PostAsJsonAsync("/api/v1/movies", new { tmdbId = 603, qualityProfileId = profileId, rootFolderId = shows.Id });
+        var movieOnSeriesRoot = await client.PostAsJsonAsync("/api/v1/movies", new { tmdbId = 603, qualityProfileId = filmProfileId, rootFolderId = shows.Id });
         Assert.Equal(HttpStatusCode.BadRequest, movieOnSeriesRoot.StatusCode);
 
         // A root in use keeps its kind; an empty one can switch.
@@ -212,7 +213,7 @@ public sealed class SeriesLibraryScanTests(SeriesScanApiFactory factory) : IClas
 
         var root = await AddRootAsync(client, Path.Combine(_root, "offline"), MediaKind.Series, create: true);
         var profiles = await client.GetFromJsonAsync<List<Bigarr.Api.Features.Quality.QualityProfileSummary>>("/api/v1/qualityprofiles", Json);
-        var added = await client.PostAsJsonAsync("/api/v1/series", new AddSeriesRequest(profiles!.First().Id, root.Id, TvdbId: XemFakes.FrierenTvdbId));
+        var added = await client.PostAsJsonAsync("/api/v1/series", new AddSeriesRequest(profiles!.First(p => p.Kind == Bigarr.Domain.Quality.ProfileKind.Series).Id, root.Id, TvdbId: XemFakes.FrierenTvdbId));
         Assert.Equal(HttpStatusCode.Created, added.StatusCode);
         var id = (await added.Content.ReadFromJsonAsync<SeriesResponse>(Json))!.Id;
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsync($"/api/v1/series/{id}/refresh", null)).StatusCode);

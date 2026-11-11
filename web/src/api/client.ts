@@ -404,7 +404,13 @@ export const tags = {
 
 // ---- quality ---------------------------------------------------------------
 
-export type QualityProfile = { id: number; name: string; cutoff: number; upgradeAllowed: boolean; isSystem: boolean; preferredLanguage: string }
+/** Which versions may use a profile: film ones, series ones, or both. */
+export type ProfileKind = 'movies' | 'series' | 'both'
+
+export type QualityProfile = { id: number; name: string; cutoff: number; upgradeAllowed: boolean; isSystem: boolean; preferredLanguage: string; kind: ProfileKind }
+
+/** The profiles a film (`movies`) or series (`series`) version can take: its own kind and Both. */
+export const profilesFor = (kind: 'movies' | 'series') => (profiles: QualityProfile[]) => profiles.filter((p) => p.kind === kind || p.kind === 'both')
 
 export type QualityDefinition = {
   id: number
@@ -417,9 +423,14 @@ export type QualityDefinition = {
   minSize: number | null
   preferredSize: number | null
   maxSize: number | null
+  /** The series sizes: MB per minute of every episode a release covers. */
+  seriesMinSize: number | null
+  seriesPreferredSize: number | null
+  seriesMaxSize: number | null
 }
 
-export type QualityDefinitionUpdate = { title: string | null; minSize: number | null; preferredSize: number | null; maxSize: number | null }
+/** `kind` says whose sizes these are: the films' (default) or the series'. */
+export type QualityDefinitionUpdate = { title: string | null; minSize: number | null; preferredSize: number | null; maxSize: number | null; kind?: 'movies' | 'series' }
 
 /** One entry of the ordered items list, worst first: the position is the rank. */
 export type QualityProfileItem = { groupId: number | null; groupName: string | null; qualityIds: number[]; allowed: boolean }
@@ -439,6 +450,8 @@ export type QualityProfileDetail = {
   isSystem: boolean
   formatScores: FormatScore[]
   versionCount: number
+  kind: ProfileKind
+  seriesVersionCount: number
 }
 
 export type QualityProfileRequest = {
@@ -451,6 +464,7 @@ export type QualityProfileRequest = {
   minUpgradeFormatScore: number
   preferredLanguage: string
   formatScores: { customFormatId: number; score: number }[]
+  kind: ProfileKind
 }
 
 export const quality = {
@@ -479,6 +493,8 @@ export type CustomFormat = {
   /** Scores the guide file suggested, by profile family (default…); shown as a hint, never applied on its own. */
   trashScores: Record<string, number> | null
   scores: { qualityProfileId: number; qualityProfile: string; score: number }[]
+  /** Set when an import changed or could not evaluate part of the format (a Sonarr specification Bigarr lacks…). */
+  note?: string | null
 }
 
 /** `scores` is the full list: a profile left out or at zero loses its score. */
@@ -1650,6 +1666,98 @@ export const tautulliImport = {
   status: () => api<TautulliImportStatus>('/api/v1/migration/tautulli/status'),
 }
 
+// ---- migration (import from Sonarr) ----------------------------------------
+
+export type SonarrRootFolderPreview = { path: string; series: number; suggestedRootFolderId: number | null; reachable: boolean }
+
+export type SonarrImportPreview = {
+  sonarrVersion: string
+  series: number
+  episodes: number
+  episodeFiles: number
+  monitored: number
+  alreadyInLibrary: number
+  exclusions: number
+  historyRecords: number
+  blocklist: number
+  suggestedVersionName: string
+  /** Series per type: standard, anime, daily. */
+  seriesTypes: Record<string, number>
+  /** `movies` holds the number of series of each profile (shape shared with Radarr's preview). */
+  profiles: RadarrProfilePreview[]
+  rootFolders: SonarrRootFolderPreview[]
+  tags: RadarrTagPreview[]
+  /** Sonarr v3 language profiles, for information only. */
+  languageProfiles: string[]
+  /** What the import would do with each Sonarr custom format. */
+  customFormats: SonarrFormatPreview[] | null
+}
+
+/** `new`, `reused` (same name and definition), `renamed` (imported as "name (Sonarr)"), `updated`. */
+export type SonarrFormatPreview = { sonarrId: number; sonarrName: string; outcome: 'new' | 'reused' | 'renamed' | 'updated'; bigarrName: string; notes: string[] }
+
+export type SonarrImportRequest = {
+  url: string
+  apiKey: string
+  versionName: string
+  /** Sonarr quality profile id → Bigarr quality profile id. */
+  profileMap: Record<number, number>
+  /** Sonarr root folder path → Bigarr series root folder id. */
+  rootFolderMap: Record<string, number>
+  importTags: boolean
+  importExclusions: boolean
+  importHistory: boolean
+  importBlocklist: boolean
+  keepMonitored: boolean
+  /** Shadow mode: keep following this Sonarr with the same mapping once the import is done. */
+  follow?: boolean
+  /** Give each mapped Series profile the qualities and cutoff of its Sonarr profile. */
+  importProfileQualities?: boolean
+  /** Bring Sonarr's custom formats and give the Series profiles Sonarr's scores and thresholds. */
+  importCustomFormats?: boolean
+}
+
+/** `tvdbId` is null for a line about a profile; `seriesId` is set when the series is in Bigarr. */
+export type SonarrImportIssue = { title: string; tvdbId: number | null; reason: string; seriesId: number | null }
+
+export type SonarrImportStatus = {
+  state: RadarrImportState
+  startedAt: string | null
+  finishedAt: string | null
+  total: number
+  processed: number
+  seriesAdded: number
+  versionsAdded: number
+  versionsUpdated: number
+  episodesAdded: number
+  filesAdded: number
+  filesMissing: number
+  skipped: number
+  failed: number
+  tagsAdded: number
+  exclusionsAdded: number
+  historyAdded: number
+  blocklistAdded: number
+  profilesScored: number
+  profileQualitiesCopied: number
+  current: string | null
+  error: string | null
+  issues: SonarrImportIssue[]
+  profilesCreated: number
+  qualitySizesUpdated: number
+  customFormatsAdded: number
+  customFormatsReused: number
+  customFormatsRenamed: number
+  customFormatsUpdated: number
+}
+
+export const sonarrMigration = {
+  preview: (body: RadarrImportPreviewRequest) => post<SonarrImportPreview>('/api/v1/migration/sonarr/preview', body),
+  /** Queues the import (202); 409 when one is already running. */
+  start: (body: SonarrImportRequest) => post<SonarrImportStatus>('/api/v1/migration/sonarr/import', body),
+  status: () => api<SonarrImportStatus>('/api/v1/migration/sonarr/status'),
+}
+
 // ---- shadow mode: followed Radarrs -------------------------------------------
 
 /** A Radarr Bigarr follows in shadow mode. The key comes back masked (`********`); sending the mask keeps the stored one. */
@@ -1697,7 +1805,58 @@ export type FollowedRadarrTest = { appName: string | null; version: string | nul
 
 export type RadarrFollowPass = { followedRadarrId: number; name: string; success: boolean; summary: string; grabs: number; resolved: number; picksShown: number; searchedOnAdd: number }
 
-export type ShadowStatus = { enabled: boolean; picks: number; lastPickAt: string | null; radarrGrabs: number; sightings: number; radarrs: FollowedRadarr[] }
+export type ShadowStatus = {
+  enabled: boolean
+  picks: number
+  lastPickAt: string | null
+  radarrGrabs: number
+  sightings: number
+  radarrs: FollowedRadarr[]
+  seriesPicks: number
+  sonarrGrabs: number
+  sonarrs: FollowedSonarr[] | null
+}
+
+/** A Sonarr Bigarr follows in shadow mode, the twin of a followed Radarr. */
+export type FollowedSonarr = {
+  id: number
+  name: string
+  url: string
+  apiKey: string
+  versionName: string
+  profileMap: Record<number, number>
+  rootFolderMap: Record<string, number>
+  importTags: boolean
+  keepMonitored: boolean
+  enabled: boolean
+  historyCheckpoint: string
+  lastSyncAt: string | null
+  lastSummary: string | null
+  lastError: string | null
+  lastErrorAt: string | null
+  /** The last call of Sonarr's webhook and its eventType (SeriesAdd, Grab, Download, Test…). */
+  lastWebhookAt: string | null
+  lastWebhookEvent: string | null
+  grabs: number
+  inFlight: number
+  createdAt: string
+}
+
+export type FollowedSonarrRequest = {
+  name: string
+  url: string
+  apiKey: string | null
+  versionName: string
+  profileMap: Record<number, number>
+  rootFolderMap: Record<string, number>
+  importTags: boolean
+  keepMonitored: boolean
+  enabled: boolean
+}
+
+export type FollowedSonarrTest = { appName: string | null; version: string | null; series: number }
+
+export type SonarrFollowPass = { followedSonarrId: number; name: string; success: boolean; summary: string; grabs: number; resolved: number; picksShown: number; searchedOnAdd: number }
 
 export const KEY_MASK = '********'
 
@@ -1719,6 +1878,8 @@ export type BigarrVerdict = {
   currentScore: number | null
   /** The version's "file" then was Bigarr's own latest pick: the file Bigarr would have had. */
   currentIsPick: boolean
+  /** Series: the episodes Bigarr read in the title. */
+  episodes?: string | null
 }
 
 /** Radarr's parse of a release Bigarr picked, and the film's state in Radarr then. */
@@ -1825,8 +1986,92 @@ export type CompareResult = {
 /** `tmdbId`: one film only (the film page). `days: 0` means all time. */
 export type CompareQuery = { version?: string; outcome?: CompareOutcome; days: number; windowHours: number; page: number; pageSize: number; tmdbId?: number }
 
+// ---- shadow mode: the comparison with Sonarr ---------------------------------
+
+export type SeriesCompareOutcome = 'same' | 'different' | 'bigarrOnly' | 'sonarrOnly'
+
+/** Sonarr's parse of a release Bigarr picked, and those episodes' state in Sonarr then. */
+export type SonarrView = {
+  tvdbId: number | null
+  episodes: string | null
+  quality: string | null
+  customFormats: string[]
+  customFormatScore: number
+  monitored: boolean | null
+  episodesWithFile: number | null
+  error: string | null
+}
+
+export type SeriesComparePick = Omit<ComparePick, 'radarr'> & { fullSeason: boolean; episodes: string; sonarr: SonarrView | null }
+
+export type SeriesCompareGrab = Omit<CompareGrab, 'radarrName'> & { sonarrName: string; releaseType: string | null; fullSeason: boolean; episodes: string }
+
+export type SeriesCompareRow = {
+  key: string
+  outcome: SeriesCompareOutcome
+  tvdbId: number
+  seriesId: number | null
+  seriesTitle: string
+  year: number | null
+  posterUrl: string | null
+  versionName: string
+  at: string
+  /** Every episode either side covers on the row. */
+  episodes: string
+  /** The first season the row covers. */
+  seasonNumber: number
+  sonarr: SeriesCompareGrab[]
+  bigarr: SeriesComparePick[]
+  alsoPicked: SeriesComparePick[]
+  bigarrLeadSeconds: number | null
+  sighting: CompareSighting | null
+}
+
+export type SeriesCompareCounts = { same: number; different: number; bigarrOnly: number; sonarrOnly: number; total: number }
+
+/** One show: one line until opened, its rows newest first. */
+export type SeriesCompareGroup = {
+  tvdbId: number
+  seriesId: number | null
+  seriesTitle: string
+  year: number | null
+  posterUrl: string | null
+  counts: SeriesCompareCounts
+  latestAt: string
+  rows: SeriesCompareRow[]
+}
+
+/** `total` counts shows; pages are pages of shows. */
+export type SeriesCompareResult = Omit<CompareResult, 'summary' | 'byVersion' | 'rows'> & {
+  summary: SeriesCompareCounts
+  byVersion: { versionName: string; counts: SeriesCompareCounts }[]
+  groups: SeriesCompareGroup[]
+}
+
+export type SeriesCompareQuery = Omit<CompareQuery, 'outcome' | 'tmdbId'> & { outcome?: SeriesCompareOutcome; tvdbId?: number }
+
 export const shadow = {
   status: () => api<ShadowStatus>('/api/v1/shadow'),
+  sonarrs: {
+    list: () => api<FollowedSonarr[]>('/api/v1/shadow/sonarrs'),
+    add: (body: FollowedSonarrRequest) => post<FollowedSonarr>('/api/v1/shadow/sonarrs', body),
+    update: (id: number, body: FollowedSonarrRequest) => put<FollowedSonarr>(`/api/v1/shadow/sonarrs/${id}`, body),
+    remove: (id: number) => del(`/api/v1/shadow/sonarrs/${id}`),
+    test: (body: FollowedSonarrRequest) => post<FollowedSonarrTest>('/api/v1/shadow/sonarrs/test', body),
+    testSaved: (id: number, body?: FollowedSonarrRequest) => post<FollowedSonarrTest>(`/api/v1/shadow/sonarrs/${id}/test`, body ?? null),
+    preview: (id: number) => post<SonarrImportPreview>(`/api/v1/shadow/sonarrs/${id}/preview`),
+    sync: (id: number) => post<SonarrFollowPass>(`/api/v1/shadow/sonarrs/${id}/sync`),
+    /** The path Sonarr's webhook calls (Sonarr → Settings → Connect → Webhook), with a Bigarr API key as `?apikey=`. */
+    webhookPath: (id: number) => `/api/v1/shadow/sonarrs/${id}/webhook`,
+  },
+  /** Sonarr's grabs next to Bigarr's series picks, per episode set. */
+  compareSeries: (query: SeriesCompareQuery) => {
+    const params = new URLSearchParams({ days: String(query.days), windowHours: String(query.windowHours), page: String(query.page), pageSize: String(query.pageSize) })
+    if (query.version) params.set('version', query.version)
+    if (query.outcome) params.set('outcome', query.outcome)
+    if (query.tvdbId) params.set('tvdbId', String(query.tvdbId))
+    return api<SeriesCompareResult>(`/api/v1/shadow/compare/series?${params}`)
+  },
   radarrs: {
     list: () => api<FollowedRadarr[]>('/api/v1/shadow/radarrs'),
     add: (body: FollowedRadarrRequest) => post<FollowedRadarr>('/api/v1/shadow/radarrs', body),
@@ -2173,6 +2418,12 @@ export const playback = {
 }
 
 // ---- helpers ---------------------------------------------------------------
+
+/** A series profile's name without its leading "Series" word, as the server names a version: `Series 1080p` → `1080p`. */
+export function seriesVersionName(profileName: string): string {
+  const slug = slugify(profileName)
+  return slug.startsWith('series-') && slug.length > 'series-'.length ? slug.slice('series-'.length) : slug
+}
 
 export function slugify(value: string): string {
   return value

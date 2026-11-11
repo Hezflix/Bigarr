@@ -17,7 +17,11 @@ public sealed record HistoryEventResponse(
     string? IndexerName,
     int? MediaFileId,
     Dictionary<string, string> Data,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    /// <summary>An episode line: its series (with its TVDB id and title as snapshots); <see cref="VersionId"/> is then the episode target.</summary>
+    int? SeriesId = null,
+    int? TvdbId = null,
+    string? SeriesTitle = null);
 
 /// <summary>Read side of the journal. Events are written by the slices that do the work, in their own transaction.</summary>
 public static class HistoryEndpoints
@@ -31,7 +35,7 @@ public static class HistoryEndpoints
         var group = app.MapGroup("/api/v1/history").WithTags("History").RequireAuthorization(AuthPolicies.Api);
 
         // eventType is matched by name, case-insensitive: the front sends camelCase like the JSON it reads.
-        group.MapGet("/", async Task<Results<Ok<List<HistoryEventResponse>>, ValidationProblem>> (int? movieId, int? versionId, string? eventType, int? limit, HistoryService history, CancellationToken ct) =>
+        group.MapGet("/", async Task<Results<Ok<List<HistoryEventResponse>>, ValidationProblem>> (int? movieId, int? seriesId, int? versionId, string? eventType, int? limit, HistoryService history, CancellationToken ct) =>
         {
             HistoryEventType? type = null;
             if (!string.IsNullOrWhiteSpace(eventType))
@@ -45,7 +49,7 @@ public static class HistoryEndpoints
             }
 
             var take = Math.Clamp(limit ?? DefaultLimit, 1, MaxLimit);
-            var events = await history.ListAsync(new HistoryFilter(movieId, null, versionId, type is null ? null : [type.Value]), take, ct);
+            var events = await history.ListAsync(new HistoryFilter(movieId, null, versionId, type is null ? null : [type.Value], SeriesId: seriesId), take, ct);
             return TypedResults.Ok(events.Select(ToResponse).ToList());
         });
 
@@ -53,5 +57,5 @@ public static class HistoryEndpoints
     }
 
     public static HistoryEventResponse ToResponse(HistoryEvent h) => new(
-        h.Id, h.EventType, h.MovieId, h.TmdbId, h.MovieTitle, h.TargetId, h.VersionName, h.SourceTitle, h.IndexerId, h.IndexerName, h.MediaFileId, h.Data, h.CreatedAt);
+        h.Id, h.EventType, h.MovieId, h.TmdbId, h.MovieTitle, h.TargetId, h.VersionName, h.SourceTitle, h.IndexerId, h.IndexerName, h.MediaFileId, h.Data, h.CreatedAt, h.SeriesId, h.TvdbId, h.SeriesTitle);
 }

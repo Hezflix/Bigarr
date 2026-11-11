@@ -19,6 +19,11 @@ public sealed class QualitySeeder(BigarrDbContext db, ILogger<QualitySeeder> log
     /// <summary>UHD profile: 2160p only — a 4K version never settles for a 1080p release, that is what the 1080p version is for.</summary>
     public const string UhdProfileName = "4K";
 
+    /// <summary>The series twins of the two above (kind Series): what the series scan and a new series version start from.</summary>
+    public const string SeriesHdProfileName = "Series 1080p";
+
+    public const string SeriesUhdProfileName = "Series 4K";
+
     /// <summary>The single catch-all profile seeded until 2026-09-10, renamed in place so existing versions keep their profile.</summary>
     private const string LegacyProfileName = "Any";
 
@@ -45,6 +50,9 @@ public sealed class QualitySeeder(BigarrDbContext db, ILogger<QualitySeeder> log
                 MinSize = def.MinSize,
                 PreferredSize = def.PreferredSize,
                 MaxSize = def.MaxSize,
+                SeriesMinSize = SonarrDefaultSizes.For(def.Quality.Id).Min,
+                SeriesPreferredSize = SonarrDefaultSizes.For(def.Quality.Id).Preferred,
+                SeriesMaxSize = SonarrDefaultSizes.For(def.Quality.Id).Max,
             });
             added++;
         }
@@ -61,7 +69,7 @@ public sealed class QualitySeeder(BigarrDbContext db, ILogger<QualitySeeder> log
         }
 
         var known = await db.QualityProfiles.Select(p => p.Name).ToListAsync(cancellationToken);
-        foreach (var profile in new[] { BuildHdProfile(definitions), BuildUhdProfile(definitions) }.Where(p => !known.Contains(p.Name)))
+        foreach (var profile in new[] { BuildHdProfile(definitions), BuildUhdProfile(definitions), BuildSeriesHdProfile(definitions), BuildSeriesUhdProfile(definitions) }.Where(p => !known.Contains(p.Name)))
         {
             db.QualityProfiles.Add(profile);
             logger.LogInformation("Seeded the system quality profile '{Profile}'", profile.Name);
@@ -79,6 +87,20 @@ public sealed class QualitySeeder(BigarrDbContext db, ILogger<QualitySeeder> log
 
     public static QualityProfile BuildUhdProfile(IReadOnlyList<ParserDefinition> definitions) =>
         BuildProfile(definitions, UhdProfileName, UhdResolution, UhdResolution, ParserQuality.Bluray2160p.Id);
+
+    public static QualityProfile BuildSeriesHdProfile(IReadOnlyList<ParserDefinition> definitions)
+    {
+        var profile = BuildProfile(definitions, SeriesHdProfileName, 720, 1080, ParserQuality.Bluray1080p.Id);
+        profile.Kind = ProfileKind.Series;
+        return profile;
+    }
+
+    public static QualityProfile BuildSeriesUhdProfile(IReadOnlyList<ParserDefinition> definitions)
+    {
+        var profile = BuildProfile(definitions, SeriesUhdProfileName, UhdResolution, UhdResolution, ParserQuality.Bluray2160p.Id);
+        profile.Kind = ProfileKind.Series;
+        return profile;
+    }
 
     /// <summary>
     /// Every quality, ordered like Radarr's defaults with the WEB-DL/WEBRip pairs grouped: the order IS the rank

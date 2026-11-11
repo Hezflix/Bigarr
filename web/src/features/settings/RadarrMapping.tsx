@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { quality, rootFolders, rootsOfKind, type RadarrImportPreview } from '@/api/client'
+import { profilesFor, quality, rootFolders, rootsOfKind, type RadarrImportPreview, type SonarrImportPreview } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
@@ -12,6 +12,28 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
  * import and the Radarrs followed in shadow mode, which keep using the mapping on every pass.
  */
 export type RadarrMappingValue = { profileMap: Record<number, number>; rootFolderMap: Record<string, number> }
+
+/** What the mapping tables show above each column: Radarr's words by default, Sonarr's for series. */
+export type MappingLabels = { profile: string; count: string; path: string }
+
+/** A Sonarr preview in the tables' shape: series counted where films are. */
+export function sonarrMappingPreview(preview: SonarrImportPreview): RadarrImportPreview {
+  return {
+    radarrVersion: preview.sonarrVersion,
+    movies: preview.series,
+    withFile: preview.episodeFiles,
+    monitored: preview.monitored,
+    alreadyInLibrary: preview.alreadyInLibrary,
+    exclusions: preview.exclusions,
+    historyRecords: preview.historyRecords,
+    blocklist: preview.blocklist,
+    customFormats: 0,
+    suggestedVersionName: preview.suggestedVersionName,
+    profiles: preview.profiles,
+    rootFolders: preview.rootFolders.map((r) => ({ path: r.path, movies: r.series, suggestedRootFolderId: r.suggestedRootFolderId, reachable: r.reachable })),
+    tags: preview.tags,
+  }
+}
 
 export const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
@@ -31,16 +53,32 @@ export function mappingComplete(preview: RadarrImportPreview, value: RadarrMappi
   )
 }
 
-export function ProfileMappingTable({ preview, value, onChange }: { preview: RadarrImportPreview; value: Record<number, number>; onChange: (value: Record<number, number>) => void }) {
+export function ProfileMappingTable({
+  preview,
+  value,
+  onChange,
+  labels,
+  kind = 'movies',
+  allowCreate = false,
+}: {
+  preview: RadarrImportPreview
+  value: Record<number, number>
+  onChange: (value: Record<number, number>) => void
+  labels?: MappingLabels
+  /** Which Bigarr profiles can be chosen: Films (and Both) for a Radarr, Series (and Both) for a Sonarr. */
+  kind?: 'movies' | 'series'
+  /** The Sonarr import can create a Series profile from the source one (value 0). */
+  allowCreate?: boolean
+}) {
   const { t } = useTranslation()
-  const profiles = useQuery({ queryKey: ['qualityProfiles'], queryFn: quality.profiles })
+  const profiles = useQuery({ queryKey: ['qualityProfiles'], queryFn: quality.profiles, select: profilesFor(kind) })
   return (
     <div className="overflow-x-auto rounded-lg border">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>{t('importRadarr.radarrProfile')}</TableHead>
-            <TableHead>{t('importRadarr.movies')}</TableHead>
+            <TableHead>{labels?.profile ?? t('importRadarr.radarrProfile')}</TableHead>
+            <TableHead>{labels?.count ?? t('importRadarr.movies')}</TableHead>
             <TableHead className="w-[40%]">{t('importRadarr.bigarrProfile')}</TableHead>
           </TableRow>
         </TableHeader>
@@ -55,6 +93,7 @@ export function ProfileMappingTable({ preview, value, onChange }: { preview: Rad
                     <SelectValue placeholder={t('importRadarr.chooseProfile')} />
                   </SelectTrigger>
                   <SelectContent>
+                    {allowCreate && <SelectItem value="0">{t('importSonarr.createProfile')}</SelectItem>}
                     {profiles.data?.map((p) => (
                       <SelectItem key={p.id} value={String(p.id)}>
                         {p.name}
@@ -71,16 +110,29 @@ export function ProfileMappingTable({ preview, value, onChange }: { preview: Rad
   )
 }
 
-export function RootFolderMappingTable({ preview, value, onChange }: { preview: RadarrImportPreview; value: Record<string, number>; onChange: (value: Record<string, number>) => void }) {
+export function RootFolderMappingTable({
+  preview,
+  value,
+  onChange,
+  labels,
+  kind = 'movies',
+}: {
+  preview: RadarrImportPreview
+  value: Record<string, number>
+  onChange: (value: Record<string, number>) => void
+  labels?: MappingLabels
+  /** Which root folders can be chosen: film ones for a Radarr, series ones for a Sonarr. */
+  kind?: 'movies' | 'series'
+}) {
   const { t } = useTranslation()
-  const roots = useQuery({ queryKey: ['rootFolders'], queryFn: rootFolders.list, select: rootsOfKind('movies') })
+  const roots = useQuery({ queryKey: ['rootFolders'], queryFn: rootFolders.list, select: rootsOfKind(kind) })
   return (
     <div className="overflow-x-auto rounded-lg border">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>{t('importRadarr.radarrPath')}</TableHead>
-            <TableHead>{t('importRadarr.movies')}</TableHead>
+            <TableHead>{labels?.path ?? t('importRadarr.radarrPath')}</TableHead>
+            <TableHead>{labels?.count ?? t('importRadarr.movies')}</TableHead>
             <TableHead className="w-[40%]">{t('importRadarr.bigarrRootFolder')}</TableHead>
           </TableRow>
         </TableHeader>

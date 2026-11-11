@@ -76,6 +76,11 @@ public sealed class SeriesShadowPick
     public bool FullSeason { get; set; }
 
     public ICollection<SeriesShadowPickEpisode> Episodes { get; set; } = [];
+
+    /// <summary>What the Sonarr following the version made of this release, read from its <c>/parse</c> after the pick.</summary>
+    public SonarrView? SonarrView { get; set; }
+
+    public DateTime? SonarrViewAt { get; set; }
 }
 
 /// <summary>One episode a series pick covers: its target while it exists, its numbers for good.</summary>

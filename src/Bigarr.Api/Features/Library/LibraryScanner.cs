@@ -98,7 +98,7 @@ public sealed partial class LibraryScanner(BigarrDbContext db, IMetadataProvider
 
     private async Task<ScanProfiles> ResolveProfilesAsync(CancellationToken ct)
     {
-        var profiles = await db.QualityProfiles.OrderBy(p => p.Id).Select(p => new { p.Id, p.Name }).ToListAsync(ct);
+        var profiles = await db.QualityProfiles.Where(p => p.Kind == Domain.Quality.ProfileKind.Movies || p.Kind == Domain.Quality.ProfileKind.Both).OrderBy(p => p.Id).Select(p => new { p.Id, p.Name }).ToListAsync(ct);
         if (profiles.Count == 0)
         {
             throw new InvalidOperationException("No quality profile is seeded; the scan has nothing to file versions under.");

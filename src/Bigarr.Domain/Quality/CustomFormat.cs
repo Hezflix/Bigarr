@@ -20,5 +20,11 @@ public sealed class CustomFormat
     /// <summary>The guide's suggested scores by profile family, kept as JSON for display. Nothing is computed from it.</summary>
     public string? TrashScoresJson { get; set; }
 
+    /// <summary>
+    /// What an import changed or could not evaluate (a Sonarr specification Bigarr lacks, a source only approximated): the
+    /// format is kept whole and marked rather than silently altered.
+    /// </summary>
+    public string? Note { get; set; }
+
     public ICollection<ProfileFormatScore> Scores { get; set; } = [];
 }

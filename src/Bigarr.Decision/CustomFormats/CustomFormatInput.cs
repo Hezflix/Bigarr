@@ -23,7 +23,9 @@ public sealed record CustomFormatInput(
     string? ReleaseGroup,
     long Size,
     IndexerFlags IndexerFlags,
-    int? Year)
+    int? Year,
+    /// <summary>Episodes only (Sonarr's <c>ReleaseType</c>): a single, multi-episode, season pack or multi-season pack. Films are Unknown.</summary>
+    ReleaseType ReleaseType = ReleaseType.Unknown)
 {
     public static CustomFormatInput FromParsed(
         ParsedMovieInfo parsed,
@@ -75,7 +77,22 @@ public sealed record CustomFormatInput(
             string.IsNullOrWhiteSpace(parsed.ReleaseGroup) ? null : parsed.ReleaseGroup,
             size,
             indexerFlags,
-            year);
+            year,
+            ReleaseTypeOf(parsed));
+    }
+
+    /// <summary>Sonarr's release type of a parsed episode name: packs first, then several episodes, then one.</summary>
+    public static ReleaseType ReleaseTypeOf(Bigarr.Parsing.Episodes.Model.ParsedEpisodeInfo parsed)
+    {
+        ArgumentNullException.ThrowIfNull(parsed);
+
+        if (parsed.FullSeason)
+        {
+            return parsed.IsMultiSeason ? ReleaseType.MultiSeasonPack : ReleaseType.SeasonPack;
+        }
+
+        var count = Math.Max(parsed.EpisodeNumbers.Length, parsed.AbsoluteEpisodeNumbers.Length);
+        return count > 1 ? ReleaseType.MultiEpisode : count == 1 || parsed.IsDaily || parsed.Special ? ReleaseType.SingleEpisode : ReleaseType.Unknown;
     }
 
     /// <summary>A release naming no language is in the film's original language, as Radarr assumes.</summary>
@@ -106,4 +123,14 @@ public sealed record CustomFormatInput(
         return Language.All.FirstOrDefault(l => string.Equals(l.Name, trimmed, StringComparison.OrdinalIgnoreCase))
                ?? IsoLanguages.FindByName(trimmed)?.Language;
     }
+}
+
+/// <summary>Sonarr's <c>ReleaseType</c> values, as its <c>ReleaseTypeSpecification</c> stores them.</summary>
+public enum ReleaseType
+{
+    Unknown = 0,
+    SingleEpisode = 1,
+    MultiEpisode = 2,
+    SeasonPack = 3,
+    MultiSeasonPack = 4,
 }

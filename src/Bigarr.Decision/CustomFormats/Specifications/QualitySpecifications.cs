@@ -56,3 +56,35 @@ public sealed class YearSpecification(CustomFormatSpecificationDefinition defini
 
     protected override bool IsSatisfiedByWithoutNegate(CustomFormatInput input) => input.Year is { } year && year >= Min && year <= Max;
 }
+
+/// <summary>Sonarr's <c>ReleaseTypeSpecification</c>: <c>value</c> is the release type (single episode = 1, multi-episode = 2, season pack = 3, multi-season pack = 4). A film never matches.</summary>
+public sealed class ReleaseTypeSpecification(CustomFormatSpecificationDefinition definition, string formatName) : CustomFormatSpecificationBase(definition)
+{
+    public int Value { get; } = SpecificationFields.RequireInt(definition, formatName, "value");
+
+    protected override bool IsSatisfiedByWithoutNegate(CustomFormatInput input) => (int)input.ReleaseType == Value;
+}
+
+/// <summary>
+/// A specification Bigarr cannot evaluate, kept so the format is imported whole rather than silently changed: its
+/// <c>implementation</c> field names the original, <c>reason</c> says why. It never matches, negated or not, so a required
+/// one keeps the format from matching and an optional one changes nothing.
+/// </summary>
+public sealed class UnsupportedSpecification(CustomFormatSpecificationDefinition definition) : ICustomFormatSpecification
+{
+    public const string ImplementationName = "UnsupportedSpecification";
+
+    public string Name => definition.Name;
+
+    public string Implementation => ImplementationName;
+
+    public bool Negate => definition.Negate;
+
+    public bool Required => definition.Required;
+
+    public string? Original => SpecificationFields.GetString(definition, "implementation");
+
+    public string? Reason => SpecificationFields.GetString(definition, "reason");
+
+    public bool IsSatisfiedBy(CustomFormatInput input) => false;
+}

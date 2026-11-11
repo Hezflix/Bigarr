@@ -55,7 +55,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
             return new Failure(StatusCodes.Status502BadGateway, "Radarr did not answer", ex.Message);
         }
 
-        var profiles = await db.QualityProfiles.AsNoTracking().Select(p => new { p.Id, p.Name }).ToListAsync(ct);
+        var profiles = await db.QualityProfiles.AsNoTracking().Where(p => p.Kind == ProfileKind.Movies || p.Kind == ProfileKind.Both).Select(p => new { p.Id, p.Name }).ToListAsync(ct);
         var roots = await db.RootFolders.AsNoTracking().ToListAsync(ct);
         var known = (await db.Movies.AsNoTracking().Select(m => m.TmdbId).ToListAsync(ct)).ToHashSet();
 
@@ -115,10 +115,15 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         }
 
         var profileIds = (request.ProfileMap ?? []).Values.Distinct().ToList();
-        var knownProfiles = await db.QualityProfiles.Where(p => profileIds.Contains(p.Id)).Select(p => p.Id).ToListAsync(ct);
-        if (profileIds.Except(knownProfiles).Any())
+        var knownProfiles = await db.QualityProfiles.Where(p => profileIds.Contains(p.Id)).Select(p => new { p.Id, p.Name, p.Kind }).ToListAsync(ct);
+        if (profileIds.Except(knownProfiles.Select(p => p.Id)).Any())
         {
-            return Failure.Invalid("Unknown quality profile", $"No quality profile with id {string.Join(", ", profileIds.Except(knownProfiles))}.");
+            return Failure.Invalid("Unknown quality profile", $"No quality profile with id {string.Join(", ", profileIds.Except(knownProfiles.Select(p => p.Id)))}.");
+        }
+
+        if (knownProfiles.FirstOrDefault(p => !p.Kind.ForMovies()) is { } seriesProfile)
+        {
+            return Failure.Invalid("Not a film quality profile", $"'{seriesProfile.Name}' is a series profile: map Radarr's profiles onto Films or Both profiles.");
         }
 
         var rootIds = (request.RootFolderMap ?? []).Values.Distinct().ToList();
@@ -574,7 +579,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         foreach (var group in (request.ProfileMap ?? []).GroupBy(kv => kv.Value))
         {
             var sources = Sources(group.Select(kv => kv.Key), snapshot.Profiles, films);
-            if (sources.Count == 0 || await db.QualityProfiles.Include(p => p.FormatScores).FirstOrDefaultAsync(p => p.Id == group.Key, ct) is not { } profile)
+            if (sources.Count == 0 || await db.QualityProfiles.Include(p => p.FormatScores).FirstOrDefaultAsync(p => p.Id == group.Key && p.Kind == ProfileKind.Movies, ct) is not { } profile)
             {
                 continue;
             }
@@ -615,7 +620,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
     }
 
     /// <summary>
-    /// Shadow mode, on every pass of the follow: each Bigarr profile a followed Radarr's films map to takes that Radarr
+    /// Shadow mode, on every pass of the follow: each Films profile a followed Radarr's films map to (a Both profile keeps its own) takes that Radarr
     /// profile's qualities, cutoff, score thresholds and format scores (formats matched by name; none is created here), so
     /// Bigarr judges with Radarr's settings and the comparison stays fair. Returns the names of the profiles that changed.
     /// </summary>
@@ -633,7 +638,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         foreach (var group in (request.ProfileMap ?? []).GroupBy(kv => kv.Value))
         {
             var sources = Sources(group.Select(kv => kv.Key), data.Profiles, films);
-            if (sources.Count == 0 || await db.QualityProfiles.Include(p => p.FormatScores).FirstOrDefaultAsync(p => p.Id == group.Key, ct) is not { } profile)
+            if (sources.Count == 0 || await db.QualityProfiles.Include(p => p.FormatScores).FirstOrDefaultAsync(p => p.Id == group.Key && p.Kind == ProfileKind.Movies, ct) is not { } profile)
             {
                 continue;
             }
@@ -670,7 +675,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         movies.GroupBy(m => m.QualityProfileId).ToDictionary(g => g.Key, g => g.Count());
 
     /// <summary>The Radarr profiles mapped to one Bigarr profile, the one holding the most films first.</summary>
-    private static List<RadarrProfile> Sources(IEnumerable<int> radarrProfileIds, List<RadarrProfile> profiles, Dictionary<int, int> films) =>
+    internal static List<RadarrProfile> Sources(IEnumerable<int> radarrProfileIds, List<RadarrProfile> profiles, Dictionary<int, int> films) =>
         radarrProfileIds
             .Select(id => profiles.FirstOrDefault(p => p.Id == id))
             .OfType<RadarrProfile>()
@@ -679,7 +684,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
             .ToList();
 
     /// <summary>The format scores of a Radarr profile (formats matched by name) and its score thresholds.</summary>
-    private static void ApplyScores(QualityProfile profile, RadarrProfile source, IReadOnlyDictionary<string, CustomFormat> formatsByName)
+    internal static void ApplyScores(QualityProfile profile, RadarrProfile source, IReadOnlyDictionary<string, CustomFormat> formatsByName)
     {
         foreach (var item in source.FormatItems ?? [])
         {
@@ -705,7 +710,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
     }
 
     /// <summary>Everything the follow may change on a profile, as one comparable string.</summary>
-    private static string ProfileKey(QualityProfile profile) =>
+    internal static string ProfileKey(QualityProfile profile) =>
         JsonSerializer.Serialize(new
         {
             profile.Items,
@@ -718,7 +723,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         });
 
     /// <summary>A Radarr profile's qualities as one comparable string.</summary>
-    private static string QualityKey(RadarrProfile profile) =>
+    internal static string QualityKey(RadarrProfile profile) =>
         JsonSerializer.Serialize(new { profile.Items, profile.Cutoff, profile.UpgradeAllowed });
 
     /// <summary>Radarr's custom formats, matched on their name: Radarr's definition wins. Returns them by name.</summary>
@@ -769,7 +774,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
     }
 
     /// <summary>A profile's non-zero scores and thresholds as one comparable string.</summary>
-    private static string ScoreKey(RadarrProfile profile) =>
+    internal static string ScoreKey(RadarrProfile profile) =>
         string.Join(";", (profile.FormatItems ?? []).Where(i => i.Score != 0).OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase).Select(i => $"{i.Name}={i.Score}"))
         + $"|{profile.MinFormatScore}|{profile.CutoffFormatScore}|{profile.MinUpgradeFormatScore}";
 
@@ -1376,7 +1381,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
     private static readonly JsonElement EmptyFormats = JsonDocument.Parse("[]").RootElement.Clone();
 
     /// <summary>The parser's name of a quality id, as Radarr's history names it.</summary>
-    private static string? QualityName(int qualityId)
+    internal static string? QualityName(int qualityId)
     {
         try
         {

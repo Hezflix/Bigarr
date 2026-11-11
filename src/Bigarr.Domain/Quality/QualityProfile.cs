@@ -27,5 +27,23 @@ public sealed class QualityProfile
     /// <summary>Seeded profiles (e.g. <c>Any</c>) cannot be deleted.</summary>
     public bool IsSystem { get; set; }
 
+    /// <summary>What the profile is for: film versions, series versions or both. A version only takes a profile of its kind.</summary>
+    public ProfileKind Kind { get; set; } = ProfileKind.Movies;
+
     public ICollection<ProfileFormatScore> FormatScores { get; set; } = [];
+}
+
+/// <summary>Which versions may use a quality profile.</summary>
+public enum ProfileKind
+{
+    Movies = 1,
+    Series = 2,
+    Both = 3,
+}
+
+public static class ProfileKinds
+{
+    public static bool ForMovies(this ProfileKind kind) => kind is ProfileKind.Movies or ProfileKind.Both;
+
+    public static bool ForSeries(this ProfileKind kind) => kind is ProfileKind.Series or ProfileKind.Both;
 }
