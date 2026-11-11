@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { MovieSummary } from '@/api/client'
 
 /** What every library view needs to show and change the bulk selection. */
 export type Selection = {
   selecting: boolean
   selected: ReadonlySet<number>
-  /** `range`: shift-click, everything between the last clicked film and this one is selected. */
-  onToggle: (movieId: number, range: boolean) => void
+  /** `range`: shift-click, everything between the last clicked item and this one is selected. */
+  onToggle: (id: number, range: boolean) => void
 }
 
-/** Selection mode of the library page. `ordered` is the list as shown, for shift-click ranges. */
-export function useSelection(ordered: MovieSummary[]) {
+/** Selection mode of a library page (films or series). `ordered` is the list as shown, for shift-click ranges. */
+export function useSelection(ordered: { id: number }[]) {
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<ReadonlySet<number>>(() => new Set())
   const anchor = useRef<number | null>(null)

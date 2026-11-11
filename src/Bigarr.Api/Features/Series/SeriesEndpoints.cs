@@ -25,11 +25,27 @@ public static class SeriesEndpoints
         group.MapPut("/{id:int}/versions/{versionId:int}/seasons/{seasonNumber:int}", SetSeasonAsync);
         group.MapPut("/{id:int}/versions/{versionId:int}/episodes", SetEpisodesAsync);
 
+        // The library's bulk editor, like the films': one action on one version of many series.
+        group.MapPut("/bulk", BulkUpdateAsync);
+        group.MapPost("/bulk/delete", BulkDeleteAsync);
+
         return app;
     }
 
     private static async Task<Ok<List<SeriesSummary>>> ListAsync(SeriesQueries queries, CancellationToken ct) =>
         TypedResults.Ok(await queries.ListAsync(ct));
+
+    private static async Task<Results<Ok<SeriesBulkResponse>, ProblemHttpResult>> BulkUpdateAsync(SeriesBulkUpdateRequest request, SeriesBulkEditService bulk, CancellationToken ct)
+    {
+        var result = await bulk.UpdateAsync(request, ct);
+        return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
+    }
+
+    private static async Task<Results<Ok<SeriesBulkDeleteResponse>, ProblemHttpResult>> BulkDeleteAsync(SeriesBulkDeleteRequest request, SeriesBulkEditService bulk, CancellationToken ct)
+    {
+        var result = await bulk.DeleteAsync(request, ct);
+        return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
+    }
 
     private static async Task<Results<Ok<List<SeriesLookupResult>>, ValidationProblem, ProblemHttpResult>> LookupAsync(
         string? term, SeriesService series, CancellationToken ct)

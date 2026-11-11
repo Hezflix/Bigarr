@@ -1,19 +1,41 @@
-import { useCallback, useState } from 'react'
-import type { MovieSummary, VersionSelector, VersionSummary } from '@/api/client'
+import type { MovieSummary, VersionSummary } from '@/api/client'
+import {
+  emptyConditions,
+  mainVersionIn,
+  sortItems,
+  splitVersionSort,
+  totalSize,
+  usePersistedPrefs,
+  versionConditionsMatch,
+  viewMode,
+  type Density,
+  type FilterScope,
+  type MonitoredFilter,
+  type PosterSize,
+  type SortDirection,
+  type StatusFilter,
+  type VersionName,
+  type ViewMode,
+} from './core'
 
-export const viewModes = ['posters', 'table'] as const
-export type ViewMode = (typeof viewModes)[number]
-
-/** A stored or linked layout. The version matrix is gone: what pointed at it (`matrix`) opens the table. */
-export function viewMode(value: unknown): ViewMode {
-  return viewModes.find((mode) => mode === value) ?? 'table'
-}
-
-export const posterSizes = ['small', 'medium', 'large'] as const
-export type PosterSize = (typeof posterSizes)[number]
-
-export const densities = ['compact', 'comfortable'] as const
-export type Density = (typeof densities)[number]
+export {
+  densities,
+  posterSizes,
+  statusFilters,
+  targetVersions,
+  totalSize,
+  versionNames,
+  viewMode,
+  viewModes,
+  type Density,
+  type FilterScope,
+  type MonitoredFilter,
+  type PosterSize,
+  type SortDirection,
+  type StatusFilter,
+  type VersionName,
+  type ViewMode,
+} from './core'
 
 export const sortKeys = ['title', 'year', 'added', 'size', 'quality', 'rating', 'plays', 'lastPlayed'] as const
 /** The sorts that also exist per version: the size of its file, its plays, its last play. */
@@ -21,14 +43,10 @@ export const versionMetrics = ['size', 'plays', 'lastPlayed'] as const
 export type VersionMetric = (typeof versionMetrics)[number]
 /** A sort key, or `<metric>:<version>`: `size:4k` sorts by the size of the 4k file. */
 export type SortKey = (typeof sortKeys)[number] | `${VersionMetric}:${string}`
-export type SortDirection = 'asc' | 'desc'
 
 /** The metric and version a per-version sort is about, if it is one. */
 export function sortedByVersion(key: SortKey): { metric: VersionMetric; version: string } | null {
-  const cut = key.indexOf(':')
-  if (cut < 0) return null
-  const metric = versionMetrics.find((m) => m === key.slice(0, cut))
-  return metric ? { metric, version: key.slice(cut + 1) } : null
+  return splitVersionSort(key, versionMetrics)
 }
 
 /** The version whose size the list is sorted by, if any. */
@@ -47,14 +65,6 @@ export type CardField = (typeof cardFields)[number]
 
 export const tableColumns = ['year', 'versions', 'status', 'quality', 'profile', 'availability', 'size', 'added', 'rating', 'tags', 'rootFolder', 'plays', 'lastPlayed'] as const
 export type TableColumn = (typeof tableColumns)[number]
-
-/** Which versions the version-level conditions look at: one of them, every one, the default one, or a named one. */
-export type FilterScope = 'any' | 'all' | 'default' | `version:${string}`
-
-export const statusFilters = ['any', 'missing', 'downloading', 'pending', 'available', 'cutoffUnmet', 'noFile'] as const
-export type StatusFilter = (typeof statusFilters)[number]
-
-export type MonitoredFilter = 'any' | 'monitored' | 'unmonitored'
 
 /**
  * Whether the version was played: never, ever, in the last N days, or not in the last N days (never played
@@ -104,11 +114,7 @@ export type LibraryPrefs = {
 
 export const emptyFilter: LibraryFilter = {
   scope: 'any',
-  monitored: 'any',
-  status: 'any',
-  qualities: [],
-  tags: [],
-  rootFolders: [],
+  ...emptyConditions,
   played: 'any',
   hasVersions: [],
   lacksVersions: [],
@@ -152,51 +158,8 @@ function readPrefs(key: string): LibraryPrefs {
   }
 }
 
-function writePrefs(key: string, prefs: LibraryPrefs) {
-  try {
-    localStorage.setItem(key, JSON.stringify(prefs))
-  } catch {
-    /* the layout simply does not survive a reload */
-  }
-}
-
 export function useLibraryPrefs(userId: number | undefined) {
-  const key = storageKey(userId)
-  const [stored, setStored] = useState(() => ({ key, prefs: readPrefs(key) }))
-  if (stored.key !== key) {
-    setStored({ key, prefs: readPrefs(key) })
-  }
-
-  const update = useCallback((patch: Partial<LibraryPrefs> | ((prefs: LibraryPrefs) => Partial<LibraryPrefs>)) => {
-    setStored((current) => {
-      const prefs = { ...current.prefs, ...(typeof patch === 'function' ? patch(current.prefs) : patch) }
-      writePrefs(current.key, prefs)
-      return { key: current.key, prefs }
-    })
-  }, [])
-
-  return [stored.key === key ? stored.prefs : readPrefs(key), update] as const
-}
-
-// ---- versions --------------------------------------------------------------
-
-export type VersionName = { name: string; count: number }
-
-/** Every version name of the library, the most common first: usually the default flavour, then `4k`… */
-export function versionNames(movies: MovieSummary[]): VersionName[] {
-  const counts = new Map<string, number>()
-  for (const movie of movies) {
-    for (const v of movie.versions) counts.set(v.name, (counts.get(v.name) ?? 0) + 1)
-  }
-  return [...counts].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
-}
-
-/** The versions of the film a bulk action would touch. */
-export function targetVersions(movie: MovieSummary, selector: VersionSelector): VersionSummary[] {
-  if (selector === 'all') return movie.versions
-  if (selector === 'default') return movie.versions.filter((v) => v.isDefault)
-  const name = selector.slice('version:'.length)
-  return movie.versions.filter((v) => v.name === name)
+  return usePersistedPrefs(storageKey(userId), readPrefs)
 }
 
 // ---- filtering -------------------------------------------------------------
@@ -229,22 +192,7 @@ export function playedMatches(v: Pick<VersionSummary, 'plays' | 'lastPlayedAt'>,
 }
 
 function versionMatches(v: VersionSummary, filter: LibraryFilter, now: number): boolean {
-  if (!playedMatches(v, filter.played, now)) return false
-  if (filter.monitored === 'monitored' && !v.monitored) return false
-  if (filter.monitored === 'unmonitored' && v.monitored) return false
-  if (filter.qualities.length > 0 && (v.quality === null || !filter.qualities.includes(v.quality))) return false
-  if (filter.tags.length > 0 && !v.tags.some((tag) => filter.tags.includes(tag))) return false
-  if (filter.rootFolders.length > 0 && !filter.rootFolders.includes(v.rootFolderId)) return false
-  switch (filter.status) {
-    case 'any':
-      return true
-    case 'noFile':
-      return v.status !== 'available'
-    case 'cutoffUnmet':
-      return v.cutoffMet === false
-    default:
-      return v.status === filter.status
-  }
+  return playedMatches(v, filter.played, now) && versionConditionsMatch(v, filter)
 }
 
 export function matchesFilter(movie: MovieSummary, filter: LibraryFilter, now: number): boolean {
@@ -294,12 +242,6 @@ function normalized(filter: LibraryFilter): LibraryFilter {
 
 // ---- sorting ---------------------------------------------------------------
 
-const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true })
-
-export function totalSize(movie: MovieSummary): number {
-  return movie.versions.reduce((sum, v) => sum + (v.size ?? 0), 0)
-}
-
 /**
  * Sorts a copy. `qualityRank` maps a quality name to its position in the definitions list (resolution, then source),
  * so a film sorts by its best file.
@@ -337,16 +279,7 @@ export function sortMovies(movies: MovieSummary[], sort: SortKey, direction: Sor
     }
   }
 
-  const sign = direction === 'asc' ? 1 : -1
-  return movies
-    .map((movie) => ({ movie, key: key(movie) }))
-    .sort((a, b) => {
-      // Films without the file go last whatever the direction: sorted by 4k size, the 4k files come first.
-      if (a.key === null || b.key === null) return a.key === b.key ? collator.compare(a.movie.sortTitle, b.movie.sortTitle) : a.key === null ? 1 : -1
-      const order = typeof a.key === 'string' ? collator.compare(a.key, b.key as string) : a.key - (b.key as number)
-      return order !== 0 ? order * sign : collator.compare(a.movie.sortTitle, b.movie.sortTitle)
-    })
-    .map((entry) => entry.movie)
+  return sortItems(movies, key, direction)
 }
 
 /**
@@ -355,13 +288,7 @@ export function sortMovies(movies: MovieSummary[], sort: SortKey, direction: Sor
  * where the films' total size would count the files they keep in other folders.
  */
 export function rootFolderView(movies: MovieSummary[], rootFolderId: number): Pick<LibraryPrefs, 'filter' | 'sort' | 'direction'> {
-  const bytes = new Map<string, number>()
-  for (const movie of movies) {
-    for (const v of movie.versions) {
-      if (v.rootFolderId === rootFolderId && v.size) bytes.set(v.name, (bytes.get(v.name) ?? 0) + v.size)
-    }
-  }
-  const main = [...bytes].sort((a, b) => b[1] - a[1])[0]?.[0]
+  const main = mainVersionIn(movies, rootFolderId)
   return { filter: { ...emptyFilter, status: 'available', rootFolders: [rootFolderId] }, sort: main ? `size:${main}` : 'size', direction: 'desc' }
 }
 

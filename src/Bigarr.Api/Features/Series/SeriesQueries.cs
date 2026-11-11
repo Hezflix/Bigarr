@@ -1,6 +1,7 @@
 namespace Bigarr.Api.Features.Series;
 
 using Bigarr.Api.Infrastructure.Persistence;
+using Bigarr.Decision;
 using Bigarr.Domain.Movies;
 using Bigarr.Domain.Tv;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,11 @@ public sealed class SeriesQueries(BigarrDbContext db, TimeProvider time)
 
     private sealed record SizeRow(int VersionId, int SeasonNumber, long Size, int Files);
 
+    /// <summary>
+    /// The library list: one light row per series, with what the library page sorts and filters on. Each figure is one
+    /// grouped read over the whole library (targets, files, active grabs), joined in memory by version id: the per-season
+    /// statistics of the series page would read every (version, season) pair and match them one by one.
+    /// </summary>
     public async Task<List<SeriesSummary>> ListAsync(CancellationToken ct)
     {
         var series = await db.Series.AsNoTracking()
@@ -21,18 +27,73 @@ public sealed class SeriesQueries(BigarrDbContext db, TimeProvider time)
                 s.Id, s.TvdbId, s.TmdbId, s.Title, s.SortTitle, s.Year, s.Status, s.Network, s.SeriesType, s.Images, s.AddedAt,
                 SeasonCount = s.Seasons.Count(x => x.SeasonNumber > 0),
                 Versions = s.Versions.OrderByDescending(v => v.IsDefault).ThenBy(v => v.Id)
-                    .Select(v => new { v.Id, v.Name, v.IsDefault, v.Monitored, v.QualityProfileId, Profile = v.QualityProfile.Name })
+                    .Select(v => new VersionRow(
+                        v.Id, v.Name, v.Mode, v.IsDefault, v.Monitored, v.QualityProfileId, v.QualityProfile.Name, v.RootFolderId, v.MonitorNewItems,
+                        v.Tags.Select(t => t.Id).ToList()))
                     .ToList(),
             })
+            .AsSplitQuery()
             .ToListAsync(ct);
 
-        var stats = await StatisticsAsync(series.SelectMany(s => s.Versions.Select(v => v.Id)).ToList(), ct);
-        var today = DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime);
+        var now = time.GetUtcNow().UtcDateTime;
+        var today = DateOnly.FromDateTime(now);
+
+        // Sonarr's series counts: specials stay out of the episode figures, every file counts in the size.
+        var counts = await db.EpisodeTargets.AsNoTracking()
+            .Where(t => t.Episode.SeasonNumber > 0)
+            .GroupBy(t => t.VersionId)
+            .Select(g => new
+            {
+                VersionId = g.Key,
+                Total = g.Count(),
+                Monitored = g.Count(t => t.Monitored),
+                Files = g.Count(t => t.EpisodeFileId != null),
+                Counted = g.Count(t => t.EpisodeFileId != null || (t.Monitored && t.Episode.AirDateUtc != null && t.Episode.AirDateUtc <= now)),
+            })
+            .ToDictionaryAsync(x => x.VersionId, ct);
+        var files = (await db.EpisodeFiles.AsNoTracking()
+                .GroupBy(f => new { f.VersionId, f.QualityId })
+                .Select(g => new { g.Key.VersionId, g.Key.QualityId, Size = g.Sum(f => f.Size) })
+                .ToListAsync(ct))
+            .ToLookup(f => f.VersionId);
+        var downloading = (await db.GrabTargets.AsNoTracking()
+                .Where(g => g.Active)
+                .Join(db.EpisodeTargets, g => g.TargetId, t => t.Id, (g, t) => t.VersionId)
+                .Distinct()
+                .ToListAsync(ct))
+            .ToHashSet();
         var nextAiring = await db.Episodes.AsNoTracking()
             .Where(e => e.AirDate != null && e.AirDate >= today && e.SeasonNumber > 0)
             .GroupBy(e => e.SeriesId)
             .Select(g => new { SeriesId = g.Key, Next = g.Min(e => e.AirDate) })
             .ToDictionaryAsync(x => x.SeriesId, x => x.Next, ct);
+        var profiles = await db.QualityProfiles.AsNoTracking().ToDictionaryAsync(p => p.Id, ct);
+        var qualityNames = await db.QualityDefinitions.AsNoTracking().ToDictionaryAsync(q => q.Id, q => q.Name, ct);
+
+        SeriesVersionSummary Summary(VersionRow v)
+        {
+            var count = counts.GetValueOrDefault(v.Id);
+            var mine = files[v.Id].ToList();
+            var statistics = new EpisodeStatistics(count?.Counted ?? 0, count?.Files ?? 0, count?.Monitored ?? 0, count?.Total ?? 0, mine.Sum(f => f.Size));
+            var profile = profiles.GetValueOrDefault(v.QualityProfileId);
+            var qualities = mine
+                .Select(f => f.QualityId)
+                .Distinct()
+                .OrderByDescending(id => profile is null ? -1 : ProfileRanking.RankOf(profile, id))
+                .Select(id => qualityNames.GetValueOrDefault(id, $"#{id}"))
+                .ToList();
+            var status = downloading.Contains(v.Id) ? VersionStatus.Downloading
+                : statistics.EpisodeCount > statistics.EpisodeFileCount ? VersionStatus.Missing
+                : mine.Count > 0 ? VersionStatus.Available
+                : VersionStatus.Pending;
+
+            // Quality only, as a one-shot version is never upgraded: the custom format score of every episode file is
+            // the series page's business, not the list's.
+            bool? cutoffMet = mine.Count == 0 || v.Mode != VersionMode.Managed || profile is null ? null : mine.All(f => ProfileRanking.CutoffMet(profile, f.QualityId));
+            return new SeriesVersionSummary(
+                v.Id, v.Name, v.IsDefault, v.Monitored, v.QualityProfileId, v.Profile, statistics,
+                v.Mode, v.RootFolderId, v.TagIds.Order().ToList(), v.MonitorNewItems, status, qualities, cutoffMet);
+        }
 
         return series.Select(s => new SeriesSummary(
             s.Id,
@@ -49,8 +110,20 @@ public sealed class SeriesQueries(BigarrDbContext db, TimeProvider time)
             s.Versions.Any(v => v.Monitored),
             s.SeasonCount,
             nextAiring.GetValueOrDefault(s.Id),
-            s.Versions.Select(v => new SeriesVersionSummary(v.Id, v.Name, v.IsDefault, v.Monitored, v.QualityProfileId, v.Profile, Total(stats, v.Id))).ToList())).ToList();
+            s.Versions.Select(Summary).ToList())).ToList();
     }
+
+    private sealed record VersionRow(
+        int Id,
+        string Name,
+        VersionMode Mode,
+        bool IsDefault,
+        bool Monitored,
+        int QualityProfileId,
+        string Profile,
+        int RootFolderId,
+        NewItemMonitoring MonitorNewItems,
+        List<int> TagIds);
 
     public async Task<SeriesResponse?> GetAsync(int seriesId, CancellationToken ct)
     {

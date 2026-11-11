@@ -5,35 +5,39 @@ import { cn } from 'cn'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import type { BulkMovieResult, BulkOutcome } from '@/api/client'
+import type { BulkMovieResult, BulkOutcome, BulkSeriesResult } from '@/api/client'
 import { statusStyles } from '@/components/StatusBadge'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
-export type BulkReport = { action: string; results: BulkMovieResult[] }
+/** A film or a series line of a bulk report. */
+export type BulkItemResult = BulkMovieResult | BulkSeriesResult
+
+export type BulkReport = { action: string; results: BulkItemResult[] }
 
 /** Problems first, so a long report opens on what needs a look. */
-const outcomeOrder: BulkOutcome[] = ['failed', 'skipped', 'updated', 'queued', 'versionsDeleted', 'movieDeleted', 'alreadyQueued', 'unchanged']
+const outcomeOrder: BulkOutcome[] = ['failed', 'skipped', 'updated', 'queued', 'versionsDeleted', 'movieDeleted', 'seriesDeleted', 'alreadyQueued', 'unchanged']
 
 const outcomeVariant: Record<BulkOutcome, 'secondary' | 'destructive' | 'outline'> = {
   updated: 'secondary',
   queued: 'secondary',
   versionsDeleted: 'secondary',
   movieDeleted: 'secondary',
+  seriesDeleted: 'secondary',
   unchanged: 'outline',
   alreadyQueued: 'outline',
   skipped: 'outline',
   failed: 'destructive',
 }
 
-export function countOutcomes(results: BulkMovieResult[]) {
+export function countOutcomes(results: BulkItemResult[]) {
   const counts = new Map<BulkOutcome, number>()
   for (const r of results) counts.set(r.outcome, (counts.get(r.outcome) ?? 0) + 1)
   return outcomeOrder.filter((o) => counts.has(o)).map((outcome) => ({ outcome, count: counts.get(outcome)! }))
 }
 
 /** "Updated 98 · Unchanged 12 · Skipped 2" */
-export function outcomeSummary(t: TFunction, results: BulkMovieResult[]) {
+export function outcomeSummary(t: TFunction, results: BulkItemResult[]) {
   return countOutcomes(results)
     .map(({ outcome, count }) => t('bulk.count', { label: t(`bulk.outcomes.${outcome}`), count }))
     .join(' · ')
@@ -66,7 +70,7 @@ export function BulkResultsDialog({ report, onClose }: { report: BulkReport | nu
 }
 
 /** Virtualized: a "select all" on 5000 films reports 5000 lines. */
-export function ResultList({ results, className }: { results: BulkMovieResult[]; className?: string }) {
+export function ResultList({ results, className }: { results: BulkItemResult[]; className?: string }) {
   const { t } = useTranslation()
   const scrollRef = useRef<HTMLDivElement>(null)
   const sorted = useMemo(
@@ -97,8 +101,12 @@ export function ResultList({ results, className }: { results: BulkMovieResult[];
               style={{ transform: `translateY(${item.start}px)` }}
             >
               <div className="min-w-0 flex-1">
-                {r.outcome === 'movieDeleted' ? (
+                {r.outcome === 'movieDeleted' || r.outcome === 'seriesDeleted' ? (
                   <span className="block truncate font-medium">{r.title}</span>
+                ) : 'seriesId' in r ? (
+                  <Link to="/series/$seriesId" params={{ seriesId: String(r.seriesId) }} className="block truncate font-medium hover:underline underline-offset-4">
+                    {r.title}
+                  </Link>
                 ) : (
                   <Link to="/movies/$movieId" params={{ movieId: String(r.movieId) }} className="block truncate font-medium hover:underline underline-offset-4">
                     {r.title}
