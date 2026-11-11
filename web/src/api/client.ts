@@ -1118,6 +1118,13 @@ export type TransferMode = 'hardlinkOrCopy' | 'copy' | 'move'
 
 export type NamingToken = { token: string; description: string; example: string; folder: boolean }
 
+/** Radarr's and Sonarr's "Colon Replacement" (Custom is Sonarr's alone). */
+export type ColonReplacement = 'delete' | 'dash' | 'spaceDash' | 'spaceDashSpace' | 'smart' | 'custom'
+
+export const filmColonReplacements: ColonReplacement[] = ['delete', 'dash', 'spaceDash', 'spaceDashSpace', 'smart']
+
+export const seriesColonReplacements: ColonReplacement[] = [...filmColonReplacements, 'custom']
+
 export type MediaManagement = {
   renameFiles: boolean
   fileNameTemplate: string
@@ -1138,6 +1145,10 @@ export type MediaManagement = {
   seasonPackUpgrade: SeasonPackUpgrade
   /** Percent, for the threshold mode. */
   seasonPackUpgradeThreshold: number
+  /** Radarr's "Replace Illegal Characters" for film names: on replaces them, off removes them. */
+  replaceIllegalCharacters: boolean
+  /** Radarr's "Colon Replacement" for film names (never custom). */
+  colonReplacement: ColonReplacement
 }
 
 export type SeasonPackUpgrade = 'all' | 'threshold' | 'any'
@@ -1154,6 +1165,8 @@ export type MediaManagementRequest = Pick<
   | 'extraFileExtensions'
   | 'seasonPackUpgrade'
   | 'seasonPackUpgradeThreshold'
+  | 'replaceIllegalCharacters'
+  | 'colonReplacement'
 >
 
 export type NamingPreview = { fileName: string | null; fileErrors: string[]; folderName: string | null; folderErrors: string[] }
@@ -1163,15 +1176,18 @@ export type BackfillResult = { mediaInfoAvailable: boolean; probed: number; rema
 export const mediaManagement = {
   get: () => api<MediaManagement>('/api/v1/mediamanagement'),
   update: (body: MediaManagementRequest) => put<MediaManagement>('/api/v1/mediamanagement', body),
-  /** A draft template rendered on the sample film, with the errors that would refuse it. */
-  preview: (fileNameTemplate: string | null, folderNameTemplate: string | null) =>
-    post<NamingPreview>('/api/v1/mediamanagement/naming/preview', { fileNameTemplate, folderNameTemplate }),
+  /** A draft template rendered on the sample film (or on `sampleTitle`), with the errors that would refuse it. */
+  preview: (
+    fileNameTemplate: string | null,
+    folderNameTemplate: string | null,
+    cleaning?: { replaceIllegalCharacters: boolean; colonReplacement: ColonReplacement; sampleTitle?: string },
+  ) => post<NamingPreview>('/api/v1/mediamanagement/naming/preview', { fileNameTemplate, folderNameTemplate, ...cleaning }),
   /** Probes a batch of files that have no media info yet. */
   backfill: () => post<BackfillResult>('/api/v1/mediamanagement/backfill'),
   seriesNaming: () => api<SeriesNaming>('/api/v1/mediamanagement/series-naming'),
   updateSeriesNaming: (body: SeriesNamingRequest) => put<SeriesNaming>('/api/v1/mediamanagement/series-naming', body),
   /** Draft series templates rendered on Sonarr's sample series, with the errors that would refuse each. */
-  previewSeriesNaming: (body: Partial<SeriesNamingRequest>) => post<SeriesNamingPreview>('/api/v1/mediamanagement/series-naming/preview', body),
+  previewSeriesNaming: (body: Partial<SeriesNamingRequest> & { sampleTitle?: string }) => post<SeriesNamingPreview>('/api/v1/mediamanagement/series-naming/preview', body),
 }
 
 // ---- series naming (Sonarr's) ------------------------------------------------
@@ -1205,6 +1221,12 @@ export type SeriesNamingRequest = {
   dailyEpisodeTemplate: string
   animeEpisodeTemplate: string
   multiEpisodeStyle: MultiEpisodeStyle
+  /** Sonarr's "Replace Illegal Characters" for series names: on replaces them, off removes them. */
+  replaceIllegalCharacters: boolean
+  /** Sonarr's "Colon Replacement". */
+  colonReplacement: ColonReplacement
+  /** What a colon becomes in custom mode. */
+  customColonReplacement: string
 }
 
 export type SeriesNaming = SeriesNamingRequest & { preview: SeriesNamingPreview; tokens: SeriesNamingToken[] }
@@ -1700,6 +1722,8 @@ export type RadarrImportRequest = {
   follow?: boolean
   /** Give each mapped profile the qualities, cutoff and upgrade setting of its Radarr profile. */
   importProfileQualities?: boolean
+  /** Copy Radarr's "Replace Illegal Characters" and "Colon Replacement" into the film naming settings (import only; the follow never rewrites them). */
+  importNaming?: boolean
 }
 
 export type RadarrImportState = 'idle' | 'queued' | 'running' | 'completed' | 'failed'
@@ -1731,6 +1755,8 @@ export type RadarrImportStatus = {
   current: string | null
   error: string | null
   issues: RadarrImportIssue[]
+  /** Radarr's illegal character and colon settings were copied into media management. */
+  namingImported: boolean
 }
 
 export const migration = {

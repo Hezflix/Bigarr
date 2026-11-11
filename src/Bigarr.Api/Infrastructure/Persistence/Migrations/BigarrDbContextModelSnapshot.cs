@@ -557,6 +557,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT")
                         .HasDefaultValue("{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}");
 
+                    b.Property<int>("ColonReplacement")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("DailyEpisodeTemplate")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -598,6 +601,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<bool>("RenameFiles")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("ReplaceIllegalCharacters")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("SeasonFolderTemplate")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -611,12 +617,25 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<double>("SeasonPackUpgradeThreshold")
                         .HasColumnType("REAL");
 
+                    b.Property<int>("SeriesColonReplacement")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SeriesCustomColonReplacement")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("");
+
                     b.Property<string>("SeriesFolderTemplate")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(1024)
                         .HasColumnType("TEXT")
                         .HasDefaultValue("{Series TitleYear}");
+
+                    b.Property<bool>("SeriesReplaceIllegalCharacters")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("SpecialsFolderName")
                         .IsRequired()

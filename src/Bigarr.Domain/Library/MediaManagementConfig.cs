@@ -1,3 +1,5 @@
+using Bigarr.Domain.Naming;
+
 namespace Bigarr.Domain.Library;
 
 /// <summary>How a file gets from the download client into the library (blueprint §3.7).</summary>
@@ -67,6 +69,15 @@ public sealed class MediaManagementConfig
     /// <summary>Comma list without dots, lower case: <c>srt,ass</c>.</summary>
     public string ExtraFileExtensions { get; set; } = DefaultExtraFileExtensions;
 
+    /// <summary>
+    /// Radarr's "Replace Illegal Characters": on, <c>/</c> becomes <c>+</c>, <c>?</c> becomes <c>!</c> and so on; off, they are
+    /// removed. Films and series have their own, as Radarr and Sonarr are configured apart.
+    /// </summary>
+    public bool ReplaceIllegalCharacters { get; set; } = true;
+
+    /// <summary>Radarr's "Colon Replacement" for film names (never <see cref="ColonReplacement.Custom"/>, which Radarr has not).</summary>
+    public ColonReplacement ColonReplacement { get; set; } = ColonReplacement.Smart;
+
     public SeasonPackUpgrade SeasonPackUpgrade { get; set; } = SeasonPackUpgrade.All;
 
     /// <summary>Percent of the pack's episodes that must be upgraded in <see cref="SeasonPackUpgrade.Threshold"/> mode.</summary>
@@ -104,6 +115,21 @@ public sealed class MediaManagementConfig
     public string AnimeEpisodeTemplate { get; set; } = DefaultAnimeEpisodeTemplate;
 
     public MultiEpisodeStyle MultiEpisodeStyle { get; set; } = MultiEpisodeStyle.PrefixedRange;
+
+    /// <summary>Sonarr's "Replace Illegal Characters", for series, season and episode names.</summary>
+    public bool SeriesReplaceIllegalCharacters { get; set; } = true;
+
+    /// <summary>Sonarr's "Colon Replacement" for series names.</summary>
+    public ColonReplacement SeriesColonReplacement { get; set; } = ColonReplacement.Smart;
+
+    /// <summary>What <see cref="ColonReplacement.Custom"/> prints for a colon in a series name.</summary>
+    public string SeriesCustomColonReplacement { get; set; } = string.Empty;
+
+    /// <summary>The cleaning of film names.</summary>
+    public NameCleaning FilmNameCleaning => new(ReplaceIllegalCharacters, ColonReplacement);
+
+    /// <summary>The cleaning of series, season and episode names.</summary>
+    public NameCleaning SeriesNameCleaning => new(SeriesReplaceIllegalCharacters, SeriesColonReplacement, SeriesCustomColonReplacement);
 
     public static MediaManagementConfig Default() => new();
 }

@@ -41,6 +41,9 @@ public sealed class RadarrImportProgress(RadarrImportRequest request)
 
     public string? Error { get; set; }
 
+    /// <summary>Radarr's illegal character and colon settings were copied into media management.</summary>
+    public bool NamingImported { get; set; }
+
     public int Processed => _processed;
 
     public void MovieDone() => Interlocked.Increment(ref _processed);
@@ -112,7 +115,7 @@ public sealed class RadarrImportProgress(RadarrImportRequest request)
 
         return new RadarrImportStatusResponse(
             State, StartedAt, FinishedAt, Total, _processed, _moviesAdded, _versionsAdded, _versionsUpdated, _filesAdded, _filesMissing,
-            _skipped, _failed, _tagsAdded, _exclusionsAdded, _historyAdded, _blocklistAdded, _customFormatsAdded, _customFormatsUpdated, _profilesScored, Current, Error, issues, _profileQualitiesCopied);
+            _skipped, _failed, _tagsAdded, _exclusionsAdded, _historyAdded, _blocklistAdded, _customFormatsAdded, _customFormatsUpdated, _profilesScored, Current, Error, issues, _profileQualitiesCopied, NamingImported);
     }
 
     public static RadarrImportStatusResponse Idle { get; } =

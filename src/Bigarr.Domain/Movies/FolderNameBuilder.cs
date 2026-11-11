@@ -1,47 +1,19 @@
-using System.Text;
+using Bigarr.Domain.Naming;
 
 namespace Bigarr.Domain.Movies;
 
 /// <summary>
-/// Default folder template <c>{Title} ({Year})</c>, sanitized for every filesystem we care about.
-/// The full naming template grammar arrives with the media management slice (M5).
+/// Default folder template <c>{Title} ({Year})</c>, cleaned like Radarr's folder names (<see cref="NameCleaner"/>); the
+/// naming settings' "Replace Illegal Characters" and "Colon Replacement" apply when <paramref name="cleaning"/> is given.
 /// </summary>
 public static class FolderNameBuilder
 {
-    private static readonly char[] Invalid = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
-
-    public static string Build(string title, int? year)
+    public static string Build(string title, int? year, NameCleaning? cleaning = null)
     {
-        var name = year is > 0 ? $"{title} ({year})" : title;
-        return Sanitize(name);
+        ArgumentNullException.ThrowIfNull(title);
+        var name = NameCleaner.Clean(title, cleaning);
+        return NameCleaner.FinishFolder(year is > 0 ? $"{name} ({year})" : name, cleaning);
     }
 
-    public static string Sanitize(string name)
-    {
-        ArgumentNullException.ThrowIfNull(name);
-
-        // "Mission: Impossible" → "Mission - Impossible", like Radarr's default.
-        var sb = new StringBuilder(name.Length);
-        for (var i = 0; i < name.Length; i++)
-        {
-            var ch = name[i];
-            if (ch == ':')
-            {
-                var nextIsSpace = i + 1 < name.Length && name[i + 1] == ' ';
-                sb.Append(nextIsSpace ? " -" : " - ");
-            }
-            else if (Array.IndexOf(Invalid, ch) >= 0 || char.IsControl(ch))
-            {
-                continue;
-            }
-            else
-            {
-                sb.Append(ch);
-            }
-        }
-
-        var collapsed = string.Join(' ', sb.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries));
-        var trimmed = collapsed.TrimEnd('.', ' ');
-        return trimmed.Length == 0 ? "_" : trimmed;
-    }
+    public static string Sanitize(string name, NameCleaning? cleaning = null) => NameCleaner.Sanitize(name, cleaning);
 }

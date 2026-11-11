@@ -1,5 +1,6 @@
 using Bigarr.Domain.Library;
 using Bigarr.Domain.Movies;
+using Bigarr.Domain.Naming;
 
 namespace Bigarr.Api.Features.Import;
 
@@ -22,7 +23,11 @@ public sealed record MediaManagementResponse(
     List<NamingTokenResponse> Tokens,
     /// <summary>Sonarr's "Season Pack Upgrade": all, threshold or any.</summary>
     SeasonPackUpgrade SeasonPackUpgrade = SeasonPackUpgrade.All,
-    double SeasonPackUpgradeThreshold = 100);
+    double SeasonPackUpgradeThreshold = 100,
+    /// <summary>Radarr's "Replace Illegal Characters" (film names): on replaces them, off removes them.</summary>
+    bool ReplaceIllegalCharacters = true,
+    /// <summary>Radarr's "Colon Replacement" (film names): delete, dash, spaceDash, spaceDashSpace or smart.</summary>
+    ColonReplacement ColonReplacement = ColonReplacement.Smart);
 
 public sealed record MediaManagementRequest(
     bool RenameFiles,
@@ -38,9 +43,20 @@ public sealed record MediaManagementRequest(
     /// <summary>Null leaves the setting as it is.</summary>
     SeasonPackUpgrade? SeasonPackUpgrade = null,
     /// <summary>Percent, 0 to 100; null leaves it as it is.</summary>
-    double? SeasonPackUpgradeThreshold = null);
+    double? SeasonPackUpgradeThreshold = null,
+    /// <summary>Null leaves the setting as it is.</summary>
+    bool? ReplaceIllegalCharacters = null,
+    /// <summary>Not <c>custom</c>: Radarr has none. Null leaves the setting as it is.</summary>
+    ColonReplacement? ColonReplacement = null);
 
-public sealed record NamingPreviewRequest(string? FileNameTemplate, string? FolderNameTemplate);
+/// <summary>Draft film templates and naming settings; a null template is not previewed, null settings are Radarr's defaults, a null title is the sample film.</summary>
+public sealed record NamingPreviewRequest(
+    string? FileNameTemplate,
+    string? FolderNameTemplate,
+    bool? ReplaceIllegalCharacters = null,
+    ColonReplacement? ColonReplacement = null,
+    /// <summary>A title to render instead of the sample film's, to see what the settings do to it.</summary>
+    string? SampleTitle = null);
 
 public sealed record NamingPreviewResponse(string? FileName, List<string> FileErrors, string? FolderName, List<string> FolderErrors);
 

@@ -123,23 +123,30 @@ public static partial class SeriesNamingTemplate
         ReleaseGroup = "SubsPlease",
     };
 
-    /// <summary>The series folder (frozen at version creation).</summary>
-    public static string RenderSeriesFolder(string template, SeriesNamingContext context) =>
-        Finish(RenderTokens(template, context with { Episodes = [] }, MultiEpisodeStyle.PrefixedRange));
+    /// <summary>
+    /// The series folder (frozen at version creation). Values are cleaned where they are printed, with the colon and illegal
+    /// character settings of <paramref name="cleaning"/> (Sonarr's defaults when null).
+    /// </summary>
+    public static string RenderSeriesFolder(string template, SeriesNamingContext context, NameCleaning? cleaning = null) =>
+        NameCleaner.FinishFolder(RenderTokens(template, context with { Episodes = [] }, MultiEpisodeStyle.PrefixedRange, cleaning), cleaning);
 
     /// <summary>A season folder; season 0 takes the specials folder name instead (which may hold tokens too).</summary>
-    public static string RenderSeasonFolder(string seasonTemplate, string specialsTemplate, int seasonNumber, SeriesNamingContext context)
+    public static string RenderSeasonFolder(string seasonTemplate, string specialsTemplate, int seasonNumber, SeriesNamingContext context, NameCleaning? cleaning = null)
     {
         var template = seasonNumber == 0 ? specialsTemplate : seasonTemplate;
         var seasonOnly = context with { Episodes = [new EpisodeNaming(seasonNumber, 0, null, null, string.Empty)] };
-        return Finish(RenderTokens(template, seasonOnly, MultiEpisodeStyle.PrefixedRange, seasonOnly: true));
+        return NameCleaner.FinishSeasonFolder(RenderTokens(template, seasonOnly, MultiEpisodeStyle.PrefixedRange, cleaning, seasonOnly: true), cleaning);
     }
 
     /// <summary>An episode file name, without extension. Too long a name loses the end of its episode title first.</summary>
-    public static string RenderFile(string template, SeriesNamingContext context, MultiEpisodeStyle style, string extension = ".mkv")
+    public static string RenderFile(string template, SeriesNamingContext context, MultiEpisodeStyle style, string extension = ".mkv", NameCleaning? cleaning = null)
     {
+        ArgumentNullException.ThrowIfNull(template);
         ArgumentNullException.ThrowIfNull(context);
-        var name = Finish(RenderTokens(template, context, style));
+
+        // A literal "..." in the template survives the merge of repeated separators, as Sonarr's {ellipsis} does.
+        template = template.Replace("...", NameCleaner.Ellipsis.ToString(), StringComparison.Ordinal);
+        var name = NameCleaner.FinishFile(RenderTokens(template, context, style, cleaning), cleaning);
         var budget = MaxFileNameBytes - Encoding.UTF8.GetByteCount(extension);
         var overflow = Encoding.UTF8.GetByteCount(name) - budget;
         if (overflow <= 0)
@@ -150,8 +157,8 @@ public static partial class SeriesNamingTemplate
         var title = EpisodeTitle(context.Episodes) ?? string.Empty;
         if (title.Length > overflow + 3)
         {
-            var shortened = title[..^(overflow + 3)].TrimEnd() + "...";
-            name = Finish(RenderTokens(template, context, style, titleOverride: shortened));
+            var shortened = title[..^(overflow + 3)].TrimEnd() + NameCleaner.Ellipsis;
+            name = NameCleaner.FinishFile(RenderTokens(template, context, style, cleaning, titleOverride: shortened), cleaning);
         }
 
         // Still too long (huge series title): cut, the extension keeps its room.
@@ -267,7 +274,8 @@ public static partial class SeriesNamingTemplate
 
     /// <summary>
     /// Sonarr's episode title of a file: one title, or the shared title of a multi-part episode
-    /// ("Pilot (1)" + "Pilot (2)" → "Pilot"), else the titles joined with " + ".
+    /// ("Pilot (1)" + "Pilot (2)" → "Pilot"), else the titles joined with " + ". Each title loses its trailing spaces, dots and
+    /// question marks first (<c>EpisodeTitleTrimCharacters</c>): "Who Are You?" prints as "Who Are You", never "Who Are You!".
     /// </summary>
     public static string? EpisodeTitle(IReadOnlyList<EpisodeNaming> episodes)
     {
@@ -277,25 +285,25 @@ public static partial class SeriesNamingTemplate
             return null;
         }
 
+        static string Trimmed(string? title) => (title ?? string.Empty).TrimEnd(' ', '.', '?');
+
         if (episodes.Count == 1)
         {
-            return string.IsNullOrWhiteSpace(episodes[0].Title) ? null : episodes[0].Title.Trim();
+            var only = Trimmed(episodes[0].Title).Trim();
+            return only.Length == 0 ? null : only;
         }
 
-        var cleaned = episodes.Select(e => MultiPartRegex().Replace(e.Title ?? string.Empty, string.Empty).Trim()).ToList();
+        var cleaned = episodes.Select(e => MultiPartRegex().Replace(Trimmed(e.Title), string.Empty).Trim()).ToList();
         if (cleaned.All(c => c.Length > 0) && cleaned.Distinct(StringComparer.Ordinal).Count() == 1)
         {
             return cleaned[0];
         }
 
-        var titles = episodes.Select(e => e.Title?.Trim()).Where(t => !string.IsNullOrEmpty(t)).ToList();
+        var titles = episodes.Select(e => Trimmed(e.Title).Trim()).Where(t => t.Length > 0).ToList();
         return titles.Count == 0 ? null : string.Join(" + ", titles);
     }
 
-    private static string Finish(string rendered) =>
-        FolderNameBuilder.Sanitize(string.Join(' ', rendered.Split(' ', StringSplitOptions.RemoveEmptyEntries)));
-
-    private static string RenderTokens(string template, SeriesNamingContext context, MultiEpisodeStyle style, bool seasonOnly = false, string? titleOverride = null)
+    private static string RenderTokens(string template, SeriesNamingContext context, MultiEpisodeStyle style, NameCleaning? cleaning, bool seasonOnly = false, string? titleOverride = null)
     {
         ArgumentNullException.ThrowIfNull(template);
         ArgumentNullException.ThrowIfNull(context);
@@ -315,7 +323,7 @@ public static partial class SeriesNamingTemplate
         return TokenRegex().Replace(text, match =>
         {
             var token = match.Groups["token"].Value;
-            var value = Resolve(Normalize(token), match.Groups["arg"].Success ? match.Groups["arg"].Value : null, context, episodes, titleOverride);
+            var value = Resolve(Normalize(token), match.Groups["arg"].Success ? match.Groups["arg"].Value : null, context, episodes, titleOverride)?.Trim();
             if (string.IsNullOrEmpty(value))
             {
                 return string.Empty;
@@ -328,7 +336,8 @@ public static partial class SeriesNamingTemplate
                 value = value.Replace(' ', separator[0]);
             }
 
-            return match.Groups["tag"].Value + match.Groups["prefix"].Value + value + match.Groups["suffix"].Value;
+            value = NameCleaner.Clean(value, cleaning);
+            return value.Length == 0 ? string.Empty : match.Groups["tag"].Value + match.Groups["prefix"].Value + value + match.Groups["suffix"].Value;
         });
     }
 

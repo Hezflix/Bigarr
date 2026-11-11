@@ -362,7 +362,7 @@ public sealed class ImportService(
                 OriginalReleaseTitle = plan.ReleaseTitle,
                 OriginalFileName = Path.GetFileNameWithoutExtension(source.Name),
             };
-            fileName = NamingTemplate.Render(config.FileNameTemplate, naming) + extension;
+            fileName = NamingTemplate.Render(config.FileNameTemplate, naming, config.FilmNameCleaning) + extension;
         }
 
         var destination = Path.GetFullPath(Path.Combine(folder, fileName));

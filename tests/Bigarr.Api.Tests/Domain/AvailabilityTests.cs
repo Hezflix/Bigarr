@@ -72,8 +72,8 @@ public sealed class AvailabilityTests
     [Theory]
     [InlineData("The Matrix", 1999, "The Matrix (1999)")]
     [InlineData("Mission: Impossible", 1996, "Mission - Impossible (1996)")]
-    [InlineData("What If...?", 2021, "What If... (2021)")]
-    [InlineData("Face/Off", 1997, "FaceOff (1997)")]
+    [InlineData("What If...?", 2021, "What If.! (2021)")]
+    [InlineData("Face/Off", 1997, "Face+Off (1997)")]
     [InlineData("Untitled", null, "Untitled")]
     public void Folder_names_are_sanitized(string title, int? year, string expected) =>
         Assert.Equal(expected, FolderNameBuilder.Build(title, year));

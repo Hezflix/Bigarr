@@ -156,7 +156,11 @@ public sealed record SonarrNamingConfig(
     string? AnimeEpisodeFormat,
     string? SeriesFolderFormat,
     string? SeasonFolderFormat,
-    string? SpecialsFolderFormat);
+    string? SpecialsFolderFormat,
+    bool? ReplaceIllegalCharacters = null,
+    /// <summary>A number in Sonarr (0 to 5, 5 being custom), read as a raw JSON value so a name would do as well.</summary>
+    JsonElement ColonReplacementFormat = default,
+    string? CustomColonReplacementFormat = null);
 
 public sealed record SonarrQualityDefinition(int Id, RadarrQualityDefinition? Quality, string? Title, double? MinSize, double? MaxSize, double? PreferredSize);
 

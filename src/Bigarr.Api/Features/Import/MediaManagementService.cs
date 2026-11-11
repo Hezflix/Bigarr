@@ -95,7 +95,14 @@ public sealed class MediaManagementService(BigarrDbContext db, IMediaInfoReader 
             return Failure.Invalid("Invalid season pack threshold", "A percentage between 0 and 100.");
         }
 
+        if (request.ColonReplacement is { } colon && (!Enum.IsDefined(colon) || colon == ColonReplacement.Custom))
+        {
+            return Failure.Invalid("Invalid colon replacement", "Delete, dash, space dash, space dash space or smart (Radarr has no custom one).");
+        }
+
         var config = await GetAsync(ct);
+        config.ReplaceIllegalCharacters = request.ReplaceIllegalCharacters ?? config.ReplaceIllegalCharacters;
+        config.ColonReplacement = request.ColonReplacement ?? config.ColonReplacement;
         config.SeasonPackUpgrade = request.SeasonPackUpgrade ?? config.SeasonPackUpgrade;
         config.SeasonPackUpgradeThreshold = request.SeasonPackUpgradeThreshold ?? config.SeasonPackUpgradeThreshold;
         config.RenameFiles = request.RenameFiles;
@@ -124,11 +131,13 @@ public sealed class MediaManagementService(BigarrDbContext db, IMediaInfoReader 
             config.ExtraFileExtensions,
             probe.IsAvailable,
             probe is FfprobeMediaInfoReader ffprobe ? ffprobe.ExecutablePath : null,
-            SafeRender(config.FileNameTemplate) + ".mkv",
-            SafeRender(config.FolderNameTemplate),
+            SafeRender(config.FileNameTemplate, NamingTemplate.Sample, config.FilmNameCleaning, folder: false) + ".mkv",
+            SafeRender(config.FolderNameTemplate, NamingTemplate.Sample, config.FilmNameCleaning, folder: true),
             NamingTemplate.Tokens.Select(t => new NamingTokenResponse(t.Name, t.Description, t.Example, t.Folder)).ToList(),
             config.SeasonPackUpgrade,
-            config.SeasonPackUpgradeThreshold);
+            config.SeasonPackUpgradeThreshold,
+            config.ReplaceIllegalCharacters,
+            config.ColonReplacement);
     }
 
     // ---- series naming ------------------------------------------------------------------------------------------------
@@ -147,8 +156,12 @@ public sealed class MediaManagementService(BigarrDbContext db, IMediaInfoReader 
             config.MultiEpisodeStyle,
             PreviewSeries(new SeriesNamingPreviewRequest(
                 config.SeriesFolderTemplate, config.SeasonFolderTemplate, config.SpecialsFolderName,
-                config.StandardEpisodeTemplate, config.DailyEpisodeTemplate, config.AnimeEpisodeTemplate, config.MultiEpisodeStyle)),
-            SeriesNamingTemplate.Tokens.Select(t => new SeriesNamingTokenResponse(t.Name, t.Description, t.Example, t.Scope)).ToList());
+                config.StandardEpisodeTemplate, config.DailyEpisodeTemplate, config.AnimeEpisodeTemplate, config.MultiEpisodeStyle,
+                config.SeriesReplaceIllegalCharacters, config.SeriesColonReplacement, config.SeriesCustomColonReplacement)),
+            SeriesNamingTemplate.Tokens.Select(t => new SeriesNamingTokenResponse(t.Name, t.Description, t.Example, t.Scope)).ToList(),
+            config.SeriesReplaceIllegalCharacters,
+            config.SeriesColonReplacement,
+            config.SeriesCustomColonReplacement);
     }
 
     public async Task<Result<MediaManagementConfig>> UpdateSeriesNamingAsync(SeriesNamingRequest request, CancellationToken ct)
@@ -160,15 +173,23 @@ public sealed class MediaManagementService(BigarrDbContext db, IMediaInfoReader 
             return Failure.Invalid("Invalid multi-episode style", "Extend, duplicate, repeat, scene, range or prefixed range.");
         }
 
+        if (request.ColonReplacement is { } colon && !Enum.IsDefined(colon))
+        {
+            return Failure.Invalid("Invalid colon replacement", "Delete, dash, space dash, space dash space, smart or custom.");
+        }
+
+        var config = await GetAsync(ct);
         var preview = PreviewSeries(new SeriesNamingPreviewRequest(
             request.SeriesFolderTemplate, request.SeasonFolderTemplate, request.SpecialsFolderName,
-            request.StandardEpisodeTemplate, request.DailyEpisodeTemplate, request.AnimeEpisodeTemplate, request.MultiEpisodeStyle));
+            request.StandardEpisodeTemplate, request.DailyEpisodeTemplate, request.AnimeEpisodeTemplate, request.MultiEpisodeStyle,
+            request.ReplaceIllegalCharacters ?? config.SeriesReplaceIllegalCharacters,
+            request.ColonReplacement ?? config.SeriesColonReplacement,
+            request.CustomColonReplacement ?? config.SeriesCustomColonReplacement));
         if (preview.Errors.Count > 0)
         {
             return Failure.Invalid("Invalid series naming", string.Join(" ", preview.Errors.Select(e => $"{Labels[e.Key]}: {string.Join(" ", e.Value)}")));
         }
 
-        var config = await GetAsync(ct);
         Apply(config, request);
         await db.SaveChangesAsync(ct);
         return Result<MediaManagementConfig>.Ok(config);
@@ -187,6 +208,9 @@ public sealed class MediaManagementService(BigarrDbContext db, IMediaInfoReader 
         config.DailyEpisodeTemplate = request.DailyEpisodeTemplate.Trim();
         config.AnimeEpisodeTemplate = request.AnimeEpisodeTemplate.Trim();
         config.MultiEpisodeStyle = request.MultiEpisodeStyle;
+        config.SeriesReplaceIllegalCharacters = request.ReplaceIllegalCharacters ?? config.SeriesReplaceIllegalCharacters;
+        config.SeriesColonReplacement = request.ColonReplacement ?? config.SeriesColonReplacement;
+        config.SeriesCustomColonReplacement = request.CustomColonReplacement ?? config.SeriesCustomColonReplacement;
     }
 
     private static readonly Dictionary<string, string> Labels = new()
@@ -197,6 +221,7 @@ public sealed class MediaManagementService(BigarrDbContext db, IMediaInfoReader 
         ["standardEpisode"] = "Standard episode format",
         ["dailyEpisode"] = "Daily episode format",
         ["animeEpisode"] = "Anime episode format",
+        ["customColonReplacement"] = "Custom colon replacement",
     };
 
     /// <summary>Renders draft series templates on Sonarr's sample series, with the errors that would refuse each.</summary>
@@ -204,6 +229,25 @@ public sealed class MediaManagementService(BigarrDbContext db, IMediaInfoReader 
     {
         ArgumentNullException.ThrowIfNull(request);
         var errors = new Dictionary<string, List<string>>();
+
+        var cleaning = new NameCleaning(
+            request.ReplaceIllegalCharacters ?? true,
+            request.ColonReplacement is { } colon && Enum.IsDefined(colon) ? colon : ColonReplacement.Smart,
+            request.CustomColonReplacement ?? string.Empty);
+        if (request.ColonReplacement == ColonReplacement.Custom)
+        {
+            var custom = NameCleaning.ValidateCustomColon(request.CustomColonReplacement).ToList();
+            if ((request.CustomColonReplacement?.Length ?? 0) > MaxCustomColonLength)
+            {
+                custom.Add($"The custom colon replacement is at most {MaxCustomColonLength} characters.");
+            }
+
+            if (custom.Count > 0)
+            {
+                errors["customColonReplacement"] = custom;
+                cleaning = cleaning with { CustomColon = string.Empty };
+            }
+        }
 
         string? Check(string key, string? template, SeriesTemplateKind kind, Func<string, string> render)
         {
@@ -229,17 +273,25 @@ public sealed class MediaManagementService(BigarrDbContext db, IMediaInfoReader 
         }
 
         var style = Enum.IsDefined(request.MultiEpisodeStyle) ? request.MultiEpisodeStyle : MultiEpisodeStyle.PrefixedRange;
-        var sample = SeriesNamingTemplate.Sample;
+        var sample = WithTitle(SeriesNamingTemplate.Sample, request.SampleTitle);
+        var anime = WithTitle(SeriesNamingTemplate.AnimeSample, request.SampleTitle);
+        var multi = WithTitle(SeriesNamingTemplate.MultiSample, request.SampleTitle);
         return new SeriesNamingPreviewResponse(
-            Check("seriesFolder", request.SeriesFolderTemplate, SeriesTemplateKind.SeriesFolder, t => SeriesNamingTemplate.RenderSeriesFolder(t, sample)),
-            Check("seasonFolder", request.SeasonFolderTemplate, SeriesTemplateKind.SeasonFolder, t => SeriesNamingTemplate.RenderSeasonFolder(t, t, 1, sample)),
-            Check("specialsFolder", request.SpecialsFolderName, SeriesTemplateKind.SpecialsFolder, t => SeriesNamingTemplate.RenderSeasonFolder(t, t, 0, sample)),
-            Check("standardEpisode", request.StandardEpisodeTemplate, SeriesTemplateKind.Standard, t => SeriesNamingTemplate.RenderFile(t, sample, style) + ".mkv"),
-            request.StandardEpisodeTemplate is null ? null : SafeSeries(() => SeriesNamingTemplate.RenderFile(request.StandardEpisodeTemplate, SeriesNamingTemplate.MultiSample, style) + ".mkv"),
-            Check("dailyEpisode", request.DailyEpisodeTemplate, SeriesTemplateKind.Daily, t => SeriesNamingTemplate.RenderFile(t, sample, style) + ".mkv"),
-            Check("animeEpisode", request.AnimeEpisodeTemplate, SeriesTemplateKind.Anime, t => SeriesNamingTemplate.RenderFile(t, SeriesNamingTemplate.AnimeSample, style) + ".mkv"),
+            Check("seriesFolder", request.SeriesFolderTemplate, SeriesTemplateKind.SeriesFolder, t => SeriesNamingTemplate.RenderSeriesFolder(t, sample, cleaning)),
+            Check("seasonFolder", request.SeasonFolderTemplate, SeriesTemplateKind.SeasonFolder, t => SeriesNamingTemplate.RenderSeasonFolder(t, t, 1, sample, cleaning)),
+            Check("specialsFolder", request.SpecialsFolderName, SeriesTemplateKind.SpecialsFolder, t => SeriesNamingTemplate.RenderSeasonFolder(t, t, 0, sample, cleaning)),
+            Check("standardEpisode", request.StandardEpisodeTemplate, SeriesTemplateKind.Standard, t => SeriesNamingTemplate.RenderFile(t, sample, style, ".mkv", cleaning) + ".mkv"),
+            request.StandardEpisodeTemplate is null ? null : SafeSeries(() => SeriesNamingTemplate.RenderFile(request.StandardEpisodeTemplate, multi, style, ".mkv", cleaning) + ".mkv"),
+            Check("dailyEpisode", request.DailyEpisodeTemplate, SeriesTemplateKind.Daily, t => SeriesNamingTemplate.RenderFile(t, sample, style, ".mkv", cleaning) + ".mkv"),
+            Check("animeEpisode", request.AnimeEpisodeTemplate, SeriesTemplateKind.Anime, t => SeriesNamingTemplate.RenderFile(t, anime, style, ".mkv", cleaning) + ".mkv"),
             errors);
     }
+
+    /// <summary>Longest custom colon replacement (the column's size).</summary>
+    public const int MaxCustomColonLength = 255;
+
+    private static SeriesNamingContext WithTitle(SeriesNamingContext sample, string? title) =>
+        string.IsNullOrWhiteSpace(title) ? sample : sample with { SeriesTitle = title.Trim() };
 
     private static string? SafeSeries(Func<string> render)
     {
@@ -260,18 +312,24 @@ public sealed class MediaManagementService(BigarrDbContext db, IMediaInfoReader 
 
         var fileErrors = request.FileNameTemplate is null ? [] : NamingTemplate.Validate(request.FileNameTemplate, forFile: true).ToList();
         var folderErrors = request.FolderNameTemplate is null ? [] : NamingTemplate.Validate(request.FolderNameTemplate, forFile: false).ToList();
+        var cleaning = new NameCleaning(
+            request.ReplaceIllegalCharacters ?? true,
+            request.ColonReplacement is { } colon && Enum.IsDefined(colon) && colon != ColonReplacement.Custom ? colon : ColonReplacement.Smart);
+        var sample = string.IsNullOrWhiteSpace(request.SampleTitle)
+            ? NamingTemplate.Sample
+            : NamingTemplate.Sample with { MovieTitle = request.SampleTitle.Trim(), OriginalTitle = request.SampleTitle.Trim() };
         return new NamingPreviewResponse(
-            request.FileNameTemplate is null ? null : SafeRender(request.FileNameTemplate) + ".mkv",
+            request.FileNameTemplate is null ? null : SafeRender(request.FileNameTemplate, sample, cleaning, folder: false) + ".mkv",
             fileErrors,
-            request.FolderNameTemplate is null ? null : SafeRender(request.FolderNameTemplate),
+            request.FolderNameTemplate is null ? null : SafeRender(request.FolderNameTemplate, sample, cleaning, folder: true),
             folderErrors);
     }
 
-    private static string SafeRender(string template)
+    private static string SafeRender(string template, NamingContext sample, NameCleaning cleaning, bool folder)
     {
         try
         {
-            return NamingTemplate.Render(template, NamingTemplate.Sample);
+            return folder ? NamingTemplate.RenderFolder(template, sample, cleaning) : NamingTemplate.Render(template, sample, cleaning);
         }
         catch (Exception)
         {

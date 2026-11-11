@@ -126,6 +126,7 @@ function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: Rad
   const [importBlocklist, setImportBlocklist] = useState(true)
   const [importCustomFormats, setImportCustomFormats] = useState(true)
   const [importProfileQualities, setImportProfileQualities] = useState(true)
+  const [importNaming, setImportNaming] = useState(true)
   const [keepMonitored, setKeepMonitored] = useState(true)
   const [includeWithoutFile, setIncludeWithoutFile] = useState(true)
   const [follow, setFollow] = useState(false)
@@ -148,6 +149,7 @@ function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: Rad
         importBlocklist,
         importCustomFormats,
         importProfileQualities,
+        importNaming,
         keepMonitored,
         includeMoviesWithoutFile: includeWithoutFile,
         follow,
@@ -226,6 +228,7 @@ function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: Rad
           disabled={preview.customFormats === 0}
         />
         <Toggle id="radarr-import-profile-qualities" label={t('importRadarr.importProfileQualities')} checked={importProfileQualities} onChange={setImportProfileQualities} />
+        <Toggle id="radarr-import-naming" label={t('importRadarr.importNaming')} checked={importNaming} onChange={setImportNaming} />
         <Toggle id="radarr-import-history" label={t('importRadarr.importHistory')} checked={importHistory} onChange={setImportHistory} disabled={preview.historyRecords === 0} />
         <Toggle id="radarr-import-blocklist" label={t('importRadarr.importBlocklist')} checked={importBlocklist} onChange={setImportBlocklist} disabled={preview.blocklist === 0} />
         <Toggle id="radarr-keep-monitored" label={t('importRadarr.keepMonitored')} checked={keepMonitored} onChange={setKeepMonitored} />
@@ -267,6 +270,7 @@ function RunStep({ status, onAgain }: { status: RadarrImportStatus; onAgain: () 
     ['importRadarr.customFormatsUpdated', status.customFormatsUpdated],
     ['importRadarr.profilesScored', status.profilesScored],
     ['importRadarr.profileQualitiesCopied', status.profileQualitiesCopied],
+    ['importRadarr.namingImported', status.namingImported ? 1 : 0],
   ] as const
 
   return (

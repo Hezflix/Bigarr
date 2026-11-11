@@ -60,6 +60,9 @@ internal sealed class FakeRadarr : IAsyncDisposable
     /// <summary>Title → (Radarr film id it maps to or 0, quality name, custom formats, score).</summary>
     public Func<string, (int MovieId, string Quality, string[] Formats, int Score)>? Parse { get; set; }
 
+    /// <summary>What <c>/config/naming</c> answers; null answers 404 (a Radarr from before the setting).</summary>
+    public object? Naming { get; set; }
+
     public bool Down { get; set; }
 
     /// <summary>Answer gzipped to a client that accepts it.</summary>
@@ -116,6 +119,7 @@ internal sealed class FakeRadarr : IAsyncDisposable
             "/api/v3/rootfolder" => Json(new object[] { new { id = 1, path = RootPath } }),
             "/api/v3/customformat" => Json(Array.Empty<object>()),
             "/api/v3/exclusions" => Json(Array.Empty<object>()),
+            "/api/v3/config/naming" => Naming is null ? new FakeHttpServer.Answer(404) : Json(Naming),
             "/api/v3/history" => Json(new { page = 1, pageSize = 500, totalRecords = History.Count, records = History.OrderBy(h => h.Date).Select(LineJson).ToArray() }),
             "/api/v3/parse" => ParseJson(query["title"].ToString()),
             _ => null,

@@ -273,7 +273,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
         var defaultVersion = movie.Versions.FirstOrDefault(v => v.IsDefault);
         var folderName = string.IsNullOrWhiteSpace(request.FolderName)
             ? defaultVersion?.FolderName ?? await FolderNameAsync(movie.Title, movie.OriginalTitle, movie.Year, movie.TmdbId, movie.ImdbId, name, ct)
-            : FolderNameBuilder.Sanitize(request.FolderName);
+            : FolderNameBuilder.Sanitize(request.FolderName, (await MediaManagementAsync(ct)).FilmNameCleaning);
 
         var version = new MovieVersion
         {
@@ -664,9 +664,9 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
     /// <summary>The folder template of the media management settings, on the film; the default builder when it yields nothing.</summary>
     private async Task<string> FolderNameAsync(string title, string? originalTitle, int? year, int tmdbId, string? imdbId, string versionName, CancellationToken ct)
     {
-        var template = (await MediaManagementAsync(ct)).FolderNameTemplate;
-        var name = NamingTemplate.Render(template, new NamingContext(title, originalTitle, year, tmdbId, imdbId, versionName));
-        return name.Length == 0 || name == "_" ? FolderNameBuilder.Build(title, year) : name;
+        var config = await MediaManagementAsync(ct);
+        var name = NamingTemplate.RenderFolder(config.FolderNameTemplate, new NamingContext(title, originalTitle, year, tmdbId, imdbId, versionName), config.FilmNameCleaning);
+        return name.Length == 0 || name == "_" ? FolderNameBuilder.Build(title, year, config.FilmNameCleaning) : name;
     }
 
     public async Task<Result<Movie>> RefreshAsync(int movieId, CancellationToken ct)

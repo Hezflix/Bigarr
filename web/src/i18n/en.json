@@ -1273,6 +1273,24 @@
     "folderTemplate": "Folder name template",
     "folderTemplateHint": "Applied when a version is created; the folder name is then frozen so files never move silently.",
     "preview": "Preview",
+    "cleaning": {
+      "replaceIllegal": "Replace illegal characters",
+      "replaceIllegalHint": "On: / and \\ become +, ? becomes !, * becomes -, and < > | \" are dropped, as in Radarr and Sonarr. Off: every one of them, colons included, is removed instead.",
+      "colon": "Colon replacement",
+      "colonHint": "What a colon becomes in a name: no file name can hold one on every system. Smart turns \"Title: Subtitle\" into \"Title - Subtitle\" and any other colon into a dash.",
+      "colons": {
+        "delete": "Delete",
+        "dash": "Replace with dash",
+        "spaceDash": "Replace with space dash",
+        "spaceDashSpace": "Replace with space dash space",
+        "smart": "Smart replace",
+        "custom": "Custom"
+      },
+      "custom": "Custom colon replacement",
+      "customHint": "What is printed instead of a colon, such as ∶ (a letter that looks like one). It cannot hold : \\ / < > ? * | or \".",
+      "sampleTitle": "Try a title",
+      "sampleTitleHint": "The previews below render this title: type one of yours to see what the two settings do to it."
+    },
     "tokens": "Tokens",
     "tokensHint": "Radarr syntax: anything between the braces around a token is printed only when the token has a value, so {(Release Year)} disappears without a year. Lower-case tokens print in lower case, {Movie.Title} joins words with dots. {Version} is the version name.",
     "fileOnly": "file only",
@@ -1870,6 +1888,8 @@
     "customFormatsUpdated": "Custom formats updated",
     "profilesScored": "Profiles scored",
     "profileQualitiesCopied": "Profile qualities copied",
+    "importNaming": "Copy Radarr's illegal character and colon replacement settings into the film naming settings",
+    "namingImported": "Naming settings imported",
     "issues": "Details",
     "noIssues": "Every film went through.",
     "issueTitle": "Film",
