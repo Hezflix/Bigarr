@@ -131,6 +131,128 @@ public sealed class MediaManagementService(BigarrDbContext db, IMediaInfoReader 
             config.SeasonPackUpgradeThreshold);
     }
 
+    // ---- series naming ------------------------------------------------------------------------------------------------
+
+    public SeriesNamingResponse ToSeriesNaming(MediaManagementConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        return new SeriesNamingResponse(
+            config.RenameEpisodes,
+            config.SeriesFolderTemplate,
+            config.SeasonFolderTemplate,
+            config.SpecialsFolderName,
+            config.StandardEpisodeTemplate,
+            config.DailyEpisodeTemplate,
+            config.AnimeEpisodeTemplate,
+            config.MultiEpisodeStyle,
+            PreviewSeries(new SeriesNamingPreviewRequest(
+                config.SeriesFolderTemplate, config.SeasonFolderTemplate, config.SpecialsFolderName,
+                config.StandardEpisodeTemplate, config.DailyEpisodeTemplate, config.AnimeEpisodeTemplate, config.MultiEpisodeStyle)),
+            SeriesNamingTemplate.Tokens.Select(t => new SeriesNamingTokenResponse(t.Name, t.Description, t.Example, t.Scope)).ToList());
+    }
+
+    public async Task<Result<MediaManagementConfig>> UpdateSeriesNamingAsync(SeriesNamingRequest request, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Enum.IsDefined(request.MultiEpisodeStyle))
+        {
+            return Failure.Invalid("Invalid multi-episode style", "Extend, duplicate, repeat, scene, range or prefixed range.");
+        }
+
+        var preview = PreviewSeries(new SeriesNamingPreviewRequest(
+            request.SeriesFolderTemplate, request.SeasonFolderTemplate, request.SpecialsFolderName,
+            request.StandardEpisodeTemplate, request.DailyEpisodeTemplate, request.AnimeEpisodeTemplate, request.MultiEpisodeStyle));
+        if (preview.Errors.Count > 0)
+        {
+            return Failure.Invalid("Invalid series naming", string.Join(" ", preview.Errors.Select(e => $"{Labels[e.Key]}: {string.Join(" ", e.Value)}")));
+        }
+
+        var config = await GetAsync(ct);
+        Apply(config, request);
+        await db.SaveChangesAsync(ct);
+        return Result<MediaManagementConfig>.Ok(config);
+    }
+
+    /// <summary>Copies a naming config that passed <see cref="PreviewSeries"/> (used by the Sonarr import as well).</summary>
+    public static void Apply(MediaManagementConfig config, SeriesNamingRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(request);
+        config.RenameEpisodes = request.RenameEpisodes;
+        config.SeriesFolderTemplate = request.SeriesFolderTemplate.Trim();
+        config.SeasonFolderTemplate = request.SeasonFolderTemplate.Trim();
+        config.SpecialsFolderName = request.SpecialsFolderName.Trim();
+        config.StandardEpisodeTemplate = request.StandardEpisodeTemplate.Trim();
+        config.DailyEpisodeTemplate = request.DailyEpisodeTemplate.Trim();
+        config.AnimeEpisodeTemplate = request.AnimeEpisodeTemplate.Trim();
+        config.MultiEpisodeStyle = request.MultiEpisodeStyle;
+    }
+
+    private static readonly Dictionary<string, string> Labels = new()
+    {
+        ["seriesFolder"] = "Series folder",
+        ["seasonFolder"] = "Season folder",
+        ["specialsFolder"] = "Specials folder",
+        ["standardEpisode"] = "Standard episode format",
+        ["dailyEpisode"] = "Daily episode format",
+        ["animeEpisode"] = "Anime episode format",
+    };
+
+    /// <summary>Renders draft series templates on Sonarr's sample series, with the errors that would refuse each.</summary>
+    public static SeriesNamingPreviewResponse PreviewSeries(SeriesNamingPreviewRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var errors = new Dictionary<string, List<string>>();
+
+        string? Check(string key, string? template, SeriesTemplateKind kind, Func<string, string> render)
+        {
+            if (template is null)
+            {
+                return null;
+            }
+
+            var found = SeriesNamingTemplate.Validate(template, kind).ToList();
+            if (found.Count > 0)
+            {
+                errors[key] = found;
+            }
+
+            try
+            {
+                return render(template);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        var style = Enum.IsDefined(request.MultiEpisodeStyle) ? request.MultiEpisodeStyle : MultiEpisodeStyle.PrefixedRange;
+        var sample = SeriesNamingTemplate.Sample;
+        return new SeriesNamingPreviewResponse(
+            Check("seriesFolder", request.SeriesFolderTemplate, SeriesTemplateKind.SeriesFolder, t => SeriesNamingTemplate.RenderSeriesFolder(t, sample)),
+            Check("seasonFolder", request.SeasonFolderTemplate, SeriesTemplateKind.SeasonFolder, t => SeriesNamingTemplate.RenderSeasonFolder(t, t, 1, sample)),
+            Check("specialsFolder", request.SpecialsFolderName, SeriesTemplateKind.SpecialsFolder, t => SeriesNamingTemplate.RenderSeasonFolder(t, t, 0, sample)),
+            Check("standardEpisode", request.StandardEpisodeTemplate, SeriesTemplateKind.Standard, t => SeriesNamingTemplate.RenderFile(t, sample, style) + ".mkv"),
+            request.StandardEpisodeTemplate is null ? null : SafeSeries(() => SeriesNamingTemplate.RenderFile(request.StandardEpisodeTemplate, SeriesNamingTemplate.MultiSample, style) + ".mkv"),
+            Check("dailyEpisode", request.DailyEpisodeTemplate, SeriesTemplateKind.Daily, t => SeriesNamingTemplate.RenderFile(t, sample, style) + ".mkv"),
+            Check("animeEpisode", request.AnimeEpisodeTemplate, SeriesTemplateKind.Anime, t => SeriesNamingTemplate.RenderFile(t, SeriesNamingTemplate.AnimeSample, style) + ".mkv"),
+            errors);
+    }
+
+    private static string? SafeSeries(Func<string> render)
+    {
+        try
+        {
+            return render();
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Renders a draft template on the sample film, with the errors that would refuse it.</summary>
     public static NamingPreviewResponse Preview(NamingPreviewRequest request)
     {

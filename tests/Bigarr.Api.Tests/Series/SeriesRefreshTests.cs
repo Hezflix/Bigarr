@@ -202,7 +202,7 @@ public sealed class SeriesRefreshTests : IDisposable
             .SingleAsync();
 
     private SeriesService Service(BigarrDbContext db) =>
-        new(db, _provider, XemFakes.Disabled(db, new FixedTimeProvider(Now)), new FixedTimeProvider(Now), NullLogger<SeriesService>.Instance);
+        new(db, _provider, XemFakes.Disabled(db, new FixedTimeProvider(Now)), new Bigarr.Api.Infrastructure.Files.RecycleBin(new FixedTimeProvider(Now), NullLogger<Bigarr.Api.Infrastructure.Files.RecycleBin>.Instance), new FixedTimeProvider(Now), NullLogger<SeriesService>.Instance);
 
     private static SeriesMetadata Show(int[] seasons, params EpisodeMetadata[] episodes) => new()
     {

@@ -15,10 +15,10 @@ using Bigarr.Domain.Tv;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
-/// Application rules of the Series slice: lookup, add, versions, monitoring, refresh, delete. Nothing here touches the
-/// disk: the scan and the import come with the Sonarr parser.
+/// Application rules of the Series slice: lookup, add, versions, monitoring, refresh, delete. The disk is touched only
+/// by a delete asked with <c>deleteFiles</c> (through the recycle bin); the scan and the import live elsewhere.
 /// </summary>
-public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataProvider metadata, XemService xem, TimeProvider time, ILogger<SeriesService> logger)
+public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataProvider metadata, XemService xem, Bigarr.Api.Infrastructure.Files.RecycleBin recycleBin, TimeProvider time, ILogger<SeriesService> logger)
 {
     public DateTime Now => time.GetUtcNow().UtcDateTime;
 
@@ -174,7 +174,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             Mode = VersionMode.Managed,
             QualityProfile = profile,
             RootFolder = root,
-            FolderName = string.IsNullOrWhiteSpace(request.FolderName) ? FolderNameBuilder.Build(series.Title, series.Year) : FolderNameBuilder.Sanitize(request.FolderName),
+            FolderName = string.IsNullOrWhiteSpace(request.FolderName) ? await FolderNameAsync(series, versionName, ct) : FolderNameBuilder.Sanitize(request.FolderName),
             IsDefault = true,
             Monitored = request.Monitored,
             SeasonFolder = request.SeasonFolder,
@@ -294,7 +294,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             QualityProfile = profile,
             RootFolder = root,
             FolderName = string.IsNullOrWhiteSpace(request.FolderName)
-                ? defaultVersion?.FolderName ?? FolderNameBuilder.Build(series.Title, series.Year)
+                ? await FolderNameAsync(series, name, ct)
                 : FolderNameBuilder.Sanitize(request.FolderName),
             IsDefault = defaultVersion is null,
             Monitored = request.Monitored,
@@ -724,8 +724,19 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         return Result<SeriesVersion>.Ok(version);
     }
 
-    /// <summary>Same rules as a film's versions: the default needs a successor (<c>?promote=</c>), the last one takes the series with it. True when the series went.</summary>
-    public async Task<Result<bool>> DeleteVersionAsync(int seriesId, int versionId, int? promote, CancellationToken ct)
+    /// <summary>The series folder template (Settings → Media management) applied to a new version; frozen afterwards.</summary>
+    private async Task<string> FolderNameAsync(Series series, string versionName, CancellationToken ct)
+    {
+        var config = await db.MediaManagement.AsNoTracking().FirstOrDefaultAsync(c => c.Id == MediaManagementConfig.SingletonId, ct) ?? MediaManagementConfig.Default();
+        return Import.SeriesNaming.FolderName(config, series, versionName);
+    }
+
+    /// <summary>
+    /// Same rules as a film's versions: the default needs a successor (<c>?promote=</c>), the last one takes the series
+    /// with it. With <paramref name="deleteFiles"/> the version's files go to the recycle bin, and its folder too when no
+    /// other version shares it (Radarr's rules for films). True when the series went.
+    /// </summary>
+    public async Task<Result<bool>> DeleteVersionAsync(int seriesId, int versionId, int? promote, CancellationToken ct, bool deleteFiles = false)
     {
         var series = await WithGraph(tracking: true).FirstOrDefaultAsync(s => s.Id == seriesId, ct);
         var version = series?.Versions.FirstOrDefault(v => v.Id == versionId);
@@ -737,13 +748,19 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         var siblings = series.Versions.Where(v => v.Id != versionId).ToList();
         if (siblings.Count == 0)
         {
+            if (deleteFiles && await RemoveFoldersAsync(series, [version], ct) is { } failed)
+            {
+                return failed;
+            }
+
             await RemoveSeriesAsync(series, ct);
             return Result<bool>.Ok(true);
         }
 
+        SeriesVersion? successor = null;
         if (version.IsDefault)
         {
-            var successor = promote is null ? null : siblings.FirstOrDefault(v => v.Id == promote);
+            successor = promote is null ? null : siblings.FirstOrDefault(v => v.Id == promote);
             if (successor is null)
             {
                 return Failure.Conflict("This is the default version", "Choose the new default among the other versions with ?promote=<versionId>.");
@@ -753,7 +770,15 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             {
                 return Failure.Invalid("Only a managed version can become the default");
             }
+        }
 
+        if (deleteFiles && await RemoveVersionFilesAsync(series, version, siblings, ct) is { } removal)
+        {
+            return removal;
+        }
+
+        if (successor is not null)
+        {
             await SwitchDefaultAsync(version, successor, ct);
         }
 
@@ -765,7 +790,8 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         return Result<bool>.Ok(false);
     }
 
-    public async Task<Result<bool>> DeleteSeriesAsync(int seriesId, CancellationToken ct)
+    /// <summary>With <paramref name="deleteFiles"/>, every folder of the series goes to the recycle bin, like Sonarr's "delete series folder".</summary>
+    public async Task<Result<bool>> DeleteSeriesAsync(int seriesId, CancellationToken ct, bool deleteFiles = false)
     {
         var series = await WithGraph(tracking: true).FirstOrDefaultAsync(s => s.Id == seriesId, ct);
         if (series is null)
@@ -773,8 +799,86 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             return Failure.NotFound("Series");
         }
 
+        if (deleteFiles && await RemoveFoldersAsync(series, series.Versions.ToList(), ct) is { } failed)
+        {
+            return failed;
+        }
+
         await RemoveSeriesAsync(series, ct);
         return Result<bool>.Ok(true);
+    }
+
+    /// <summary>The folders of <paramref name="versions"/> to the recycle bin (each once), with a file-deleted line per episode.</summary>
+    private async Task<Failure?> RemoveFoldersAsync(Series series, List<SeriesVersion> versions, CancellationToken ct)
+    {
+        var config = await db.MediaManagement.AsNoTracking().FirstOrDefaultAsync(c => c.Id == MediaManagementConfig.SingletonId, ct) ?? MediaManagementConfig.Default();
+        await JournalDeletedFilesAsync(series, versions, ct);
+        foreach (var group in versions.GroupBy(v => (v.RootFolderId, v.FolderName)))
+        {
+            var root = await db.RootFolders.AsNoTracking().FirstAsync(r => r.Id == group.Key.RootFolderId, ct);
+            var folder = Path.Combine(root.Path, group.Key.FolderName);
+            try
+            {
+                recycleBin.RemoveDirectory(folder, config.RecycleBinPath, root.Path);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                logger.LogWarning(ex, "Could not delete folder {Folder}", folder);
+                return new Failure(StatusCodes.Status500InternalServerError, "Could not delete the series folder", $"{folder}: {ex.Message}");
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// One version's files (and extras) to the recycle bin. A folder no other version uses goes whole, as Radarr does
+    /// for a film version; a shared folder keeps the other versions' files.
+    /// </summary>
+    private async Task<Failure?> RemoveVersionFilesAsync(Series series, SeriesVersion version, List<SeriesVersion> siblings, CancellationToken ct)
+    {
+        if (!siblings.Any(v => v.RootFolderId == version.RootFolderId && v.FolderName == version.FolderName))
+        {
+            return await RemoveFoldersAsync(series, [version], ct);
+        }
+
+        var config = await db.MediaManagement.AsNoTracking().FirstOrDefaultAsync(c => c.Id == MediaManagementConfig.SingletonId, ct) ?? MediaManagementConfig.Default();
+        await JournalDeletedFilesAsync(series, [version], ct);
+        var root = await db.RootFolders.AsNoTracking().FirstAsync(r => r.Id == version.RootFolderId, ct);
+        var folder = Path.Combine(root.Path, version.FolderName);
+        var files = await db.EpisodeFiles.AsNoTracking().Include(f => f.Extras).Where(f => f.VersionId == version.Id).ToListAsync(ct);
+        foreach (var path in files.SelectMany(f => new[] { f.RelativePath }.Concat(f.Extras.Select(e => e.RelativePath))))
+        {
+            try
+            {
+                recycleBin.RemoveFile(Path.Combine(folder, path), config.RecycleBinPath, root.Path);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return new Failure(StatusCodes.Status500InternalServerError, "Could not delete a file of the version", $"{path}: {ex.Message}");
+            }
+        }
+
+        return null;
+    }
+
+    private async Task JournalDeletedFilesAsync(Series series, List<SeriesVersion> versions, CancellationToken ct)
+    {
+        var ids = versions.Select(v => v.Id).ToList();
+        var targets = await db.EpisodeTargets.AsNoTracking()
+            .Include(t => t.Episode)
+            .Include(t => t.EpisodeFile)
+            .Where(t => ids.Contains(t.VersionId) && t.EpisodeFileId != null)
+            .ToListAsync(ct);
+        foreach (var target in targets)
+        {
+            var version = versions.First(v => v.Id == target.VersionId);
+            var line = Downloads.GrabService.SeriesHistory(version, target, Bigarr.Domain.History.HistoryEventType.FileDeleted, target.EpisodeFile!.OriginalReleaseTitle, null, null, Now);
+            line.TargetId = null; // the target goes with the version; the snapshots keep the line meaningful
+            line.Data["path"] = Path.Combine(version.FolderName, target.EpisodeFile.RelativePath);
+            line.Data["reason"] = "versionDeleted";
+            db.History.Add(line);
+        }
     }
 
     private async Task RemoveSeriesAsync(Series series, CancellationToken ct)

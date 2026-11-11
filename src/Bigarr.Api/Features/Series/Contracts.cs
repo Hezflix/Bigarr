@@ -43,7 +43,7 @@ public sealed record AddSeriesVersionRequest(
     int QualityProfileId,
     /// <summary>Defaults to the series' default root folder.</summary>
     int? RootFolderId = null,
-    /// <summary>Defaults to the default version's folder name.</summary>
+    /// <summary>Defaults to the series folder template (Settings → Media management).</summary>
     string? FolderName = null,
     MonitoringOption Monitor = MonitoringOption.All,
     bool SeasonFolder = true,

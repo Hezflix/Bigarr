@@ -149,8 +149,29 @@ public sealed class SeriesTargetsFactory(BigarrDbContext db, CustomFormatScorer 
         return all.GetValueOrDefault(seriesId);
     }
 
+    /// <summary>The files on disk only, never shadow picks: what an import compares a new file with.</summary>
+    public async Task<SeriesTargets?> LoadFilesOnlyAsync(int seriesId, CancellationToken ct)
+    {
+        var all = await LoadAsync([seriesId], time.GetUtcNow().UtcDateTime, ct, withPicks: false);
+        return all.GetValueOrDefault(seriesId);
+    }
+
+    /// <summary>Every series of the library by title, alias and TVDB id: how a release or a file finds its show.</summary>
+    public async Task<SeriesTitleIndex> IndexAsync(CancellationToken ct)
+    {
+        var series = await db.Series.AsNoTracking()
+            .Select(s => new { s.Id, s.TvdbId, s.Title, s.OriginalTitle, s.Year, s.AlternativeTitles })
+            .ToListAsync(ct);
+        var tvdbIds = series.Where(s => s.TvdbId != null).Select(s => s.TvdbId!.Value).ToList();
+        var aliases = await db.SceneNames.AsNoTracking().Where(n => tvdbIds.Contains(n.TvdbId)).ToListAsync(ct);
+        return new SeriesTitleIndex(
+            series.Select(s => new IndexedSeries(s.Id, s.TvdbId, s.Title, s.Year, new[] { s.OriginalTitle }.Concat(s.AlternativeTitles.Select(a => a.Title)).OfType<string>().ToList())),
+            aliases.Select(a => new SceneAlias(a.TvdbId, a.Title, a.SceneSeasonNumber)));
+    }
+
     /// <param name="asOf">Shadow mode: only picks made before this time stand in for files.</param>
-    public async Task<Dictionary<int, SeriesTargets>> LoadAsync(IReadOnlyCollection<int> seriesIds, DateTime asOf, CancellationToken ct)
+    /// <param name="withPicks">False compares with the files on disk even in shadow mode.</param>
+    public async Task<Dictionary<int, SeriesTargets>> LoadAsync(IReadOnlyCollection<int> seriesIds, DateTime asOf, CancellationToken ct, bool withPicks = true)
     {
         var result = new Dictionary<int, SeriesTargets>();
         if (seriesIds.Count == 0)
@@ -170,7 +191,7 @@ public sealed class SeriesTargetsFactory(BigarrDbContext db, CustomFormatScorer 
         var active = (await db.GrabTargets.AsNoTracking().Where(t => t.Active && targetIds.Contains(t.TargetId)).Select(t => t.TargetId).ToListAsync(ct)).ToHashSet();
         var calculator = await scorer.CalculatorAsync(ct);
         var formatNames = await scorer.NamesAsync(ct);
-        var picks = shadow.Value.Enabled ? await LatestPicksAsync(targetIds, asOf, ct) : [];
+        var picks = withPicks && shadow.Value.Enabled ? await LatestPicksAsync(targetIds, asOf, ct) : [];
         var tvdbIds = series.Where(s => s.TvdbId is not null).Select(s => s.TvdbId!.Value).ToList();
         var sceneNames = (await db.SceneNames.AsNoTracking().Where(n => tvdbIds.Contains(n.TvdbId)).ToListAsync(ct))
             .Select(n => new SceneAlias(n.TvdbId, n.Title, n.SceneSeasonNumber))

@@ -67,9 +67,9 @@ public static class SeriesEndpoints
         return result.IsSuccess ? TypedResults.Ok((await queries.GetAsync(id, ct))!) : result.Failure!.ToProblem();
     }
 
-    private static async Task<Results<NoContent, ProblemHttpResult>> DeleteAsync(int id, SeriesService series, CancellationToken ct)
+    private static async Task<Results<NoContent, ProblemHttpResult>> DeleteAsync(int id, SeriesService series, CancellationToken ct, bool deleteFiles = false)
     {
-        var result = await series.DeleteSeriesAsync(id, ct);
+        var result = await series.DeleteSeriesAsync(id, ct, deleteFiles);
         return result.IsSuccess ? TypedResults.NoContent() : result.Failure!.ToProblem();
     }
 
@@ -99,9 +99,9 @@ public static class SeriesEndpoints
         return result.IsSuccess ? TypedResults.Ok((await queries.GetVersionAsync(id, versionId, ct))!) : result.Failure!.ToProblem();
     }
 
-    private static async Task<Results<NoContent, ProblemHttpResult>> DeleteVersionAsync(int id, int versionId, SeriesService series, CancellationToken ct, int? promote = null)
+    private static async Task<Results<NoContent, ProblemHttpResult>> DeleteVersionAsync(int id, int versionId, SeriesService series, CancellationToken ct, int? promote = null, bool deleteFiles = false)
     {
-        var result = await series.DeleteVersionAsync(id, versionId, promote, ct);
+        var result = await series.DeleteVersionAsync(id, versionId, promote, ct, deleteFiles);
         return result.IsSuccess ? TypedResults.NoContent() : result.Failure!.ToProblem();
     }
 
