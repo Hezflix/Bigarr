@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FolderInputIcon, LinkIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, movies, rootFolders, type MediaKind, type RootFolder, type UnmappedFolder } from '@/api/client'
+import { ApiError, movies, rootFolders, series as seriesApi, type MediaKind, type RootFolder, type UnmappedFolder } from '@/api/client'
 import { PathPicker } from '@/components/PathPicker'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -33,6 +33,7 @@ export function LibrarySettingsPage() {
   const roots = useQuery({ queryKey: ['rootFolders'], queryFn: rootFolders.list })
   const unmapped = useQuery({ queryKey: ['unmapped'], queryFn: rootFolders.unmapped })
   const library = useQuery({ queryKey: ['movies'], queryFn: movies.list })
+  const seriesLibrary = useQuery({ queryKey: ['series'], queryFn: seriesApi.list })
   // Movie files per root folder, next to its version count; null until the library is loaded.
   const files = useMemo(
     () => (library.data && roots.data ? new Map(usagePerRootFolder(library.data, roots.data).map((f) => [f.id, f.files])) : null),
@@ -75,7 +76,7 @@ export function LibrarySettingsPage() {
       <section className="flex flex-col gap-3">
         <h2 className="text-xl font-semibold tracking-tight">{t('settings.rootFolders')}</h2>
 
-        {library.data && roots.data && <StorageBar movies={library.data} roots={roots.data} />}
+        {library.data && roots.data && <StorageBar movies={library.data} series={seriesLibrary.data} roots={roots.data} />}
 
         <div className="overflow-x-auto rounded-lg border">
           <Table data-testid="rootfolders-table">

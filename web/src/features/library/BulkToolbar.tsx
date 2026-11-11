@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ChevronDownIcon, EyeIcon, EyeOffIcon, PlusIcon, SearchIcon, TagsIcon, Trash2Icon, XIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -95,59 +95,20 @@ export function BulkToolbar({ library, shown, filtered, selected, onSelect, onDe
   const disabled = count === 0 || busy
 
   return (
-    <div className="sticky bottom-3 z-20 flex flex-col gap-2 rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur" data-testid="bulk-toolbar">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
-        <span className="font-medium tabular-nums" data-testid="bulk-count">
-          {t('bulk.selected', { count })}
-        </span>
-        <Button type="button" variant="link" size="xs" className="h-auto px-0" onClick={() => onSelect(library.map((m) => m.id))} disabled={count === library.length} data-testid="bulk-select-all">
-          {t('bulk.selectAll', { count: library.length })}
-        </Button>
-        {filtered && (
-          <Button type="button" variant="link" size="xs" className="h-auto px-0" onClick={() => onSelect(shown.map((m) => m.id))} disabled={shown.length === 0} data-testid="bulk-select-shown">
-            {t('bulk.selectShown', { count: shown.length })}
-          </Button>
-        )}
-        {count > 0 && (
-          <Button type="button" variant="link" size="xs" className="h-auto px-0 text-muted-foreground" onClick={onClear} data-testid="bulk-clear">
-            {t('bulk.clear')}
-          </Button>
-        )}
-
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Label htmlFor="bulk-target" className="text-muted-foreground">
-            {t('bulk.target')}
-          </Label>
-          <Select value={target} onValueChange={(value) => setTarget(value as VersionSelector)}>
-            <SelectTrigger id="bulk-target" size="sm" className="min-w-36" data-testid="bulk-target">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="default" data-testid="bulk-target-default">
-                {t('bulk.targets.default')}
-              </SelectItem>
-              <SelectItem value="all" data-testid="bulk-target-all">
-                {t('bulk.targets.all')}
-              </SelectItem>
-              {names.map(({ name }) => (
-                <SelectItem key={name} value={`version:${name}`} data-testid={`bulk-target-${name}`}>
-                  {name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {count > 0 && covered < count && (
-            <span className="text-xs text-muted-foreground" data-testid="bulk-coverage">
-              {t('bulk.coverage', { count: count - covered, name: targetName })}
-            </span>
-          )}
-          <Button type="button" variant="ghost" size="sm" onClick={onDone} data-testid="bulk-done">
-            <XIcon />
-            {t('bulk.done')}
-          </Button>
-        </div>
-      </div>
-
+    <BulkBar
+      count={count}
+      total={library.length}
+      shown={shown.length}
+      filtered={filtered}
+      onSelectAll={() => onSelect(library.map((m) => m.id))}
+      onSelectShown={() => onSelect(shown.map((m) => m.id))}
+      onClear={onClear}
+      onDone={onDone}
+      names={names}
+      target={target}
+      onTarget={setTarget}
+      uncovered={count - covered}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
@@ -232,12 +193,103 @@ export function BulkToolbar({ library, shown, filtered, selected, onSelect, onDe
       </div>
 
       <BulkDeleteDialog open={deleting} onOpenChange={setDeleting} movieIds={ids} target={target} targetPhrase={targetPhrase} onDeleted={onDeleted} />
+    </BulkBar>
+  )
+}
+
+type BarProps = {
+  count: number
+  /** Items in the library, and shown by the current view. */
+  total: number
+  shown: number
+  filtered: boolean
+  onSelectAll: () => void
+  onSelectShown: () => void
+  onClear: () => void
+  onDone: () => void
+  names: VersionName[]
+  target: VersionSelector
+  onTarget: (target: VersionSelector) => void
+  /** Selected items without the target version: skipped. */
+  uncovered: number
+  /** The actions row, then any dialog. */
+  children: ReactNode
+}
+
+/**
+ * Selection mode's bar, sticky at the bottom of the viewport, for films and series: what is selected, which version of
+ * each item the actions touch, and the actions (`children`).
+ */
+export function BulkBar({ count, total, shown, filtered, onSelectAll, onSelectShown, onClear, onDone, names, target, onTarget, uncovered, children }: BarProps) {
+  const { t } = useTranslation()
+  const targetName = target.slice('version:'.length)
+  return (
+    <div className="sticky bottom-3 z-20 flex flex-col gap-2 rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur" data-testid="bulk-toolbar">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+        <span className="font-medium tabular-nums" data-testid="bulk-count">
+          {t('bulk.selected', { count })}
+        </span>
+        <Button type="button" variant="link" size="xs" className="h-auto px-0" onClick={onSelectAll} disabled={count === total} data-testid="bulk-select-all">
+          {t('bulk.selectAll', { count: total })}
+        </Button>
+        {filtered && (
+          <Button type="button" variant="link" size="xs" className="h-auto px-0" onClick={onSelectShown} disabled={shown === 0} data-testid="bulk-select-shown">
+            {t('bulk.selectShown', { count: shown })}
+          </Button>
+        )}
+        {count > 0 && (
+          <Button type="button" variant="link" size="xs" className="h-auto px-0 text-muted-foreground" onClick={onClear} data-testid="bulk-clear">
+            {t('bulk.clear')}
+          </Button>
+        )}
+
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <Label htmlFor="bulk-target" className="text-muted-foreground">
+            {t('bulk.target')}
+          </Label>
+          <Select value={target} onValueChange={(value) => onTarget(value as VersionSelector)}>
+            <SelectTrigger id="bulk-target" size="sm" className="min-w-36" data-testid="bulk-target">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default" data-testid="bulk-target-default">
+                {t('bulk.targets.default')}
+              </SelectItem>
+              <SelectItem value="all" data-testid="bulk-target-all">
+                {t('bulk.targets.all')}
+              </SelectItem>
+              {names.map(({ name }) => (
+                <SelectItem key={name} value={`version:${name}`} data-testid={`bulk-target-${name}`}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {count > 0 && uncovered > 0 && (
+            <span className="text-xs text-muted-foreground" data-testid="bulk-coverage">
+              {t('bulk.coverage', { count: uncovered, name: targetName })}
+            </span>
+          )}
+          <Button type="button" variant="ghost" size="sm" onClick={onDone} data-testid="bulk-done">
+            <XIcon />
+            {t('bulk.done')}
+          </Button>
+        </div>
+      </div>
+
+      {children}
     </div>
   )
 }
 
+/** "the default version", "every version", "the 4k version": the target inside a sentence. */
+export function useTargetPhrase(target: VersionSelector) {
+  const { t } = useTranslation()
+  return target === 'default' || target === 'all' ? t(`bulk.inline.${target}`) : t('bulk.inline.version', { name: target.slice('version:'.length) })
+}
+
 /** Add, remove or replace version tags; a missing tag can be created on the spot. */
-function TagsPopover({ tags, disabled, onApply }: { tags: Tag[]; disabled: boolean; onApply: (mode: TagsMode, tagIds: number[]) => void }) {
+export function TagsPopover({ tags, disabled, onApply }: { tags: Tag[]; disabled: boolean; onApply: (mode: TagsMode, tagIds: number[]) => void }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)

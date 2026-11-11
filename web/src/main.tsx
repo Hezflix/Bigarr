@@ -53,7 +53,17 @@ const libraryRoute = createRoute({
 })
 const addRoute = createRoute({ getParentRoute: () => appRoute, path: '/add', component: lazyRouteComponent(() => import('./features/movies/AddMoviePage'), 'AddMoviePage') })
 const movieRoute = createRoute({ getParentRoute: () => appRoute, path: '/movies/$movieId', component: lazyRouteComponent(() => import('./features/movies/MovieDetailPage'), 'MovieDetailPage') })
-const seriesLibraryRoute = createRoute({ getParentRoute: () => appRoute, path: '/series', component: lazyRouteComponent(() => import('./features/series/SeriesLibraryPage'), 'SeriesLibraryPage') })
+const seriesLibraryRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/series',
+  // Same links as the film library: `?view=table&preset=continuing`, or `rootFolder=3` from the storage bar.
+  validateSearch: (search: Record<string, unknown>): { view?: string; preset?: string; rootFolder?: number } => ({
+    view: typeof search.view === 'string' ? search.view : undefined,
+    preset: typeof search.preset === 'string' ? search.preset : undefined,
+    rootFolder: typeof search.rootFolder === 'number' ? search.rootFolder : undefined,
+  }),
+  component: lazyRouteComponent(() => import('./features/series/SeriesLibraryPage'), 'SeriesLibraryPage'),
+})
 const addSeriesRoute = createRoute({ getParentRoute: () => appRoute, path: '/series/add', component: lazyRouteComponent(() => import('./features/series/AddSeriesPage'), 'AddSeriesPage') })
 const seriesRoute = createRoute({ getParentRoute: () => appRoute, path: '/series/$seriesId', component: lazyRouteComponent(() => import('./features/series/SeriesDetailPage'), 'SeriesDetailPage') })
 const queueRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/queue', component: lazyRouteComponent(() => import('./features/activity/QueuePage'), 'QueuePage') })

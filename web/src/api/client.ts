@@ -359,7 +359,7 @@ export type BulkUpdateRequest = {
   applyTags?: TagsMode | null
 }
 
-export type BulkOutcome = 'updated' | 'unchanged' | 'queued' | 'alreadyQueued' | 'movieDeleted' | 'versionsDeleted' | 'skipped' | 'failed'
+export type BulkOutcome = 'updated' | 'unchanged' | 'queued' | 'alreadyQueued' | 'movieDeleted' | 'versionsDeleted' | 'skipped' | 'failed' | 'seriesDeleted'
 
 export type BulkMovieResult = {
   movieId: number
@@ -2684,6 +2684,17 @@ export type SeriesVersionSummary = {
   qualityProfileId: number
   qualityProfile: string
   statistics: EpisodeStatistics
+  mode: VersionMode
+  rootFolderId: number
+  /** Tag ids. */
+  tags: number[]
+  monitorNewItems: NewItemMonitoring
+  /** Downloading (an active grab), missing (a monitored episode aired without a file), available, or pending (nothing aired to fetch). */
+  status: VersionStatus
+  /** The qualities of its files, best first. */
+  qualities: string[]
+  /** Null without a file; false when a file's quality is below the profile cutoff. */
+  cutoffMet: boolean | null
 }
 
 export type SeriesSummary = {
@@ -2933,6 +2944,26 @@ export type SeriesFiles = { files: EpisodeFile[]; unmatched: UnmatchedEpisodeFil
 
 export type MapSeriesFolderRequest = { seriesId?: number | null; tvdbId?: number | null; tmdbId?: number | null; qualityProfileId?: number | null }
 
+/** Null fields are left untouched; `seriesType` applies to the series whatever `versions` picks. */
+export type SeriesBulkUpdateRequest = {
+  seriesIds: number[]
+  versions: VersionSelector
+  monitored?: boolean | null
+  qualityProfileId?: number | null
+  monitorNewItems?: NewItemMonitoring | null
+  tagIds?: number[] | null
+  applyTags?: TagsMode | null
+  seriesType?: SeriesType | null
+}
+
+export type BulkSeriesResult = Omit<BulkMovieResult, 'movieId'> & { seriesId: number }
+
+export type SeriesBulkResponse = { results: BulkSeriesResult[] }
+
+export type SeriesBulkDeleteRequest = { seriesIds: number[]; versions: VersionSelector; deleteFiles: boolean; dryRun: boolean }
+
+export type SeriesBulkDeleteResponse = { dryRun: boolean; recycleBin: string | null; results: BulkSeriesResult[] }
+
 export const series = {
   list: () => api<SeriesSummary[]>('/api/v1/series'),
   get: (id: number) => api<Series>(`/api/v1/series/${id}`),
@@ -2962,6 +2993,10 @@ export const series = {
   orders: (id: number) => api<SeriesOrders>(`/api/v1/series/${id}/orders`),
   previewOrder: (id: number, body: OrderChoiceRequest) => post<OrderPreview>(`/api/v1/series/${id}/orders/preview`, body),
   applyOrder: (id: number, body: OrderChoiceRequest) => post<{ change: OrderChange; files: OrderFileResult[] }>(`/api/v1/series/${id}/orders/apply`, body),
+  /** The library's bulk editor, like the films': one action on one version of many series. */
+  bulkUpdate: (body: SeriesBulkUpdateRequest) => put<SeriesBulkResponse>('/api/v1/series/bulk', body),
+  /** With `dryRun`, answers the exact plan and changes nothing. */
+  bulkDelete: (body: SeriesBulkDeleteRequest) => post<SeriesBulkDeleteResponse>('/api/v1/series/bulk/delete', body),
   undoOrder: (id: number) => post<{ change: OrderChange; filesRestored: number; files: OrderFileResult[] }>(`/api/v1/series/${id}/orders/undo`),
 }
 

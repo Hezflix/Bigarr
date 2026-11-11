@@ -286,7 +286,8 @@
       "movieDeleted": "Film deleted",
       "versionsDeleted": "Version deleted",
       "skipped": "Skipped",
-      "failed": "Failed"
+      "failed": "Failed",
+      "seriesDeleted": "Series deleted"
     },
     "actions": {
       "monitor": "Monitor {{target}}",
@@ -414,12 +415,83 @@
       "seasons": "Seasons",
       "episodes": "Episodes",
       "versions": "Versions",
-      "nextAiring": "Next airing"
+      "nextAiring": "Next airing",
+      "quality": "Quality",
+      "profile": "Profile",
+      "size": "Size",
+      "added": "Added",
+      "tags": "Tags",
+      "rootFolder": "Root folder",
+      "newSeasons": "New seasons"
     },
     "rescanAll": "Rescan library",
     "rescanQueued_one": "Scanning {{count}} series root folder.",
     "rescanQueued_other": "Scanning {{count}} series root folders.",
-    "rescanProgress": "Progress"
+    "rescanProgress": "Progress",
+    "searchPlaceholder": "Filter by title, network or year…",
+    "select": "Select",
+    "legend": {
+      "available": {
+        "hint": "every monitored episode aired so far has a file"
+      },
+      "cutoffUnmet": {
+        "hint": "a file is below the profile's cutoff quality, an upgrade is wanted"
+      },
+      "missing": {
+        "hint": "a monitored episode has aired without a file"
+      },
+      "downloading": {
+        "hint": "an episode release is downloading"
+      },
+      "pending": {
+        "hint": "no file, and nothing monitored has aired yet"
+      },
+      "unmonitored": {
+        "hint": "dashed and faded, no automatic search or upgrade"
+      }
+    },
+    "presets": {
+      "continuing": "Continuing",
+      "ended": "Ended"
+    },
+    "sort": {
+      "network": "Network",
+      "nextAiring": "Next airing",
+      "progress": "Episodes",
+      "progressOf": "Sort by the episodes of",
+      "seasons": "Seasons"
+    },
+    "filter": {
+      "seriesStatus": "Series status",
+      "seriesType": "Series type",
+      "network": "Network",
+      "pending": "Nothing aired yet",
+      "noNetwork": "No network"
+    },
+    "fields": {
+      "title": "Title",
+      "year": "Year",
+      "network": "Network",
+      "episodes": "Episodes",
+      "versions": "Versions",
+      "quality": "Quality",
+      "size": "Size on disk",
+      "nextAiring": "Next airing"
+    },
+    "episodesOf": "{{name}}: {{files}}/{{count}} episodes",
+    "bulk": {
+      "newSeasons": "New seasons",
+      "seriesType": "Series type",
+      "actions": {
+        "newSeasons": "New seasons “{{value}}” on {{target}}",
+        "seriesType_one": "Series type “{{value}}” on {{count}} series",
+        "seriesType_other": "Series type “{{value}}” on {{count}} series"
+      }
+    },
+    "newSeasons": {
+      "all": "Monitored",
+      "none": "Not monitored"
+    }
   },
   "addSeries": {
     "title": "Add a series",
@@ -2536,5 +2608,28 @@
       "unmonitored": "Unmonitored"
     },
     "icalHint": "Subscribe from a calendar app with an API key (Settings → Connect):"
+  },
+  "seriesBulk": {
+    "delete": {
+      "title_one": "Delete {{target}} of {{count}} series?",
+      "title_other": "Delete {{target}} of {{count}} series?",
+      "titleAll_one": "Delete {{count}} series?",
+      "titleAll_other": "Delete {{count}} series?",
+      "allHint": "Every version goes: the series leave the library.",
+      "versionHint": "Only {{target}} of each series goes. A series whose last version it is leaves the library.",
+      "planVersions_one": "{{count}} version deleted, from {{films}} series.",
+      "planVersions_other": "{{count}} versions deleted, from {{films}} series.",
+      "planFilmsKept_one": "{{count}} series keeps its other versions.",
+      "planFilmsKept_other": "{{count}} series keep their other versions.",
+      "planFilmsRemoved_one": "{{count}} series loses its last version and leaves the library.",
+      "planFilmsRemoved_other": "{{count}} series lose their last version and leave the library.",
+      "planPromoted_one": "{{count}} series gets a new default version: {{names}}.",
+      "planPromoted_other": "{{count}} series get a new default version: {{names}}.",
+      "planSkipped_one": "{{count}} series is skipped:",
+      "planSkipped_other": "{{count}} series are skipped:",
+      "perFilm": "Series by series",
+      "confirmFilms_one": "Delete {{count}} series",
+      "confirmFilms_other": "Delete {{count}} series"
+    }
   }
 }

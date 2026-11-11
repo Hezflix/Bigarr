@@ -2,26 +2,36 @@ import { useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { useTranslation } from 'react-i18next'
-import type { MovieSummary, RootFolder } from '@/api/client'
+import type { MovieSummary, RootFolder, SeriesSummary } from '@/api/client'
 import i18n, { formatBytes, formatBytesShort } from '@/i18n'
 
 /** One colour per root folder, away from the status colours (amber, blue, emerald, violet) used elsewhere. */
 const tones = ['bg-cyan-500', 'bg-fuchsia-500', 'bg-orange-500', 'bg-lime-500', 'bg-rose-500']
 
-export type FolderUsage = { id: number; path: string; bytes: number; files: number }
+export type FolderUsage = { id: number; path: string; bytes: number; files: number; kind: RootFolder['kind'] }
 
 /**
  * Bytes and files per root folder, in the order of `roots`, leaving out the folders without a file. Counts the movie
- * files only: extra files (subtitles…) have no stored size.
+ * and episode files only: extra files (subtitles…) have no stored size. A series version's files are its episodes'
+ * outside the specials (its statistics), its bytes every file's.
  */
-export function usagePerRootFolder(movies: MovieSummary[], roots: RootFolder[]): FolderUsage[] {
-  const usage = new Map(roots.map((r) => [r.id, { id: r.id, path: r.path, bytes: 0, files: 0 }]))
+export function usagePerRootFolder(movies: MovieSummary[], roots: RootFolder[], series: SeriesSummary[] = []): FolderUsage[] {
+  const usage = new Map(roots.map((r) => [r.id, { id: r.id, path: r.path, bytes: 0, files: 0, kind: r.kind }]))
   for (const movie of movies) {
     for (const v of movie.versions) {
       const entry = usage.get(v.rootFolderId)
       if (entry && v.size) {
         entry.bytes += v.size
         entry.files++
+      }
+    }
+  }
+  for (const show of series) {
+    for (const v of show.versions) {
+      const entry = usage.get(v.rootFolderId)
+      if (entry && v.statistics.sizeOnDisk > 0) {
+        entry.bytes += v.statistics.sizeOnDisk
+        entry.files += v.statistics.episodeFileCount
       }
     }
   }
@@ -42,12 +52,12 @@ export function freeSpace(roots: RootFolder[]): number | null {
 const share = (part: number, whole: number) => new Intl.NumberFormat(i18n.language, { style: 'percent', maximumSignificantDigits: 2 }).format(part / whole)
 
 /**
- * How much space each root folder holds, then the free space left, shown only when every root folder reports it.
+ * How much space each root folder holds (films and series), each opening its library on its files, then the free space left, shown only when every root folder reports it.
  * Nothing renders before the library has a file.
  */
-export function StorageBar({ movies, roots }: { movies: MovieSummary[]; roots: RootFolder[] }) {
+export function StorageBar({ movies, series, roots }: { movies: MovieSummary[]; series?: SeriesSummary[]; roots: RootFolder[] }) {
   const { t } = useTranslation()
-  const usage = useMemo(() => usagePerRootFolder(movies, roots), [movies, roots])
+  const usage = useMemo(() => usagePerRootFolder(movies, roots, series), [movies, roots, series])
   const free = useMemo(() => freeSpace(roots), [roots])
   const used = usage.reduce((sum, f) => sum + f.bytes, 0)
   const files = usage.reduce((sum, f) => sum + f.files, 0)
@@ -72,7 +82,7 @@ export function StorageBar({ movies, roots }: { movies: MovieSummary[]; roots: R
         {usage.map((f) => (
           <Link
             key={f.id}
-            to="/"
+            to={f.kind === 'series' ? '/series' : '/'}
             search={{ view: 'table', rootFolder: f.id }}
             tabIndex={-1}
             className={cn('h-full min-w-1 border-r-2 border-background transition-opacity hover:opacity-75', free === null && 'last:border-r-0', tone(f.id))}
@@ -86,7 +96,7 @@ export function StorageBar({ movies, roots }: { movies: MovieSummary[]; roots: R
         {usage.map((f) => (
           <Link
             key={f.id}
-            to="/"
+            to={f.kind === 'series' ? '/series' : '/'}
             search={{ view: 'table', rootFolder: f.id }}
             className="group inline-flex items-center gap-1.5 rounded-sm outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
             title={t('settings.storage.open')}
