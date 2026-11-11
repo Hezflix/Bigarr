@@ -24,7 +24,9 @@ public sealed record SeriesComparePickResponse(
     DateTimeOffset? PublishDate,
     bool FullSeason,
     string Episodes,
-    SonarrView? Sonarr);
+    SonarrView? Sonarr,
+    /// <summary>A film's pick standing for a special that is that film (S8): "Demon Slayer: Mugen Train (2020)".</summary>
+    string? Film = null);
 
 /// <summary>Sonarr's side of a series row: one grab, the episodes it covers, how it ended, and Bigarr's engine on it.</summary>
 public sealed record SeriesCompareGrabResponse(
@@ -137,9 +139,11 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
 
         var grabs = (await grabQuery.AsSplitQuery().ToListAsync(ct)).ToDictionary(g => g.Id);
         var picks = (await pickQuery.AsSplitQuery().ToListAsync(ct)).ToDictionary(p => p.Id);
+        var filmPicks = await FilmPicksAsync(grabs.Values, loadFrom, ct);
         var rows = SeriesComparePairing.Match(
                 grabs.Values.Select(g => new SeriesComparePairing.Grab(g.Id, g.TvdbId, g.VersionName, g.GrabbedAt, g.ReleaseGuid, g.InfoHash, g.ReleaseTitle, g.ResolvedAt, g.State == RadarrGrabState.Grabbed, EpisodesOf(g))),
-                picks.Values.Select(p => new SeriesComparePairing.Pick(p.Id, p.TvdbId!.Value, p.VersionName, p.PickedAt, p.ReleaseGuid, p.InfoHash, p.ReleaseTitle, EpisodesOf(p))),
+                picks.Values.Select(p => new SeriesComparePairing.Pick(p.Id, p.TvdbId!.Value, p.VersionName, p.PickedAt, p.ReleaseGuid, p.InfoHash, p.ReleaseTitle, EpisodesOf(p)))
+                    .Concat(filmPicks.Values.Select(f => f.Pair)),
                 window,
                 now)
             .Where(r => from is null || r.At >= from)
@@ -168,16 +172,18 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
         var responses = pageRows.Select(row =>
         {
             var rowGrabs = row.Sonarr.Select(g => grabs[g.Id]).ToList();
-            var rowPicks = row.Bigarr.Select(p => picks[p.Id]).ToList();
+            var rowPicks = row.Bigarr.Where(p => p.Id > 0).Select(p => picks[p.Id]).ToList();
+            var rowFilmPicks = row.Bigarr.Where(p => p.Id < 0).Select(p => filmPicks[p.Id]).ToList();
             var show = series.GetValueOrDefault(row.TvdbId);
-            var title = show?.Title ?? rowGrabs.FirstOrDefault()?.SeriesTitle ?? rowPicks[0].SeriesTitle;
-            long? lead = rowGrabs.Count > 0 && rowPicks.Count > 0 ? (long)(rowGrabs.Min(g => g.GrabbedAt) - rowPicks.Min(p => p.PickedAt)).TotalSeconds : null;
-            var key = $"{string.Join(".", rowGrabs.Select(g => $"g{g.Id}"))}-{string.Join(".", rowPicks.Select(p => $"p{p.Id}"))}";
+            var title = show?.Title ?? rowGrabs.FirstOrDefault()?.SeriesTitle ?? rowPicks.FirstOrDefault()?.SeriesTitle ?? rowFilmPicks[0].SeriesTitle;
+            var pickedAt = rowPicks.Select(p => p.PickedAt).Concat(rowFilmPicks.Select(f => f.Pick.PickedAt)).ToList();
+            long? lead = rowGrabs.Count > 0 && pickedAt.Count > 0 ? (long)(rowGrabs.Min(g => g.GrabbedAt) - pickedAt.Min()).TotalSeconds : null;
+            var key = $"{string.Join(".", rowGrabs.Select(g => $"g{g.Id}"))}-{string.Join(".", rowPicks.Select(p => $"p{p.Id}").Concat(rowFilmPicks.Select(f => $"f{f.Pick.Id}")))}";
             return new SeriesCompareRowResponse(
                 key,
                 row.Outcome,
                 row.TvdbId,
-                show?.Id ?? rowGrabs.FirstOrDefault()?.SeriesId ?? rowPicks.FirstOrDefault()?.SeriesId,
+                show?.Id ?? rowGrabs.FirstOrDefault()?.SeriesId ?? rowPicks.FirstOrDefault()?.SeriesId ?? rowFilmPicks.FirstOrDefault()?.SeriesId,
                 title,
                 show?.Year,
                 show?.Images.FirstOrDefault(i => i.Type == ImageType.Poster)?.RemoteUrl,
@@ -186,8 +192,8 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
                 SonarrFollower.EpisodesLabel(row.Episodes),
                 row.Episodes.Count == 0 ? 0 : row.Episodes.Min(e => e.Season),
                 rowGrabs.Select(ToResponse).ToList(),
-                rowPicks.Select(ToResponse).ToList(),
-                row.AlsoPicked.Select(p => ToResponse(picks[p.Id])).ToList(),
+                rowPicks.Select(ToResponse).Concat(rowFilmPicks.Select(ToResponse)).ToList(),
+                row.AlsoPicked.Select(p => p.Id < 0 ? ToResponse(filmPicks[p.Id]) : ToResponse(picks[p.Id])).ToList(),
                 lead,
                 rowGrabs.Count == 1 && rowPicks.Count == 0 && sightings.TryGetValue(rowGrabs[0].Id, out var sighting) ? Sighting(sighting, row.Version) : null);
         }).ToList();
@@ -213,6 +219,62 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
 
         return new SeriesCompareResponse(from, now, (int)window.TotalHours, options.Value.Enabled, versions, summary, byVersion, groups, shows.Count, page, pageSize);
     }
+
+    /// <summary>A film pick shown as the Bigarr side of a special that is that film (ids negated so they never clash).</summary>
+    private sealed record FilmPick(SeriesComparePairing.Pick Pair, ShadowPick Pick, int SeriesId, string SeriesTitle, int EpisodeNumber, string Film);
+
+    /// <summary>
+    /// Specials that are films (S8) are never picked on the series side: the film engine picks for the film. So a
+    /// Sonarr grab of such a special pairs with the film's picks (by identity first, as always), once per Sonarr version
+    /// that grabbed the special.
+    /// </summary>
+    private async Task<Dictionary<int, FilmPick>> FilmPicksAsync(IEnumerable<SonarrGrab> grabs, DateTime loadFrom, CancellationToken ct)
+    {
+        var specials = grabs.SelectMany(g => g.Episodes.Where(e => e.SeasonNumber == 0).Select(e => (g.TvdbId, g.VersionName, e.EpisodeNumber))).Distinct().ToList();
+        var result = new Dictionary<int, FilmPick>();
+        if (specials.Count == 0)
+        {
+            return result;
+        }
+
+        var tvdbIds = specials.Select(s => s.TvdbId).Distinct().ToList();
+        var links = await db.SeriesMovieLinks.AsNoTracking()
+            .Where(l => l.Series.TvdbId != null && tvdbIds.Contains(l.Series.TvdbId.Value) && l.Episode.SeasonNumber == 0)
+            .Select(l => new { TvdbId = l.Series.TvdbId!.Value, l.SeriesId, SeriesTitle = l.Series.Title, l.Episode.EpisodeNumber, l.MovieId, l.Movie.TmdbId, l.Movie.Title, l.Movie.Year })
+            .ToListAsync(ct);
+        if (links.Count == 0)
+        {
+            return result;
+        }
+
+        var tmdbIds = links.Select(l => l.TmdbId).Distinct().ToList();
+        var filmPicks = await db.ShadowPicks.AsNoTracking().Where(p => tmdbIds.Contains(p.TmdbId) && p.PickedAt >= loadFrom).ToListAsync(ct);
+        foreach (var link in links)
+        {
+            foreach (var version in specials.Where(s => s.TvdbId == link.TvdbId && s.EpisodeNumber == link.EpisodeNumber).Select(s => s.VersionName).Distinct())
+            {
+                foreach (var pick in filmPicks.Where(p => p.TmdbId == link.TmdbId))
+                {
+                    // One id per (pick, version) so the same film pick can stand in each Sonarr version's key.
+                    var id = -(result.Count + 1);
+                    var film = link.Year is { } year ? $"{link.Title} ({year})" : link.Title;
+                    result[id] = new FilmPick(
+                        new SeriesComparePairing.Pick(id, link.TvdbId, version, pick.PickedAt, pick.ReleaseGuid, pick.InfoHash, pick.ReleaseTitle, new HashSet<(int, int)> { (0, link.EpisodeNumber) }),
+                        pick,
+                        link.SeriesId,
+                        link.SeriesTitle,
+                        link.EpisodeNumber,
+                        film);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static SeriesComparePickResponse ToResponse(FilmPick film) => new(
+        film.Pair.Id, film.Pick.PickedAt, film.Pick.LastPickedAt, film.Pick.Picks, film.Pick.Trigger, film.Pick.ReleaseTitle, film.Pick.IndexerName, film.Pick.Size, film.Pick.Quality,
+        film.Pick.ReleaseGroup, film.Pick.Languages, film.Pick.CustomFormats, film.Pick.CustomFormatScore, film.Pick.PublishDate, false, $"S00E{film.EpisodeNumber:00}", null, film.Film);
 
     private static HashSet<(int Season, int Episode)> EpisodesOf(SonarrGrab grab) => grab.Episodes.Select(e => (e.SeasonNumber, e.EpisodeNumber)).ToHashSet();
 

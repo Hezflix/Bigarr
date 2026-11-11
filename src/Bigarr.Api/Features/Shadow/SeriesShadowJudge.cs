@@ -75,6 +75,11 @@ public sealed class SeriesShadowJudge(BigarrDbContext db, SeriesTargetsFactory t
 
         var label = SeriesReleaseJudge.Label(judgement.Episodes);
         var decision = judgement.Decisions.FirstOrDefault(d => ((EpisodeTarget)d.Target.Target).VersionId == version.Id);
+        if (decision is null && judgement.Episodes.FirstOrDefault(e => targets.FilmOwned.ContainsKey(e.Id)) is { } owned)
+        {
+            return new BigarrVerdict($"{label} is the film {targets.FilmOwned[owned.Id]}: the film engine picks for it (paired with the film's picks).", false, [], 0, judgement.Formats.Select(f => f.Name).ToList(), quality, null, null, null, Episodes: label);
+        }
+
         if (decision is null)
         {
             return new BigarrVerdict($"The {versionName} version has no target for {label}.", false, [], 0, judgement.Formats.Select(f => f.Name).ToList(), quality, null, null, null, Episodes: label);
