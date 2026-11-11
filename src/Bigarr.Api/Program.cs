@@ -67,6 +67,7 @@ builder.Services.AddScoped<BulkEditService>();
 builder.Services.AddScoped<SeriesService>();
 builder.Services.AddScoped<SeriesOrderService>();
 builder.Services.AddScoped<SeriesQueries>();
+builder.Services.AddScoped<SeriesBulkEditService>();
 builder.Services.AddScoped<TagService>();
 builder.Services.AddScoped<HistoryService>();
 builder.Services.AddScoped<RootFolderService>();

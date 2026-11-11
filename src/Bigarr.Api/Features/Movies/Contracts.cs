@@ -220,6 +220,9 @@ public enum BulkOutcome
     VersionsDeleted = 6,
     Skipped = 7,
     Failed = 8,
+
+    /// <summary>Series bulk delete: the series left the library with its last version.</summary>
+    SeriesDeleted = 9,
 }
 
 /// <param name="Versions">Names of the versions acted on.</param>

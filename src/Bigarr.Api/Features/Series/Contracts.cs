@@ -86,6 +86,12 @@ public sealed record EpisodeStatistics(
     public static readonly EpisodeStatistics Empty = new(0, 0, 0, 0, 0);
 }
 
+/// <param name="Status">
+/// The library chip, as a film version's: downloading (an active grab on one of its episodes), missing (a monitored
+/// episode has aired without a file), available (files and nothing missing), pending (nothing aired to fetch yet).
+/// </param>
+/// <param name="Qualities">The qualities of its files, best first.</param>
+/// <param name="CutoffMet">Null without a file; false when a file's quality is below the profile cutoff.</param>
 public sealed record SeriesVersionSummary(
     int Id,
     string Name,
@@ -93,7 +99,14 @@ public sealed record SeriesVersionSummary(
     bool Monitored,
     int QualityProfileId,
     string QualityProfile,
-    EpisodeStatistics Statistics);
+    EpisodeStatistics Statistics,
+    VersionMode Mode = VersionMode.Managed,
+    int RootFolderId = 0,
+    List<int>? Tags = null,
+    NewItemMonitoring MonitorNewItems = NewItemMonitoring.All,
+    VersionStatus Status = VersionStatus.Pending,
+    List<string>? Qualities = null,
+    bool? CutoffMet = null);
 
 public sealed record SeriesSummary(
     int Id,
