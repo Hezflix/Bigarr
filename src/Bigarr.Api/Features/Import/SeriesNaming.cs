@@ -63,7 +63,7 @@ public static class SeriesNaming
 
         var context = Context(series, version, episodes, facts);
         var fileName = rename ?? config.RenameEpisodes
-            ? SeriesNamingTemplate.RenderFile(TemplateFor(config, series), context, config.MultiEpisodeStyle, extension) + extension
+            ? SeriesNamingTemplate.RenderFile(TemplateFor(config, series), context, config.MultiEpisodeStyle, extension, config.SeriesNameCleaning) + extension
             : currentName;
 
         if (!version.SeasonFolder)
@@ -72,7 +72,7 @@ public static class SeriesNaming
         }
 
         var season = episodes.Min(e => e.DisplaySeasonNumber(series.Ordering));
-        var folder = SeriesNamingTemplate.RenderSeasonFolder(config.SeasonFolderTemplate, config.SpecialsFolderName, season, context);
+        var folder = SeriesNamingTemplate.RenderSeasonFolder(config.SeasonFolderTemplate, config.SpecialsFolderName, season, context, config.SeriesNameCleaning);
         return string.IsNullOrEmpty(folder) ? fileName : Path.Combine(folder, fileName);
     }
 
@@ -88,7 +88,7 @@ public static class SeriesNaming
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(series);
         var context = new SeriesNamingContext(series.Title, series.Year, series.TvdbId, series.TmdbId, series.ImdbId, versionName);
-        var name = SeriesNamingTemplate.RenderSeriesFolder(config.SeriesFolderTemplate, context);
-        return string.IsNullOrWhiteSpace(name) || name == "_" ? FolderNameBuilder.Build(series.Title, series.Year) : name;
+        var name = SeriesNamingTemplate.RenderSeriesFolder(config.SeriesFolderTemplate, context, config.SeriesNameCleaning);
+        return string.IsNullOrWhiteSpace(name) || name == "_" ? FolderNameBuilder.Build(series.Title, series.Year, config.SeriesNameCleaning) : name;
     }
 }

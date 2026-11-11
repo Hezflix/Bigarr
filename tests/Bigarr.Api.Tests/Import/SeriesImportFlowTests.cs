@@ -72,7 +72,7 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
             var files = await WaitForFilesAsync(client, series.Id, f => f.Count(x => x.SeasonNumber == 1) == 7 && f.Single(x => x.Episodes == "S01E03").Quality == "Bluray-1080p");
 
             Assert.Equal("Season 1/Breaking Bad - S01E01 - Pilot Bluray-1080p.mkv", files.Single(f => f.Episodes == "S01E01").RelativePath);
-            Assert.Equal("Season 1/Breaking Bad - S01E03 - ...And the Bag's in the River Bluray-1080p.mkv", files.Single(f => f.Episodes == "S01E03").RelativePath);
+            Assert.Equal("Season 1/Breaking Bad - S01E03 - And the Bag's in the River Bluray-1080p.mkv", files.Single(f => f.Episodes == "S01E03").RelativePath);
             var e05 = files.Single(f => f.Episodes == "S01E05");
             Assert.Equal("Season 1/Breaking Bad - S01E05 - Gray Matter Bluray-1080p Proper.mkv", e05.RelativePath);
             Assert.Equal(2, e05.RevisionVersion);
@@ -80,7 +80,7 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
 
             // The subtitles came along, named after their episode; the replaced WEB-DL went to the recycle bin.
             Assert.True(File.Exists(Path.Combine(folder, "Season 1", "Breaking Bad - S01E01 - Pilot Bluray-1080p.en.srt")));
-            Assert.True(File.Exists(Path.Combine(_bin, "Breaking Bad (2008)", "Season 1", "Breaking Bad - S01E03 - ...And the Bag's in the River WEBDL-1080p.mkv")));
+            Assert.True(File.Exists(Path.Combine(_bin, "Breaking Bad (2008)", "Season 1", "Breaking Bad - S01E03 - And the Bag's in the River WEBDL-1080p.mkv")));
 
             // Hardlinked: the torrent keeps seeding the very same bytes.
             var state = factory.Services.GetRequiredService<MockDownloadClientState>();
@@ -107,7 +107,7 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
             var e02Id = (await SeriesSetup.EpisodeAsync(client, series.Id, 1, 2)).Id;
             await GrabAndCompleteAsync(client, Crafted("Breaking.Bad.S01E02.REPACK.1080p.BluRay.x264-DEMAND", version.Id, e02Id));
             files = await WaitForFilesAsync(client, series.Id, f => f.Single(x => x.Episodes == "S01E02").RevisionVersion == 2);
-            Assert.Equal("Season 1/Breaking Bad - S01E02 - Cat's in the Bag... Bluray-1080p Proper.mkv", files.Single(f => f.Episodes == "S01E02").RelativePath);
+            Assert.Equal("Season 1/Breaking Bad - S01E02 - Cat's in the Bag Bluray-1080p Proper.mkv", files.Single(f => f.Episodes == "S01E02").RelativePath);
             Assert.Equal(7, files.Count(f => f.SeasonNumber == 1));
             Assert.Equal(1, files.Single(f => f.Episodes == "S01E01").RevisionVersion);
 

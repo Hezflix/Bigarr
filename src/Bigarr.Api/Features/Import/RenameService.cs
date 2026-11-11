@@ -26,7 +26,7 @@ public sealed class RenameService(BigarrDbContext db, MediaManagementService set
         foreach (var version in movie.Versions.Where(v => v.File is not null).OrderByDescending(v => v.IsDefault).ThenBy(v => v.Id))
         {
             var file = version.File!;
-            var target = await TargetNameAsync(movie, version, config.FileNameTemplate, ct);
+            var target = await TargetNameAsync(movie, version, config.FileNameTemplate, ct, config.FilmNameCleaning);
             var changed = !string.Equals(target, file.RelativePath, StringComparison.Ordinal);
             var folder = Path.Combine(version.RootFolder.Path, version.FolderName);
             var extras = changed
@@ -55,7 +55,7 @@ public sealed class RenameService(BigarrDbContext db, MediaManagementService set
         foreach (var version in movie.Versions.Where(v => v.File is not null && (wanted is null || wanted.Contains(v.File.Id))))
         {
             var file = version.File!;
-            var target = await TargetNameAsync(movie, version, config.FileNameTemplate, ct);
+            var target = await TargetNameAsync(movie, version, config.FileNameTemplate, ct, config.FilmNameCleaning);
             if (string.Equals(target, file.RelativePath, StringComparison.Ordinal))
             {
                 results.Add(new RenameResultResponse(file.Id, file.RelativePath, false, null));
@@ -122,7 +122,7 @@ public sealed class RenameService(BigarrDbContext db, MediaManagementService set
     }
 
     /// <summary>The relative path the template gives this file today, extension kept.</summary>
-    public async Task<string> TargetNameAsync(Movie movie, MovieVersion version, string template, CancellationToken ct)
+    public async Task<string> TargetNameAsync(Movie movie, MovieVersion version, string template, CancellationToken ct, NameCleaning? cleaning = null)
     {
         ArgumentNullException.ThrowIfNull(movie);
         ArgumentNullException.ThrowIfNull(version);
@@ -145,7 +145,7 @@ public sealed class RenameService(BigarrDbContext db, MediaManagementService set
             OriginalReleaseTitle = file.OriginalReleaseTitle,
             OriginalFileName = Path.GetFileNameWithoutExtension(file.RelativePath),
         };
-        return NamingTemplate.Render(template, context) + Path.GetExtension(file.RelativePath).ToLowerInvariant();
+        return NamingTemplate.Render(template, context, cleaning) + Path.GetExtension(file.RelativePath).ToLowerInvariant();
     }
 
     /// <summary>Extras in a stable order, so their numbering does not depend on the database's mood.</summary>

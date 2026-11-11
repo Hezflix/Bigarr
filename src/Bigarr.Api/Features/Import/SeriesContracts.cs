@@ -16,7 +16,13 @@ public sealed record SeriesNamingResponse(
     string AnimeEpisodeTemplate,
     MultiEpisodeStyle MultiEpisodeStyle,
     SeriesNamingPreviewResponse Preview,
-    List<SeriesNamingTokenResponse> Tokens);
+    List<SeriesNamingTokenResponse> Tokens,
+    /// <summary>Sonarr's "Replace Illegal Characters": on replaces them, off removes them.</summary>
+    bool ReplaceIllegalCharacters = true,
+    /// <summary>Sonarr's "Colon Replacement": delete, dash, spaceDash, spaceDashSpace, smart or custom.</summary>
+    ColonReplacement ColonReplacement = ColonReplacement.Smart,
+    /// <summary>What a colon becomes in <c>custom</c> mode.</summary>
+    string CustomColonReplacement = "");
 
 public sealed record SeriesNamingRequest(
     bool RenameEpisodes,
@@ -26,9 +32,15 @@ public sealed record SeriesNamingRequest(
     string StandardEpisodeTemplate,
     string DailyEpisodeTemplate,
     string AnimeEpisodeTemplate,
-    MultiEpisodeStyle MultiEpisodeStyle);
+    MultiEpisodeStyle MultiEpisodeStyle,
+    /// <summary>Null leaves the setting as it is.</summary>
+    bool? ReplaceIllegalCharacters = null,
+    /// <summary>Null leaves the setting as it is.</summary>
+    ColonReplacement? ColonReplacement = null,
+    /// <summary>Null leaves the setting as it is. Without a character Sonarr refuses (<c>: \ / &lt; &gt; ? * | "</c>).</summary>
+    string? CustomColonReplacement = null);
 
-/// <summary>Draft templates; a null one is not previewed. Used while typing.</summary>
+/// <summary>Draft templates and naming settings; a null template is not previewed, null settings are Sonarr's defaults. Used while typing.</summary>
 public sealed record SeriesNamingPreviewRequest(
     string? SeriesFolderTemplate = null,
     string? SeasonFolderTemplate = null,
@@ -36,7 +48,12 @@ public sealed record SeriesNamingPreviewRequest(
     string? StandardEpisodeTemplate = null,
     string? DailyEpisodeTemplate = null,
     string? AnimeEpisodeTemplate = null,
-    MultiEpisodeStyle MultiEpisodeStyle = MultiEpisodeStyle.PrefixedRange);
+    MultiEpisodeStyle MultiEpisodeStyle = MultiEpisodeStyle.PrefixedRange,
+    bool? ReplaceIllegalCharacters = null,
+    ColonReplacement? ColonReplacement = null,
+    string? CustomColonReplacement = null,
+    /// <summary>A title to render instead of the sample series', to see what the settings do to it.</summary>
+    string? SampleTitle = null);
 
 /// <summary>Each template rendered on Sonarr's sample series, with the errors that would refuse it.</summary>
 public sealed record SeriesNamingPreviewResponse(

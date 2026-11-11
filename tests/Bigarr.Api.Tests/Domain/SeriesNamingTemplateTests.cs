@@ -41,12 +41,12 @@ public sealed class SeriesNamingTemplateTests
     }
 
     [Theory]
-    [InlineData(MultiEpisodeStyle.Extend, "Breaking Bad - S01E01-02-03 - Pilot + Cat's in the Bag... + ...And the Bag's in the River")]
-    [InlineData(MultiEpisodeStyle.Duplicate, "Breaking Bad - S01E01 - S01E02 - S01E03 - Pilot + Cat's in the Bag... + ...And the Bag's in the River")]
-    [InlineData(MultiEpisodeStyle.Repeat, "Breaking Bad - S01E01E02E03 - Pilot + Cat's in the Bag... + ...And the Bag's in the River")]
-    [InlineData(MultiEpisodeStyle.Scene, "Breaking Bad - S01E01-E02-E03 - Pilot + Cat's in the Bag... + ...And the Bag's in the River")]
-    [InlineData(MultiEpisodeStyle.Range, "Breaking Bad - S01E01-03 - Pilot + Cat's in the Bag... + ...And the Bag's in the River")]
-    [InlineData(MultiEpisodeStyle.PrefixedRange, "Breaking Bad - S01E01-E03 - Pilot + Cat's in the Bag... + ...And the Bag's in the River")]
+    [InlineData(MultiEpisodeStyle.Extend, "Breaking Bad - S01E01-02-03 - Pilot + Cat's in the Bag + .And the Bag's in the River")]
+    [InlineData(MultiEpisodeStyle.Duplicate, "Breaking Bad - S01E01 - S01E02 - S01E03 - Pilot + Cat's in the Bag + .And the Bag's in the River")]
+    [InlineData(MultiEpisodeStyle.Repeat, "Breaking Bad - S01E01E02E03 - Pilot + Cat's in the Bag + .And the Bag's in the River")]
+    [InlineData(MultiEpisodeStyle.Scene, "Breaking Bad - S01E01-E02-E03 - Pilot + Cat's in the Bag + .And the Bag's in the River")]
+    [InlineData(MultiEpisodeStyle.Range, "Breaking Bad - S01E01-03 - Pilot + Cat's in the Bag + .And the Bag's in the River")]
+    [InlineData(MultiEpisodeStyle.PrefixedRange, "Breaking Bad - S01E01-E03 - Pilot + Cat's in the Bag + .And the Bag's in the River")]
     public void Every_multi_episode_style(MultiEpisodeStyle style, string expected) =>
         Assert.Equal(expected, SeriesNamingTemplate.RenderFile("{Series Title} - S{season:00}E{episode:00} - {Episode Title}", Three, style));
 

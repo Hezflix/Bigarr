@@ -152,6 +152,12 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
             await ImportProfilesAsync(snapshot, request, progress, ct);
         }
 
+        if (request.ImportNaming)
+        {
+            progress.Current = "Naming";
+            await ImportNamingAsync(connection, progress, ct);
+        }
+
         progress.Total = snapshot.Movies.Count;
         foreach (var item in snapshot.Movies.OrderBy(m => m.SortTitle ?? m.Title, StringComparer.OrdinalIgnoreCase))
         {
@@ -191,6 +197,49 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
 
         progress.Current = null;
     }
+
+    /// <summary>
+    /// Radarr's "Replace Illegal Characters" and "Colon Replacement" into the film naming settings (its templates stay out of
+    /// it: Radarr's are not Bigarr's, which also name versions). A Radarr older than the settings, or a value Bigarr does not
+    /// know, leaves Bigarr's as they are. Import only: the follow never rewrites them.
+    /// </summary>
+    public async Task<bool> ImportNamingAsync(RadarrConnection connection, RadarrImportProgress? progress, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        var naming = await radarr.NamingAsync(connection, ct);
+        if (naming is null)
+        {
+            return false;
+        }
+
+        var colon = NamingMapping.Colon(naming.ColonReplacementFormat, allowCustom: false);
+        if (naming.ReplaceIllegalCharacters is null && colon is null)
+        {
+            return false;
+        }
+
+        var config = await db.MediaManagement.FirstOrDefaultAsync(c => c.Id == MediaManagementConfig.SingletonId, ct);
+        if (config is null)
+        {
+            config = MediaManagementConfig.Default();
+            db.MediaManagement.Add(config);
+        }
+
+        config.ReplaceIllegalCharacters = naming.ReplaceIllegalCharacters ?? config.ReplaceIllegalCharacters;
+        config.ColonReplacement = colon ?? config.ColonReplacement;
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+        if (progress is not null)
+        {
+            progress.NamingImported = true;
+        }
+
+        logger.LogInformation("Radarr naming imported: replace illegal characters {Replace}, colon {Colon}", config.ReplaceIllegalCharacters, config.ColonReplacement);
+        return true;
+    }
+
+    private async Task<MediaManagementConfig> ConfigAsync(CancellationToken ct) =>
+        await db.MediaManagement.AsNoTracking().FirstOrDefaultAsync(c => c.Id == MediaManagementConfig.SingletonId, ct) ?? MediaManagementConfig.Default();
 
     /// <summary>
     /// "Keep following this Radarr": the import's mapping becomes a followed Radarr whose history is read from the moment
@@ -406,7 +455,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         var monitored = context.Request.KeepMonitored && item.Monitored;
         var availability = Availability(item.MinimumAvailability);
         var tags = context.Request.ImportTags ? await TagsForAsync(item.Tags, context, ct) : [];
-        var folderName = LastSegment(item.Path) ?? FolderNameBuilder.Build(item.Title, item.Year > 0 ? item.Year : null);
+        var folderName = LastSegment(item.Path) ?? FolderNameBuilder.Build(item.Title, item.Year > 0 ? item.Year : null, (await ConfigAsync(ct)).FilmNameCleaning);
 
         var movie = await db.Movies
             .Include(m => m.Versions).ThenInclude(v => v.Tags)

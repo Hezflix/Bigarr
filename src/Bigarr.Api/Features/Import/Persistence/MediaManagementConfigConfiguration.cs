@@ -21,5 +21,8 @@ public sealed class MediaManagementConfigConfiguration : IEntityTypeConfiguratio
         builder.Property(c => c.StandardEpisodeTemplate).HasMaxLength(1024).HasDefaultValue(MediaManagementConfig.DefaultStandardEpisodeTemplate);
         builder.Property(c => c.DailyEpisodeTemplate).HasMaxLength(1024).HasDefaultValue(MediaManagementConfig.DefaultDailyEpisodeTemplate);
         builder.Property(c => c.AnimeEpisodeTemplate).HasMaxLength(1024).HasDefaultValue(MediaManagementConfig.DefaultAnimeEpisodeTemplate);
+        builder.Property(c => c.SeriesCustomColonReplacement).HasMaxLength(255).HasDefaultValue(string.Empty);
+        builder.Ignore(c => c.FilmNameCleaning);
+        builder.Ignore(c => c.SeriesNameCleaning);
     }
 }

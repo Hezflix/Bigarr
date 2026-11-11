@@ -23,6 +23,13 @@ public sealed record RadarrConnection(string Url, string ApiKey)
 
 public sealed record RadarrSystemStatus(string? AppName, string? Version, string? InstanceName);
 
+/// <summary>
+/// Radarr's <c>/config/naming</c>, the two cleaning settings of it. <c>colonReplacementFormat</c> is a camelCase name
+/// (<c>smart</c>, <c>spaceDashSpace</c>…) in Radarr 5 and may be a number elsewhere, so it stays a raw JSON value;
+/// either is absent on a Radarr older than the colon setting.
+/// </summary>
+public sealed record RadarrNamingConfig(bool? ReplaceIllegalCharacters, JsonElement ColonReplacementFormat);
+
 /// <summary>A custom format's score in a profile; Radarr lists every format, scored 0 when unused.</summary>
 public sealed record RadarrFormatItem(int Format, string? Name, int Score);
 
@@ -190,6 +197,19 @@ public sealed class RadarrClient(IHttpClientFactory httpClientFactory)
         try
         {
             return await GetAsync<RadarrMovie>(connection, $"/movie/{id}", ct);
+        }
+        catch (RadarrUnavailableException ex) when (ex.Message.Contains("404", StringComparison.Ordinal))
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Radarr's naming settings; null when the route is missing.</summary>
+    public async Task<RadarrNamingConfig?> NamingAsync(RadarrConnection connection, CancellationToken ct)
+    {
+        try
+        {
+            return await GetAsync<RadarrNamingConfig>(connection, "/config/naming", ct);
         }
         catch (RadarrUnavailableException ex) when (ex.Message.Contains("404", StringComparison.Ordinal))
         {

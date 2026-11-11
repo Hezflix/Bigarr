@@ -5,8 +5,11 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   ApiError,
+  filmColonReplacements,
   mediaManagement,
   multiEpisodeStyles,
+  seriesColonReplacements,
+  type ColonReplacement,
   type MediaManagement,
   type MediaManagementRequest,
   type MultiEpisodeStyle,
@@ -77,7 +80,104 @@ const seriesRequest = (n: SeriesNaming): SeriesNamingRequest => ({
   dailyEpisodeTemplate: n.dailyEpisodeTemplate,
   animeEpisodeTemplate: n.animeEpisodeTemplate,
   multiEpisodeStyle: n.multiEpisodeStyle,
+  replaceIllegalCharacters: n.replaceIllegalCharacters,
+  colonReplacement: n.colonReplacement,
+  customColonReplacement: n.customColonReplacement,
 })
+
+/** A title with a colon, an ampersand and a dash: what the previews render so the two settings show. */
+const filmSampleTitle = 'Mission: Impossible – Dead Reckoning'
+const seriesSampleTitle = 'Star Wars: Andor'
+
+/** Radarr's and Sonarr's "Replace Illegal Characters" and "Colon Replacement", with the title the previews try them on. */
+function CleaningFields({
+  idPrefix,
+  replace,
+  colon,
+  custom,
+  colons,
+  customErrors,
+  sampleTitle,
+  onReplace,
+  onColon,
+  onCustom,
+  onSampleTitle,
+}: {
+  idPrefix: string
+  replace: boolean
+  colon: ColonReplacement
+  custom?: string
+  colons: ColonReplacement[]
+  customErrors?: string[]
+  sampleTitle: string
+  onReplace: (value: boolean) => void
+  onColon: (value: ColonReplacement) => void
+  onCustom?: (value: string) => void
+  onSampleTitle: (value: string) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-col gap-4" data-testid={`${idPrefix}-cleaning`}>
+      <div className="flex items-start gap-2">
+        <Checkbox id={`${idPrefix}-replace`} checked={replace} onCheckedChange={(v) => onReplace(v === true)} className="mt-0.5" data-testid={`${idPrefix}-replace`} />
+        <div className="grid gap-0.5">
+          <Label htmlFor={`${idPrefix}-replace`} className="font-normal">
+            {t('mediaManagement.cleaning.replaceIllegal')}
+          </Label>
+          <span className="max-w-3xl text-xs text-muted-foreground">{t('mediaManagement.cleaning.replaceIllegalHint')}</span>
+        </div>
+      </div>
+
+      {replace && (
+        <div className="grid max-w-md gap-2">
+          <Label htmlFor={`${idPrefix}-colon`}>{t('mediaManagement.cleaning.colon')}</Label>
+          <Select value={colon} onValueChange={(v) => onColon(v as ColonReplacement)}>
+            <SelectTrigger id={`${idPrefix}-colon`} className="w-full" data-testid={`${idPrefix}-colon`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {colons.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {t(`mediaManagement.cleaning.colons.${option}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span className="text-xs text-muted-foreground">{t('mediaManagement.cleaning.colonHint')}</span>
+        </div>
+      )}
+
+      {replace && colon === 'custom' && onCustom && (
+        <div className="grid max-w-md gap-2">
+          <Label htmlFor={`${idPrefix}-custom`}>{t('mediaManagement.cleaning.custom')}</Label>
+          <Input
+            id={`${idPrefix}-custom`}
+            value={custom ?? ''}
+            onChange={(e) => onCustom(e.target.value)}
+            className={cn('font-mono text-xs', (customErrors?.length ?? 0) > 0 && 'border-destructive')}
+            spellCheck={false}
+            data-testid={`${idPrefix}-custom`}
+          />
+          {(customErrors?.length ?? 0) > 0 ? (
+            customErrors?.map((error) => (
+              <span key={error} className="text-xs text-destructive">
+                {error}
+              </span>
+            ))
+          ) : (
+            <span className="text-xs text-muted-foreground">{t('mediaManagement.cleaning.customHint')}</span>
+          )}
+        </div>
+      )}
+
+      <div className="grid max-w-md gap-2">
+        <Label htmlFor={`${idPrefix}-sample`}>{t('mediaManagement.cleaning.sampleTitle')}</Label>
+        <Input id={`${idPrefix}-sample`} value={sampleTitle} onChange={(e) => onSampleTitle(e.target.value)} spellCheck={false} data-testid={`${idPrefix}-sample`} />
+        <span className="text-xs text-muted-foreground">{t('mediaManagement.cleaning.sampleTitleHint')}</span>
+      </div>
+    </div>
+  )
+}
 
 type SeriesTemplateField = 'seriesFolderTemplate' | 'seasonFolderTemplate' | 'specialsFolderName' | 'standardEpisodeTemplate' | 'dailyEpisodeTemplate' | 'animeEpisodeTemplate'
 
@@ -87,7 +187,8 @@ function SeriesNamingForm({ initial }: { initial: SeriesNaming }) {
   const queryClient = useQueryClient()
   const [form, setForm] = useState<SeriesNamingRequest>(() => seriesRequest(initial))
   const [focused, setFocused] = useState<SeriesTemplateField>('standardEpisodeTemplate')
-  const debounced = useDebounced(form, 300)
+  const [sampleTitle, setSampleTitle] = useState(seriesSampleTitle)
+  const debounced = useDebounced({ ...form, sampleTitle }, 300)
   const preview = useQuery({
     queryKey: ['seriesNamingPreview', debounced],
     queryFn: () => mediaManagement.previewSeriesNaming(debounced),
@@ -157,6 +258,20 @@ function SeriesNamingForm({ initial }: { initial: SeriesNaming }) {
         </div>
       </div>
 
+      <CleaningFields
+        idPrefix="sn"
+        replace={form.replaceIllegalCharacters}
+        colon={form.colonReplacement}
+        custom={form.customColonReplacement}
+        colons={seriesColonReplacements}
+        customErrors={errors.customColonReplacement}
+        sampleTitle={sampleTitle}
+        onReplace={(v) => setForm({ ...form, replaceIllegalCharacters: v })}
+        onColon={(v) => setForm({ ...form, colonReplacement: v })}
+        onCustom={(v) => setForm({ ...form, customColonReplacement: v })}
+        onSampleTitle={setSampleTitle}
+      />
+
       {field('standardEpisodeTemplate', 'standardEpisode', preview.data?.standardEpisode, preview.data?.multiEpisode)}
       {field('dailyEpisodeTemplate', 'dailyEpisode', preview.data?.dailyEpisode)}
       {field('animeEpisodeTemplate', 'animeEpisode', preview.data?.animeEpisode)}
@@ -225,6 +340,8 @@ function toRequest(config: MediaManagement): MediaManagementRequest {
     extraFileExtensions: config.extraFileExtensions,
     seasonPackUpgrade: config.seasonPackUpgrade,
     seasonPackUpgradeThreshold: config.seasonPackUpgradeThreshold,
+    replaceIllegalCharacters: config.replaceIllegalCharacters,
+    colonReplacement: config.colonReplacement,
   }
 }
 
@@ -234,11 +351,13 @@ function MediaManagementForm({ initial }: { initial: MediaManagement }) {
   const [form, setForm] = useState<MediaManagementRequest>(() => toRequest(initial))
   // The bin is emptied by the maintenance task, which only runs by hand while the scheduler is off.
   const schedulerOff = useSchedulerEnabled() === false
+  const [sampleTitle, setSampleTitle] = useState(filmSampleTitle)
   const debouncedFile = useDebounced(form.fileNameTemplate, 300)
   const debouncedFolder = useDebounced(form.folderNameTemplate, 300)
+  const debouncedCleaning = useDebounced({ replaceIllegalCharacters: form.replaceIllegalCharacters, colonReplacement: form.colonReplacement, sampleTitle }, 300)
   const preview = useQuery({
-    queryKey: ['namingPreview', debouncedFile, debouncedFolder],
-    queryFn: () => mediaManagement.preview(debouncedFile, debouncedFolder),
+    queryKey: ['namingPreview', debouncedFile, debouncedFolder, debouncedCleaning],
+    queryFn: () => mediaManagement.preview(debouncedFile, debouncedFolder, debouncedCleaning),
     staleTime: Number.POSITIVE_INFINITY,
     placeholderData: (previous) => previous,
   })
@@ -281,6 +400,17 @@ function MediaManagementForm({ initial }: { initial: MediaManagement }) {
             <span className="text-xs text-muted-foreground">{t('mediaManagement.renameFilesHint')}</span>
           </div>
         </div>
+
+        <CleaningFields
+          idPrefix="mm"
+          replace={form.replaceIllegalCharacters}
+          colon={form.colonReplacement}
+          colons={filmColonReplacements}
+          sampleTitle={sampleTitle}
+          onReplace={(v) => setForm({ ...form, replaceIllegalCharacters: v })}
+          onColon={(v) => setForm({ ...form, colonReplacement: v })}
+          onSampleTitle={setSampleTitle}
+        />
 
         <div className="grid gap-2">
           <Label htmlFor="mm-file-template">{t('mediaManagement.fileTemplate')}</Label>

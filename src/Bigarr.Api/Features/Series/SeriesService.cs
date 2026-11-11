@@ -174,7 +174,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             Mode = VersionMode.Managed,
             QualityProfile = profile,
             RootFolder = root,
-            FolderName = string.IsNullOrWhiteSpace(request.FolderName) ? await FolderNameAsync(series, versionName, ct) : FolderNameBuilder.Sanitize(request.FolderName),
+            FolderName = string.IsNullOrWhiteSpace(request.FolderName) ? await FolderNameAsync(series, versionName, ct) : FolderNameBuilder.Sanitize(request.FolderName, (await MediaManagementAsync(ct)).SeriesNameCleaning),
             IsDefault = true,
             Monitored = request.Monitored,
             SeasonFolder = request.SeasonFolder,
@@ -295,7 +295,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             RootFolder = root,
             FolderName = string.IsNullOrWhiteSpace(request.FolderName)
                 ? await FolderNameAsync(series, name, ct)
-                : FolderNameBuilder.Sanitize(request.FolderName),
+                : FolderNameBuilder.Sanitize(request.FolderName, (await MediaManagementAsync(ct)).SeriesNameCleaning),
             IsDefault = defaultVersion is null,
             Monitored = request.Monitored,
             SeasonFolder = request.SeasonFolder,
@@ -730,9 +730,11 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
     /// <summary>The series folder template (Settings → Media management) applied to a new version; frozen afterwards.</summary>
     private async Task<string> FolderNameAsync(Series series, string versionName, CancellationToken ct)
     {
-        var config = await db.MediaManagement.AsNoTracking().FirstOrDefaultAsync(c => c.Id == MediaManagementConfig.SingletonId, ct) ?? MediaManagementConfig.Default();
-        return Import.SeriesNaming.FolderName(config, series, versionName);
+        return Import.SeriesNaming.FolderName(await MediaManagementAsync(ct), series, versionName);
     }
+
+    private async Task<MediaManagementConfig> MediaManagementAsync(CancellationToken ct) =>
+        await db.MediaManagement.AsNoTracking().FirstOrDefaultAsync(c => c.Id == MediaManagementConfig.SingletonId, ct) ?? MediaManagementConfig.Default();
 
     /// <summary>
     /// Same rules as a film's versions: the default needs a successor (<c>?promote=</c>), the last one takes the series

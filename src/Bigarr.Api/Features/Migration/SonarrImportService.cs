@@ -441,7 +441,7 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
         var keep = context.Request.KeepMonitored;
         var monitored = keep && item.Monitored;
         var tags = context.Request.ImportTags ? await TagsForAsync(item.Tags, context, ct) : [];
-        var folderName = RadarrImportService.LastSegment(item.Path) ?? FolderNameBuilder.Build(item.Title, item.Year > 0 ? item.Year : null);
+        var folderName = RadarrImportService.LastSegment(item.Path) ?? FolderNameBuilder.Build(item.Title, item.Year > 0 ? item.Year : null, ((await db.MediaManagement.AsNoTracking().FirstOrDefaultAsync(c => c.Id == MediaManagementConfig.SingletonId, ct)) ?? MediaManagementConfig.Default()).SeriesNameCleaning);
 
         var series = await db.Series
             .Include(s => s.Seasons)
@@ -994,8 +994,8 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
     /// follow. A quality Sonarr does not list keeps its series sizes. Returns how many definitions changed.
     /// </summary>
     /// <summary>
-    /// Sonarr's naming into media management, when every format is one Bigarr accepts; otherwise Bigarr's naming stays
-    /// and the report says which format was refused. Sonarr v3's 0-5 multi-episode styles are Bigarr's.
+    /// Sonarr's naming into media management (templates, "Replace Illegal Characters" and "Colon Replacement"), when every
+    /// format is one Bigarr accepts; otherwise Bigarr's naming stays and the report says which format was refused. Sonarr v3's 0-5 multi-episode styles are Bigarr's.
     /// </summary>
     public async Task<bool> ImportNamingAsync(SonarrConnection connection, SonarrImportProgress? progress, CancellationToken ct)
     {
@@ -1021,9 +1021,15 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
             Blank(naming.StandardEpisodeFormat) ?? config.StandardEpisodeTemplate,
             Blank(naming.DailyEpisodeFormat) ?? config.DailyEpisodeTemplate,
             Blank(naming.AnimeEpisodeFormat) ?? config.AnimeEpisodeTemplate,
-            Enum.IsDefined((MultiEpisodeStyle)naming.MultiEpisodeStyle) ? (MultiEpisodeStyle)naming.MultiEpisodeStyle : MultiEpisodeStyle.PrefixedRange);
+            Enum.IsDefined((MultiEpisodeStyle)naming.MultiEpisodeStyle) ? (MultiEpisodeStyle)naming.MultiEpisodeStyle : MultiEpisodeStyle.PrefixedRange,
+            naming.ReplaceIllegalCharacters,
+            NamingMapping.Colon(naming.ColonReplacementFormat, allowCustom: true),
+            naming.CustomColonReplacementFormat);
         var preview = Import.MediaManagementService.PreviewSeries(new Import.SeriesNamingPreviewRequest(
-            request.SeriesFolderTemplate, request.SeasonFolderTemplate, request.SpecialsFolderName, request.StandardEpisodeTemplate, request.DailyEpisodeTemplate, request.AnimeEpisodeTemplate, request.MultiEpisodeStyle));
+            request.SeriesFolderTemplate, request.SeasonFolderTemplate, request.SpecialsFolderName, request.StandardEpisodeTemplate, request.DailyEpisodeTemplate, request.AnimeEpisodeTemplate, request.MultiEpisodeStyle,
+            request.ReplaceIllegalCharacters ?? config.SeriesReplaceIllegalCharacters,
+            request.ColonReplacement ?? config.SeriesColonReplacement,
+            request.CustomColonReplacement ?? config.SeriesCustomColonReplacement));
         if (preview.Errors.Count > 0)
         {
             var detail = string.Join(" ", preview.Errors.Select(e => $"{e.Key}: {string.Join(" ", e.Value)}"));

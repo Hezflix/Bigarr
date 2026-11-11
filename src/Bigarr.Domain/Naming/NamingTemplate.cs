@@ -70,15 +70,27 @@ public static partial class NamingTemplate
         OriginalFileName = "the.matrix.1999.repack.1080p.bluray.x264-sparks",
     };
 
-    public static string Render(string template, NamingContext context)
+    /// <summary>
+    /// A file name, without extension. Each value is cleaned where it is printed (<see cref="NameCleaner.Clean"/>, with the
+    /// colon and illegal character settings of <paramref name="cleaning"/>, Radarr's defaults when null), then the name is
+    /// finished like Radarr's file names.
+    /// </summary>
+    public static string Render(string template, NamingContext context, NameCleaning? cleaning = null) =>
+        NameCleaner.FinishFile(RenderTokens(template, context, cleaning), cleaning);
+
+    /// <summary>A folder name: the same values, finished like Radarr's movie folders (only dots and spaces cut at the ends).</summary>
+    public static string RenderFolder(string template, NamingContext context, NameCleaning? cleaning = null) =>
+        NameCleaner.FinishFolder(RenderTokens(template, context, cleaning), cleaning);
+
+    private static string RenderTokens(string template, NamingContext context, NameCleaning? cleaning)
     {
         ArgumentNullException.ThrowIfNull(template);
         ArgumentNullException.ThrowIfNull(context);
 
-        var rendered = TokenRegex().Replace(template, match =>
+        return TokenRegex().Replace(template, match =>
         {
             var token = match.Groups["token"].Value;
-            var value = Resolve(Normalize(token), match.Groups["arg"].Success ? match.Groups["arg"].Value : null, context);
+            var value = Resolve(Normalize(token), match.Groups["arg"].Success ? match.Groups["arg"].Value : null, context)?.Trim();
             if (string.IsNullOrEmpty(value))
             {
                 return string.Empty;
@@ -91,10 +103,9 @@ public static partial class NamingTemplate
                 value = value.Replace(' ', separator[0]);
             }
 
-            return match.Groups["tag"].Value + match.Groups["prefix"].Value + value + match.Groups["suffix"].Value;
+            value = NameCleaner.Clean(value, cleaning);
+            return value.Length == 0 ? string.Empty : match.Groups["tag"].Value + match.Groups["prefix"].Value + value + match.Groups["suffix"].Value;
         });
-
-        return FolderNameBuilder.Sanitize(string.Join(' ', rendered.Split(' ', StringSplitOptions.RemoveEmptyEntries)));
     }
 
     /// <summary>Empty when the template is usable. <paramref name="forFile"/> adds the collision rule of blueprint §3.3.</summary>
@@ -125,7 +136,7 @@ public static partial class NamingTemplate
             errors.Add("The file template must contain {Quality Full}, {Quality Title} or {Version}: two versions sharing a folder would otherwise collide.");
         }
 
-        if (errors.Count == 0 && Render(template, Sample) is "_" or "")
+        if (errors.Count == 0 && (forFile ? Render(template, Sample) : RenderFolder(template, Sample)) is "_" or "")
         {
             errors.Add("The template produces an empty name.");
         }

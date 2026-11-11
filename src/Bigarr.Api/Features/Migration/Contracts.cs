@@ -61,7 +61,12 @@ public sealed record RadarrImportRequest(
     /// Give each mapped Bigarr profile the qualities of the Radarr profile mapped to it: which are allowed, their order
     /// and groups, the cutoff and whether upgrades are allowed. Several Radarr profiles on one: the one with most films wins.
     /// </summary>
-    bool ImportProfileQualities = true);
+    bool ImportProfileQualities = true,
+    /// <summary>
+    /// Copy Radarr's "Replace Illegal Characters" and "Colon Replacement" into the film naming settings. Import only:
+    /// following Radarr never rewrites them.
+    /// </summary>
+    bool ImportNaming = true);
 
 /// <summary>What one pass of the follow reads from a Radarr, handed to the import's per-film rules.</summary>
 public sealed record RadarrFollowData(
@@ -108,4 +113,6 @@ public sealed record RadarrImportStatusResponse(
     string? Error,
     List<RadarrImportIssue> Issues,
     /// <summary>Bigarr profiles that took the qualities and cutoff of a Radarr profile.</summary>
-    int ProfileQualitiesCopied = 0);
+    int ProfileQualitiesCopied = 0,
+    /// <summary>Radarr's illegal character and colon settings were copied into media management.</summary>
+    bool NamingImported = false);
