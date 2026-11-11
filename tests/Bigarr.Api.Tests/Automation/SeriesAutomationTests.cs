@@ -124,6 +124,7 @@ public sealed class SeriesAutomationTests(SeriesAutomationApiFactory factory) : 
         await CompleteAsync(client, row.DownloadId);
         await RefreshAsync(client);
         var files = await WaitForFilesAsync(client, series.Id, f => f.Any(x => x.EpisodeIds.Contains(tonight.Id)));
+        await WaitOffQueueAsync(client, row.GrabId!.Value); // the grab ends after its files are saved
         var file = files.Single(f => f.EpisodeIds.Contains(tonight.Id));
         Assert.Equal("WEBDL-1080p", file.Quality);
         var importHook = await sink.WaitForAsync(r => r.EventType == "episodeImported");

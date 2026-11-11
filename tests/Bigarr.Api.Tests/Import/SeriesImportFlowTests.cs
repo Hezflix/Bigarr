@@ -371,7 +371,10 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
         while (true)
         {
             var files = (await client.GetFromJsonAsync<SeriesFilesResponse>($"/api/v1/series/{seriesId}/files", Json))!.Files;
-            if (until(files))
+
+            // Each file is committed on its own and the grab ends after the last one: wait for the import to be over
+            // too, or the next grab of these episodes meets a download still active.
+            if (until(files) && (await RefreshAsync(client)).Items.All(i => i.SeriesId != seriesId || i.State is not (GrabState.ImportPending or GrabState.Importing)))
             {
                 return files;
             }
@@ -388,20 +391,4 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
 
     private static Task<List<HistoryEventResponse>> SeriesHistoryAsync(HttpClient client, int seriesId) =>
         client.GetFromJsonAsync<List<HistoryEventResponse>>($"/api/v1/history?seriesId={seriesId}&limit=1000", Json)!;
-
-    /// <summary>The grab's last file is saved a moment after the files show: the queue drops it at the next poll after that.</summary>
-    private static async Task WaitOffQueueAsync(HttpClient client, int grabId)
-    {
-        for (var attempt = 0; attempt < 100; attempt++)
-        {
-            if ((await RefreshAsync(client)).Items.All(i => i.GrabId != grabId))
-            {
-                return;
-            }
-
-            await Task.Delay(100);
-        }
-
-        Assert.Fail($"Grab {grabId} is still on the queue.");
-    }
 }
