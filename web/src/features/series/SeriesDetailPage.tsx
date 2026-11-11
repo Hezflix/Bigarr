@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { cn } from 'cn'
-import { BookmarkIcon, ChevronRightIcon, FilterIcon, FolderSearchIcon, ListChecksIcon, PlusIcon, RefreshCwIcon, SearchIcon, StarIcon, Trash2Icon } from 'lucide-react'
+import { BookmarkIcon, ChevronRightIcon, FilePenLineIcon, FilterIcon, FolderInputIcon, FolderSearchIcon, ListChecksIcon, PlusIcon, RefreshCwIcon, SearchIcon, StarIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { SeriesCompareSection } from '@/features/activity/SeriesCompare'
 import { toast } from 'sonner'
@@ -47,6 +47,8 @@ import { formatBytes, formatDate } from '@/i18n'
 import { EpisodeProgress } from './EpisodeProgress'
 import { SeriesSearchDialog, type SeriesSearchScope } from '@/features/search/SeriesInteractiveSearch'
 import { Checkbox } from '@/components/ui/checkbox'
+import { SeriesManualImportDialog } from '@/features/import/SeriesManualImportDialog'
+import { AssignUnmatchedDialog, DeleteFilesOption, EpisodeFileActions, RenameSeriesDialog } from './SeriesFiles'
 
 const errorMessage = (error: unknown, fallback: string) => (error instanceof ApiError ? error.message : fallback)
 
@@ -62,6 +64,9 @@ export function SeriesDetailPage() {
   const [chosenVersion, setChosenVersion] = useState<number | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [searchScope, setSearchScope] = useState<SeriesSearchScope | null>(null)
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [deleteFiles, setDeleteFiles] = useState(false)
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['seriesDetail', id] })
@@ -99,7 +104,7 @@ export function SeriesDetailPage() {
     onError: (error) => toast.error(errorMessage(error, t('common.unexpectedError'))),
   })
   const remove = useMutation({
-    mutationFn: () => seriesApi.remove(id),
+    mutationFn: () => seriesApi.remove(id, deleteFiles),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['series'] })
       void navigate({ to: '/series' })
@@ -191,6 +196,14 @@ export function SeriesDetailPage() {
               <FolderSearchIcon className={rescanning ? 'animate-pulse' : undefined} />
               {rescanning ? t('seriesDetail.rescanning') : t('seriesDetail.rescan')}
             </Button>
+            <Button type="button" variant="outline" onClick={() => setRenameOpen(true)} data-testid="series-rename-open">
+              <FilePenLineIcon />
+              {t('seriesFiles.rename')}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setImportOpen(true)} data-testid="series-manual-import-open">
+              <FolderInputIcon />
+              {t('seriesFiles.manualImport')}
+            </Button>
             <Button type="button" variant="destructive" onClick={() => setDeleteOpen(true)} disabled={remove.isPending}>
               <Trash2Icon />
               {t('seriesDetail.delete')}
@@ -205,9 +218,15 @@ export function SeriesDetailPage() {
             <AlertDialogTitle>{t('seriesDetail.deleteTitle')}</AlertDialogTitle>
             <AlertDialogDescription>{t('seriesDetail.confirmDelete', { title: s.title })}</AlertDialogDescription>
           </AlertDialogHeader>
+          <DeleteFilesOption checked={deleteFiles} onChange={setDeleteFiles} hint={t('seriesFiles.deleteSeriesFilesHint')} />
+          {remove.error && (
+            <Alert variant="destructive">
+              <AlertDescription>{errorMessage(remove.error, t('common.unexpectedError'))}</AlertDescription>
+            </Alert>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => remove.mutate()}>
+            <AlertDialogAction variant="destructive" onClick={(e) => { e.preventDefault(); remove.mutate() }} disabled={remove.isPending}>
               {t('seriesDetail.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -230,7 +249,10 @@ export function SeriesDetailPage() {
 
       {searchScope && <SeriesSearchDialog key={JSON.stringify(searchScope)} series={s} scope={searchScope} onClose={() => setSearchScope(null)} />}
 
-      {version && files.data && <UnmatchedFiles files={files.data.unmatched.filter((f) => f.versionId === version.id)} />}
+      {version && files.data && <UnmatchedFiles seriesId={s.id} files={files.data.unmatched.filter((f) => f.versionId === version.id)} onChanged={invalidate} />}
+
+      {renameOpen && version && <RenameSeriesDialog series={s} versionId={version.id} onClose={() => setRenameOpen(false)} onDone={invalidate} />}
+      {importOpen && <SeriesManualImportDialog seriesId={s.id} path={version?.path} onClose={() => { setImportOpen(false); invalidate() }} />}
 
       <SeriesCompareSection tvdbId={s.tvdbId} />
     </>
@@ -595,10 +617,11 @@ function DeleteVersionDialog({ series: s, version, open, onOpenChange, onDone }:
   const navigate = useNavigate()
   const others = s.versions.filter((v) => v.id !== version.id && v.mode === 'managed')
   const [successor, setSuccessor] = useState<number | null>(null)
+  const [deleteFiles, setDeleteFiles] = useState(false)
   const promoteTo = successor ?? others[0]?.id
   const last = s.versions.length === 1
   const remove = useMutation({
-    mutationFn: () => seriesApi.deleteVersion(s.id, version.id, version.isDefault ? promoteTo : undefined),
+    mutationFn: () => last ? seriesApi.remove(s.id, deleteFiles) : seriesApi.deleteVersion(s.id, version.id, version.isDefault ? promoteTo : undefined, deleteFiles),
     onSuccess: () => {
       onOpenChange(false)
       if (last) void navigate({ to: '/series' })
@@ -629,6 +652,7 @@ function DeleteVersionDialog({ series: s, version, open, onOpenChange, onDone }:
             </Select>
           </div>
         )}
+        <DeleteFilesOption checked={deleteFiles} onChange={setDeleteFiles} hint={t('seriesFiles.deleteVersionFilesHint')} />
         {remove.error && (
           <Alert variant="destructive">
             <AlertDescription>{errorMessage(remove.error, t('common.unexpectedError'))}</AlertDescription>
@@ -831,7 +855,7 @@ function EpisodeTable({
           <TableHead>{t('seriesDetail.columns.title')}</TableHead>
           <TableHead className="w-32">{t('seriesDetail.columns.airDate')}</TableHead>
           <TableHead className="w-56">{t('seriesDetail.columns.file')}</TableHead>
-          <TableHead className="w-10 pr-4" aria-label={t('seriesSearch.search')} />
+          <TableHead className="w-28 pr-4" aria-label={t('seriesSearch.search')} />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -861,7 +885,8 @@ function EpisodeTable({
               <TableCell>
                 <EpisodeFileCell file={files.get(episode.id)} episode={episode} />
               </TableCell>
-              <TableCell className="py-1 pr-4">
+              <TableCell className="py-1 pr-4 whitespace-nowrap text-right">
+                {files.get(episode.id) && <EpisodeFileActions seriesId={s.id} file={files.get(episode.id)!} onChanged={onChanged} />}
                 <Button
                   type="button"
                   size="icon"
@@ -908,8 +933,9 @@ function EpisodeFileCell({ file, episode }: { file: EpisodeFile | undefined; epi
 }
 
 /** Files of the version folder the scan could not attach to episodes: listed with the reason, never touched. */
-function UnmatchedFiles({ files }: { files: UnmatchedEpisodeFile[] }) {
+function UnmatchedFiles({ seriesId, files, onChanged }: { seriesId: number; files: UnmatchedEpisodeFile[]; onChanged: () => void }) {
   const { t } = useTranslation()
+  const [assigning, setAssigning] = useState<UnmatchedEpisodeFile | null>(null)
   if (files.length === 0) return null
 
   return (
@@ -923,7 +949,8 @@ function UnmatchedFiles({ files }: { files: UnmatchedEpisodeFile[] }) {
               <TableHead className="pl-4">{t('seriesDetail.unmatched.file')}</TableHead>
               <TableHead className="w-24 text-right">{t('seriesDetail.unmatched.size')}</TableHead>
               <TableHead className="w-48">{t('seriesDetail.unmatched.reason')}</TableHead>
-              <TableHead className="pr-4">{t('seriesDetail.unmatched.detail')}</TableHead>
+              <TableHead>{t('seriesDetail.unmatched.detail')}</TableHead>
+              <TableHead className="w-24 pr-4" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -940,16 +967,22 @@ function UnmatchedFiles({ files }: { files: UnmatchedEpisodeFile[] }) {
                     {t(`seriesDetail.unmatched.reasons.${file.reason}`)}
                   </Badge>
                 </TableCell>
-                <TableCell className="max-w-0 pr-4 text-xs text-muted-foreground">
+                <TableCell className="max-w-0 text-xs text-muted-foreground">
                   <span className="block truncate" title={file.detail ?? undefined}>
                     {file.detail}
                   </span>
+                </TableCell>
+                <TableCell className="pr-4 text-right">
+                  <Button type="button" size="sm" variant="outline" onClick={() => setAssigning(file)} data-testid="unmatched-assign">
+                    {t('seriesFiles.assign')}
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
+      {assigning && <AssignUnmatchedDialog seriesId={seriesId} file={assigning} onClose={() => setAssigning(null)} onDone={onChanged} />}
     </section>
   )
 }

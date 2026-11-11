@@ -135,12 +135,6 @@ public sealed class SeriesRssPass(
 
             taken.UnionWith(targetIds);
             var versionId = ((EpisodeTarget)attributed.Target.Target).VersionId;
-            if (!sightings.Enabled)
-            {
-                outcomes[Key(entry)] = (null, GrabService.SeriesGrabGated);
-                continue;
-            }
-
             var grab = await grabs.GrabAsync(GrabRequest.ForEpisodes(release, versionId, judgement.Episodes.Select(e => e.Id)), RssSyncService.GrabTrigger, ct);
             if (grab.IsSuccess && grab.Value!.ShadowPickId is { } pickId)
             {

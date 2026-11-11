@@ -118,22 +118,39 @@ public sealed class SeriesSearchTests(SeriesApiFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task Without_shadow_mode_a_series_grab_is_refused_before_any_client()
+    public async Task Without_shadow_mode_a_series_grab_goes_to_the_client_with_the_series_category()
     {
         var client = await ClientAsync(factory);
         var series = await SeriesSetup.AddAsync(client, BreakingBad);
         await SeriesSetup.MockIndexerAsync(client);
-        await AddMockClientAsync(client, $"Mock series {Guid.NewGuid():N}");
-        var result = await SearchAsync(client, series.Id, "season=1");
-        var pack = result.Releases[0];
+        var id = Guid.NewGuid().ToString("N")[..8];
+        var created = await client.PostAsJsonAsync("/api/v1/downloadclients", new DownloadClientRequest($"Mock series {id}", Bigarr.Domain.Downloads.DownloadClientImplementation.Mock, Category: $"films-{id}", SeriesCategory: $"tv-{id}"), Json);
+        var downloadClient = (await created.Content.ReadFromJsonAsync<DownloadClientResponse>(Json))!;
+        try
+        {
+            var result = await SearchAsync(client, series.Id, "season=2");
+            var pack = result.Releases.Single(r => r.Title == "Breaking.Bad.S02.1080p.BluRay.x264-DEMAND");
 
-        var grab = await client.PostAsJsonAsync("/api/v1/grab", SeriesSetup.Grab(pack), Json);
-        Assert.Equal(HttpStatusCode.Conflict, grab.StatusCode);
-        Assert.Contains("cannot track or import series downloads yet", await grab.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+            var grab = await client.PostAsJsonAsync("/api/v1/grab", SeriesSetup.Grab(pack), Json);
+            Assert.Equal(HttpStatusCode.Created, grab.StatusCode);
+            var grabbed = (await grab.Content.ReadFromJsonAsync<GrabResponse>(Json))!;
+            Assert.False(grabbed.Shadow);
 
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
-        Assert.False(await db.Grabs.AnyAsync(g => g.ReleaseTitle == pack.Title));
+            var torrent = factory.Services.GetRequiredService<Bigarr.Api.Infrastructure.Downloads.Mock.MockDownloadClientState>().All.Single(t => t.Hash == grabbed.DownloadId);
+            Assert.Equal($"tv-{id}", torrent.Category);
+            Assert.Equal(13, torrent.EpisodeLabels!.Count);
+
+            using var scope = factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+            Assert.Equal(13, await db.GrabTargets.CountAsync(t => t.GrabId == grabbed.GrabId && t.Active));
+
+            // One active download per episode: the same season again is refused.
+            Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync("/api/v1/grab", SeriesSetup.Grab(pack) with { Guid = "other", InfoHash = new string('b', 40) }, Json)).StatusCode);
+        }
+        finally
+        {
+            await client.DeleteAsync($"/api/v1/downloadclients/{downloadClient.Id}");
+        }
     }
 
     [Fact]

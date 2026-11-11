@@ -96,6 +96,9 @@ internal sealed class FakeSonarr : IAsyncDisposable
 
     public List<(int TvdbId, string Title)> Exclusions { get; } = [];
 
+    /// <summary>What <c>/config/naming</c> answers; null answers 404 (an old Sonarr).</summary>
+    public object? Naming { get; set; }
+
     /// <summary>Title → (Sonarr series id or 0, Sonarr episode ids, quality name, custom formats, score).</summary>
     public Func<string, (int SeriesId, int[] EpisodeIds, string Quality, string[] Formats, int Score)>? Parse { get; set; }
 
@@ -168,6 +171,7 @@ internal sealed class FakeSonarr : IAsyncDisposable
                 .ToArray()),
             "/api/v3/history" => Json(Page(History.OrderBy(h => h.Date).Select(h => LineJson(h, includeEpisode)).ToList(), query)),
             "/api/v3/blocklist" => Json(Page(Blocklist.OrderBy(b => b.Date).Select(BlockedJson).ToList(), query)),
+            "/api/v3/config/naming" => Naming is null ? new FakeHttpServer.Answer(404) : Json(Naming),
             "/api/v3/parse" => ParseJson(query.GetValueOrDefault("title").ToString()),
             _ => null,
         };

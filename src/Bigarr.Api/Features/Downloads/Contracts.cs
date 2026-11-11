@@ -17,7 +17,9 @@ public sealed record DownloadClientRequest(
     string? Password = null,
     string Category = DownloadClient.DefaultCategory,
     bool AddPaused = false,
-    int Priority = 1);
+    int Priority = 1,
+    /// <summary>Category of series grabs (Sonarr's <c>tv-sonarr</c>). Null keeps the current one (<c>bigarr-tv</c> for a new client).</summary>
+    string? SeriesCategory = null);
 
 public sealed record DownloadClientResponse(
     int Id,
@@ -34,7 +36,8 @@ public sealed record DownloadClientResponse(
     bool AddPaused,
     int Priority,
     DownloadProtocol Protocol,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    string SeriesCategory = DownloadClient.DefaultSeriesCategory);
 
 public sealed record DownloadClientTestResponse(string Version, string? ApiVersion, string Category, bool CategoryCreated);
 
@@ -113,7 +116,23 @@ public sealed record QueueItemResponse(
     List<StatusMessage> StatusMessages,
     DateTime AddedAt,
     /// <summary>False for a torrent found in our category that Bigarr never grabbed.</summary>
-    bool Tracked);
+    bool Tracked)
+{
+    /// <summary>A series download: a series grab, or a torrent of the series category.</summary>
+    public bool Series { get; init; }
+
+    public int? SeriesId { get; init; }
+
+    public string? SeriesTitle { get; init; }
+
+    public int? SeriesYear { get; init; }
+
+    /// <summary>The episodes the grab covers, in order; empty for a film or an untracked torrent.</summary>
+    public List<QueueEpisodeResponse> Episodes { get; init; } = [];
+}
+
+/// <param name="HasFile">The version already has a file for it (an import in progress, or an upgrade).</param>
+public sealed record QueueEpisodeResponse(int EpisodeId, int SeasonNumber, int EpisodeNumber, int? AbsoluteEpisodeNumber, string Title, bool HasFile);
 
 public sealed record QueueClientStatusResponse(int DownloadClientId, string Name, bool Healthy, string? LastError, DateTime? LastSuccessAt);
 

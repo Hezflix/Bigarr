@@ -104,6 +104,8 @@ public sealed class SonarrImportProgress(SonarrImportRequest request)
 
     public void QualitySizesUpdated(int count) => Interlocked.Add(ref _qualitySizesUpdated, count);
 
+    public bool NamingImported { get; set; }
+
     /// <summary>One Sonarr custom format: <c>new</c>, <c>reused</c>, <c>renamed</c> or <c>updated</c>.</summary>
     public void CustomFormat(string outcome)
     {
@@ -147,7 +149,7 @@ public sealed class SonarrImportProgress(SonarrImportRequest request)
 
         return new SonarrImportStatusResponse(
             State, StartedAt, FinishedAt, Total, _processed, _seriesAdded, _versionsAdded, _versionsUpdated, _episodesAdded, _filesAdded, _filesMissing,
-            _skipped, _failed, _tagsAdded, _exclusionsAdded, _historyAdded, _blocklistAdded, _profilesScored, _profileQualitiesCopied, Current, Error, issues, _profilesCreated, _qualitySizesUpdated, _formatsAdded, _formatsReused, _formatsRenamed, _formatsUpdated);
+            _skipped, _failed, _tagsAdded, _exclusionsAdded, _historyAdded, _blocklistAdded, _profilesScored, _profileQualitiesCopied, Current, Error, issues, _profilesCreated, _qualitySizesUpdated, _formatsAdded, _formatsReused, _formatsRenamed, _formatsUpdated, NamingImported);
     }
 
     public static SonarrImportStatusResponse Idle { get; } =

@@ -149,7 +149,8 @@ public sealed partial class DownloadClientService(BigarrDbContext db, DownloadCl
         client.AddPaused,
         client.Priority,
         client.Protocol,
-        client.CreatedAt);
+        client.CreatedAt,
+        client.SeriesCategory);
 
     public static Failure? Validate(DownloadClientRequest request)
     {
@@ -189,6 +190,23 @@ public sealed partial class DownloadClientService(BigarrDbContext db, DownloadCl
             return Failure.Invalid("Invalid category", "Letters, digits, dots, dashes, underscores and spaces; at most 64 characters.");
         }
 
+        if (request.SeriesCategory is { } series)
+        {
+            if (string.IsNullOrWhiteSpace(series) || series.Trim().Length > MaxCategoryLength || !CategoryRegex().IsMatch(series.Trim()))
+            {
+                return Failure.Invalid("Invalid series category", "Letters, digits, dots, dashes, underscores and spaces; at most 64 characters.");
+            }
+
+            if (string.Equals(series.Trim(), request.Category.Trim(), StringComparison.Ordinal))
+            {
+                return Failure.Invalid("Same category twice", "The series category must differ from the film one: it is how a finished download is known to hold episodes.");
+            }
+        }
+        else if (string.Equals(request.Category.Trim(), DownloadClient.DefaultSeriesCategory, StringComparison.Ordinal))
+        {
+            return Failure.Invalid("Same category twice", $"{DownloadClient.DefaultSeriesCategory} is the default series category; give the series another one.");
+        }
+
         if (request.Priority is < DownloadClient.MinPriority or > DownloadClient.MaxPriority)
         {
             return Failure.Invalid("Invalid priority", $"Between {DownloadClient.MinPriority} (tried first) and {DownloadClient.MaxPriority}.");
@@ -209,6 +227,7 @@ public sealed partial class DownloadClientService(BigarrDbContext db, DownloadCl
         client.Username = qbt && !string.IsNullOrWhiteSpace(request.Username) ? request.Username.Trim() : null;
         client.Password = qbt && !string.IsNullOrEmpty(request.Password) ? request.Password : null;
         client.Category = request.Category.Trim();
+        client.SeriesCategory = request.SeriesCategory?.Trim() ?? (client.Id == 0 ? DownloadClient.DefaultSeriesCategory : client.SeriesCategory);
         client.AddPaused = request.AddPaused;
         client.Priority = request.Priority;
     }

@@ -11,6 +11,9 @@ public sealed class DownloadClient
 
     public const string DefaultCategory = "bigarr-movies";
 
+    /// <summary>Sonarr's is <c>tv-sonarr</c>; Bigarr's own name keeps a Sonarr sharing the client out of its way.</summary>
+    public const string DefaultSeriesCategory = "bigarr-tv";
+
     public int Id { get; set; }
 
     public required string Name { get; set; }
@@ -36,6 +39,16 @@ public sealed class DownloadClient
 
     /// <summary>Every torrent Bigarr adds carries this category; the queue is the category's content.</summary>
     public string Category { get; set; } = DefaultCategory;
+
+    /// <summary>Series grabs carry this one (Sonarr's <c>tv-sonarr</c>): the import knows a download of it is episodes.</summary>
+    public string SeriesCategory { get; set; } = DefaultSeriesCategory;
+
+    /// <summary>The category a grab of this kind is sent with.</summary>
+    public string CategoryFor(bool series) => series ? SeriesCategory : Category;
+
+    /// <summary>True when <paramref name="category"/> is the series one (and not also the film one).</summary>
+    public bool IsSeriesCategory(string? category) =>
+        category is not null && string.Equals(category, SeriesCategory, StringComparison.Ordinal) && !string.Equals(category, Category, StringComparison.Ordinal);
 
     /// <summary>Add torrents stopped, to be started by hand in the client.</summary>
     public bool AddPaused { get; set; }

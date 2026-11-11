@@ -30,6 +30,12 @@ namespace Bigarr.Api.Features.Import;
 /// <summary>What one import attempt did. <see cref="Deferred"/> means "not ready yet", not a failure.</summary>
 public sealed record ImportOutcome(bool Success, string? Reason, MediaFile? File, bool Upgraded, TransferOutcome? Transfer, string? DestinationPath, bool Deferred = false)
 {
+    /// <summary>Per-file lines of a series download: what failed or was skipped, and why.</summary>
+    public IReadOnlyList<string> Messages { get; init; } = [];
+
+    /// <summary>Files of a series download that went in (a pack can be partly imported).</summary>
+    public int ImportedFiles { get; init; }
+
     public static ImportOutcome Failed(string reason) => new(false, reason, null, false, null, null);
 
     public static ImportOutcome Defer(string reason) => new(false, reason, null, false, null, null, Deferred: true);
@@ -71,6 +77,7 @@ public sealed class ImportService(
     ImportQueue imports,
     QueueState queue,
     OutboxWriter outbox,
+    SeriesImportService series,
     TimeProvider time,
     ILogger<ImportService> logger)
 {
@@ -78,6 +85,9 @@ public sealed class ImportService(
 
     /// <summary>Specifications an import applies when it has to pick or judge a version itself (no user override).</summary>
     public static readonly ReleaseEvaluator Evaluator = new([new QualityAllowedSpecification(), new ConstraintsSpecification(), new UpgradableSpecification()]);
+
+    /// <summary>The same for a series release: which version takes a torrent added by hand.</summary>
+    public static readonly ReleaseEvaluator SeriesEvaluator = new([new QualityAllowedSpecification(), new ConstraintsSpecification(), new UpgradableSpecification()]);
 
     /// <summary>The automatic path, run by <see cref="ImportRunner"/>: from <see cref="GrabState.ImportPending"/> to imported or import failed.</summary>
     public async Task ImportGrabAsync(int grabId, CancellationToken ct)
@@ -110,6 +120,24 @@ public sealed class ImportService(
         if (outcome.Success)
         {
             logger.LogInformation("Imported {Title} → {Path} ({Transfer}{Upgrade})", grab.ReleaseTitle, outcome.DestinationPath, outcome.Transfer, outcome.Upgraded ? ", upgrade" : string.Empty);
+            if (outcome.ImportedFiles > 0)
+            {
+                // A series download: each file saved its own changes; the grab ends here.
+                db.ChangeTracker.Clear();
+                grab = await db.Grabs.Include(g => g.Targets).FirstAsync(g => g.Id == grabId, ct);
+                grab.StatusMessages.RemoveAll(m => m.Title == FailedMessageTitle);
+                if (outcome.Messages.Count > 0)
+                {
+                    grab.StatusMessages.Add(new StatusMessage { Title = "Skipped files", Messages = [.. outcome.Messages], Severity = StatusSeverity.Info });
+                }
+
+                if (!grab.State.IsTerminal())
+                {
+                    grab.TransitionTo(GrabState.Imported);
+                }
+
+                await db.SaveChangesAsync(ct);
+            }
         }
         else if (outcome.Deferred)
         {
@@ -126,7 +154,7 @@ public sealed class ImportService(
         {
             db.ChangeTracker.Clear();
             grab = await db.Grabs.Include(g => g.Targets).FirstAsync(g => g.Id == grabId, ct);
-            await FailAsync(grab, outcome.Reason ?? "Unknown error", ct);
+            await FailAsync(grab, outcome.Reason ?? "Unknown error", ct, outcome.Messages);
         }
 
         queue.RequestRefresh();
@@ -196,6 +224,11 @@ public sealed class ImportService(
         if (!File.Exists(item.OutputPath) && !Directory.Exists(item.OutputPath))
         {
             return ImportOutcome.Failed($"'{item.OutputPath}' is not accessible from Bigarr. Downloads and the library must share one mount, at the same path for {client.Name} and for Bigarr.");
+        }
+
+        if (await series.IsSeriesGrabAsync(grab, client, item, ct))
+        {
+            return await series.ImportDownloadAsync(grab, item, ct);
         }
 
         var video = PickVideoFile(item.OutputPath);
@@ -515,8 +548,20 @@ public sealed class ImportService(
         return new ImportOutcome(true, null, file, existing is not null, outcome, destination);
     }
 
-    private async Task FailAsync(Grab grab, string reason, CancellationToken ct)
+    private async Task FailAsync(Grab grab, string reason, CancellationToken ct, IReadOnlyList<string>? details = null)
     {
+        var targetIds = grab.Targets.Select(t => t.TargetId).ToList();
+        var episodes = targetIds.Count == 0 ? [] : await db.EpisodeTargets.AsNoTracking()
+            .Include(t => t.Episode)
+            .Include(t => t.Version).ThenInclude(v => v.Series)
+            .Where(t => targetIds.Contains(t.Id))
+            .ToListAsync(ct);
+        if (episodes.Count > 0 || details is { Count: > 0 })
+        {
+            await FailSeriesAsync(grab, reason, details ?? [], episodes, ct);
+            return;
+        }
+
         var version = grab.Targets.Count == 0 ? null : await db.MovieVersions.AsNoTracking()
             .Include(v => v.Movie)
             .Include(v => v.QualityProfile).ThenInclude(p => p.FormatScores)
@@ -555,6 +600,53 @@ public sealed class ImportService(
             grab.DownloadId));
         await db.SaveChangesAsync(ct);
         logger.LogWarning("Import of {Title} failed: {Reason}", grab.ReleaseTitle, reason);
+    }
+
+    /// <summary>
+    /// A series download that needs a human: the reason and one line per file on the grab, an import failed line per
+    /// episode of the grab still without a file from it. Never blocklisted.
+    /// </summary>
+    private async Task FailSeriesAsync(Grab grab, string reason, IReadOnlyList<string> details, List<Bigarr.Domain.Tv.EpisodeTarget> episodes, CancellationToken ct)
+    {
+        grab.StatusMessages.RemoveAll(m => m.Title == FailedMessageTitle || m.Title == "Skipped files");
+        grab.StatusMessages.Add(new StatusMessage { Title = FailedMessageTitle, Messages = [reason, .. details], Severity = StatusSeverity.Error });
+        if (!grab.State.IsTerminal())
+        {
+            grab.TransitionTo(GrabState.ImportFailed);
+        }
+
+        var now = time.GetUtcNow().UtcDateTime;
+        foreach (var target in episodes.Where(t => t.EpisodeFileId is null))
+        {
+            var line = GrabService.SeriesHistory(target.Version, target, HistoryEventType.ImportFailed, grab.ReleaseTitle, grab.IndexerId, grab.IndexerName, now);
+            line.Data["reason"] = reason;
+            line.Data["downloadClient"] = grab.DownloadClientName ?? string.Empty;
+            line.Data["downloadId"] = grab.DownloadId ?? string.Empty;
+            var mine = details.FirstOrDefault(d => d.Contains(line.Data.GetValueOrDefault("episode") ?? "\u0000", StringComparison.Ordinal));
+            if (mine is not null)
+            {
+                line.Data["detail"] = mine;
+            }
+
+            db.History.Add(line);
+        }
+
+        if (episodes.Count == 0)
+        {
+            // Nothing attached it to a series (a torrent added by hand that matched no show).
+            db.History.Add(new HistoryEvent
+            {
+                EventType = HistoryEventType.ImportFailed,
+                SourceTitle = grab.ReleaseTitle,
+                IndexerId = grab.IndexerId,
+                IndexerName = grab.IndexerName,
+                Data = new Dictionary<string, string> { ["reason"] = reason, ["downloadClient"] = grab.DownloadClientName ?? string.Empty, ["downloadId"] = grab.DownloadId ?? string.Empty, ["series"] = "true" },
+                CreatedAt = now,
+            });
+        }
+
+        await db.SaveChangesAsync(ct);
+        logger.LogWarning("Import of {Title} failed: {Reason} {Details}", grab.ReleaseTitle, reason, string.Join(" | ", details));
     }
 
     /// <summary>Title → film in the library → the version whose profile and constraints accept the release (blueprint §5, fallback).</summary>
