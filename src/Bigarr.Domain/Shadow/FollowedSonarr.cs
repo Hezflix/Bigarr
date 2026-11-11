@@ -27,6 +27,18 @@ public sealed class FollowedSonarr
     /// <summary>Sonarr root folder path → Bigarr root folder id (a series root folder).</summary>
     public Dictionary<string, int> RootFolderMap { get; set; } = [];
 
+    /// <summary>
+    /// Sonarr custom format id → Bigarr custom format id, written by the import and kept by every pass, so a format
+    /// renamed in Sonarr is still the same one here.
+    /// </summary>
+    public Dictionary<int, int> FormatMap { get; set; } = [];
+
+    /// <summary>
+    /// The Bigarr formats this Sonarr brought in (created, or its "(Sonarr)" copies): the follow keeps their definition in
+    /// line with Sonarr's. A format it only reused (same name, same definition) is never rewritten by it.
+    /// </summary>
+    public List<int> OwnedFormats { get; set; } = [];
+
     public bool ImportTags { get; set; } = true;
 
     public bool KeepMonitored { get; set; } = true;

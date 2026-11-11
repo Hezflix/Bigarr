@@ -1610,6 +1610,10 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Note")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("SpecificationsJson")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -1878,6 +1882,10 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<bool>("Enabled")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("FormatMap")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("HistoryCheckpoint")
                         .HasColumnType("TEXT");
 
@@ -1911,6 +1919,10 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OwnedFormats")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ProfileMap")

@@ -260,7 +260,8 @@ public sealed class CustomFormatsEndpointsTests : IDisposable
         var client = await QualityTestClient.LoginAsync(factory);
 
         var schema = (await client.GetFromJsonAsync<CustomFormatSchemaResponse>("/api/v1/customformats/schema", Json))!;
-        Assert.Equal(10, schema.Specifications.Count);
+        Assert.Equal(11, schema.Specifications.Count);
+        Assert.Equal([1, 2, 3, 4], schema.Specifications.Single(s => s.Implementation == "ReleaseTypeSpecification").Fields[0].Options!.Select(o => o.Value));
         var source = schema.Specifications.Single(s => s.Implementation == "SourceSpecification");
         Assert.Equal("select", Assert.Single(source.Fields).Type);
         Assert.Contains(source.Fields[0].Options!, o => o is { Value: 9, Label: "Blu-ray" });

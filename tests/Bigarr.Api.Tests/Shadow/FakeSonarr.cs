@@ -106,6 +106,9 @@ internal sealed class FakeSonarr : IAsyncDisposable
 
     public List<(int Id, string Label)> Tags { get; } = [];
 
+    /// <summary>The raw JSON <c>/customformat</c> returns (Sonarr v4's shape); none by default.</summary>
+    public string CustomFormatsJson { get; set; } = "[]";
+
     /// <summary>Sonarr's quality sizes, <c>/qualitydefinition</c>: (Sonarr's quality id, name, min, preferred, max).</summary>
     public List<(int QualityId, string Name, double? Min, double? Preferred, double? Max)> QualityDefinitions { get; } =
     [
@@ -151,6 +154,7 @@ internal sealed class FakeSonarr : IAsyncDisposable
             "/api/v3/system/status" => Json(new { appName = "Sonarr", instanceName = "Sonarr", version = "4.0.11.2680" }),
             "/api/v3/qualityprofile" => Json(Profiles),
             "/api/v3/languageprofile" => new FakeHttpServer.Answer(404),
+            "/api/v3/customformat" => new FakeHttpServer.Answer(200, CustomFormatsJson),
             "/api/v3/qualitydefinition" => Json(QualityDefinitions.Select((d, i) => new { id = i + 1, quality = new { id = d.QualityId, name = d.Name, source = "web", resolution = 1080 }, title = d.Name, weight = i + 1, minSize = d.Min, maxSize = d.Max, preferredSize = d.Preferred }).ToArray()),
             "/api/v3/tag" => Json(Tags.Select(t => new { id = t.Id, label = t.Label }).ToArray()),
             "/api/v3/rootfolder" => Json(new object[] { new { id = 1, path = RootPath, freeSpace = 1L << 40 }, new { id = 2, path = AnimeRootPath, freeSpace = 1L << 40 } }),

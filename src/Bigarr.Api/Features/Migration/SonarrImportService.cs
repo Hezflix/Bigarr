@@ -37,7 +37,7 @@ public sealed record SonarrFollowData(
 /// episode's target. Database only: nothing on disk is touched. In shadow mode the same per-series rules follow a Sonarr
 /// afterwards (<see cref="FollowAsync"/>), files included.
 /// </summary>
-public sealed class SonarrImportService(BigarrDbContext db, SonarrClient sonarr, TimeProvider time, ILogger<SonarrImportService> logger)
+public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient sonarr, TimeProvider time, ILogger<SonarrImportService> logger)
 {
     private static readonly char[] Separators = ['/', '\\'];
 
@@ -60,12 +60,14 @@ public sealed class SonarrImportService(BigarrDbContext db, SonarrClient sonarr,
         int historyCount;
         int blocklistCount;
         List<SonarrLanguageProfile> languageProfiles;
+        List<SonarrFormatPreview> formatsPreview;
         try
         {
             snapshot = await LoadAsync(connection, withHistory: false, withBlocklist: false, ct);
             historyCount = await sonarr.HistoryCountAsync(connection, ct);
             blocklistCount = await sonarr.BlocklistCountAsync(connection, ct);
             languageProfiles = await sonarr.LanguageProfilesAsync(connection, ct);
+            formatsPreview = (await SyncFormatsAsync(await sonarr.CustomFormatsAsync(connection, ct), null, null, dryRun: true, null, ct)).Items;
         }
         catch (SonarrUnavailableException ex)
         {
@@ -116,7 +118,8 @@ public sealed class SonarrImportService(BigarrDbContext db, SonarrClient sonarr,
             profilePreviews,
             rootPreviews,
             tagPreviews,
-            languageProfiles.Select(l => l.Name).ToList()));
+            languageProfiles.Select(l => l.Name).ToList(),
+            formatsPreview));
     }
 
     /// <summary>What must hold before an import is queued: a valid version name and mappings that point at things Bigarr has.</summary>
@@ -174,11 +177,18 @@ public sealed class SonarrImportService(BigarrDbContext db, SonarrClient sonarr,
         var startedAt = time.GetUtcNow().UtcDateTime;
         var snapshot = await LoadAsync(connection, request.ImportHistory, request.ImportBlocklist, ct);
 
+        SonarrFormatSync? formats = null;
+        if (request.ImportCustomFormats)
+        {
+            progress.Current = "Custom formats";
+            formats = await SyncFormatsAsync(await sonarr.CustomFormatsAsync(connection, ct), null, null, dryRun: false, progress, ct);
+        }
+
         progress.Current = "Profiles";
         request = request with { ProfileMap = await CreateProfilesAsync(request.ProfileMap ?? [], snapshot.Profiles, progress, ct) };
-        if (request.ImportProfileQualities)
+        if (request.ImportProfileQualities || request.ImportCustomFormats)
         {
-            await ApplyProfilesAsync(request, snapshot.Profiles, SeriesPerProfile(snapshot.Series), progress, ct);
+            await ApplyProfilesAsync(request, snapshot.Profiles, SeriesPerProfile(snapshot.Series), progress, ct, formats?.Map, qualities: request.ImportProfileQualities, scores: request.ImportCustomFormats);
         }
 
         if (request.ImportQualitySizes)
@@ -204,7 +214,7 @@ public sealed class SonarrImportService(BigarrDbContext db, SonarrClient sonarr,
 
         if (request.Follow)
         {
-            await KeepFollowingAsync(request, startedAt, ct);
+            await KeepFollowingAsync(request, startedAt, formats, ct);
         }
 
         progress.Current = null;
@@ -244,7 +254,7 @@ public sealed class SonarrImportService(BigarrDbContext db, SonarrClient sonarr,
     /// the import loaded it, so nothing between the import and the first pass is lost. A Sonarr already followed under the
     /// same URL and version keeps its checkpoint and takes the new mapping.
     /// </summary>
-    private async Task KeepFollowingAsync(SonarrImportRequest request, DateTime startedAt, CancellationToken ct)
+    private async Task KeepFollowingAsync(SonarrImportRequest request, DateTime startedAt, SonarrFormatSync? formats, CancellationToken ct)
     {
         var url = request.Url.Trim();
         var versionName = request.VersionName.Trim();
@@ -264,6 +274,12 @@ public sealed class SonarrImportService(BigarrDbContext db, SonarrClient sonarr,
         follow.ApiKey = request.ApiKey.Trim();
         follow.ProfileMap = new Dictionary<int, int>(request.ProfileMap ?? []);
         follow.RootFolderMap = new Dictionary<string, int>(request.RootFolderMap ?? [], StringComparer.Ordinal);
+        if (formats is not null)
+        {
+            follow.FormatMap = new Dictionary<int, int>(formats.Map);
+            follow.OwnedFormats = follow.OwnedFormats.Concat(formats.Owned).Distinct().Order().ToList();
+        }
+
         follow.ImportTags = request.ImportTags;
         follow.KeepMonitored = request.KeepMonitored;
         follow.Enabled = true;
@@ -805,7 +821,7 @@ public sealed class SonarrImportService(BigarrDbContext db, SonarrClient sonarr,
             },
             ReleaseGroup = NullIfBlank(file.ReleaseGroup),
             Languages = Languages(file),
-            IndexerFlags = (IndexerFlags)file.IndexerFlags,
+            IndexerFlags = SonarrCustomFormats.Flags(file.IndexerFlags),
             OriginalReleaseTitle = NullIfBlank(file.SceneName) ?? Path.GetFileNameWithoutExtension(relativePath),
         };
     }
@@ -1018,7 +1034,16 @@ public sealed class SonarrImportService(BigarrDbContext db, SonarrClient sonarr,
     /// their series. A Both profile keeps its own settings: the Radarr follow does not write it either. Returns the names
     /// of the profiles that changed.
     /// </summary>
-    public async Task<List<string>> ApplyProfilesAsync(SonarrImportRequest request, List<RadarrProfile> sonarrProfiles, Dictionary<int, int> seriesPerProfile, SonarrImportProgress? progress, CancellationToken ct)
+    /// <param name="formatMap">Sonarr format id → Bigarr format id (the import's or the follow's); without it formats match by name.</param>
+    public async Task<List<string>> ApplyProfilesAsync(
+        SonarrImportRequest request,
+        List<RadarrProfile> sonarrProfiles,
+        Dictionary<int, int> seriesPerProfile,
+        SonarrImportProgress? progress,
+        CancellationToken ct,
+        IReadOnlyDictionary<int, int>? formatMap = null,
+        bool qualities = true,
+        bool scores = true)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(sonarrProfiles);
@@ -1045,11 +1070,11 @@ public sealed class SonarrImportService(BigarrDbContext db, SonarrClient sonarr,
             }
 
             var key = RadarrImportService.ProfileKey(profile);
-            if (sources.FirstOrDefault(p => p.Items is not null) is { } shaped)
+            if (qualities && sources.FirstOrDefault(p => p.Items is not null) is { } shaped)
             {
-                if (RadarrProfileQualities.Translate(shaped, qualityIds) is { } qualities)
+                if (RadarrProfileQualities.Translate(shaped, qualityIds) is { } translatedQualities)
                 {
-                    RadarrProfileQualities.Apply(profile, qualities);
+                    RadarrProfileQualities.Apply(profile, translatedQualities);
                     progress?.ProfileQualitiesCopied();
                 }
                 else
@@ -1064,9 +1089,17 @@ public sealed class SonarrImportService(BigarrDbContext db, SonarrClient sonarr,
                 }
             }
 
-            if (sources.FirstOrDefault(p => p.FormatItems is not null) is { } scored)
+            if (scores && sources.FirstOrDefault(p => p.FormatItems is not null) is { } scored)
             {
-                RadarrImportService.ApplyScores(profile, scored, formats);
+                if (formatMap is not null)
+                {
+                    ApplyMappedScores(profile, scored, formatMap);
+                }
+                else
+                {
+                    RadarrImportService.ApplyScores(profile, scored, formats);
+                }
+
                 progress?.ProfileScored();
             }
 
@@ -1084,6 +1117,39 @@ public sealed class SonarrImportService(BigarrDbContext db, SonarrClient sonarr,
         }
 
         return changed;
+    }
+
+    /// <summary>A Sonarr profile's format scores, through the format map (renamed and "(Sonarr)" formats included), and its thresholds.</summary>
+    private static void ApplyMappedScores(QualityProfile profile, RadarrProfile source, IReadOnlyDictionary<int, int> formatMap)
+    {
+        // A Series profile follows Sonarr's: a format Sonarr no longer scores here (moved to a "(Sonarr)" copy, deleted) loses its score.
+        var mapped = (source.FormatItems ?? []).Where(i => formatMap.ContainsKey(i.Format)).Select(i => formatMap[i.Format]).ToHashSet();
+        foreach (var stale in profile.FormatScores.Where(s => !mapped.Contains(s.CustomFormatId)).ToList())
+        {
+            profile.FormatScores.Remove(stale);
+        }
+
+        foreach (var item in source.FormatItems ?? [])
+        {
+            if (!formatMap.TryGetValue(item.Format, out var formatId))
+            {
+                continue;
+            }
+
+            var entry = profile.FormatScores.FirstOrDefault(s => s.CustomFormatId == formatId);
+            if (entry is not null)
+            {
+                entry.Score = item.Score;
+            }
+            else if (item.Score != 0)
+            {
+                profile.FormatScores.Add(new ProfileFormatScore { CustomFormatId = formatId, Score = item.Score });
+            }
+        }
+
+        profile.MinFormatScore = source.MinFormatScore ?? profile.MinFormatScore;
+        profile.CutoffFormatScore = source.CutoffFormatScore ?? profile.CutoffFormatScore;
+        profile.MinUpgradeFormatScore = source.MinUpgradeFormatScore ?? profile.MinUpgradeFormatScore;
     }
 
     /// <summary>How many series each Sonarr profile holds, which tells the profile of most series apart when several map to one.</summary>

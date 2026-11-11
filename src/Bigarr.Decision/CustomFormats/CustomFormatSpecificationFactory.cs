@@ -2,7 +2,7 @@ using Bigarr.Decision.CustomFormats.Specifications;
 
 namespace Bigarr.Decision.CustomFormats;
 
-/// <summary>Radarr's implementation names, so guide files import unchanged.</summary>
+/// <summary>Radarr's implementation names (and Sonarr's <c>ReleaseTypeSpecification</c>), so guide files import unchanged.</summary>
 public static class CustomFormatSpecificationFactory
 {
     public static readonly IReadOnlyList<string> KnownImplementations =
@@ -17,6 +17,8 @@ public static class CustomFormatSpecificationFactory
         "IndexerFlagSpecification",
         "SizeSpecification",
         "YearSpecification",
+        "ReleaseTypeSpecification",
+        UnsupportedSpecification.ImplementationName,
     ];
 
     public static ICustomFormatSpecification Create(CustomFormatSpecificationDefinition definition, string formatName)
@@ -35,6 +37,8 @@ public static class CustomFormatSpecificationFactory
             "IndexerFlagSpecification" => new IndexerFlagSpecification(definition, formatName),
             "SizeSpecification" => new SizeSpecification(definition, formatName),
             "YearSpecification" => new YearSpecification(definition, formatName),
+            "ReleaseTypeSpecification" => new ReleaseTypeSpecification(definition, formatName),
+            UnsupportedSpecification.ImplementationName => new UnsupportedSpecification(definition),
             _ => throw new CustomFormatParseException($"Custom format '{formatName}': unknown specification implementation '{definition.Implementation}'. Known: {string.Join(", ", KnownImplementations)}."),
         };
     }

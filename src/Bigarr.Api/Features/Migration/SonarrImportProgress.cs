@@ -25,6 +25,10 @@ public sealed class SonarrImportProgress(SonarrImportRequest request)
     private int _filesReplaced;
     private int _profilesCreated;
     private int _qualitySizesUpdated;
+    private int _formatsAdded;
+    private int _formatsReused;
+    private int _formatsRenamed;
+    private int _formatsUpdated;
     private int _filesRenamed;
     private int _filesRemoved;
 
@@ -100,6 +104,18 @@ public sealed class SonarrImportProgress(SonarrImportRequest request)
 
     public void QualitySizesUpdated(int count) => Interlocked.Add(ref _qualitySizesUpdated, count);
 
+    /// <summary>One Sonarr custom format: <c>new</c>, <c>reused</c>, <c>renamed</c> or <c>updated</c>.</summary>
+    public void CustomFormat(string outcome)
+    {
+        switch (outcome)
+        {
+            case "new": Interlocked.Increment(ref _formatsAdded); break;
+            case "reused": Interlocked.Increment(ref _formatsReused); break;
+            case "renamed": Interlocked.Increment(ref _formatsRenamed); break;
+            default: Interlocked.Increment(ref _formatsUpdated); break;
+        }
+    }
+
     /// <summary>Following a Sonarr: its file replaced the episode's (an upgrade, a new download).</summary>
     public void FileReplaced() => Interlocked.Increment(ref _filesReplaced);
 
@@ -131,7 +147,7 @@ public sealed class SonarrImportProgress(SonarrImportRequest request)
 
         return new SonarrImportStatusResponse(
             State, StartedAt, FinishedAt, Total, _processed, _seriesAdded, _versionsAdded, _versionsUpdated, _episodesAdded, _filesAdded, _filesMissing,
-            _skipped, _failed, _tagsAdded, _exclusionsAdded, _historyAdded, _blocklistAdded, _profilesScored, _profileQualitiesCopied, Current, Error, issues, _profilesCreated, _qualitySizesUpdated);
+            _skipped, _failed, _tagsAdded, _exclusionsAdded, _historyAdded, _blocklistAdded, _profilesScored, _profileQualitiesCopied, Current, Error, issues, _profilesCreated, _qualitySizesUpdated, _formatsAdded, _formatsReused, _formatsRenamed, _formatsUpdated);
     }
 
     public static SonarrImportStatusResponse Idle { get; } =

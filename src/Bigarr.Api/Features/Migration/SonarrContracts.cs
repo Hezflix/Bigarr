@@ -24,7 +24,9 @@ public sealed record SonarrImportPreviewResponse(
     List<SonarrRootFolderPreview> RootFolders,
     List<RadarrTagPreview> Tags,
     /// <summary>Sonarr v3 language profiles, for information: Bigarr has none (languages live in custom formats).</summary>
-    List<string> LanguageProfiles);
+    List<string> LanguageProfiles,
+    /// <summary>What the import would do with each Sonarr custom format: new, reused, renamed ("name (Sonarr)").</summary>
+    List<SonarrFormatPreview>? CustomFormats = null);
 
 /// <param name="Reachable">The Sonarr path exists on this host as is: no path translation needed.</param>
 /// <param name="SuggestedRootFolderId">A Bigarr series root folder with the same path.</param>
@@ -58,7 +60,12 @@ public sealed record SonarrImportRequest(
     /// </summary>
     bool ImportProfileQualities = true,
     /// <summary>Sonarr's quality sizes become Bigarr's series sizes (the film sizes stay).</summary>
-    bool ImportQualitySizes = true);
+    bool ImportQualitySizes = true,
+    /// <summary>
+    /// Bring Sonarr's custom formats into the shared library (reused when alike, "name (Sonarr)" when the name is taken by
+    /// another definition) and give the mapped Series profiles Sonarr's format scores and score thresholds.
+    /// </summary>
+    bool ImportCustomFormats = true);
 
 /// <param name="TvdbId">Null when the line is not about a series (a profile).</param>
 /// <param name="SeriesId">The series in Bigarr when it exists, so the report can link to it.</param>
@@ -90,4 +97,9 @@ public sealed record SonarrImportStatusResponse(
     /// <summary>Series profiles created from Sonarr's (a profile mapped to 0).</summary>
     int ProfilesCreated = 0,
     /// <summary>Series quality sizes taken from Sonarr's quality definitions.</summary>
-    int QualitySizesUpdated = 0);
+    int QualitySizesUpdated = 0,
+    int CustomFormatsAdded = 0,
+    int CustomFormatsReused = 0,
+    /// <summary>Imported as "name (Sonarr)": Bigarr has another format under that name.</summary>
+    int CustomFormatsRenamed = 0,
+    int CustomFormatsUpdated = 0);

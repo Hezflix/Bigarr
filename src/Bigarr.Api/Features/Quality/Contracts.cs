@@ -64,7 +64,9 @@ public sealed record CustomFormatResponse(
     string? TrashId,
     /// <summary>The guide's suggestions by profile family, e.g. <c>default</c>; informational.</summary>
     Dictionary<string, int>? TrashScores,
-    List<CustomFormatScoreDto> Scores);
+    List<CustomFormatScoreDto> Scores,
+    /// <summary>Set when an import changed or could not evaluate part of the format (a Sonarr specification Bigarr lacks…).</summary>
+    string? Note = null);
 
 public sealed record CustomFormatScoreRequest(int QualityProfileId, int Score);
 

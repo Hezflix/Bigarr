@@ -198,6 +198,20 @@ public sealed class SonarrClient(IHttpClientFactory httpClientFactory)
     public Task<List<RadarrProfile>> ProfilesAsync(SonarrConnection connection, CancellationToken ct) =>
         GetAsync<List<RadarrProfile>>(connection, "/qualityprofile", ct);
 
+    /// <summary>Sonarr's custom formats as its API returns them (a JSON array, <c>fields</c> as <c>{name, value}</c> pairs); empty when the route is missing.</summary>
+    public async Task<JsonElement> CustomFormatsAsync(SonarrConnection connection, CancellationToken ct)
+    {
+        try
+        {
+            var formats = await GetAsync<JsonElement>(connection, "/customformat", ct);
+            return formats.ValueKind == JsonValueKind.Array ? formats : JsonDocument.Parse("[]").RootElement.Clone();
+        }
+        catch (SonarrUnavailableException ex) when (IsNotFound(ex))
+        {
+            return JsonDocument.Parse("[]").RootElement.Clone();
+        }
+    }
+
     /// <summary>Sonarr's quality definitions (the size limits per quality); empty when the route is missing.</summary>
     public Task<List<SonarrQualityDefinition>> QualityDefinitionsAsync(SonarrConnection connection, CancellationToken ct) =>
         OrEmptyAsync(() => GetAsync<List<SonarrQualityDefinition>>(connection, "/qualitydefinition", ct));

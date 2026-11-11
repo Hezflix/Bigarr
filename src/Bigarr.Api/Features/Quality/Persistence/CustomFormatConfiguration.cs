@@ -14,6 +14,7 @@ public sealed class CustomFormatConfiguration : IEntityTypeConfiguration<CustomF
         builder.Property(cf => cf.SpecificationsJson).HasColumnType("TEXT");
         builder.Property(cf => cf.TrashId).HasMaxLength(64);
         builder.Property(cf => cf.TrashScoresJson).HasColumnType("TEXT");
+        builder.Property(cf => cf.Note).HasMaxLength(1024);
         builder.HasIndex(cf => cf.Name).IsUnique();
         builder.HasIndex(cf => cf.TrashId).IsUnique().HasFilter("\"TrashId\" IS NOT NULL");
     }

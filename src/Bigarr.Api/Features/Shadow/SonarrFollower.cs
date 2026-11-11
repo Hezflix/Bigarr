@@ -163,7 +163,10 @@ public sealed class SonarrFollower(
             follow.KeepMonitored);
 
         // 0. Sonarr's profile settings, so Bigarr judges everything below the way Sonarr would.
-        var aligned = await imports.ApplyProfilesAsync(request, profiles, seriesPerProfile, null, ct);
+        // Sonarr's custom formats first (definitions it brought in, renames, new ones), then the Series profiles' scores.
+        var formats = await imports.SyncFormatsAsync(await sonarr.CustomFormatsAsync(connection, ct), follow.FormatMap, follow.OwnedFormats, dryRun: false, null, ct);
+        await SaveFormatLinksAsync(follow.Id, formats, ct);
+        var aligned = await imports.ApplyProfilesAsync(request, profiles, seriesPerProfile, null, ct, formats.Map);
         var sizes = await imports.SyncSizesAsync(connection, null, ct);
 
         // 1. New series, without their files: what Sonarr grabbed for them is judged against a show that had none.
@@ -187,7 +190,7 @@ public sealed class SonarrFollower(
 
         var now = time.GetUtcNow().UtcDateTime;
         var checkpoint = history.Count > 0 ? new[] { follow.HistoryCheckpoint, history.Max(h => Utc(h.Date)) }.Max() : follow.HistoryCheckpoint;
-        var summary = Summary(grabs, resolved, added, library, searched, shown, aligned.Count, everySeries, sizes);
+        var summary = Summary(grabs, resolved, added, library, searched, shown, aligned.Count, everySeries, sizes, formats.Changed);
         memory.Remember(follow.Id, new SonarrFollowMemory.Entry(
             wholeList ? started : remembered!.ListReadAt,
             seriesPerProfile,
@@ -201,6 +204,16 @@ public sealed class SonarrFollower(
 
         logger.LogInformation("Following {Name}: {Summary}", follow.Name, summary);
         return new SonarrFollowPass(follow.Id, follow.Name, true, summary, grabs, resolved, shown, searched);
+    }
+
+    /// <summary>The follow's link to Sonarr's formats, kept for the next pass (a renamed format stays the same one).</summary>
+    private async Task SaveFormatLinksAsync(int followId, SonarrFormatSync formats, CancellationToken ct)
+    {
+        var follow = await db.FollowedSonarrs.FirstAsync(f => f.Id == followId, ct);
+        follow.FormatMap = new Dictionary<int, int>(formats.Map);
+        follow.OwnedFormats = [.. formats.Owned];
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
     }
 
     /// <summary>The series a pass between two full lists looks at: those its history names, one request each; one Sonarr no longer has is skipped.</summary>
@@ -262,7 +275,7 @@ public sealed class SonarrFollower(
         return results.Count;
     }
 
-    private static string Summary(int grabs, int resolved, SonarrImportProgress added, SonarrImportProgress library, int searched, int shown, int profilesAligned, bool everySeries, int sizes = 0)
+    private static string Summary(int grabs, int resolved, SonarrImportProgress added, SonarrImportProgress library, int searched, int shown, int profilesAligned, bool everySeries, int sizes = 0, int formats = 0)
     {
         var first = added.ToResponse();
         var report = library.ToResponse();
@@ -277,6 +290,7 @@ public sealed class SonarrFollower(
 
         Add(profilesAligned, "profile(s) aligned with Sonarr");
         Add(sizes, "series quality size(s) aligned with Sonarr");
+        Add(formats, "custom format(s) taken from Sonarr");
         Add(resolved, "grab(s) imported or failed");
         Add(first.SeriesAdded + report.SeriesAdded, "series added");
         Add(first.VersionsAdded + report.VersionsAdded, "version(s) added");
@@ -357,7 +371,7 @@ public sealed class SonarrFollower(
                 Size = long.TryParse(Raw("size"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var size) ? size : 0,
                 PublishDate = publishedAt ?? grabbedAt,
                 InfoHash = infoHash,
-                Flags = RadarrFollower.Flags(Raw("indexerFlags")),
+                Flags = SonarrCustomFormats.ParseFlags(Raw("indexerFlags")),
                 TvdbId = int.TryParse(Raw("tvdbId"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var releaseTvdb) && releaseTvdb > 0 ? releaseTvdb : null,
             };
 
