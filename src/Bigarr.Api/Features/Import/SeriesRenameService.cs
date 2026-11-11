@@ -71,8 +71,8 @@ public sealed class SeriesRenameService(BigarrDbContext db, MediaManagementServi
         return Result<List<SeriesRenameResultResponse>>.Ok(results);
     }
 
-    /// <summary>The path relative to the version folder the templates give this file today (renaming forced on), extension kept.</summary>
-    public async Task<string> TargetPathAsync(MediaManagementConfig config, Series series, SeriesVersion version, EpisodeFile file, CancellationToken ct)
+    /// <summary>The path relative to the version folder the templates give this file today (renaming forced on unless <paramref name="rename"/> says otherwise), extension kept.</summary>
+    public async Task<string> TargetPathAsync(MediaManagementConfig config, Series series, SeriesVersion version, EpisodeFile file, CancellationToken ct, bool rename = true)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(file);
@@ -93,7 +93,7 @@ public sealed class SeriesRenameService(BigarrDbContext db, MediaManagementServi
             Path.GetFileNameWithoutExtension(file.RelativePath));
         var episodes = file.Episodes.Select(t => t.Episode).ToList();
         var extension = Path.GetExtension(file.RelativePath).ToLowerInvariant();
-        return SeriesNaming.RelativePath(config, series, version, episodes, facts, extension, Path.GetFileName(file.RelativePath), rename: true);
+        return SeriesNaming.RelativePath(config, series, version, episodes, facts, extension, Path.GetFileName(file.RelativePath), rename);
     }
 
     /// <summary>Moves one file (and its extras) to <paramref name="target"/>, journaled; the caller saves.</summary>
@@ -223,7 +223,7 @@ public sealed class SeriesRenameService(BigarrDbContext db, MediaManagementServi
     }
 
     /// <summary>A season folder emptied by the renames goes (only empty ones, never the version folder).</summary>
-    private static void RemoveEmptySeasonFolders(string folder)
+    public static void RemoveEmptySeasonFolders(string folder)
     {
         if (!Directory.Exists(folder))
         {

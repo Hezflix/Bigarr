@@ -117,12 +117,17 @@ public sealed class SeriesQueries(BigarrDbContext db, TimeProvider time)
             series.LastMetadataRefreshAt,
             series.Monitored,
             seasons,
-            versions.Select(v => ToVersion(v, Total(stats, v.Id))).ToList());
+            versions.Select(v => ToVersion(v, Total(stats, v.Id))).ToList(),
+            series.EpisodeGroupId,
+            series.EpisodeGroupName,
+            series.EpisodeGroupType,
+            series.OrderOnlyEpisodes);
     }
 
     public async Task<List<EpisodeResponse>?> EpisodesAsync(int seriesId, int? seasonNumber, CancellationToken ct)
     {
-        if (!await db.Series.AnyAsync(s => s.Id == seriesId, ct))
+        var ordering = await db.Series.AsNoTracking().Where(s => s.Id == seriesId).Select(s => (EpisodeOrder?)s.Ordering).FirstOrDefaultAsync(ct);
+        if (ordering is not { } order)
         {
             return null;
         }
@@ -158,7 +163,14 @@ public sealed class SeriesQueries(BigarrDbContext db, TimeProvider time)
             r.Episode.ImageUrl,
             r.Episode.IsSpecial,
             r.Episode.HasAired(now),
-            r.Targets)).ToList();
+            r.Targets,
+            r.Episode.OrderSeasonNumber,
+            r.Episode.OrderEpisodeNumber,
+            r.Episode.OrderAbsoluteNumber,
+            r.Episode.DisplaySeasonNumber(order),
+            r.Episode.DisplayEpisodeNumber(order),
+            r.Episode.DisplayAbsoluteNumber(order),
+            order != EpisodeOrder.Tvdb && !r.Episode.InOrder)).ToList();
     }
 
     public static SeriesVersionResponse ToVersion(SeriesVersion version, EpisodeStatistics statistics) => new(

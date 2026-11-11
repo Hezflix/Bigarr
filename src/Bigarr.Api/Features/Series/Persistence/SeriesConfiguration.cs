@@ -23,6 +23,9 @@ public sealed class SeriesConfiguration : IEntityTypeConfiguration<Series>
         builder.Property(s => s.OriginalLanguage).HasMaxLength(8);
         builder.Property(s => s.AlternativeTitles).HasJsonConversion();
         builder.Property(s => s.Images).HasJsonConversion();
+        builder.Property(s => s.OrderOnlyEpisodes).HasJsonConversion();
+        builder.Property(s => s.EpisodeGroupId).HasMaxLength(64);
+        builder.Property(s => s.EpisodeGroupName).HasMaxLength(255);
         builder.Ignore(s => s.Monitored);
 
         // One row per show: the TVDB id is the key of the ecosystem, the TMDB id the fallback for shows TVDB lacks.

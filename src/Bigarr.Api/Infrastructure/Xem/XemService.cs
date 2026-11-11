@@ -54,12 +54,13 @@ public sealed class XemService(BigarrDbContext db, IXemClient client, XemMappedI
 
     /// <summary>
     /// Fetches the series' mapping and writes scene numbers onto <paramref name="episodes"/> (tracked or new; the caller
-    /// saves). Returns false when nothing could be fetched. Only the TVDB order has scene numbers.
+    /// saves). Returns false when nothing could be fetched. Scene numbers map onto TVDB's numbers, which every episode
+    /// keeps whatever order the series shows (blueprint §8): kept current for every series.
     /// </summary>
     public async Task<bool> RefreshSeriesAsync(Domain.Tv.Series series, IReadOnlyCollection<Episode> episodes, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(series);
-        if (!Enabled || series.TvdbId is not { } tvdbId || series.Ordering != EpisodeOrder.Tvdb)
+        if (!Enabled || series.TvdbId is not { } tvdbId)
         {
             return false;
         }

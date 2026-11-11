@@ -75,6 +75,9 @@ public sealed class SeriesShadowPick
     /// <summary>A season (or multi-season) pack.</summary>
     public bool FullSeason { get; set; }
 
+    /// <summary>Which numbering the release matched its episodes on (TVDB, XEM, the series' order, absolute).</summary>
+    public EpisodeNumbering? Numbering { get; set; }
+
     public ICollection<SeriesShadowPickEpisode> Episodes { get; set; } = [];
 
     /// <summary>What the Sonarr following the version made of this release, read from its <c>/parse</c> after the pick.</summary>

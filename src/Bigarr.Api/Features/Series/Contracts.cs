@@ -172,7 +172,13 @@ public sealed record SeriesResponse(
     DateTime? LastMetadataRefreshAt,
     bool Monitored,
     List<SeasonResponse> Seasons,
-    List<SeriesVersionResponse> Versions);
+    List<SeriesVersionResponse> Versions,
+    /// <summary>The TMDB episode group when <see cref="Ordering"/> is one (blueprint §8).</summary>
+    string? EpisodeGroupId = null,
+    string? EpisodeGroupName = null,
+    EpisodeGroupType? EpisodeGroupType = null,
+    /// <summary>Episodes of the order TVDB has no counterpart for: listed, not tracked.</summary>
+    List<OrderOnlyEpisode>? OrderOnlyEpisodes = null);
 
 public sealed record EpisodeVersionState(int VersionId, int TargetId, bool Monitored, bool HasFile, int? EpisodeFileId);
 
@@ -192,7 +198,17 @@ public sealed record EpisodeResponse(
     string? ImageUrl,
     bool IsSpecial,
     bool HasAired,
-    List<EpisodeVersionState> Versions);
+    List<EpisodeVersionState> Versions,
+    /// <summary>Numbers in the series' alternative order; null in the TVDB order or when the order lacks the episode.</summary>
+    int? OrderSeasonNumber = null,
+    int? OrderEpisodeNumber = null,
+    int? OrderAbsoluteNumber = null,
+    /// <summary>What the page shows and the files are named after: the order's numbers, else TVDB's.</summary>
+    int DisplaySeasonNumber = 0,
+    int DisplayEpisodeNumber = 0,
+    int? DisplayAbsoluteNumber = null,
+    /// <summary>The series shows another order and this episode has no counterpart there (its file stays as named).</summary>
+    bool NotInOrder = false);
 
 /// <summary>A file of one version, with the episodes it holds (several for a multi-episode file).</summary>
 public sealed record EpisodeFileResponse(

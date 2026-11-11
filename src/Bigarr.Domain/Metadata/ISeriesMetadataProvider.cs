@@ -1,3 +1,5 @@
+using Bigarr.Domain.Tv;
+
 namespace Bigarr.Domain.Metadata;
 
 /// <summary>
@@ -18,4 +20,15 @@ public interface ISeriesMetadataProvider
 
     /// <summary>Search by name. Results carry ids and a poster, no episodes.</summary>
     Task<IReadOnlyList<SeriesMetadata>> SearchAsync(string query, CancellationToken cancellationToken);
+
+    /// <summary>TMDB episode groups of a show (empty without TMDB).</summary>
+    Task<IReadOnlyList<EpisodeGroupSummary>> GetEpisodeGroupsAsync(int tmdbId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<EpisodeGroupSummary>>([]);
+
+    /// <summary>
+    /// Every episode of an alternative order (TMDB default or an episode group) with its numbers in that order. Null
+    /// when the provider cannot give it (no TMDB, unknown group); never asked for the TVDB order.
+    /// </summary>
+    Task<IReadOnlyList<OrderEpisode>?> GetOrderEpisodesAsync(int tmdbId, OrderChoice order, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<OrderEpisode>?>(null);
 }

@@ -136,6 +136,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("LastSeenAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("Numbering")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Protocol")
                         .HasColumnType("INTEGER");
 
@@ -2240,6 +2243,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("LastPickedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("Numbering")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("PickedAt")
                         .HasColumnType("TEXT");
 
@@ -2690,6 +2696,15 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1024)
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("OrderAbsoluteNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("OrderEpisodeNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("OrderSeasonNumber")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Overview")
                         .HasColumnType("TEXT");
 
@@ -2741,6 +2756,8 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("SeriesId", "AbsoluteEpisodeNumber");
 
                     b.HasIndex("SeriesId", "AirDate");
+
+                    b.HasIndex("SeriesId", "OrderSeasonNumber", "OrderEpisodeNumber");
 
                     b.HasIndex("SeriesId", "SceneSeasonNumber", "SceneEpisodeNumber");
 
@@ -2927,6 +2944,17 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int>("DefaultRootFolderId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("EpisodeGroupId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EpisodeGroupName")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("EpisodeGroupType")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateOnly?>("FirstAired")
                         .HasColumnType("TEXT");
 
@@ -2950,6 +2978,10 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Network")
                         .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OrderOnlyEpisodes")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Ordering")
@@ -3044,6 +3076,51 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("SeriesExclusions", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.SeriesOrderChange", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("AppliedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("From")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Moves")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PreviousNumbers")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PreviousOrderOnly")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("To")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("UndoneAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("UnmatchedFiles")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SeriesId", "AppliedAt");
+
+                    b.ToTable("SeriesOrderChanges", (string)null);
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Tv.SeriesTag", b =>
@@ -3888,6 +3965,17 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("DefaultRootFolder");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.SeriesOrderChange", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Tv.Series", "Series")
+                        .WithMany()
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Series");
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Tv.SeriesTag", b =>
