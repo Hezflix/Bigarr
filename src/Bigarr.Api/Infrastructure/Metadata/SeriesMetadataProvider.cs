@@ -241,7 +241,7 @@ public sealed class SeriesMetadataProvider(
             : await tmdb.GetTvSeasonsAsync(tv.Id, tv.Seasons.Select(s => s.SeasonNumber), ct);
         var tmdbEpisodes = tmdbSeasons.SelectMany(s => s.Episodes).ToList();
 
-        var episodes = MergeEpisodes(tvdbEpisodes, tmdbEpisodes);
+        var episodes = await ResolveLinkedMoviesAsync(MergeEpisodes(tvdbEpisodes, tmdbEpisodes), tvdbEpisodes, ct);
         var seasonNumbers = episodes.Select(e => e.SeasonNumber)
             .Concat((series.Seasons ?? []).Where(s => IsDefaultOrder(s, series.DefaultSeasonType)).Select(s => s.Number))
             .Distinct()
@@ -299,10 +299,44 @@ public sealed class SeriesMetadataProvider(
                 Overview = NullIfBlank(episode.Overview) ?? NullIfBlank(twin?.Overview),
                 Runtime = episode.Runtime is > 0 ? episode.Runtime : twin?.Runtime is > 0 ? twin.Runtime : null,
                 ImageUrl = TmdbImage(twin?.StillPath) ?? TvdbArtwork(episode.Image),
+                IsMovie = episode.IsMovie is 1,
+                AirsAfterSeason = episode.AirsAfterSeason,
+                AirsBeforeSeason = episode.AirsBeforeSeason,
+                AirsBeforeEpisode = episode.AirsBeforeEpisode,
             });
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Specials TVDB links to a film record (S8): that record's remote ids give the film's TMDB and IMDb ids. Only the
+    /// few linked episodes cost a request; a failed one leaves the special without ids (detection retries next refresh).
+    /// </summary>
+    private async Task<List<EpisodeMetadata>> ResolveLinkedMoviesAsync(List<EpisodeMetadata> episodes, IReadOnlyList<TvdbEpisode> tvdbEpisodes, CancellationToken ct)
+    {
+        var linked = tvdbEpisodes.Where(e => e.LinkedMovie is > 0).ToDictionary(e => e.Id, e => e.LinkedMovie!.Value);
+        if (linked.Count == 0 || tvdb is null)
+        {
+            return episodes;
+        }
+
+        var movies = new Dictionary<int, TvdbMovieExtended?>();
+        foreach (var movieId in linked.Values.Distinct())
+        {
+            try
+            {
+                movies[movieId] = await tvdb.GetMovieAsync(movieId, ct);
+            }
+            catch (HttpRequestException ex)
+            {
+                logger.LogWarning(ex, "TVDB movie {MovieId} could not be read; its special stays without a TMDB id for now", movieId);
+            }
+        }
+
+        return episodes.Select(e => e.TvdbId is { } id && linked.TryGetValue(id, out var movieId) && movies.GetValueOrDefault(movieId) is { } movie
+            ? e with { MovieTmdbId = TmdbIdOf(movie.RemoteIds), MovieImdbId = ImdbIdOf(movie.RemoteIds) }
+            : e).ToList();
     }
 
     private static bool Agrees(TvdbEpisode episode, DateOnly? aired, TmdbTvEpisode candidate)

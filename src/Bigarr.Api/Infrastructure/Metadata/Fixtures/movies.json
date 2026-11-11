@@ -95,6 +95,46 @@
     "collectionTmdbId": 87359, "images": []
   },
   {
+    "tmdbId": 635302, "imdbId": "tt11032374", "title": "Demon Slayer -Kimetsu no Yaiba- The Movie: Mugen Train", "originalTitle": "劇場版「鬼滅の刃」無限列車編", "year": 2020, "runtime": 117,
+    "overview": "Tanjiro Kamado, joined with Inosuke Hashibira, a boy raised by boars who wears a boar's head, and Zenitsu Agatsuma, a scared boy who reveals his true power when he sleeps, boards the Infinity Train on a new mission with the Fire Hashira, Kyojuro Rengoku, to defeat a demon who has been tormenting the people and killing the demon slayers who oppose it!",
+    "originalLanguage": "ja", "genres": ["Animation", "Action", "Fantasy"],
+    "alternativeTitles": [{"title": "Kimetsu no Yaiba : Le Train de l'infini", "language": "FR"}, {"title": "劇場版 鬼滅の刃 無限列車編", "language": "JP"}, {"title": "Demon Slayer Mugen Train", "language": "US"}, {"title": "קימטסו נו יאיבה: הרכבת האינסופית", "language": "IL"}],
+    "status": "Released", "inCinemasDate": "2020-10-16",
+    "collectionTmdbId": 925155, "images": [{"type": "Poster", "remoteUrl": "https://image.tmdb.org/t/p/original/h8Rb9gBr48ODIwYUttZNYeMWeUU.jpg"}]
+  },
+  {
+    "tmdbId": 820232, "imdbId": "tt14888860", "title": "Demon Slayer: Kimetsu no Yaiba - Sibling's Bond", "originalTitle": "鬼滅の刃 兄妹の絆", "year": 2019, "runtime": 105,
+    "overview": "movie anime adaptation of Koyoharu Gotoge's Kimetsu no Yaiba by Ufotable. The movie consists of the first 5 episodes of the TV anime adaptation. A two-week theatrical release on 11 theaters began on March 29, 2019, a week before the premiere of the TV series.",
+    "originalLanguage": "ja", "genres": ["Animation", "Action", "Fantasy", "Adventure"],
+    "alternativeTitles": [{"title": "Kimetsu no Yaiba: Kyoudai no Kizuna", "language": "JP"}, {"title": "鬼灭之刃剧场版1：兄妹的羁绊", "language": "CN"}, {"title": "Demon Slayer Brother and Sister's Bond", "language": "US"}, {"title": "鬼滅之刃 兄妹之絆", "language": "TW"}],
+    "status": "Released", "inCinemasDate": "2019-03-29",
+    "collectionTmdbId": 1565118, "images": [{"type": "Poster", "remoteUrl": "https://image.tmdb.org/t/p/original/vJUDoYNNKvBqbEPUskgvzPXGEFz.jpg"}]
+  },
+  {
+    "tmdbId": 1216221, "imdbId": "tt30395619", "title": "Demon Slayer: Kimetsu no Yaiba -To the Hashira Training-", "originalTitle": "「鬼滅の刃」絆の奇跡、そして柱稽古へ", "year": 2024, "runtime": 103,
+    "overview": "Tanjiro undergoes rigorous training with the Stone Hashira, Himejima, in his quest to become a Hashira. Meanwhile, Muzan continues to search for Nezuko and Ubuyashiki. A recap of Kimetsu no Yaiba episodes 55–56, with new footage and special end credits.",
+    "originalLanguage": "ja", "genres": ["Action", "Animation", "Fantasy", "Adventure"],
+    "alternativeTitles": [{"title": "Вбивця Демонів: До навчання Хашіра", "language": "UA"}, {"title": "THANH GƯƠM DIỆT QUỶ: Phép Màu Tình Thân, Cho Đến Chuyến Đặc Huấn Của Đại Trụ", "language": "VN"}, {"title": "Phép Màu Tình Thân, Cho Đến Chuyến Đặc Huấn Của Đại Trụ", "language": "VN"}, {"title": "Demon Slayer: To the Hashira Training", "language": "US"}],
+    "status": "Released", "inCinemasDate": "2024-02-02",
+    "collectionTmdbId": 1565118, "images": [{"type": "Poster", "remoteUrl": "https://image.tmdb.org/t/p/original/3daOEMQCOGU2n9EbUC0PICnUCek.jpg"}]
+  },
+  {
+    "tmdbId": 1311031, "imdbId": "tt32820897", "title": "Demon Slayer: Kimetsu no Yaiba Infinity Castle", "originalTitle": "劇場版「鬼滅の刃」無限城編 第一章 猗窩座再来", "year": 2025, "runtime": 156,
+    "overview": "The Demon Slayer Corps are drawn into the Infinity Castle, where Tanjiro, Nezuko, and the Hashira face terrifying Upper Rank demons in a desperate fight as the final battle against Muzan Kibutsuji begins.",
+    "originalLanguage": "ja", "genres": ["Animation", "Action", "Fantasy"],
+    "alternativeTitles": [{"title": "Demon Slayer -Kimetsu no Yaiba- the Movie: Infinity Castle", "language": "US"}, {"title": "Gekijōban Kimetsu no Yaiba Mugenjō-hen", "language": "JP"}, {"title": "Gekijouban Kimetsu no Yaiba Mugenjou-hen", "language": "JP"}, {"title": "Kimetsu no Yaiba: Mugenjou-hen", "language": "JP"}],
+    "status": "Released", "inCinemasDate": "2025-07-18",
+    "collectionTmdbId": 925155, "images": [{"type": "Poster", "remoteUrl": "https://image.tmdb.org/t/p/original/fWVSwgjpT2D78VUh6X8UBd2rorW.jpg"}]
+  },
+  {
+    "tmdbId": 16320, "imdbId": "tt0379786", "title": "Serenity", "originalTitle": "Serenity", "year": 2005, "runtime": 119,
+    "overview": "A group of rebels travel the outskirts of space evading the sinister Alliance regime. Their lives of smuggling and cargo-running are interrupted by a psychic passenger who harbours a dangerous secret. Soon, the crew find themselves being pursued by an Alliance agent who will stop at nothing to find them.",
+    "originalLanguage": "en", "genres": ["Science Fiction", "Action", "Adventure", "Thriller"],
+    "alternativeTitles": [{"title": "宁静号", "language": "CN"}, {"title": "Firefly - Serenity", "language": "US"}, {"title": "Firefly: The Movie", "language": "US"}, {"title": "เซเรนิตี้ ล่าสุดขอบจักรวาล", "language": "TH"}],
+    "status": "Released", "inCinemasDate": "2005-09-25",
+    "collectionTmdbId": null, "images": [{"type": "Poster", "remoteUrl": "https://image.tmdb.org/t/p/original/4sqUOaPFoP2W81mq1UYqZqf5WzA.jpg"}]
+  },
+  {
     "tmdbId": 900000001, "imdbId": null, "title": "Bigarr Test: Unreleased", "originalTitle": "Bigarr Test: Unreleased", "year": 2027, "runtime": null,
     "overview": "Fixture only. A film that is announced but not released, to exercise minimum availability and the pending status.",
     "certification": null, "originalLanguage": "en", "genres": ["Drama"],

@@ -90,4 +90,18 @@ public sealed record EpisodeMetadata
     public int? Runtime { get; init; }
 
     public string? ImageUrl { get; init; }
+
+    /// <summary>TVDB's <c>isMovie</c>: the special is a feature film.</summary>
+    public bool IsMovie { get; init; }
+
+    public int? AirsAfterSeason { get; init; }
+
+    public int? AirsBeforeSeason { get; init; }
+
+    public int? AirsBeforeEpisode { get; init; }
+
+    /// <summary>TMDB id of the film TVDB links to this episode (its movie record's remote ids).</summary>
+    public int? MovieTmdbId { get; init; }
+
+    public string? MovieImdbId { get; init; }
 }

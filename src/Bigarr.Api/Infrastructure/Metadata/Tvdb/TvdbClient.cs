@@ -46,6 +46,20 @@ public sealed class TvdbClient(HttpClient http, IOptions<TvdbOptions> options, I
         return envelope?.Data;
     }
 
+    /// <summary>A TVDB film (the record a special flagged as a movie links to), for its TMDB and IMDb ids.</summary>
+    public async Task<TvdbMovieExtended?> GetMovieAsync(int tvdbMovieId, CancellationToken cancellationToken)
+    {
+        using var response = await http.GetAsync($"movies/{tvdbMovieId}/extended?short=true", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        var envelope = await response.Content.ReadFromJsonAsync<TvdbEnvelope<TvdbMovieExtended>>(Json, cancellationToken);
+        return envelope?.Data;
+    }
+
     /// <summary>
     /// Every episode of the default (aired) order, titles and overviews in the configured language. Pages are counted
     /// here: <c>links.next</c> is a URL, so the client asks for page+1 until it holds <c>total_items</c> episodes or a

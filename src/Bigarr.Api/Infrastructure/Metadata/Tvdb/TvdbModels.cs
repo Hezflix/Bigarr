@@ -208,4 +208,30 @@ public sealed class TvdbEpisode
     public int? AbsoluteNumber { get; set; }
 
     public int SeasonNumber { get; set; }
+
+    /// <summary>1 when the episode is a feature film (specials that are films, S8).</summary>
+    public int? IsMovie { get; set; }
+
+    public int? AirsAfterSeason { get; set; }
+
+    public int? AirsBeforeSeason { get; set; }
+
+    public int? AirsBeforeEpisode { get; set; }
+
+    /// <summary>TVDB movie id of the film this episode is; the listing omits the field when there is none.</summary>
+    public int? LinkedMovie { get; set; }
+}
+
+/// <summary><c>GET /v4/movies/{id}/extended?short=true</c>, what links a TVDB film to TMDB and IMDb.</summary>
+public sealed class TvdbMovieExtended
+{
+    public int Id { get; set; }
+
+    public string? Name { get; set; }
+
+    public string? Year { get; set; }
+
+    public int? Runtime { get; set; }
+
+    public List<TvdbRemoteId>? RemoteIds { get; set; }
 }
