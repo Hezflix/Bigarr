@@ -147,6 +147,17 @@ public sealed record SonarrBlocklistPage(int Page, int PageSize, int TotalRecord
 public sealed record SonarrExclusion(int Id, int TvdbId, string? Title);
 
 /// <summary>One of Sonarr's quality definitions: sizes in MB per minute, a null max meaning no limit.</summary>
+/// <summary>Sonarr's <c>/config/naming</c> (v3 and v4 share these fields).</summary>
+public sealed record SonarrNamingConfig(
+    bool RenameEpisodes,
+    int MultiEpisodeStyle,
+    string? StandardEpisodeFormat,
+    string? DailyEpisodeFormat,
+    string? AnimeEpisodeFormat,
+    string? SeriesFolderFormat,
+    string? SeasonFolderFormat,
+    string? SpecialsFolderFormat);
+
 public sealed record SonarrQualityDefinition(int Id, RadarrQualityDefinition? Quality, string? Title, double? MinSize, double? MaxSize, double? PreferredSize);
 
 /// <summary>What Sonarr's parser reads in a release title.</summary>
@@ -209,6 +220,19 @@ public sealed class SonarrClient(IHttpClientFactory httpClientFactory)
         catch (SonarrUnavailableException ex) when (IsNotFound(ex))
         {
             return JsonDocument.Parse("[]").RootElement.Clone();
+        }
+    }
+
+    /// <summary>Sonarr's naming settings; null when the route is missing.</summary>
+    public async Task<SonarrNamingConfig?> NamingAsync(SonarrConnection connection, CancellationToken ct)
+    {
+        try
+        {
+            return await GetAsync<SonarrNamingConfig>(connection, "/config/naming", ct);
+        }
+        catch (SonarrUnavailableException ex) when (IsNotFound(ex))
+        {
+            return null;
         }
     }
 

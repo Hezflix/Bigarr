@@ -197,6 +197,12 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
             await SyncSizesAsync(connection, progress, ct);
         }
 
+        if (request.ImportNaming)
+        {
+            progress.Current = "Naming";
+            await ImportNamingAsync(connection, progress, ct);
+        }
+
         var context = await ContextAsync(request, connection, snapshot, progress, ct);
 
         progress.Total = snapshot.Series.Count;
@@ -987,6 +993,58 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
     /// Sonarr's quality sizes become Bigarr's series sizes (films keep theirs), on the import and on every pass of the
     /// follow. A quality Sonarr does not list keeps its series sizes. Returns how many definitions changed.
     /// </summary>
+    /// <summary>
+    /// Sonarr's naming into media management, when every format is one Bigarr accepts; otherwise Bigarr's naming stays
+    /// and the report says which format was refused. Sonarr v3's 0-5 multi-episode styles are Bigarr's.
+    /// </summary>
+    public async Task<bool> ImportNamingAsync(SonarrConnection connection, SonarrImportProgress? progress, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        var naming = await sonarr.NamingAsync(connection, ct);
+        if (naming is null)
+        {
+            return false;
+        }
+
+        var config = await db.MediaManagement.FirstOrDefaultAsync(c => c.Id == MediaManagementConfig.SingletonId, ct);
+        if (config is null)
+        {
+            config = MediaManagementConfig.Default();
+            db.MediaManagement.Add(config);
+        }
+
+        var request = new Import.SeriesNamingRequest(
+            naming.RenameEpisodes,
+            Blank(naming.SeriesFolderFormat) ?? config.SeriesFolderTemplate,
+            Blank(naming.SeasonFolderFormat) ?? config.SeasonFolderTemplate,
+            Blank(naming.SpecialsFolderFormat) ?? config.SpecialsFolderName,
+            Blank(naming.StandardEpisodeFormat) ?? config.StandardEpisodeTemplate,
+            Blank(naming.DailyEpisodeFormat) ?? config.DailyEpisodeTemplate,
+            Blank(naming.AnimeEpisodeFormat) ?? config.AnimeEpisodeTemplate,
+            Enum.IsDefined((MultiEpisodeStyle)naming.MultiEpisodeStyle) ? (MultiEpisodeStyle)naming.MultiEpisodeStyle : MultiEpisodeStyle.PrefixedRange);
+        var preview = Import.MediaManagementService.PreviewSeries(new Import.SeriesNamingPreviewRequest(
+            request.SeriesFolderTemplate, request.SeasonFolderTemplate, request.SpecialsFolderName, request.StandardEpisodeTemplate, request.DailyEpisodeTemplate, request.AnimeEpisodeTemplate, request.MultiEpisodeStyle));
+        if (preview.Errors.Count > 0)
+        {
+            var detail = string.Join(" ", preview.Errors.Select(e => $"{e.Key}: {string.Join(" ", e.Value)}"));
+            progress?.Issue("Naming", null, $"Sonarr's naming was not copied, Bigarr's stays: {detail}");
+            logger.LogWarning("Sonarr naming not imported: {Detail}", detail);
+            return false;
+        }
+
+        Import.MediaManagementService.Apply(config, request);
+        await db.SaveChangesAsync(ct);
+        if (progress is not null)
+        {
+            progress.NamingImported = true;
+        }
+
+        logger.LogInformation("Sonarr naming imported: {Standard}", request.StandardEpisodeTemplate);
+        return true;
+
+        static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
     public async Task<int> SyncSizesAsync(SonarrConnection connection, SonarrImportProgress? progress, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(connection);

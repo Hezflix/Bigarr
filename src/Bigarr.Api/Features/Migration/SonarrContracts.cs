@@ -65,7 +65,12 @@ public sealed record SonarrImportRequest(
     /// Bring Sonarr's custom formats into the shared library (reused when alike, "name (Sonarr)" when the name is taken by
     /// another definition) and give the mapped Series profiles Sonarr's format scores and score thresholds.
     /// </summary>
-    bool ImportCustomFormats = true);
+    bool ImportCustomFormats = true,
+    /// <summary>
+    /// Copy Sonarr's naming (episode formats, series and season folders, multi-episode style, renaming on/off) into
+    /// Settings → Media management. Import only: following Sonarr never rewrites it.
+    /// </summary>
+    bool ImportNaming = true);
 
 /// <param name="TvdbId">Null when the line is not about a series (a profile).</param>
 /// <param name="SeriesId">The series in Bigarr when it exists, so the report can link to it.</param>
@@ -102,4 +107,6 @@ public sealed record SonarrImportStatusResponse(
     int CustomFormatsReused = 0,
     /// <summary>Imported as "name (Sonarr)": Bigarr has another format under that name.</summary>
     int CustomFormatsRenamed = 0,
-    int CustomFormatsUpdated = 0);
+    int CustomFormatsUpdated = 0,
+    /// <summary>Sonarr's naming was copied into media management.</summary>
+    bool NamingImported = false);
