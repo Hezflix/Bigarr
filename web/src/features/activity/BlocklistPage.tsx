@@ -92,7 +92,16 @@ export function BlocklistPage() {
                       <Checkbox checked={selected.includes(entry.id)} onCheckedChange={() => toggle(entry.id)} aria-label={t('blocklist.select')} />
                     </TableCell>
                     <TableCell className="align-top">
-                      {entry.movieId ? (
+                      {entry.seriesId ? (
+                        <Link to="/series/$seriesId" params={{ seriesId: String(entry.seriesId) }} className="flex items-center gap-3 underline-offset-4 hover:underline">
+                          <Poster url={entry.posterUrl} title={entry.seriesTitle ?? ''} size="small" />
+                          <span className="font-medium">
+                            {entry.seriesTitle}
+                            {entry.movieYear ? <span className="font-normal text-muted-foreground"> ({entry.movieYear})</span> : null}
+                            {entry.episode && <span className="block text-xs font-normal text-muted-foreground tabular-nums">{entry.episode}</span>}
+                          </span>
+                        </Link>
+                      ) : entry.movieId ? (
                         <Link to="/movies/$movieId" params={{ movieId: String(entry.movieId) }} className="flex items-center gap-3 underline-offset-4 hover:underline">
                           <Poster url={entry.posterUrl} title={entry.movieTitle ?? ''} size="small" />
                           <span className="font-medium">

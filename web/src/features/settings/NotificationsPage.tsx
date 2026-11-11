@@ -137,9 +137,13 @@ const toForm = (endpoint: NotificationEndpoint): Form => {
   }
 }
 
-/** Radarr's format only sends what Radarr has a word for; Discord's what is worth a message. */
+/** Radarr's and Sonarr's formats only send what they have a word for; Discord's what is worth a message. */
 const sentAs = (type: NotificationEventType, format: WebhookFormat) =>
-  format === 'bigarr' || (format === 'radarr' ? type.radarrEventType !== null : type.sentToDiscord)
+  format === 'bigarr' ||
+  (format === 'radarr' ? type.radarrEventType !== null : format === 'sonarr' ? type.sonarrEventType !== null : type.sentToDiscord)
+
+/** The compat formats describe one version per Radarr movie or Sonarr series: they take a view. */
+const hasView = (format: WebhookFormat) => format === 'radarr' || format === 'sonarr'
 
 /** Outgoing webhooks (blueprint §3.7, §3.9): where events go, signed, retried until they land. */
 export function NotificationsPage() {
@@ -212,6 +216,11 @@ export function NotificationsPage() {
                     {endpoint.format === 'radarr' && (
                       <Badge variant="outline" className="mt-1" data-testid={`notification-format-${endpoint.id}`}>
                         {t('notifications.radarrBadge', { view: endpoint.view })}
+                      </Badge>
+                    )}
+                    {endpoint.format === 'sonarr' && (
+                      <Badge variant="outline" className="mt-1" data-testid={`notification-format-${endpoint.id}`}>
+                        {t('notifications.sonarrBadge', { view: endpoint.view })}
                       </Badge>
                     )}
                     {endpoint.format === 'discord' && (
@@ -371,7 +380,7 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
     events: form.events,
     tags: form.tags,
     format: form.format,
-    view: form.format === 'radarr' ? view : 'default',
+    view: hasView(form.format) ? view : 'default',
     discord: discord
       ? {
           username: form.discord.username.trim() || null,
@@ -384,7 +393,7 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
       : null,
   })
 
-  // Switching to Radarr's or Discord's format drops the events it cannot send, so the selection never says more than what goes out.
+  // Switching to Radarr's, Sonarr's or Discord's format drops the events it cannot send, so the selection never says more than what goes out.
   const setFormat = (format: WebhookFormat) =>
     setForm((f) => ({
       ...f,
@@ -476,11 +485,12 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
                 <SelectContent>
                   <SelectItem value="bigarr">{t('notifications.formatBigarr')}</SelectItem>
                   <SelectItem value="radarr">{t('notifications.formatRadarr')}</SelectItem>
+                  <SelectItem value="sonarr">{t('notifications.formatSonarr')}</SelectItem>
                   <SelectItem value="discord">{t('notifications.formatDiscord')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            {form.format === 'radarr' && (
+            {hasView(form.format) && (
               <div className="grid grid-cols-1 gap-2">
                 <Label htmlFor="nt-view">{t('notifications.view')}</Label>
                 <Select value={form.viewKind} onValueChange={(value) => set('viewKind', value as ViewKind)}>
@@ -496,9 +506,15 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
               </div>
             )}
             <p className="text-xs text-muted-foreground sm:col-span-2">
-              {form.format === 'radarr' ? t('notifications.formatRadarrHint') : discord ? t('notifications.formatDiscordHint') : t('notifications.formatBigarrHint')}
+              {form.format === 'radarr'
+                ? t('notifications.formatRadarrHint')
+                : form.format === 'sonarr'
+                  ? t('notifications.formatSonarrHint')
+                  : discord
+                    ? t('notifications.formatDiscordHint')
+                    : t('notifications.formatBigarrHint')}
             </p>
-            {form.format === 'radarr' && form.viewKind === 'version' && (
+            {hasView(form.format) && form.viewKind === 'version' && (
               <div className="grid grid-cols-1 gap-2 sm:col-span-2">
                 <Label htmlFor="nt-version">{t('connect.versionName')}</Label>
                 <Input id="nt-version" value={form.versionName} onChange={(e) => set('versionName', e.target.value)} placeholder={t('connect.versionNamePlaceholder')} />
@@ -569,6 +585,7 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
               <p className="text-xs text-muted-foreground">
                 {form.events.length === 0 ? t('notifications.allEventsHint') : t('notifications.someEventsHint', { count: form.events.length })}
                 {form.format === 'radarr' && <> {t('notifications.radarrEventsHint')}</>}
+                {form.format === 'sonarr' && <> {t('notifications.sonarrEventsHint')}</>}
                 {discord && <> {t('notifications.discordEventsHint')}</>}
               </p>
               <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2" data-testid="notification-events">
@@ -582,6 +599,11 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
                         {form.format === 'radarr' && (
                           <span className="ml-1 text-xs text-muted-foreground">
                             {type.radarrEventType ? t('notifications.radarrAs', { type: type.radarrEventType }) : t('notifications.notInRadarr')}
+                          </span>
+                        )}
+                        {form.format === 'sonarr' && (
+                          <span className="ml-1 text-xs text-muted-foreground">
+                            {type.sonarrEventType ? t('notifications.radarrAs', { type: type.sonarrEventType }) : t('notifications.notInSonarr')}
                           </span>
                         )}
                         {discord && !type.sentToDiscord && <span className="ml-1 text-xs text-muted-foreground">{t('notifications.notInDiscord')}</span>}

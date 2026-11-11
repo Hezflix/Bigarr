@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
 import {
   BanIcon,
+  CalendarDaysIcon,
+  HandIcon,
   FilmIcon,
   FolderCogIcon,
   FolderOpenIcon,
@@ -61,6 +63,9 @@ type NavItem = {
     | '/wanted'
     | '/series'
     | '/series/add'
+    | '/series/wanted'
+    | '/calendar'
+    | '/activity/held'
     | '/activity/queue'
     | '/activity/releases'
     | '/activity/history'
@@ -112,6 +117,8 @@ function useSections(): NavSection[] {
       items: [
         { to: '/series', label: t('nav.seriesLibrary'), icon: TvIcon, exact: true },
         { to: '/series/add', label: t('nav.addSeries'), icon: PlusIcon },
+        { to: '/calendar', label: t('nav.calendar'), icon: CalendarDaysIcon },
+        { to: '/series/wanted', label: t('nav.seriesWanted'), icon: ListTodoIcon },
       ],
     },
     {
@@ -121,6 +128,7 @@ function useSections(): NavSection[] {
         { to: '/activity/releases', label: t('nav.releases'), icon: RssIcon },
         { to: '/activity/history', label: t('nav.history'), icon: HistoryIcon },
         { to: '/activity/blocklist', label: t('nav.blocklist'), icon: BanIcon },
+        { to: '/activity/held', label: t('nav.held'), icon: HandIcon },
         { to: '/activity/compare', label: t('nav.compare'), icon: GitCompareIcon },
         { to: '/activity/compare-sonarr', label: t('nav.compareSonarr'), icon: GitCompareIcon },
       ],
