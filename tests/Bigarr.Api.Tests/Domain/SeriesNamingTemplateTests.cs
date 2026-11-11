@@ -34,9 +34,10 @@ public sealed class SeriesNamingTemplateTests
     {
         Assert.Equal("Breaking Bad - S01E01 - Pilot WEBDL-1080p", SeriesNamingTemplate.RenderFile(MediaManagementConfig.DefaultStandardEpisodeTemplate, Show, MultiEpisodeStyle.PrefixedRange));
         Assert.Equal("Breaking Bad (2008)", SeriesNamingTemplate.RenderSeriesFolder(MediaManagementConfig.DefaultSeriesFolderTemplate, Show));
-        Assert.Equal("Season 01", SeriesNamingTemplate.RenderSeasonFolder(MediaManagementConfig.DefaultSeasonFolderTemplate, "Specials", 1, Show));
+        Assert.Equal("Season 1", SeriesNamingTemplate.RenderSeasonFolder(MediaManagementConfig.DefaultSeasonFolderTemplate, "Specials", 1, Show));
+        Assert.Equal("Season 01", SeriesNamingTemplate.RenderSeasonFolder("Season {season:00}", "Specials", 1, Show));
         Assert.Equal("Specials", SeriesNamingTemplate.RenderSeasonFolder(MediaManagementConfig.DefaultSeasonFolderTemplate, "Specials", 0, Show));
-        Assert.Equal("Season 3", SeriesNamingTemplate.RenderSeasonFolder("Season {season}", "Specials", 3, Show));
+        Assert.Equal("Season 12", SeriesNamingTemplate.RenderSeasonFolder(MediaManagementConfig.DefaultSeasonFolderTemplate, "Specials", 12, Show));
     }
 
     [Theory]

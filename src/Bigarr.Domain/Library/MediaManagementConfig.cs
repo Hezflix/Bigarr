@@ -76,7 +76,7 @@ public sealed class MediaManagementConfig
 
     public const string DefaultSeriesFolderTemplate = "{Series TitleYear}";
 
-    public const string DefaultSeasonFolderTemplate = "Season {season:00}";
+    public const string DefaultSeasonFolderTemplate = "Season {season}";
 
     public const string DefaultSpecialsFolderName = "Specials";
 

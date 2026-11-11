@@ -49,7 +49,7 @@ public static class SeriesNaming
     }
 
     /// <summary>
-    /// The path relative to the version folder: <c>Season 01/Show - S01E01 - Title [Quality].mkv</c>. With renaming off
+    /// The path relative to the version folder: <c>Season 1/Show - S01E01 - Title [Quality].mkv</c>. With renaming off
     /// the file keeps <paramref name="currentName"/>, still sorted into its season folder.
     /// </summary>
     /// <param name="rename">Overrides the "rename episodes" switch (an explicit rename always renames).</param>

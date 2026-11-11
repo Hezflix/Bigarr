@@ -71,16 +71,16 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
             await RefreshAsync(client);
             var files = await WaitForFilesAsync(client, series.Id, f => f.Count(x => x.SeasonNumber == 1) == 7 && f.Single(x => x.Episodes == "S01E03").Quality == "Bluray-1080p");
 
-            Assert.Equal("Season 01/Breaking Bad - S01E01 - Pilot Bluray-1080p.mkv", files.Single(f => f.Episodes == "S01E01").RelativePath);
-            Assert.Equal("Season 01/Breaking Bad - S01E03 - ...And the Bag's in the River Bluray-1080p.mkv", files.Single(f => f.Episodes == "S01E03").RelativePath);
+            Assert.Equal("Season 1/Breaking Bad - S01E01 - Pilot Bluray-1080p.mkv", files.Single(f => f.Episodes == "S01E01").RelativePath);
+            Assert.Equal("Season 1/Breaking Bad - S01E03 - ...And the Bag's in the River Bluray-1080p.mkv", files.Single(f => f.Episodes == "S01E03").RelativePath);
             var e05 = files.Single(f => f.Episodes == "S01E05");
-            Assert.Equal("Season 01/Breaking Bad - S01E05 - Gray Matter Bluray-1080p Proper.mkv", e05.RelativePath);
+            Assert.Equal("Season 1/Breaking Bad - S01E05 - Gray Matter Bluray-1080p Proper.mkv", e05.RelativePath);
             Assert.Equal(2, e05.RevisionVersion);
             Assert.All(files, f => Assert.True(File.Exists(Path.Combine(folder, f.RelativePath)), f.RelativePath));
 
             // The subtitles came along, named after their episode; the replaced WEB-DL went to the recycle bin.
-            Assert.True(File.Exists(Path.Combine(folder, "Season 01", "Breaking Bad - S01E01 - Pilot Bluray-1080p.en.srt")));
-            Assert.True(File.Exists(Path.Combine(_bin, "Breaking Bad (2008)", "Season 01", "Breaking Bad - S01E03 - ...And the Bag's in the River WEBDL-1080p.mkv")));
+            Assert.True(File.Exists(Path.Combine(folder, "Season 1", "Breaking Bad - S01E01 - Pilot Bluray-1080p.en.srt")));
+            Assert.True(File.Exists(Path.Combine(_bin, "Breaking Bad (2008)", "Season 1", "Breaking Bad - S01E03 - ...And the Bag's in the River WEBDL-1080p.mkv")));
 
             // Hardlinked: the torrent keeps seeding the very same bytes.
             var state = factory.Services.GetRequiredService<MockDownloadClientState>();
@@ -107,7 +107,7 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
             var e02Id = (await SeriesSetup.EpisodeAsync(client, series.Id, 1, 2)).Id;
             await GrabAndCompleteAsync(client, Crafted("Breaking.Bad.S01E02.REPACK.1080p.BluRay.x264-DEMAND", version.Id, e02Id));
             files = await WaitForFilesAsync(client, series.Id, f => f.Single(x => x.Episodes == "S01E02").RevisionVersion == 2);
-            Assert.Equal("Season 01/Breaking Bad - S01E02 - Cat's in the Bag... Bluray-1080p Proper.mkv", files.Single(f => f.Episodes == "S01E02").RelativePath);
+            Assert.Equal("Season 1/Breaking Bad - S01E02 - Cat's in the Bag... Bluray-1080p Proper.mkv", files.Single(f => f.Episodes == "S01E02").RelativePath);
             Assert.Equal(7, files.Count(f => f.SeasonNumber == 1));
             Assert.Equal(1, files.Single(f => f.Episodes == "S01E01").RevisionVersion);
 
@@ -117,7 +117,7 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
             await GrabAndCompleteAsync(client, Crafted("Breaking.Bad.S02E01E02.1080p.BluRay.x264-DEMAND", version.Id, s2e1, s2e2));
             files = await WaitForFilesAsync(client, series.Id, f => f.Any(x => x.SeasonNumber == 2));
             var multi = Assert.Single(files, f => f.SeasonNumber == 2);
-            Assert.Equal("Season 02/Breaking Bad - S02E01-E02 - Seven Thirty-Seven + Grilled Bluray-1080p.mkv", multi.RelativePath);
+            Assert.Equal("Season 2/Breaking Bad - S02E01-E02 - Seven Thirty-Seven + Grilled Bluray-1080p.mkv", multi.RelativePath);
             Assert.Equal([s2e1, s2e2], multi.EpisodeIds.Order().ToArray());
 
             // 5. A pack with one file nobody can place: the rest goes in, the grab waits for a hand.
@@ -153,7 +153,7 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
             Assert.Equal(HttpStatusCode.OK, forced.StatusCode);
             var result = Assert.Single((await forced.Content.ReadFromJsonAsync<List<SeriesManualImportResultResponse>>(Json))!);
             Assert.True(result.Imported, result.Reason);
-            Assert.EndsWith("Season 02/Breaking Bad - S02E05 - Breakage WEBDL-720p.mkv", result.DestinationPath, StringComparison.Ordinal);
+            Assert.EndsWith("Season 2/Breaking Bad - S02E05 - Breakage WEBDL-720p.mkv", result.DestinationPath, StringComparison.Ordinal);
             Assert.DoesNotContain((await RefreshAsync(client)).Items, i => i.GrabId == partial.GrabId); // done by hand: imported
 
             // 6. A file dropped in the folder by hand: the scan lists it unmatched, assigning it places it (and renames it).
@@ -166,7 +166,7 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
             var assigned = await client.PostAsJsonAsync($"/api/v1/series/{series.Id}/unmatched/{unmatched.Id}/assign", new AssignUnmatchedRequest([s2e6], Rename: true, QualityId: 4), Json);
             Assert.True(assigned.StatusCode == HttpStatusCode.OK, await assigned.Content.ReadAsStringAsync());
             var placed = (await assigned.Content.ReadFromJsonAsync<EpisodeFileDetailResponse>(Json))!;
-            Assert.Equal("Season 02/Breaking Bad - S02E06 - Peekaboo HDTV-720p.mkv", placed.RelativePath);
+            Assert.Equal("Season 2/Breaking Bad - S02E06 - Peekaboo HDTV-720p.mkv", placed.RelativePath);
             Assert.False(File.Exists(dropped));
             Assert.True(File.Exists(placed.Path));
 
@@ -183,12 +183,12 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
             Assert.Equal(7, preview.Count);
             var p1 = preview.Single(p => p.Episodes.SequenceEqual(["S01E01"]));
             Assert.True(p1.Changed);
-            Assert.Equal("Season 01/Breaking.Bad.S01E01.Bluray-1080p.mkv", p1.NewRelativePath);
-            Assert.Equal("Season 01/Breaking.Bad.S01E01.Bluray-1080p.en.srt", Assert.Single(p1.Extras).NewRelativePath);
+            Assert.Equal("Season 1/Breaking.Bad.S01E01.Bluray-1080p.mkv", p1.NewRelativePath);
+            Assert.Equal("Season 1/Breaking.Bad.S01E01.Bluray-1080p.en.srt", Assert.Single(p1.Extras).NewRelativePath);
             var renamed = await client.PostAsJsonAsync($"/api/v1/series/{series.Id}/rename", new SeriesRenameRequest(series.Id, SeasonNumber: 1), Json);
             Assert.Equal(HttpStatusCode.OK, renamed.StatusCode);
             Assert.All((await renamed.Content.ReadFromJsonAsync<List<SeriesRenameResultResponse>>(Json))!, r => Assert.True(r.Renamed, r.Error));
-            Assert.True(File.Exists(Path.Combine(folder, "Season 01", "Breaking.Bad.S01E01.Bluray-1080p.en.srt")));
+            Assert.True(File.Exists(Path.Combine(folder, "Season 1", "Breaking.Bad.S01E01.Bluray-1080p.en.srt")));
             Assert.Equal(7, (await SeriesHistoryAsync(client, series.Id)).Count(h => h.EventType == HistoryEventType.Renamed && h.Data["episode"].StartsWith("S01", StringComparison.Ordinal)));
             await NamingAsync(client, n => n with { StandardEpisodeTemplate = MediaManagementConfig.DefaultStandardEpisodeTemplate });
 
@@ -199,8 +199,8 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
             Assert.Single(info.Extras);
             Assert.Equal("Pilot", Assert.Single(info.Episodes).Title);
             Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/v1/series/{series.Id}/episodefiles/{doomed.Id}")).StatusCode);
-            Assert.True(File.Exists(Path.Combine(_bin, "Breaking Bad (2008)", "Season 01", "Breaking.Bad.S01E01.Bluray-1080p.mkv")));
-            Assert.True(File.Exists(Path.Combine(_bin, "Breaking Bad (2008)", "Season 01", "Breaking.Bad.S01E01.Bluray-1080p.en.srt")));
+            Assert.True(File.Exists(Path.Combine(_bin, "Breaking Bad (2008)", "Season 1", "Breaking.Bad.S01E01.Bluray-1080p.mkv")));
+            Assert.True(File.Exists(Path.Combine(_bin, "Breaking Bad (2008)", "Season 1", "Breaking.Bad.S01E01.Bluray-1080p.en.srt")));
             var pilot = await SeriesSetup.EpisodeAsync(client, series.Id, 1, 1);
             Assert.False(pilot.Versions.Single().HasFile);
             Assert.Contains(await SeriesHistoryAsync(client, series.Id), h => h.EventType == HistoryEventType.FileDeleted && h.Data.GetValueOrDefault("episode") == "S01E01");
@@ -228,7 +228,7 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
             // SubsPlease names no source: Sonarr's parser reads HDTV, and so does the file name.
             await GrabAndCompleteAsync(client, SeriesSetup.Grab(release));
             var animeFile = Assert.Single(await WaitForFilesAsync(client, frieren.Id, f => f.Count > 0));
-            Assert.Equal("Season 02/Frieren - Beyond Journey's End (2023) - S02E05 - 033 - Logistics in the Northern Plateau [HDTV-1080p]-SubsPlease.mkv", animeFile.RelativePath);
+            Assert.Equal("Season 2/Frieren - Beyond Journey's End (2023) - S02E05 - 033 - Logistics in the Northern Plateau [HDTV-1080p]-SubsPlease.mkv", animeFile.RelativePath);
 
             var daily = await SeriesSetup.AddAsync(client, SeriesSearchTests.DailyShow);
             var day = (await client.GetFromJsonAsync<List<EpisodeResponse>>($"/api/v1/series/{daily.Id}/episodes", Json))!.Single(e => e.AirDate == new DateOnly(2026, 10, 27));
@@ -263,7 +263,7 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
             state.Complete(hash);
             await RefreshAsync(client);
             var files = await WaitForFilesAsync(client, series.Id, f => f.Any(x => x.Episodes == "S03E01"));
-            Assert.StartsWith("Season 03/Breaking Bad - S03E01 - ", files.Single(f => f.Episodes == "S03E01").RelativePath, StringComparison.Ordinal);
+            Assert.StartsWith("Season 3/Breaking Bad - S03E01 - ", files.Single(f => f.Episodes == "S03E01").RelativePath, StringComparison.Ordinal);
         }
         finally
         {
@@ -303,11 +303,11 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
             // Deleting the version with its files: its folder (its own) goes to the recycle bin.
             await ConfigureAsync(client, _bin);
             var own = Path.Combine(version.RootFolderPath, version.FolderName);
-            Directory.CreateDirectory(Path.Combine(own, "Season 01"));
-            await File.WriteAllBytesAsync(Path.Combine(own, "Season 01", "x.mkv"), new byte[8]);
+            Directory.CreateDirectory(Path.Combine(own, "Season 1"));
+            await File.WriteAllBytesAsync(Path.Combine(own, "Season 1", "x.mkv"), new byte[8]);
             Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/v1/series/{series.Id}/versions/{version.Id}?deleteFiles=true")).StatusCode);
             Assert.False(Directory.Exists(own));
-            Assert.True(File.Exists(Path.Combine(_bin, version.FolderName, "Season 01", "x.mkv")));
+            Assert.True(File.Exists(Path.Combine(_bin, version.FolderName, "Season 1", "x.mkv")));
         }
         finally
         {

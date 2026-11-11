@@ -603,7 +603,7 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(1024)
                         .HasColumnType("TEXT")
-                        .HasDefaultValue("Season {season:00}");
+                        .HasDefaultValue("Season {season}");
 
                     b.Property<int>("SeasonPackUpgrade")
                         .HasColumnType("INTEGER");

@@ -47,7 +47,7 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                 type: "TEXT",
                 maxLength: 1024,
                 nullable: false,
-                defaultValue: "Season {season:00}");
+                defaultValue: "Season {season}");
 
             migrationBuilder.AddColumn<string>(
                 name: "SeriesFolderTemplate",

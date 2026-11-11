@@ -37,7 +37,7 @@ public sealed class SeriesVersion
     /// <summary>Series-level switch of the version (Sonarr's series <c>monitored</c>); episodes keep their own flags.</summary>
     public bool Monitored { get; set; } = true;
 
-    /// <summary>Episodes sorted into <c>Season 01</c> folders, as in Sonarr.</summary>
+    /// <summary>Episodes sorted into season folders (<c>Season 1</c> by default), as in Sonarr.</summary>
     public bool SeasonFolder { get; set; } = true;
 
     public NewItemMonitoring MonitorNewItems { get; set; } = NewItemMonitoring.All;
