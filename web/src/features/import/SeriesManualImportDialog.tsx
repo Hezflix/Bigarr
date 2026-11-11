@@ -66,7 +66,7 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
         listing.data.files.map((f) => [
           f.path,
           {
-            selected: !f.isSample && f.seriesId !== null && f.versionId !== null && f.episodes.length > 0,
+            selected: !f.isSample && f.seriesId !== null && f.versionId !== null && f.episodes.length > 0 && f.rejections.length === 0,
             seriesId: f.seriesId,
             versionId: f.versionId,
             episodeIds: f.episodes.map((e) => e.id),

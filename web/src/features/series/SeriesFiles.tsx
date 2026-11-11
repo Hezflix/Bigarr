@@ -81,7 +81,7 @@ export function RenameSeriesDialog({ series: s, versionId, onClose, onDone }: { 
         {preview.data && changed.length === 0 && <p className="text-sm text-muted-foreground">{t('seriesFiles.nothingToRename')}</p>}
         {changed.length > 0 && (
           <div className="overflow-x-auto rounded-lg border">
-            <Table data-testid="series-rename-preview">
+            <Table data-testid="series-rename-preview" className="table-fixed">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-24 pl-4">{t('seriesImport.episodes')}</TableHead>
@@ -92,11 +92,11 @@ export function RenameSeriesDialog({ series: s, versionId, onClose, onDone }: { 
               <TableBody>
                 {changed.map((p) => (
                   <TableRow key={p.episodeFileId}>
-                    <TableCell className="pl-4 align-top text-xs tabular-nums">{p.episodes.join(', ')}</TableCell>
-                    <TableCell className="max-w-0 align-top">
+                    <TableCell className="pl-4 align-top text-xs whitespace-normal tabular-nums">{p.episodes.join(', ')}</TableCell>
+                    <TableCell className="align-top whitespace-normal">
                       <span className="block break-all font-mono text-xs text-muted-foreground line-through decoration-muted-foreground/40">{p.currentRelativePath}</span>
                     </TableCell>
-                    <TableCell className="max-w-0 pr-4 align-top">
+                    <TableCell className="pr-4 align-top whitespace-normal">
                       <span className="block break-all font-mono text-xs">{p.newRelativePath}</span>
                       {p.extras
                         .filter((e) => e.currentRelativePath !== e.newRelativePath)
