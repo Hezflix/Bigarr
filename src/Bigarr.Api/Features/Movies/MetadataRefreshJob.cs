@@ -30,6 +30,9 @@ public sealed class MetadataRefreshJob(BigarrDbContext db, MovieService movies, 
 
     public TimeSpan InitialDelay => TimeSpan.FromMinutes(Math.Max(0, options.Value.RefreshInitialDelayMinutes));
 
+    /// <summary>A pass over the whole library: its own lane.</summary>
+    public bool LongRunning => true;
+
     private bool OnFixtures => metadata.Name == "fixtures";
 
     public async Task<string?> RunAsync(CancellationToken ct)
