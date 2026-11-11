@@ -51,6 +51,11 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
                 return Failure.NotFound("Episode");
             }
 
+            if (targets.FilmOwned.TryGetValue(episode.Id, out var film))
+            {
+                return Failure.Conflict("Owned by a film", $"S{episode.SeasonNumber:00}E{episode.EpisodeNumber:00} is the film {film}: search the film instead.");
+            }
+
             scope = "episode";
             label = $"S{episode.SeasonNumber:00}E{episode.EpisodeNumber:00}";
             requested = [episode.Id];

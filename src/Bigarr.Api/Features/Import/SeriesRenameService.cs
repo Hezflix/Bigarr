@@ -198,7 +198,8 @@ public sealed class SeriesRenameService(BigarrDbContext db, MediaManagementServi
             .Where(v => versionId is null || v.Id == versionId)
             .OrderByDescending(v => v.IsDefault).ThenBy(v => v.Id)
             .SelectMany(v => v.Files
-                .Where(f => f.Episodes.Count > 0 && (seasonNumber is null || f.SeasonNumber == seasonNumber) && (fileIds is null || fileIds.Contains(f.Id)))
+                // A film's hardlink (S8) is named by the link keeper, never renamed from the series side.
+                .Where(f => f.Episodes.Count > 0 && !f.IsFilmLink && (seasonNumber is null || f.SeasonNumber == seasonNumber) && (fileIds is null || fileIds.Contains(f.Id)))
                 .OrderBy(f => f.SeasonNumber).ThenBy(f => f.Episodes.Min(t => t.Episode.EpisodeNumber))
                 .Select(f => (v, f)));
 

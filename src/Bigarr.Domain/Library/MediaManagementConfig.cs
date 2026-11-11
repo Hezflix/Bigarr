@@ -119,6 +119,12 @@ public sealed class MediaManagementConfig
     /// <summary>Sonarr's "Replace Illegal Characters", for series, season and episode names.</summary>
     public bool SeriesReplaceIllegalCharacters { get; set; } = true;
 
+    /// <summary>
+    /// Specials that are films (S8): add a newly detected one to the films by itself, with the default film profile
+    /// and the first film root. Off by default: candidates are only suggested on the series page.
+    /// </summary>
+    public bool AutoAddSeriesFilms { get; set; }
+
     /// <summary>Sonarr's "Colon Replacement" for series names.</summary>
     public ColonReplacement SeriesColonReplacement { get; set; } = ColonReplacement.Smart;
 

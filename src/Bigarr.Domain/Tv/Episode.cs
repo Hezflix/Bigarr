@@ -66,6 +66,41 @@ public sealed class Episode
     /// <summary>Running number in the alternative order (regular seasons only); the absolute number of an absolute group.</summary>
     public int? OrderAbsoluteNumber { get; set; }
 
+    // ---- specials that are films (S8) ------------------------------------------------------------------------------
+
+    /// <summary>TVDB's <c>isMovie</c> flag on the episode: the special is a feature film.</summary>
+    public bool IsMovie { get; set; }
+
+    /// <summary>TVDB's placement of a special among the regular seasons (<c>airsAfterSeason</c>).</summary>
+    public int? AirsAfterSeason { get; set; }
+
+    /// <summary>TVDB's <c>airsBeforeSeason</c> (with <see cref="AirsBeforeEpisode"/> when it airs inside that season).</summary>
+    public int? AirsBeforeSeason { get; set; }
+
+    public int? AirsBeforeEpisode { get; set; }
+
+    /// <summary>The film this special is, on TMDB: from TVDB's linked movie, or found by title (<see cref="MovieMatch"/>).</summary>
+    public int? MovieTmdbId { get; set; }
+
+    public string? MovieImdbId { get; set; }
+
+    /// <summary>How <see cref="MovieTmdbId"/> was found; <see cref="SpecialMovieMatch.None"/> when it is not a film.</summary>
+    public SpecialMovieMatch MovieMatch { get; set; }
+
+    /// <summary>When film detection last looked at this special (null: never, so a candidate found now is new).</summary>
+    public DateTime? MovieCheckedAt { get; set; }
+
+    /// <summary>The TMDB film's title and year, read once so the review page can name a film that is not in the library.</summary>
+    public string? MovieTitle { get; set; }
+
+    public int? MovieYear { get; set; }
+
+    /// <summary>The user said this candidate is not a film to link: it leaves the suggestions until linked by hand.</summary>
+    public DateTime? MovieDismissedAt { get; set; }
+
+    /// <summary>The film of the library this special is, when the user added it (<see cref="SeriesMovieLink"/>).</summary>
+    public SeriesMovieLink? MovieLink { get; set; }
+
     public ICollection<EpisodeTarget> Targets { get; set; } = [];
 
     /// <summary>The episode has numbers in the alternative order.</summary>

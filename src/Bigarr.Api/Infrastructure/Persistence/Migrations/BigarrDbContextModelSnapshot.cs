@@ -557,6 +557,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT")
                         .HasDefaultValue("{Series Title} - S{season:00}E{episode:00} - {Episode Title} {Quality Full}");
 
+                    b.Property<bool>("AutoAddSeriesFilms")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("ColonReplacement")
                         .HasColumnType("INTEGER");
 
@@ -2735,12 +2738,47 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("AirDateUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("AirsAfterSeason")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("AirsBeforeEpisode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("AirsBeforeSeason")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("EpisodeNumber")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("ImageUrl")
                         .HasMaxLength(1024)
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsMovie")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("MovieCheckedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("MovieDismissedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MovieImdbId")
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MovieMatch")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MovieTitle")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("MovieTmdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("MovieYear")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int?>("OrderAbsoluteNumber")
                         .HasColumnType("INTEGER");
@@ -2870,6 +2908,13 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("LinkedFromPath")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("LinkedMediaFileId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("MediaInfo")
                         .HasColumnType("TEXT");
 
@@ -2892,6 +2937,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int>("SeasonNumber")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("SeriesMovieLinkId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long>("Size")
                         .HasColumnType("INTEGER");
 
@@ -2901,6 +2949,8 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("QualityId");
+
+                    b.HasIndex("SeriesMovieLinkId");
 
                     b.HasIndex("VersionId", "RelativePath")
                         .IsUnique();
@@ -3230,6 +3280,55 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("SeriesExclusions", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.SeriesMovieLink", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("AfterSeason")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AutoAdded")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("BeforeSeason")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("EpisodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LinkError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LinkErrorAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MovieId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PlacementSource")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EpisodeId")
+                        .IsUnique();
+
+                    b.HasIndex("MovieId");
+
+                    b.HasIndex("SeriesId");
+
+                    b.ToTable("SeriesMovieLinks", (string)null);
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Tv.SeriesOrderChange", b =>
@@ -4066,6 +4165,11 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Bigarr.Domain.Tv.SeriesMovieLink", "SeriesMovieLink")
+                        .WithMany()
+                        .HasForeignKey("SeriesMovieLinkId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Bigarr.Domain.Tv.SeriesVersion", "Version")
                         .WithMany("Files")
                         .HasForeignKey("VersionId")
@@ -4102,6 +4206,8 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Revision")
                         .IsRequired();
 
+                    b.Navigation("SeriesMovieLink");
+
                     b.Navigation("Version");
                 });
 
@@ -4136,6 +4242,33 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("DefaultRootFolder");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Tv.SeriesMovieLink", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Tv.Episode", "Episode")
+                        .WithOne("MovieLink")
+                        .HasForeignKey("Bigarr.Domain.Tv.SeriesMovieLink", "EpisodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Bigarr.Domain.Movies.Movie", "Movie")
+                        .WithMany()
+                        .HasForeignKey("MovieId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Bigarr.Domain.Tv.Series", "Series")
+                        .WithMany()
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Episode");
+
+                    b.Navigation("Movie");
+
+                    b.Navigation("Series");
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Tv.SeriesOrderChange", b =>
@@ -4369,6 +4502,8 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Bigarr.Domain.Tv.Episode", b =>
                 {
+                    b.Navigation("MovieLink");
+
                     b.Navigation("Targets");
                 });
 

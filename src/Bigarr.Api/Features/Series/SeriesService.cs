@@ -18,7 +18,7 @@ using Microsoft.EntityFrameworkCore;
 /// Application rules of the Series slice: lookup, add, versions, monitoring, refresh, delete. The disk is touched only
 /// by a delete asked with <c>deleteFiles</c> (through the recycle bin); the scan and the import live elsewhere.
 /// </summary>
-public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataProvider metadata, XemService xem, Bigarr.Api.Infrastructure.Files.RecycleBin recycleBin, Search.SeriesSearchQueue searches, Infrastructure.Events.OutboxWriter outbox, SeriesRefreshAlerts alerts, TimeProvider time, ILogger<SeriesService> logger)
+public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataProvider metadata, XemService xem, Bigarr.Api.Infrastructure.Files.RecycleBin recycleBin, Search.SeriesSearchQueue searches, Infrastructure.Events.OutboxWriter outbox, SeriesRefreshAlerts alerts, TimeProvider time, ILogger<SeriesService> logger, SeriesFilms.SeriesFilmService? films = null)
 {
     public DateTime Now => time.GetUtcNow().UtcDateTime;
 
@@ -207,6 +207,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         outbox.Publish(new Bigarr.Domain.Events.SeriesAdded(Bigarr.Domain.Events.SeriesRef.From(series), Bigarr.Domain.Events.SeriesVersionRef.From(version)) { OccurredAt = Now });
         await db.SaveChangesAsync(ct);
         logger.LogInformation("Added series {Title} ({Source}): {Episodes} episodes, monitor {Monitor}", series.Title, found.Source, series.Episodes.Count, request.Monitor);
+        await DetectFilmsAsync(series, ct);
         return Result<Series>.Ok(series);
     }
 
@@ -672,6 +673,12 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
                 continue;
             }
 
+            if (await db.SeriesMovieLinks.AnyAsync(l => l.EpisodeId == episode.Id, ct))
+            {
+                logger.LogWarning("{Series}: S{Season:00}E{Episode:00} is gone from the provider but is linked to a film; kept", series.Title, episode.SeasonNumber, episode.EpisodeNumber);
+                continue;
+            }
+
             if (episode.Targets.FirstOrDefault(t => recorded.ContainsKey(t.Id)) is { } kept)
             {
                 logger.LogWarning("{Series}: S{Season:00}E{Episode:00} is gone from the provider but has {What}; kept", series.Title, episode.SeasonNumber, episode.EpisodeNumber, recorded[kept.Id]);
@@ -696,13 +703,14 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
 
         await db.SaveChangesAsync(ct);
         logger.LogInformation("Refreshed series {Title}: {Added} new episodes, {Removed} gone", series.Title, sync.Added.Count, sync.Removed.Count);
+        await DetectFilmsAsync(series, ct);
 
         // Sonarr's EpisodeRefreshedService: new monitored episodes that aired in the last two weeks (or air within a
         // day) are searched once the refresh is saved; the rest are left to RSS.
         foreach (var version in series.Versions.Where(v => v.Monitored))
         {
             var recent = version.Episodes
-                .Where(t => sync.Added.Contains(t.Episode) && t.Monitored && t.EpisodeFileId is null && MonitoringRules.SearchAfterRefresh(t.Episode, Now))
+                .Where(t => sync.Added.Contains(t.Episode) && t.Monitored && t.EpisodeFileId is null && t.Episode.MovieLink is null && MonitoringRules.SearchAfterRefresh(t.Episode, Now))
                 .Select(t => t.Episode.Id)
                 .ToList();
             if (recent.Count > 0)
@@ -719,6 +727,24 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
     {
         logger.LogDebug("{Series}: episode list not refreshed, {Why}", series.Title, why);
         return new Failure(StatusCodes.Status503ServiceUnavailable, "TVDB unavailable", $"{series.Title}: episode list not refreshed, {why}.");
+    }
+
+    /// <summary>Specials that are films (S8): never fails the add or refresh it follows.</summary>
+    private async Task DetectFilmsAsync(Series series, CancellationToken ct)
+    {
+        if (films is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await films.DetectAsync(series.Id, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "{Series}: film detection among the specials failed", series.Title);
+        }
     }
 
     private sealed record CatalogueChanges(List<Season> NewSeasons, List<Episode> Added, List<Episode> Removed);
@@ -794,6 +820,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             episode.Overview = info.Overview;
             episode.Runtime = info.Runtime;
             episode.ImageUrl = info.ImageUrl;
+            SeriesFilms.SeriesFilmDetection.ApplyMetadata(episode, info);
         }
 
         // Sonarr's two corrections of the provider's air times, on the episodes the provider still lists.

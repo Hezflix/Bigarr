@@ -106,6 +106,15 @@ public sealed class HealthCheckService(
             }
         }
 
+        // Specials that are films (S8) are hardlinks only, never copies: a failed link stays failed until fixed.
+        var linkErrors = await db.SeriesMovieLinks.AsNoTracking().Where(l => l.LinkError != null)
+            .Select(l => new { l.Series.Title, l.Episode.EpisodeNumber, l.LinkError }).ToListAsync(ct);
+        foreach (var error in linkErrors)
+        {
+            issues.Add(new HealthIssue("seriesFilmLinks", HealthIssueType.Warning,
+                $"{error.Title} S00E{error.EpisodeNumber:00} is not linked to its film's file: {error.LinkError}. Put the film and series root folders on one filesystem (one data mount)."));
+        }
+
         if (rss.Value.Enabled && schedulerOptions.Value.Enabled && allIndexers.Any(i => i.EnableRss))
         {
             var lastRun = scheduler.TryGet(RssSyncJob.JobName, out var runtime) ? runtime.LastRunAt : null;

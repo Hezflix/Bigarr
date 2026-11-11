@@ -35,8 +35,10 @@ public sealed class SeriesTargets
         IReadOnlyDictionary<int, QualityDefinition> definitions,
         IReadOnlyDictionary<int, string> formatNames,
         DateTime now,
-        Bigarr.Domain.Library.MediaManagementConfig? media = null)
+        Bigarr.Domain.Library.MediaManagementConfig? media = null,
+        IReadOnlyDictionary<int, string>? filmOwned = null)
     {
+        FilmOwned = filmOwned ?? new Dictionary<int, string>();
         _media = media ?? Bigarr.Domain.Library.MediaManagementConfig.Default();
         Series = series;
         SceneNames = sceneNames;
@@ -53,6 +55,12 @@ public sealed class SeriesTargets
     }
 
     public int? FirstSeasonNumber { get; }
+
+    /// <summary>
+    /// Specials linked to a film of the library (S8), by episode id, with the film's title: the film engine owns them,
+    /// so they have no slot here and no release is ever attributed to them on the series side.
+    /// </summary>
+    public IReadOnlyDictionary<int, string> FilmOwned { get; }
 
     public DateTime? PilotAirDateUtc { get; }
 
@@ -198,10 +206,14 @@ public sealed class SeriesTargetsFactory(BigarrDbContext db, CustomFormatScorer 
             .ToLookup(n => n.TvdbId);
         var now = time.GetUtcNow().UtcDateTime;
         var media = await db.MediaManagement.AsNoTracking().FirstOrDefaultAsync(c => c.Id == Bigarr.Domain.Library.MediaManagementConfig.SingletonId, ct);
+        var owned = (await db.SeriesMovieLinks.AsNoTracking().Where(l => seriesIds.Contains(l.SeriesId))
+                .Select(l => new { l.SeriesId, l.EpisodeId, l.Movie.Title, l.Movie.Year }).ToListAsync(ct))
+            .ToLookup(l => l.SeriesId);
 
         foreach (var show in series)
         {
             var episodes = show.Episodes.ToDictionary(e => e.Id);
+            var filmOwned = owned[show.Id].ToDictionary(l => l.EpisodeId, l => l.Year is { } y ? $"{l.Title} ({y})" : l.Title);
             var slots = new Dictionary<(int, int), EpisodeSlot>();
             foreach (var version in show.Versions)
             {
@@ -210,7 +222,7 @@ public sealed class SeriesTargetsFactory(BigarrDbContext db, CustomFormatScorer 
                 foreach (var target in version.Episodes)
                 {
                     target.Version = version;
-                    if (!episodes.TryGetValue(target.EpisodeId, out var episode))
+                    if (!episodes.TryGetValue(target.EpisodeId, out var episode) || filmOwned.ContainsKey(target.EpisodeId))
                     {
                         continue;
                     }
@@ -255,7 +267,8 @@ public sealed class SeriesTargetsFactory(BigarrDbContext db, CustomFormatScorer 
                 definitions,
                 formatNames,
                 now,
-                media);
+                media,
+                filmOwned);
         }
 
         return result;
