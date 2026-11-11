@@ -459,6 +459,7 @@ public sealed class TautulliImportService(
                 item.ShowTmdbId ??= plan.ShowTmdbId;
                 item.ShowTvdbId ??= plan.ShowTvdbId;
                 item.ShowImdbId ??= plan.ShowImdbId;
+                item.OriginalTitle ??= plan.Source.OriginalTitle;
                 item.MovieId ??= plan.MovieId;
                 plan.MovieId = item.MovieId;
                 plan.DurationMs ??= item.DurationMs;

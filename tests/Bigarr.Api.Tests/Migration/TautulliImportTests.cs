@@ -169,6 +169,13 @@ public sealed class TautulliImportTests(BigarrApiFactory factory) : IClassFixtur
         Assert.Equal(1, unmatched.GetProperty("totalRecords").GetInt32());
         Assert.Equal("Unknown Invention", unmatched.GetProperty("records")[0].GetProperty("item").GetProperty("title").GetString());
 
+        // An item imported before Bigarr kept original titles gets Tautulli's on the next run.
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+            await db.MediaServerItems.Where(i => i.MediaServerId == serverId && i.RatingKey == "30").ExecuteUpdateAsync(u => u.SetProperty(i => i.OriginalTitle, (string?)null));
+        }
+
         // Again: nothing new.
         var again = await ImportAsync(session, path, serverId);
         Assert.Equal(0, again.GetProperty("playsAdded").GetInt32());
@@ -177,6 +184,11 @@ public sealed class TautulliImportTests(BigarrApiFactory factory) : IClassFixtur
         Assert.Equal(0, again.GetProperty("itemsAdded").GetInt32());
         Assert.Equal(9, again.GetProperty("alreadyImported").GetInt32());
         Assert.Equal(1, again.GetProperty("overlappingLive").GetInt32());
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+            Assert.Equal("Un classique inventé", (await db.MediaServerItems.AsNoTracking().SingleAsync(i => i.MediaServerId == serverId && i.RatingKey == "30")).OriginalTitle);
+        }
 
         // Tautulli recorded the end of a play since: its row joins the play imported before.
         InventedTautulli.AddRow(path, id: 13, referenceId: 3, started: T0 + 12_000, stopped: T0 + 15_000, ratingKey: 20, userId: 9001, viewOffsetMs: 5_390_000);
