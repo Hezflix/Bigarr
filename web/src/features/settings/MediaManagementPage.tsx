@@ -3,7 +3,18 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, mediaManagement, type MediaManagement, type MediaManagementRequest, type SeasonPackUpgrade, type TransferMode } from '@/api/client'
+import {
+  ApiError,
+  mediaManagement,
+  multiEpisodeStyles,
+  type MediaManagement,
+  type MediaManagementRequest,
+  type MultiEpisodeStyle,
+  type SeasonPackUpgrade,
+  type SeriesNaming,
+  type SeriesNamingRequest,
+  type TransferMode,
+} from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -31,6 +42,7 @@ function useDebounced<T>(value: T, delay: number): T {
 export function MediaManagementPage() {
   const { t } = useTranslation()
   const query = useQuery({ queryKey: ['mediaManagement'], queryFn: mediaManagement.get })
+  const seriesNaming = useQuery({ queryKey: ['seriesNaming'], queryFn: mediaManagement.seriesNaming })
 
   return (
     <>
@@ -51,7 +63,153 @@ export function MediaManagementPage() {
         </Alert>
       )}
       {query.data && <MediaManagementForm key={JSON.stringify(query.data)} initial={query.data} />}
+      {seriesNaming.data && <SeriesNamingForm key={JSON.stringify(seriesNaming.data)} initial={seriesNaming.data} />}
     </>
+  )
+}
+
+const seriesRequest = (n: SeriesNaming): SeriesNamingRequest => ({
+  renameEpisodes: n.renameEpisodes,
+  seriesFolderTemplate: n.seriesFolderTemplate,
+  seasonFolderTemplate: n.seasonFolderTemplate,
+  specialsFolderName: n.specialsFolderName,
+  standardEpisodeTemplate: n.standardEpisodeTemplate,
+  dailyEpisodeTemplate: n.dailyEpisodeTemplate,
+  animeEpisodeTemplate: n.animeEpisodeTemplate,
+  multiEpisodeStyle: n.multiEpisodeStyle,
+})
+
+type SeriesTemplateField = 'seriesFolderTemplate' | 'seasonFolderTemplate' | 'specialsFolderName' | 'standardEpisodeTemplate' | 'dailyEpisodeTemplate' | 'animeEpisodeTemplate'
+
+/** Sonarr's episode naming: the series templates, with a live preview on Sonarr's sample series. Saved on its own. */
+function SeriesNamingForm({ initial }: { initial: SeriesNaming }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [form, setForm] = useState<SeriesNamingRequest>(() => seriesRequest(initial))
+  const [focused, setFocused] = useState<SeriesTemplateField>('standardEpisodeTemplate')
+  const debounced = useDebounced(form, 300)
+  const preview = useQuery({
+    queryKey: ['seriesNamingPreview', debounced],
+    queryFn: () => mediaManagement.previewSeriesNaming(debounced),
+    staleTime: Number.POSITIVE_INFINITY,
+    placeholderData: (previous) => previous,
+  })
+  const save = useMutation({
+    mutationFn: () => mediaManagement.updateSeriesNaming(form),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(['seriesNaming'], saved)
+      toast.success(t('seriesNaming.saved'))
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : t('mediaManagement.saveFailed')),
+  })
+
+  const errors = preview.data?.errors ?? {}
+  const hasErrors = Object.values(errors).some((e) => e.length > 0)
+  const dirty = JSON.stringify(form) !== JSON.stringify(seriesRequest(initial))
+  const fileField = focused === 'standardEpisodeTemplate' || focused === 'dailyEpisodeTemplate' || focused === 'animeEpisodeTemplate'
+  const tokens = initial.tokens.filter((token) =>
+    fileField ? true : focused === 'seriesFolderTemplate' ? token.scope === 'series' : token.scope !== 'episode',
+  )
+  const appendToken = (token: string) => setForm((f) => ({ ...f, [focused]: `${f[focused].trimEnd()} ${token}`.trim() }))
+
+  const field = (key: SeriesTemplateField, errorKey: string, previewValue: string | null | undefined, extra?: string | null) => (
+    <div className="grid gap-2">
+      <Label htmlFor={`sn-${key}`}>{t(`seriesNaming.${key}`)}</Label>
+      <Input
+        id={`sn-${key}`}
+        value={form[key]}
+        onFocus={() => setFocused(key)}
+        onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+        className={cn('font-mono text-xs', (errors[errorKey]?.length ?? 0) > 0 && 'border-destructive')}
+        spellCheck={false}
+        data-testid={`sn-${key}`}
+      />
+      <TemplatePreview label={t('mediaManagement.preview')} value={previewValue ?? null} errors={errors[errorKey] ?? []} testId={`sn-${key}-preview`} />
+      {extra && (errors[errorKey]?.length ?? 0) === 0 && (
+        <span className="text-xs text-muted-foreground">
+          {t('seriesNaming.multiPreview')}: <code className="rounded bg-muted px-1.5 py-0.5 break-all">{extra}</code>
+        </span>
+      )}
+    </div>
+  )
+
+  return (
+    <form
+      className="flex flex-col gap-4 border-t pt-8"
+      onSubmit={(e) => {
+        e.preventDefault()
+        save.mutate()
+      }}
+      data-testid="series-naming-form"
+    >
+      <div>
+        <h2 className="text-xl font-semibold tracking-tight">{t('seriesNaming.title')}</h2>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{t('seriesNaming.hint')}</p>
+      </div>
+
+      <div className="flex items-start gap-2">
+        <Checkbox id="sn-rename" checked={form.renameEpisodes} onCheckedChange={(v) => setForm({ ...form, renameEpisodes: v === true })} className="mt-0.5" />
+        <div className="grid gap-0.5">
+          <Label htmlFor="sn-rename" className="font-normal">
+            {t('seriesNaming.renameEpisodes')}
+          </Label>
+          <span className="text-xs text-muted-foreground">{t('seriesNaming.renameEpisodesHint')}</span>
+        </div>
+      </div>
+
+      {field('standardEpisodeTemplate', 'standardEpisode', preview.data?.standardEpisode, preview.data?.multiEpisode)}
+      {field('dailyEpisodeTemplate', 'dailyEpisode', preview.data?.dailyEpisode)}
+      {field('animeEpisodeTemplate', 'animeEpisode', preview.data?.animeEpisode)}
+
+      <div className="grid max-w-md gap-2">
+        <Label htmlFor="sn-style">{t('seriesNaming.multiEpisodeStyle')}</Label>
+        <Select value={form.multiEpisodeStyle} onValueChange={(v) => setForm({ ...form, multiEpisodeStyle: v as MultiEpisodeStyle })}>
+          <SelectTrigger id="sn-style" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {multiEpisodeStyles.map((style) => (
+              <SelectItem key={style} value={style}>
+                {t(`seriesNaming.styles.${style}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {field('seriesFolderTemplate', 'seriesFolder', preview.data?.seriesFolder)}
+      <span className="-mt-2 text-xs text-muted-foreground">{t('seriesNaming.seriesFolderHint')}</span>
+      {field('seasonFolderTemplate', 'seasonFolder', preview.data?.seasonFolder)}
+      {field('specialsFolderName', 'specialsFolder', preview.data?.specialsFolder)}
+
+      <div className="grid gap-2">
+        <span className="text-sm font-medium">{t('mediaManagement.tokens')}</span>
+        <p className="max-w-3xl text-xs text-muted-foreground">{t('seriesNaming.tokensHint', { field: t(`seriesNaming.${focused}`) })}</p>
+        <div className="flex flex-wrap gap-1" data-testid="sn-tokens">
+          {tokens.map((token) => (
+            <Tooltip key={token.token}>
+              <TooltipTrigger asChild>
+                <button type="button" onClick={() => appendToken(token.token)} className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <Badge variant={token.scope === 'episode' ? 'outline' : 'secondary'} className="cursor-pointer font-mono text-[11px]">
+                    {token.token}
+                  </Badge>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p>{token.description}</p>
+                <p className="font-mono text-xs opacity-80">{token.example}</p>
+              </TooltipContent>
+            </Tooltip>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Button type="submit" disabled={save.isPending || !dirty || hasErrors} data-testid="sn-save">
+          {save.isPending ? t('common.saving') : t('common.save')}
+        </Button>
+      </div>
+    </form>
   )
 }
 

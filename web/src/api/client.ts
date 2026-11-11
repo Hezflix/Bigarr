@@ -965,6 +965,8 @@ export type DownloadClient = {
   username: string | null
   password: string | null
   category: string
+  /** Series grabs go to this one (Sonarr's `tv-sonarr`). */
+  seriesCategory: string
   addPaused: boolean
   priority: number
   protocol: 'torrent' | 'usenet'
@@ -1061,7 +1063,16 @@ export type QueueItem = {
   addedAt: string
   /** False for a torrent found in our category that Bigarr never grabbed. */
   tracked: boolean
+  /** A series download: a series grab, or a torrent of the series category. */
+  series: boolean
+  seriesId: number | null
+  seriesTitle: string | null
+  seriesYear: number | null
+  /** The episodes the grab covers, in order. */
+  episodes: QueueEpisode[]
 }
+
+export type QueueEpisode = { episodeId: number; seasonNumber: number; episodeNumber: number; absoluteEpisodeNumber: number | null; title: string; hasFile: boolean }
 
 export type QueueClientStatus = { downloadClientId: number; name: string; healthy: boolean; lastError: string | null; lastSuccessAt: string | null }
 
@@ -1145,7 +1156,46 @@ export const mediaManagement = {
     post<NamingPreview>('/api/v1/mediamanagement/naming/preview', { fileNameTemplate, folderNameTemplate }),
   /** Probes a batch of files that have no media info yet. */
   backfill: () => post<BackfillResult>('/api/v1/mediamanagement/backfill'),
+  seriesNaming: () => api<SeriesNaming>('/api/v1/mediamanagement/series-naming'),
+  updateSeriesNaming: (body: SeriesNamingRequest) => put<SeriesNaming>('/api/v1/mediamanagement/series-naming', body),
+  /** Draft series templates rendered on Sonarr's sample series, with the errors that would refuse each. */
+  previewSeriesNaming: (body: Partial<SeriesNamingRequest>) => post<SeriesNamingPreview>('/api/v1/mediamanagement/series-naming/preview', body),
 }
+
+// ---- series naming (Sonarr's) ------------------------------------------------
+
+export type MultiEpisodeStyle = 'extend' | 'duplicate' | 'repeat' | 'scene' | 'range' | 'prefixedRange'
+
+export const multiEpisodeStyles: MultiEpisodeStyle[] = ['extend', 'duplicate', 'repeat', 'scene', 'range', 'prefixedRange']
+
+export type SeriesTokenScope = 'series' | 'season' | 'episode'
+
+export type SeriesNamingToken = { token: string; description: string; example: string; scope: SeriesTokenScope }
+
+export type SeriesNamingPreview = {
+  seriesFolder: string | null
+  seasonFolder: string | null
+  specialsFolder: string | null
+  standardEpisode: string | null
+  multiEpisode: string | null
+  dailyEpisode: string | null
+  animeEpisode: string | null
+  /** Keyed by template: seriesFolder, seasonFolder, specialsFolder, standardEpisode, dailyEpisode, animeEpisode. */
+  errors: Record<string, string[]>
+}
+
+export type SeriesNamingRequest = {
+  renameEpisodes: boolean
+  seriesFolderTemplate: string
+  seasonFolderTemplate: string
+  specialsFolderName: string
+  standardEpisodeTemplate: string
+  dailyEpisodeTemplate: string
+  animeEpisodeTemplate: string
+  multiEpisodeStyle: MultiEpisodeStyle
+}
+
+export type SeriesNaming = SeriesNamingRequest & { preview: SeriesNamingPreview; tokens: SeriesNamingToken[] }
 
 // ---- manual import ---------------------------------------------------------
 
@@ -1212,6 +1262,112 @@ export const manualImport = {
   },
   /** Forced: no upgrade check, a one-shot with a file is replaced too. */
   import: (files: ManualImportItem[], transferMode?: TransferMode | null) => post<ManualImportResult[]>('/api/v1/manualimport', { files, transferMode: transferMode ?? null }),
+}
+
+// ---- series manual import, rename, episode files ----------------------------
+
+export type SeriesManualImportEpisode = { id: number; seasonNumber: number; episodeNumber: number; absoluteEpisodeNumber: number | null; title: string; hasFile: boolean }
+
+export type SeriesManualImportFile = {
+  path: string
+  relativePath: string
+  name: string
+  size: number
+  isSample: boolean
+  qualityId: number
+  quality: string
+  revisionVersion: number
+  releaseGroup: string | null
+  languages: string[]
+  seriesId: number | null
+  seriesTitle: string | null
+  versionId: number | null
+  versions: { id: number; name: string; isDefault: boolean }[]
+  seasonNumber: number | null
+  episodes: SeriesManualImportEpisode[]
+  /** Why no series or episode was proposed. */
+  matchReason: string | null
+  /** Why the import would not take it on its own; the user can force it. */
+  rejections: string[]
+  extras: ManualImportExtra[]
+}
+
+export type SeriesManualImport = { path: string; grabId: number | null; releaseTitle: string | null; defaultTransferMode: TransferMode; files: SeriesManualImportFile[] }
+
+export type SeriesManualImportItem = { path: string; versionId: number; episodeIds: number[]; qualityId?: number | null; grabId?: number | null; extraPaths?: string[] | null }
+
+export type SeriesManualImportResult = {
+  path: string
+  versionId: number
+  imported: boolean
+  reason: string | null
+  episodeFileId: number | null
+  destinationPath: string | null
+  upgraded: boolean
+  episodes: string[]
+}
+
+export type SeriesRenamePreview = {
+  versionId: number
+  versionName: string
+  episodeFileId: number
+  seasonNumber: number
+  episodes: string[]
+  currentRelativePath: string
+  newRelativePath: string
+  changed: boolean
+  extras: ExtraRenamePreview[]
+}
+
+export type SeriesRenameResult = { episodeFileId: number; relativePath: string; renamed: boolean; error: string | null }
+
+export type EpisodeExtra = { id: number; relativePath: string; extension: string; kind: ExtraFile['kind']; language: string | null; forced: boolean; hearingImpaired: boolean }
+
+export type EpisodeFileDetail = {
+  id: number
+  versionId: number
+  versionName: string
+  relativePath: string
+  path: string
+  size: number
+  dateAdded: string
+  quality: string
+  revisionVersion: number
+  releaseGroup: string | null
+  languages: string[]
+  originalReleaseTitle: string | null
+  mediaInfo: MediaInfo | null
+  customFormats: string[]
+  customFormatScore: number
+  episodes: SeriesManualImportEpisode[]
+  extras: EpisodeExtra[]
+}
+
+export const seriesFiles = {
+  /** The video files of a path or of a queued download, with the mapper's proposal. */
+  list: (options: { path?: string; grabId?: number; seriesId?: number }) => {
+    const params = new URLSearchParams()
+    if (options.path) params.set('path', options.path)
+    if (options.grabId) params.set('grabId', String(options.grabId))
+    if (options.seriesId) params.set('seriesId', String(options.seriesId))
+    return api<SeriesManualImport>(`/api/v1/manualimport/series?${params.toString()}`)
+  },
+  /** Forced: no upgrade check. */
+  import: (files: SeriesManualImportItem[], transferMode?: TransferMode | null) =>
+    post<SeriesManualImportResult[]>('/api/v1/manualimport/series', { files, transferMode: transferMode ?? null }),
+  renamePreview: (seriesId: number, options: { versionId?: number; seasonNumber?: number } = {}) => {
+    const params = new URLSearchParams()
+    if (options.versionId) params.set('versionId', String(options.versionId))
+    if (options.seasonNumber != null) params.set('seasonNumber', String(options.seasonNumber))
+    return api<SeriesRenamePreview[]>(`/api/v1/series/${seriesId}/rename?${params.toString()}`)
+  },
+  rename: (seriesId: number, body: { versionId?: number | null; seasonNumber?: number | null; episodeFileIds?: number[] | null }) =>
+    post<SeriesRenameResult[]>(`/api/v1/series/${seriesId}/rename`, { seriesId, ...body }),
+  file: (seriesId: number, fileId: number) => api<EpisodeFileDetail>(`/api/v1/series/${seriesId}/episodefiles/${fileId}`),
+  deleteFile: (seriesId: number, fileId: number) => del(`/api/v1/series/${seriesId}/episodefiles/${fileId}`),
+  /** Attach a file the scan could not place to episodes, where it lies. */
+  assign: (seriesId: number, unmatchedId: number, body: { episodeIds: number[]; rename?: boolean; replace?: boolean; qualityId?: number | null }) =>
+    post<EpisodeFileDetail>(`/api/v1/series/${seriesId}/unmatched/${unmatchedId}/assign`, body),
 }
 
 // ---- rename ----------------------------------------------------------------
@@ -1715,6 +1871,8 @@ export type SonarrImportRequest = {
   importProfileQualities?: boolean
   /** Bring Sonarr's custom formats and give the Series profiles Sonarr's scores and thresholds. */
   importCustomFormats?: boolean
+  /** Copy Sonarr's naming into media management (import only; the follow never rewrites it). */
+  importNaming?: boolean
 }
 
 /** `tvdbId` is null for a line about a profile; `seriesId` is set when the series is in Bigarr. */
@@ -1749,6 +1907,8 @@ export type SonarrImportStatus = {
   customFormatsReused: number
   customFormatsRenamed: number
   customFormatsUpdated: number
+  /** Sonarr's naming was copied into media management. */
+  namingImported: boolean
 }
 
 export const sonarrMigration = {
@@ -2665,7 +2825,7 @@ export const series = {
   lookup: (term: string) => api<SeriesLookupResult[]>(`/api/v1/series/lookup?term=${encodeURIComponent(term)}`),
   add: (body: AddSeriesRequest) => post<Series>('/api/v1/series', body),
   update: (id: number, body: { seriesType?: SeriesType }) => put<Series>(`/api/v1/series/${id}`, body),
-  remove: (id: number) => del(`/api/v1/series/${id}`),
+  remove: (id: number, deleteFiles = false) => del(`/api/v1/series/${id}?deleteFiles=${deleteFiles}`),
   refresh: (id: number) => post<Series>(`/api/v1/series/${id}/refresh`),
   files: (id: number) => api<SeriesFiles>(`/api/v1/series/${id}/files`),
   rescan: (id: number) => post<ScanStatus>(`/api/v1/series/${id}/rescan`),
@@ -2675,8 +2835,8 @@ export const series = {
     post<{ seriesId: number; versionId: number; scan: ScanStatus }>(`/api/v1/series/unmapped/${unmappedId}/map`, body),
   addVersion: (id: number, body: AddSeriesVersionRequest) => post<SeriesVersion>(`/api/v1/series/${id}/versions`, body),
   updateVersion: (id: number, versionId: number, body: UpdateSeriesVersionRequest) => put<SeriesVersion>(`/api/v1/series/${id}/versions/${versionId}`, body),
-  deleteVersion: (id: number, versionId: number, promote?: number) =>
-    del(`/api/v1/series/${id}/versions/${versionId}${promote ? `?promote=${promote}` : ''}`),
+  deleteVersion: (id: number, versionId: number, promote?: number, deleteFiles = false) =>
+    del(`/api/v1/series/${id}/versions/${versionId}?deleteFiles=${deleteFiles}${promote ? `&promote=${promote}` : ''}`),
   promote: (id: number, versionId: number) => post<SeriesVersion>(`/api/v1/series/${id}/versions/${versionId}/promote`),
   applyMonitoring: (id: number, versionId: number, monitor: MonitoringOption) =>
     post<Series>(`/api/v1/series/${id}/versions/${versionId}/monitoring`, { monitor }),

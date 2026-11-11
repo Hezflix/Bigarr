@@ -5,7 +5,7 @@ import { cn } from 'cn'
 import { FolderInputIcon, RefreshCwIcon, RotateCcwIcon, Trash2Icon, WifiIcon, WifiOffIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, queue as queueApi, type Queue, type QueueItem, type StatusMessage } from '@/api/client'
+import { ApiError, queue as queueApi, type Queue, type QueueEpisode, type QueueItem, type StatusMessage } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -26,6 +26,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ManualImportDialog } from '@/features/import/ManualImportDialog'
+import { SeriesManualImportDialog } from '@/features/import/SeriesManualImportDialog'
 import { formatBytes, formatDateTime } from '@/i18n'
 
 const statusStyles: Record<QueueItem['status'], string> = {
@@ -215,11 +216,22 @@ export function QueuePage() {
       )}
 
       {pendingRemove && <RemoveDialog item={pendingRemove} onClose={() => setPendingRemove(null)} />}
-      {manualImportFor?.grabId != null && (
+      {manualImportFor?.grabId != null && manualImportFor.series && (
+        <SeriesManualImportDialog grabId={manualImportFor.grabId} title={manualImportFor.title} onClose={() => setManualImportFor(null)} />
+      )}
+      {manualImportFor?.grabId != null && !manualImportFor.series && (
         <ManualImportDialog grabId={manualImportFor.grabId} title={manualImportFor.title} onClose={() => setManualImportFor(null)} />
       )}
     </>
   )
+}
+
+const episodeCode = (e: QueueEpisode) => `S${String(e.seasonNumber).padStart(2, '0')}E${String(e.episodeNumber).padStart(2, '0')}`
+
+/** "S01E05", "S01E01–S01E07 (7)": what a grab covers, compact. */
+function episodesLabel(episodes: QueueEpisode[]) {
+  if (episodes.length === 1) return episodeCode(episodes[0])
+  return `${episodeCode(episodes[0])}–${episodeCode(episodes[episodes.length - 1])} (${episodes.length})`
 }
 
 function QueueRow({ item, onRemove, onRetryImport, onManualImport }: { item: QueueItem; onRemove: () => void; onRetryImport: () => void; onManualImport: () => void }) {
@@ -233,7 +245,26 @@ function QueueRow({ item, onRemove, onRetryImport, onManualImport }: { item: Que
   return (
     <TableRow data-testid={`queue-item-${item.downloadId}`} data-state={item.state ?? 'untracked'}>
       <TableCell className="align-top">
-        {item.movieId ? (
+        {item.seriesId ? (
+          <>
+            <Link to="/series/$seriesId" params={{ seriesId: String(item.seriesId) }} className="font-medium underline-offset-4 hover:underline">
+              {item.seriesTitle}
+              {item.seriesYear ? <span className="text-muted-foreground"> ({item.seriesYear})</span> : null}
+            </Link>
+            {item.episodes.length > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="mt-1 block cursor-default text-xs text-muted-foreground tabular-nums" data-testid="queue-episodes">
+                    {episodesLabel(item.episodes)}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-sm whitespace-normal">
+                  {item.episodes.map((e) => `${episodeCode(e)} ${e.title}`).join(' · ')}
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </>
+        ) : item.movieId ? (
           <Link to="/movies/$movieId" params={{ movieId: String(item.movieId) }} className="font-medium underline-offset-4 hover:underline">
             {item.movieTitle}
             {item.movieYear ? <span className="text-muted-foreground"> ({item.movieYear})</span> : null}
@@ -260,8 +291,12 @@ function QueueRow({ item, onRemove, onRetryImport, onManualImport }: { item: Que
             {item.state ? t(`queue.states.${item.state}`) : t(`queue.statuses.${item.status}`)}
           </Badge>
           {failedImport && (
-            <span className="max-w-[18rem] whitespace-normal text-xs text-red-700 dark:text-red-300" data-testid="queue-import-error">
-              {failedImport.messages.join(' ')}
+            <span className="flex max-w-[22rem] flex-col gap-0.5 whitespace-normal text-xs text-red-700 dark:text-red-300" data-testid="queue-import-error">
+              {failedImport.messages.map((line, i) => (
+                <span key={i} className={cn(i > 0 && 'break-all text-muted-foreground')}>
+                  {line}
+                </span>
+              ))}
             </span>
           )}
           {messages.map((message) => (

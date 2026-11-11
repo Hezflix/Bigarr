@@ -141,6 +141,7 @@ function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: Son
   const [importBlocklist, setImportBlocklist] = useState(true)
   const [importProfileQualities, setImportProfileQualities] = useState(true)
   const [importCustomFormats, setImportCustomFormats] = useState(true)
+  const [importNaming, setImportNaming] = useState(true)
   const [keepMonitored, setKeepMonitored] = useState(true)
   const [follow, setFollow] = useState(false)
 
@@ -162,6 +163,7 @@ function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: Son
         importBlocklist,
         importProfileQualities,
         importCustomFormats,
+        importNaming,
         keepMonitored,
         follow,
       }
@@ -244,6 +246,7 @@ function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: Son
           </div>
         )}
         <Toggle id="sonarr-import-custom-formats" label={t('importSonarr.importCustomFormats')} checked={importCustomFormats} onChange={setImportCustomFormats} />
+        <Toggle id="sonarr-import-naming" label={t('importSonarr.importNaming')} checked={importNaming} onChange={setImportNaming} />
       </section>
 
       <section className="flex flex-col gap-3">
@@ -319,6 +322,7 @@ function RunStep({ status, onAgain }: { status: SonarrImportStatus; onAgain: () 
     ['importSonarr.customFormatsRenamed', status.customFormatsRenamed ?? 0],
     ['importRadarr.profilesScored', status.profilesScored],
     ['importRadarr.profileQualitiesCopied', status.profileQualitiesCopied],
+    ['importSonarr.namingImported', status.namingImported ? 1 : 0],
   ] as const
 
   return (

@@ -39,6 +39,7 @@ const emptyForm = (): DownloadClientRequest => ({
   username: '',
   password: '',
   category: 'bigarr-movies',
+  seriesCategory: 'bigarr-tv',
   addPaused: false,
   priority: 1,
 })
@@ -54,6 +55,7 @@ const toForm = (client: DownloadClient): DownloadClientRequest => ({
   username: client.username ?? '',
   password: client.password ?? '',
   category: client.category,
+  seriesCategory: client.seriesCategory,
   addPaused: client.addPaused,
   priority: client.priority,
 })
@@ -126,7 +128,10 @@ export function DownloadClientsPage() {
                 </TableCell>
                 <TableCell className="align-top">{t(`downloadClients.implementations.${client.implementation}`)}</TableCell>
                 <TableCell className="align-top">
-                  <Badge variant="secondary">{client.category}</Badge>
+                  <div className="flex flex-wrap gap-1">
+                    <Badge variant="secondary">{client.category}</Badge>
+                    <Badge variant="outline" title={t('downloadClients.seriesCategory')}>{client.seriesCategory}</Badge>
+                  </div>
                 </TableCell>
                 <TableCell className="align-top">{client.priority}</TableCell>
                 <TableCell className="align-top">
@@ -235,6 +240,7 @@ function DownloadClientDialog({ client, onClose, onSaved }: { client: DownloadCl
     username: isQbt ? form.username?.trim() || null : null,
     password: isQbt ? form.password || null : null,
     category: form.category.trim(),
+    seriesCategory: form.seriesCategory.trim(),
   })
 
   const save = useMutation({
@@ -255,7 +261,7 @@ function DownloadClientDialog({ client, onClose, onSaved }: { client: DownloadCl
     save.mutate()
   }
 
-  const canSubmit = form.name.trim().length > 0 && form.category.trim().length > 0 && (!isQbt || (form.host ?? '').trim().length > 0)
+  const canSubmit = form.name.trim().length > 0 && form.category.trim().length > 0 && form.seriesCategory.trim().length > 0 && form.seriesCategory.trim() !== form.category.trim() && (!isQbt || (form.host ?? '').trim().length > 0)
   const number = (value: string, fallback: number) => (value === '' ? fallback : Number(value))
 
   return (
@@ -322,6 +328,12 @@ function DownloadClientDialog({ client, onClose, onSaved }: { client: DownloadCl
               <Label htmlFor="dc-category">{t('downloadClients.category')}</Label>
               <Input id="dc-category" value={form.category} onChange={(e) => set('category', e.target.value)} placeholder="bigarr-movies" />
               <p className="text-xs text-muted-foreground">{t('downloadClients.categoryHint')}</p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2">
+              <Label htmlFor="dc-series-category">{t('downloadClients.seriesCategory')}</Label>
+              <Input id="dc-series-category" value={form.seriesCategory} onChange={(e) => set('seriesCategory', e.target.value)} placeholder="bigarr-tv" />
+              <p className="text-xs text-muted-foreground">{t('downloadClients.seriesCategoryHint')}</p>
             </div>
 
             <div className="grid grid-cols-1 gap-2">
