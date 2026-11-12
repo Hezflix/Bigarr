@@ -868,7 +868,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
                 return failed;
             }
 
-            await RemoveSeriesAsync(series, deleteFiles, ct);
+            await RemoveSeriesAsync(series, deleteFiles, deleteFiles ? CancellationToken.None : ct);
             return Result<bool>.Ok(true);
         }
 
@@ -890,6 +890,13 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         if (deleteFiles && await RemoveVersionFilesAsync(series, version, siblings, ct) is { } removal)
         {
             return removal;
+        }
+
+        if (deleteFiles)
+        {
+            // The files are gone: the rows follow whatever the request says by now. A caller that went away must not
+            // leave a version listed with every file it names missing.
+            ct = CancellationToken.None;
         }
 
         if (successor is not null)
@@ -920,7 +927,9 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             return failed;
         }
 
-        await RemoveSeriesAsync(series, deleteFiles, ct);
+        // Once the folders are gone the rows follow whatever the request says by now: a caller that went away must not
+        // leave a series listed with all its files missing.
+        await RemoveSeriesAsync(series, deleteFiles, deleteFiles ? CancellationToken.None : ct);
         return Result<bool>.Ok(true);
     }
 
@@ -929,9 +938,13 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
     {
         var config = await db.MediaManagement.AsNoTracking().FirstOrDefaultAsync(c => c.Id == MediaManagementConfig.SingletonId, ct) ?? MediaManagementConfig.Default();
         await JournalDeletedFilesAsync(series, versions, ct);
+
+        // Everything is read before the first folder goes: from there on nothing waits on the request.
+        var rootIds = versions.Select(v => v.RootFolderId).Distinct().ToList();
+        var roots = await db.RootFolders.AsNoTracking().Where(r => rootIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, ct);
         foreach (var group in versions.GroupBy(v => (v.RootFolderId, v.FolderName)))
         {
-            var root = await db.RootFolders.AsNoTracking().FirstAsync(r => r.Id == group.Key.RootFolderId, ct);
+            var root = roots[group.Key.RootFolderId];
             var folder = Path.Combine(root.Path, group.Key.FolderName);
             try
             {
