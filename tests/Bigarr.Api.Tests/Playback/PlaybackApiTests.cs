@@ -116,6 +116,51 @@ public sealed class PlaybackApiTests(BigarrApiFactory factory) : IClassFixture<B
         Assert.Equal(HttpStatusCode.OK, disabled.StatusCode);
     }
 
+    [Fact]
+    public async Task Disabling_a_server_closes_its_open_streams_instead_of_leaving_them_on_now_playing()
+    {
+        var session = await CompatTestHelpers.SessionAsync(factory);
+        int movieId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+            var (movie, version) = await TestData.SeedMovieAsync(db, tmdbId: 990002);
+            db.MediaFiles.Add(TestData.NewFile(version, "Other.Film.2021.1080p.mkv"));
+            await db.SaveChangesAsync();
+            movieId = movie.Id;
+        }
+
+        await using var plex = await FakePlex.StartAsync();
+        plex.Items["600"] = new FakePlex.Item("600", "Other Film", 2021, 6_000_000, "3", [new FakePlex.Part("6001", "/media/movies/Other Film (2021)/Other.Film.2021.1080p.mkv", "1080")], TmdbId: 990002);
+        Assert.Equal(HttpStatusCode.OK, (await session.PutAsJsonAsync("/api/v1/playback/settings", new { minimumPlay = 0, minimumPlayUnit = "seconds", watchedPercent = 90 })).StatusCode);
+
+        var body = new { name = "Plex to disable", kind = "plex", url = plex.Url, token = FakePlex.Token, enabled = true };
+        var created = await session.PostAsJsonAsync("/api/v1/mediaservers", body);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var serverId = (await created.ReadJsonAsync()).GetProperty("id").GetInt32();
+        await plex.WaitForListenerAsync();
+
+        plex.Set(new FakePlex.Stream("51", "s-51", "600", "8", "eli", "6001"));
+        await plex.SendAsync("51", "600", "playing", 0);
+        await WaitUntilAsync(async () =>
+        {
+            var now = await (await session.GetAsync("/api/v1/playback/sessions")).ReadJsonAsync();
+            return now.GetProperty("sessions").EnumerateArray().Any(s => s.GetProperty("user").GetProperty("name").GetString() == "eli") ? now : (JsonElement?)null;
+        });
+
+        // Nobody listens to a disabled server any more, so nothing would ever see this stream stop.
+        var disabled = await session.PutAsJsonAsync($"/api/v1/mediaservers/{serverId}", body with { enabled = false });
+        Assert.Equal(HttpStatusCode.OK, disabled.StatusCode);
+
+        await WaitUntilAsync(async () =>
+        {
+            var now = await (await session.GetAsync("/api/v1/playback/sessions")).ReadJsonAsync();
+            return now.GetProperty("sessions").EnumerateArray().All(s => s.GetProperty("user").GetProperty("name").GetString() != "eli") ? now : (JsonElement?)null;
+        });
+        var plays = await (await session.GetAsync($"/api/v1/playback/plays?movieId={movieId}")).ReadJsonAsync();
+        Assert.Equal(1, plays.GetProperty("totalRecords").GetInt32());
+    }
+
     private static async Task<JsonElement> WaitUntilAsync(Func<Task<JsonElement?>> probe)
     {
         var deadline = DateTime.UtcNow.AddSeconds(30);

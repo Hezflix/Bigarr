@@ -111,10 +111,39 @@ public sealed class PlaybackMonitor(IServiceScopeFactory scopeFactory, PlexClien
             _status.TryRemove(id, out _);
         }
 
+        await CloseUnfollowedSessionsAsync(scope.ServiceProvider, wanted.Keys, ct);
+
         foreach (var (id, fingerprint) in wanted.Where(w => !_listeners.ContainsKey(w.Key)))
         {
             var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
             _listeners[id] = new Listener(fingerprint, stop, Task.Run(() => FollowAsync(id, stop.Token), CancellationToken.None));
+        }
+    }
+
+    /// <summary>
+    /// An open session only ever closes when its server's listener sees the stream gone. A server that is no longer
+    /// followed (disabled, or no longer a Plex) has no listener, so its sessions would stay on Now playing for ever:
+    /// they close here, as of the last time they were seen, like streams that vanished from the list. Runs after the
+    /// listeners of those servers stopped, so nothing else writes their sessions.
+    /// </summary>
+    private async Task CloseUnfollowedSessionsAsync(IServiceProvider services, IReadOnlyCollection<int> followed, CancellationToken ct)
+    {
+        var db = services.GetRequiredService<BigarrDbContext>();
+        var orphaned = await db.PlaybackSessions.AsNoTracking()
+            .Where(s => !followed.Contains(s.MediaServerId))
+            .Select(s => s.MediaServerId)
+            .Distinct()
+            .ToListAsync(ct);
+        foreach (var serverId in orphaned)
+        {
+            var server = await db.MediaServers.AsNoTracking().FirstOrDefaultAsync(s => s.Id == serverId, ct);
+            if (server is null)
+            {
+                continue;
+            }
+
+            await services.GetRequiredService<PlaybackTracker>().ReconcileAsync(server, [], ct);
+            logger.LogInformation("{Server} is no longer followed: its open streams are closed", server.Name);
         }
     }
 
