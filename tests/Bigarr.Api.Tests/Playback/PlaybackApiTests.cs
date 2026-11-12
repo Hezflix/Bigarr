@@ -5,6 +5,7 @@ using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Tests.Auth;
 using Bigarr.Api.Tests.Compat;
 using Bigarr.Api.Tests.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Bigarr.Api.Tests.Playback;
@@ -159,6 +160,51 @@ public sealed class PlaybackApiTests(BigarrApiFactory factory) : IClassFixture<B
         });
         var plays = await (await session.GetAsync($"/api/v1/playback/plays?movieId={movieId}")).ReadJsonAsync();
         Assert.Equal(1, plays.GetProperty("totalRecords").GetInt32());
+    }
+
+    [Fact]
+    public async Task A_refresh_tick_that_fails_while_something_plays_does_not_end_the_refresh()
+    {
+        var session = await CompatTestHelpers.SessionAsync(factory);
+        var plex = await FakePlex.StartAsync();
+        var down = false;
+        try
+        {
+            plex.Items["700"] = new FakePlex.Item("700", "Tick Film", 2022, 6_000_000, "3", [new FakePlex.Part("7001", "/media/movies/Tick Film (2022)/Tick.Film.2022.1080p.mkv", "1080")]);
+            var created = await session.PostAsJsonAsync("/api/v1/mediaservers", new { name = "Plex ticking", kind = "plex", url = plex.Url, token = FakePlex.Token, enabled = true });
+            var serverId = (await created.ReadJsonAsync()).GetProperty("id").GetInt32();
+            await plex.WaitForListenerAsync();
+            plex.Set(new FakePlex.Stream("61", "s-61", "700", "9", "fay", "7001"));
+            await plex.SendAsync("61", "700", "playing", 0);
+            await WaitUntilAsync(async () =>
+            {
+                var now = await (await session.GetAsync("/api/v1/playback/sessions")).ReadJsonAsync();
+                return now.GetProperty("sessions").EnumerateArray().Any(s => s.GetProperty("user").GetProperty("name").GetString() == "fay") ? now : (JsonElement?)null;
+            });
+
+            Bigarr.Domain.MediaServers.MediaServer server;
+            using (var scope = factory.Services.CreateScope())
+            {
+                server = await scope.ServiceProvider.GetRequiredService<BigarrDbContext>().MediaServers.AsNoTracking().SingleAsync(s => s.Id == serverId);
+            }
+
+            // The server stops answering: the tick fails, and that is all that happens.
+            await plex.DisposeAsync();
+            down = true;
+            using var gate = new SemaphoreSlim(1, 1);
+            var monitor = factory.Services.GetRequiredService<Bigarr.Api.Features.Playback.PlaybackMonitor>();
+            await monitor.ReconcileIfPlayingAsync(server, gate, CancellationToken.None);
+            Assert.Equal(1, gate.CurrentCount);
+
+            Assert.Equal(HttpStatusCode.OK, (await session.PutAsJsonAsync($"/api/v1/mediaservers/{serverId}", new { name = "Plex ticking", kind = "plex", url = server.Url, token = FakePlex.Token, enabled = false })).StatusCode);
+        }
+        finally
+        {
+            if (!down)
+            {
+                await plex.DisposeAsync();
+            }
+        }
     }
 
     private static async Task<JsonElement> WaitUntilAsync(Func<Task<JsonElement?>> probe)
