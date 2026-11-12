@@ -4,7 +4,7 @@ Unified media library manager: one application that replaces, brick by brick, Ra
 
 What Bigarr fixes at the model level: a movie can have **several versions** in the same instance (1080p, 4K, Director's Cut…), each monitored, searched and upgraded on its own. On the way out, Bigarr exposes a **Radarr v3 compatible API** so Seerr, Bazarr and the rest of the ecosystem plug in without noticing.
 
-- Status: **MVP in progress**, milestone M8 (moving in from Radarr, media servers). Movies only.
+- Status: **early, in active development**. Films and series are managed end to end (search, download, import, upgrades), and existing Radarr, Sonarr and Tautulli setups can be imported. The compatible API speaks Radarr's dialect only so far: apps that talk to Sonarr do not plug in yet.
 
 ## Stack
 
