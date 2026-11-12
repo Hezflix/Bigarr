@@ -235,4 +235,48 @@ public sealed class WebhookTests
             Assert.Equal(1, done.Attempts);
         }
     }
+
+    [Fact]
+    public async Task A_retry_asked_while_the_delivery_is_on_the_wire_is_not_lost_to_that_attempts_outcome()
+    {
+        await using var receiver = await Hosting.FakeHttpServer.StartAsync();
+        using var answer = new ManualResetEventSlim();
+        var calls = 0;
+        receiver.Responder = _ =>
+        {
+            // The first attempt hangs, then fails; the ones after it are accepted.
+            if (Interlocked.Increment(ref calls) > 1)
+            {
+                return new Hosting.FakeHttpServer.Answer(200);
+            }
+
+            answer.Wait(TimeSpan.FromSeconds(20));
+            return new Hosting.FakeHttpServer.Answer(500);
+        };
+        using var factory = new ConfiguredBigarrApiFactory(null, new Dictionary<string, string>
+        {
+            ["Bigarr:Notifications:SweepSeconds"] = "1",
+            ["Bigarr:Notifications:MaxAttempts"] = "1",
+        });
+        var client = await ClientAsync(factory);
+        var created = await client.PostAsJsonAsync("/api/v1/notifications", new NotificationEndpointRequest("Slow", receiver.Url, Events: ["movieAdded"]), Json);
+        var endpointId = (await created.Content.ReadFromJsonAsync<NotificationEndpointResponse>(Json))!.Id;
+        var (hd, _) = await ProfilesAsync(client);
+        var root = await AddRootAsync(client, Path.Combine(factory.ConfigDirectory, "library"));
+        await AddMovieAsync(client, 603, hd, root.Id);
+
+        // The attempt is on the wire: the user retries now.
+        await receiver.WaitForAsync(_ => true);
+        var delivery = Assert.Single((await client.GetFromJsonAsync<List<WebhookDeliveryResponse>>($"/api/v1/notifications/{endpointId}/deliveries", Json))!);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsync($"/api/v1/notifications/deliveries/{delivery.Id}/retry", null)).StatusCode);
+        answer.Set();
+
+        // With one attempt allowed, that failure alone would give the delivery up. The retry stands: it is sent again.
+        var delivered = await WaitUntilAsync(async () =>
+        {
+            var list = (await client.GetFromJsonAsync<List<WebhookDeliveryResponse>>($"/api/v1/notifications/{endpointId}/deliveries", Json))!;
+            return list.FirstOrDefault(d => d.State == WebhookDeliveryState.Delivered);
+        }, "the retried delivery");
+        Assert.Equal(1, delivered.Attempts);
+    }
 }

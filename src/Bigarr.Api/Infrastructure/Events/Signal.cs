@@ -29,5 +29,18 @@ public abstract class Signal
 /// <summary>Outbox rows were committed: the dispatcher should look.</summary>
 public sealed class OutboxSignal : Signal;
 
-/// <summary>Webhook deliveries were created or made due: the sender should look.</summary>
-public sealed class WebhookSignal : Signal;
+/// <summary>
+/// Webhook deliveries were created or made due: the sender should look. Also where a manual retry leaves word for
+/// the sender: the sender works on its own copy of a delivery from the moment it loaded its batch until it saves the
+/// outcome, so a retry written to the database meanwhile would be overwritten by that outcome (possibly "given up").
+/// </summary>
+public sealed class WebhookSignal : Signal
+{
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<long, byte> _retries = new();
+
+    /// <summary>The user asked for this delivery to be sent again, counter back to zero.</summary>
+    public void RetryRequested(long deliveryId) => _retries[deliveryId] = 0;
+
+    /// <summary>True, once, when a retry was asked for this delivery since the sender last looked.</summary>
+    public bool TakeRetry(long deliveryId) => _retries.TryRemove(deliveryId, out _);
+}
