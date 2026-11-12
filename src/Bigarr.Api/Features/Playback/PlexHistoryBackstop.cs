@@ -123,6 +123,13 @@ public sealed class PlexHistoryBackstop(BigarrDbContext db, PlexClient plex, Pla
             {
                 return false;
             }
+
+            // A stream of it still open (paused on the credits for hours) is the live tracking's to record when it
+            // closes: a play added here would make that viewing count twice.
+            if (await db.PlaybackSessions.AnyAsync(s => s.UserId == user.Id && s.ItemId == item.Id && s.StartedAt <= to, ct))
+            {
+                return false;
+            }
         }
 
         if (user is null)
