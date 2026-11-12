@@ -1,3 +1,8 @@
+import type { components } from './generated/schema'
+
+/** The API's contracts, generated from its OpenAPI document (bun run gen:api). */
+type Schemas = components['schemas']
+
 export type Problem = { title?: string; detail?: string; status?: number; errors?: Record<string, string[]> }
 
 export class ApiError extends Error {
@@ -45,7 +50,7 @@ const del = (path: string) => api<void>(path, { method: 'DELETE' })
 
 // ---- auth / system ---------------------------------------------------------
 
-export type Me = { id: number; username: string; role: string; authKind: 'Session' | 'ApiKey'; compatView: string | null }
+export type Me = Schemas['MeResponse']
 
 export type SystemStatus = {
   appName: string
@@ -76,18 +81,10 @@ export const system = {
 // ---- API keys (Connect) ----------------------------------------------------
 
 /** What a key sees through the Radarr-compatible API: `default`, `all` or `version:<slug>`. */
-export type ApiKey = {
-  id: number
-  name: string
-  keyPrefix: string
-  compatView: string
-  createdAt: string
-  lastUsedAt: string | null
-  revokedAt: string | null
-}
+export type ApiKey = Schemas['ApiKeyResponse']
 
 /** The only response that carries the key itself. */
-export type ApiKeyCreated = ApiKey & { key: string }
+export type ApiKeyCreated = Schemas['ApiKeyCreatedResponse']
 
 export const apiKeys = {
   list: () => api<ApiKey[]>('/api/v1/apikeys'),
@@ -99,7 +96,7 @@ export const apiKeys = {
 
 export type Backup = { name: string; size: number; createdAt: string; type: 'manual' | 'scheduled' }
 
-export type RestoreResult = { name: string; restartRequested: boolean; message: string }
+export type RestoreResult = Schemas['RestoreResponse']
 
 export const backups = {
   list: () => api<Backup[]>('/api/v1/system/backup'),
@@ -112,189 +109,33 @@ export const backups = {
 
 // ---- movies ----------------------------------------------------------------
 
-export type VersionMode = 'managed' | 'oneShot'
-export type MinimumAvailability = 'announced' | 'inCinemas' | 'released'
-export type VersionStatus = 'pending' | 'missing' | 'downloading' | 'available'
-export type MovieStatus = 'tba' | 'announced' | 'inCinemas' | 'released' | 'deleted'
+export type VersionMode = Schemas['VersionMode']
+export type MinimumAvailability = Schemas['MinimumAvailability']
+export type VersionStatus = Schemas['VersionStatus']
+export type MovieStatus = Schemas['MovieStatus']
 
-export type Constraints = {
-  edition: string | null
-  requiredCustomFormatIds: number[] | null
-  forbiddenCustomFormatIds: number[] | null
-  releaseGroup: string | null
-}
+export type Constraints = Schemas['ConstraintsDto']
 
 /** What ffprobe read from the file; null until the import or the backfill probed it. */
-export type MediaInfo = {
-  containerFormat: string | null
-  videoCodec: string | null
-  videoBitrate: number | null
-  videoBitDepth: number | null
-  videoDynamicRange: string | null
-  videoDynamicRangeType: string | null
-  width: number | null
-  height: number | null
-  scanType: string | null
-  audioCodec: string | null
-  audioBitrate: number | null
-  audioChannels: number | null
-  audioLanguages: string[]
-  subtitles: string[]
-  runTime: string | null
-}
+export type MediaInfo = Schemas['MediaInfo']
 
-export type MediaFile = {
-  id: number
-  relativePath: string
-  path: string
-  size: number
-  dateAdded: string
-  qualityId: number
-  quality: string
-  revisionVersion: number
-  isRepack: boolean
-  edition: string | null
-  releaseGroup: string | null
-  languages: string[]
-  originalReleaseTitle: string | null
-  hasMediaInfo: boolean
-  mediaInfo: MediaInfo | null
-  /** Side files imported with it. Files written by others (Bazarr) are not listed. */
-  extras: ExtraFile[]
-}
+export type MediaFile = Schemas['MediaFileResponse']
 
-export type ExtraFileKind = 'subtitle' | 'other'
+export type ExtraFileKind = Schemas['ExtraFileKind']
 
-export type ExtraFile = {
-  id: number
-  relativePath: string
-  path: string
-  extension: string
-  kind: ExtraFileKind
-  /** ISO 639-1 code, null when the name did not say. */
-  language: string | null
-  forced: boolean
-  hearingImpaired: boolean
-  dateAdded: string
-}
+export type ExtraFile = Schemas['ExtraFileResponse']
 
-export type Version = {
-  id: number
-  name: string
-  mode: VersionMode
-  qualityProfileId: number
-  qualityProfile: string
-  isDefault: boolean
-  monitored: boolean
-  rootFolderId: number
-  rootFolderPath: string
-  folderName: string
-  path: string
-  minimumAvailability: MinimumAvailability
-  constraints: Constraints | null
-  status: VersionStatus
-  isAvailable: boolean
-  file: MediaFile | null
-  createdAt: string
-  /** Custom formats the file matches, judged at read time; null without a file. */
-  customFormats: string[] | null
-  customFormatScore: number | null
-  /** Quality at the profile cutoff and score at the cutoff format score: nothing more is wanted. */
-  cutoffMet: boolean | null
-}
+export type Version = Schemas['VersionResponse']
 
-export type Movie = {
-  id: number
-  tmdbId: number
-  imdbId: string | null
-  title: string
-  originalTitle: string | null
-  sortTitle: string
-  year: number | null
-  runtime: number | null
-  overview: string | null
-  certification: string | null
-  originalLanguage: string | null
-  genres: string[]
-  ratings: { tmdb?: { value: number; votes: number } | null; imdb?: { value: number; votes: number } | null } | null
-  alternativeTitles: { title: string; language: string | null }[]
-  tmdbStatus: MovieStatus
-  effectiveStatus: MovieStatus
-  inCinemasDate: string | null
-  digitalReleaseDate: string | null
-  physicalReleaseDate: string | null
-  collectionTmdbId: number | null
-  posterUrl: string | null
-  fanartUrl: string | null
-  defaultRootFolderId: number
-  addedAt: string
-  lastMetadataRefreshAt: string | null
-  monitored: boolean
-  versions: Version[]
-}
+export type Movie = Schemas['MovieResponse']
 
-export type VersionSummary = {
-  id: number
-  name: string
-  mode: VersionMode
-  isDefault: boolean
-  monitored: boolean
-  qualityProfileId: number
-  status: VersionStatus
-  quality: string | null
-  minimumAvailability: MinimumAvailability
-  rootFolderId: number
-  /** Tag ids. */
-  tags: number[]
-  /** File size in bytes; null without a file. */
-  size: number | null
-  /** Null without a file; false when the file is below the profile cutoff (quality and custom format score). */
-  cutoffMet: boolean | null
-  /** Plays recorded on this version, and when the last one ended. */
-  plays: number
-  lastPlayedAt: string | null
-}
+export type VersionSummary = Schemas['VersionSummary']
 
-export type MovieSummary = {
-  id: number
-  tmdbId: number
-  title: string
-  sortTitle: string
-  year: number | null
-  posterUrl: string | null
-  effectiveStatus: MovieStatus
-  monitored: boolean
-  addedAt: string
-  tmdbRating: number | null
-  imdbRating: number | null
-  versions: VersionSummary[]
-  /** Every play of the film, those whose version could not be told included. */
-  plays: number
-  lastPlayedAt: string | null
-}
+export type MovieSummary = Schemas['MovieSummary']
 
-export type MovieLookupResult = {
-  tmdbId: number
-  title: string
-  originalTitle: string | null
-  year: number | null
-  overview: string | null
-  posterUrl: string | null
-  status: MovieStatus
-  existingMovieId: number | null
-  excluded: boolean
-}
+export type MovieLookupResult = Schemas['MovieLookupResult']
 
-export type AddMovieRequest = {
-  tmdbId: number
-  qualityProfileId: number
-  rootFolderId: number
-  versionName?: string | null
-  monitored?: boolean
-  minimumAvailability?: MinimumAvailability
-  /** Search the indexers right away, in the background. */
-  searchOnAdd?: boolean
-}
+export type AddMovieRequest = Schemas['AddMovieRequest']
 
 export type AddVersionRequest = {
   name: string
@@ -349,52 +190,21 @@ export type VersionSelector = 'default' | 'all' | `version:${string}`
 export type TagsMode = 'add' | 'remove' | 'replace'
 
 /** Null fields are left untouched. */
-export type BulkUpdateRequest = {
-  movieIds: number[]
-  versions: VersionSelector
-  monitored?: boolean | null
-  qualityProfileId?: number | null
-  minimumAvailability?: MinimumAvailability | null
-  tagIds?: number[] | null
-  applyTags?: TagsMode | null
-}
+export type BulkUpdateRequest = Schemas['BulkUpdateRequest']
 
-export type BulkOutcome = 'updated' | 'unchanged' | 'queued' | 'alreadyQueued' | 'movieDeleted' | 'versionsDeleted' | 'skipped' | 'failed' | 'seriesDeleted'
+export type BulkOutcome = Schemas['BulkOutcome']
 
-export type BulkMovieResult = {
-  movieId: number
-  title: string
-  outcome: BulkOutcome
-  /** Names of the versions acted on. */
-  versions: string[]
-  /** Why the film was skipped or failed. */
-  detail: string | null
-  /** Delete: files removed. */
-  files: number
-  /** Delete: the version that became the film's default. */
-  promoted: string | null
-}
+export type BulkMovieResult = Schemas['BulkMovieResult']
 
-export type BulkResponse = { results: BulkMovieResult[] }
+export type BulkResponse = Schemas['BulkResponse']
 
-export type BulkDeleteRequest = {
-  movieIds: number[]
-  versions: VersionSelector
-  deleteFiles: boolean
-  addImportExclusion: boolean
-  dryRun: boolean
-}
+export type BulkDeleteRequest = Schemas['BulkDeleteRequest']
 
-export type BulkDeleteResponse = {
-  dryRun: boolean
-  /** Where deleted files go; null means they are deleted for good. */
-  recycleBin: string | null
-  results: BulkMovieResult[]
-}
+export type BulkDeleteResponse = Schemas['BulkDeleteResponse']
 
 // ---- tags ------------------------------------------------------------------
 
-export type Tag = { id: number; label: string }
+export type Tag = Schemas['TagResponse']
 
 export const tags = {
   list: () => api<Tag[]>('/api/v1/tags'),
@@ -405,54 +215,24 @@ export const tags = {
 // ---- quality ---------------------------------------------------------------
 
 /** Which versions may use a profile: film ones, series ones, or both. */
-export type ProfileKind = 'movies' | 'series' | 'both'
+export type ProfileKind = Schemas['ProfileKind']
 
-export type QualityProfile = { id: number; name: string; cutoff: number; upgradeAllowed: boolean; isSystem: boolean; preferredLanguage: string; kind: ProfileKind }
+export type QualityProfile = Schemas['QualityProfileResponse']
 
 /** The profiles a film (`movies`) or series (`series`) version can take: its own kind and Both. */
 export const profilesFor = (kind: 'movies' | 'series') => (profiles: QualityProfile[]) => profiles.filter((p) => p.kind === kind || p.kind === 'both')
 
-export type QualityDefinition = {
-  id: number
-  name: string
-  title: string | null
-  source: string
-  resolution: number
-  modifier: string
-  /** MB per minute of runtime; null max means unlimited. */
-  minSize: number | null
-  preferredSize: number | null
-  maxSize: number | null
-  /** The series sizes: MB per minute of every episode a release covers. */
-  seriesMinSize: number | null
-  seriesPreferredSize: number | null
-  seriesMaxSize: number | null
-}
+export type QualityDefinition = Schemas['QualityDefinitionResponse']
 
 /** `kind` says whose sizes these are: the films' (default) or the series'. */
-export type QualityDefinitionUpdate = { title: string | null; minSize: number | null; preferredSize: number | null; maxSize: number | null; kind?: 'movies' | 'series' }
+export type QualityDefinitionUpdate = Schemas['QualityDefinitionUpdateRequest']
 
 /** One entry of the ordered items list, worst first: the position is the rank. */
-export type QualityProfileItem = { groupId: number | null; groupName: string | null; qualityIds: number[]; allowed: boolean }
+export type QualityProfileItem = Schemas['QualityProfileItemDto']
 
-export type FormatScore = { customFormatId: number; customFormat: string; score: number }
+export type FormatScore = Schemas['FormatScoreDto']
 
-export type QualityProfileDetail = {
-  id: number
-  name: string
-  items: QualityProfileItem[]
-  cutoff: number
-  upgradeAllowed: boolean
-  minFormatScore: number
-  cutoffFormatScore: number
-  minUpgradeFormatScore: number
-  preferredLanguage: string
-  isSystem: boolean
-  formatScores: FormatScore[]
-  versionCount: number
-  kind: ProfileKind
-  seriesVersionCount: number
-}
+export type QualityProfileDetail = Schemas['QualityProfileResponse']
 
 export type QualityProfileRequest = {
   name: string
@@ -481,64 +261,28 @@ export const quality = {
 
 // ---- custom formats --------------------------------------------------------
 
-export type CustomFormatSpecification = { name: string; implementation: string; negate: boolean; required: boolean; fields: Record<string, unknown> }
+export type CustomFormatSpecification = Schemas['CustomFormatSpecificationDto']
 
-export type CustomFormat = {
-  id: number
-  name: string
-  includeWhenRenaming: boolean
-  specifications: CustomFormatSpecification[]
-  /** Set when the format came from a guide file; a re-import updates the same row. */
-  trashId: string | null
-  /** Scores the guide file suggested, by profile family (default…); shown as a hint, never applied on its own. */
-  trashScores: Record<string, number> | null
-  scores: { qualityProfileId: number; qualityProfile: string; score: number }[]
-  /** Set when an import changed or could not evaluate part of the format (a Sonarr specification Bigarr lacks…). */
-  note?: string | null
-}
+export type CustomFormat = Schemas['CustomFormatResponse']
 
 /** `scores` is the full list: a profile left out or at zero loses its score. */
-export type CustomFormatRequest = {
-  name: string
-  includeWhenRenaming: boolean
-  specifications: CustomFormatSpecification[]
-  scores: { qualityProfileId: number; score: number }[]
-}
+export type CustomFormatRequest = Schemas['CustomFormatRequest']
 
 export type SpecificationFieldType = 'regex' | 'number' | 'select' | 'boolean'
 
-export type SpecificationFieldSchema = { name: string; type: SpecificationFieldType; required: boolean; options: { value: number; label: string }[] | null }
+export type SpecificationFieldSchema = Schemas['SpecificationFieldSchemaDto']
 
-export type SpecificationSchema = { implementation: string; fields: SpecificationFieldSchema[] }
+export type SpecificationSchema = Schemas['SpecificationSchemaDto']
 
-export type CustomFormatSchema = { specifications: SpecificationSchema[] }
+export type CustomFormatSchema = Schemas['CustomFormatSchemaResponse']
 
-export type CustomFormatImportResult = { added: CustomFormat[]; updated: CustomFormat[]; scoresApplied: string[] }
+export type CustomFormatImportResult = Schemas['CustomFormatImportResponse']
 
-export type CustomFormatEvaluation = {
-  title: string
-  parsedTitle: string | null
-  year: number | null
-  quality: string
-  edition: string | null
-  releaseGroup: string | null
-  languages: string[]
-  formats: { id: number; name: string }[]
-  scores: { qualityProfileId: number; qualityProfile: string; score: number }[]
-}
+export type CustomFormatEvaluation = Schemas['CustomFormatEvaluationResponse']
 
-export type CustomFormatTestRequest = { title: string; specifications: CustomFormatSpecification[]; originalLanguage?: string; size?: number }
+export type CustomFormatTestRequest = Schemas['CustomFormatTestRequest']
 
-export type CustomFormatTest = {
-  matches: boolean
-  parsedTitle: string | null
-  year: number | null
-  quality: string
-  edition: string | null
-  releaseGroup: string | null
-  languages: string[]
-  specifications: { name: string; implementation: string; satisfied: boolean }[]
-}
+export type CustomFormatTest = Schemas['CustomFormatTestResponse']
 
 export const customFormats = {
   list: () => api<CustomFormat[]>('/api/v1/customformats'),
@@ -563,56 +307,20 @@ export const customFormats = {
 // ---- library ---------------------------------------------------------------
 
 /** What a root folder holds: the film scan and the add pages only see roots of their own kind. */
-export type MediaKind = 'movies' | 'series'
+export type MediaKind = Schemas['MediaKind']
 
-export type RootFolder = {
-  id: number
-  path: string
-  accessible: boolean
-  freeSpace: number | null
-  totalSpace: number | null
-  versionCount: number
-  unmappedFolderCount: number
-  kind: MediaKind
-}
+export type RootFolder = Schemas['RootFolderResponse']
 
 /** For `useQuery({ select })`: the roots of one kind. */
 export const rootsOfKind = (kind: MediaKind) => (roots: RootFolder[]) => roots.filter((r) => r.kind === kind)
 
-export type UnmappedReason = 'noVideoFiles' | 'notParsable' | 'noMatch' | 'ambiguousMatch' | 'metadataError'
+export type UnmappedReason = Schemas['UnmappedReason']
 
-export type UnmappedFolder = {
-  id: number
-  rootFolderId: number
-  relativePath: string
-  path: string
-  fileCount: number
-  reason: UnmappedReason
-  detail: string | null
-  discoveredAt: string
-  lastSeenAt: string
-  kind: MediaKind
-}
+export type UnmappedFolder = Schemas['UnmappedFolderResponse']
 
-export type ScanState = 'idle' | 'queued' | 'running' | 'completed' | 'failed'
+export type ScanState = Schemas['ScanState']
 
-export type ScanStatus = {
-  rootFolderId: number
-  state: ScanState
-  startedAt: string | null
-  finishedAt: string | null
-  foldersTotal: number
-  foldersProcessed: number
-  moviesAdded: number
-  versionsAdded: number
-  filesAdded: number
-  unmapped: number
-  currentFolder: string | null
-  error: string | null
-  seriesAdded: number
-  unmatchedFiles: number
-  seriesId: number | null
-}
+export type ScanStatus = Schemas['ScanStatusResponse']
 
 export const rootFolders = {
   list: () => api<RootFolder[]>('/api/v1/rootfolders'),
@@ -626,16 +334,10 @@ export const rootFolders = {
 
 // ---- filesystem ------------------------------------------------------------
 
-export type FileSystemItem = { name: string; path: string; size: number; lastModified: string | null }
+export type FileSystemItem = Schemas['FileSystemItem']
 
 /** One folder as the path picker reads it. `path` is empty and `parent` null when the mount points come back. */
-export type FolderListing = {
-  path: string
-  parent: string | null
-  exists: boolean
-  directories: FileSystemItem[]
-  files: FileSystemItem[]
-}
+export type FolderListing = Schemas['FolderListing']
 
 export const filesystem = {
   /** A path that does not exist yet answers with its deepest existing ancestor, so a half-typed path still suggests. */
@@ -644,16 +346,9 @@ export const filesystem = {
 
 // ---- indexers --------------------------------------------------------------
 
-export type IndexerImplementation = 'torznab' | 'mock'
+export type IndexerImplementation = Schemas['IndexerImplementation']
 
-export type IndexerStatus = {
-  healthy: boolean
-  failures: number
-  disabledUntil: string | null
-  lastError: string | null
-  lastFailureAt: string | null
-  lastSuccessAt: string | null
-}
+export type IndexerStatus = Schemas['IndexerStatusResponse']
 
 export type Indexer = {
   id: number
@@ -684,18 +379,7 @@ export type Indexer = {
 
 export type IndexerRequest = Omit<Indexer, 'id' | 'protocol' | 'prowlarrId' | 'status' | 'createdAt'>
 
-export type IndexerTestResult = {
-  supportsMovieSearch: boolean
-  supportsImdbSearch: boolean
-  supportsTmdbSearch: boolean
-  categoryCount: number
-  recentReleases: number
-  supportsTvSearch: boolean
-  tvSearchParams: string[] | null
-  /** What the capabilities list: an empty row field falls back to these. */
-  tvCategories: number[] | null
-  animeCategories: number[] | null
-}
+export type IndexerTestResult = Schemas['IndexerTestResponse']
 
 export const indexers = {
   list: () => api<Indexer[]>('/api/v1/indexers'),
@@ -710,77 +394,21 @@ export const indexers = {
 
 // ---- search ----------------------------------------------------------------
 
-export type Rejection = { reason: string; temporary: boolean }
+export type Rejection = Schemas['RejectionResponse']
 
-export type VersionDecision = { versionId: number; versionName: string; approved: boolean; rejections: Rejection[]; customFormatScore: number }
+export type VersionDecision = Schemas['VersionDecisionResponse']
 
-export type IndexerFailureKind = 'unreachable' | 'authentication' | 'rateLimited' | 'serverError' | 'invalidResponse' | 'request' | 'disabled'
+export type IndexerFailureKind = Schemas['IndexerFailureKind']
 
-export type Release = {
-  guid: string
-  title: string
-  indexerId: number
-  indexer: string
-  indexerPriority: number
-  protocol: 'torrent' | 'usenet'
-  size: number
-  seeders: number | null
-  leechers: number | null
-  publishDate: string
-  downloadUrl: string | null
-  magnetUrl: string | null
-  infoUrl: string | null
-  infoHash: string | null
-  /** Comma-separated flag names, "none" when there are none. */
-  flags: string
-  qualityId: number
-  quality: string
-  resolution: number
-  revisionVersion: number
-  isRepack: boolean
-  edition: string | null
-  releaseGroup: string | null
-  languages: string[]
-  /** Custom formats matched; the score depends on each version's profile and sits on the verdict. */
-  customFormats: string[]
-  parsedTitle: string | null
-  parsedYear: number | null
-  /** False when the release does not look like this film; it is still judged by every version and can be grabbed by hand. */
-  matchesMovie: boolean
-  rejections: Rejection[]
-  /** One verdict per version; empty only when the title does not parse. */
-  versions: VersionDecision[]
-  /** Where a grab goes unless the user picks another version: the one that accepts it, else the closest, else the default. */
-  suggestedVersionId: number | null
-}
+export type Release = Schemas['ReleaseResponse']
 
-export type SearchResult = {
-  movieId: number
-  searchedAt: string
-  indexersQueried: number
-  releases: Release[]
-  indexerErrors: { indexerId: number; indexer: string; kind: IndexerFailureKind; message: string }[]
-  /** The text the indexers were asked, when the user typed one; null for the film's own search (ids and titles). */
-  query: string | null
-}
+export type SearchResult = Schemas['SearchResponse']
 
 /** `picked`: shadow mode recorded the best approved release instead of grabbing it. */
-export type AutomaticSearchOutcome = 'grabbed' | 'nothingFound' | 'noIndexer' | 'skipped' | 'failed' | 'picked'
+export type AutomaticSearchOutcome = Schemas['AutomaticSearchOutcome']
 
 /** One version's outcome of an automatic search: the best approved release was grabbed, or here is why not. */
-export type AutomaticSearchResult = {
-  movieId: number
-  movieTitle: string
-  versionId: number
-  versionName: string
-  outcome: AutomaticSearchOutcome
-  releaseTitle: string | null
-  grabId: number | null
-  detail: string | null
-  releases: number
-  approved: number
-  indexerErrors: { indexerId: number; indexer: string; kind: IndexerFailureKind; message: string }[]
-}
+export type AutomaticSearchResult = Schemas['AutomaticSearchResult']
 
 export const search = {
   /** Interactive search for the film, judged by every version (or one); `query` replaces its ids and titles with a text. */
@@ -805,67 +433,25 @@ export const search = {
     post<AutomaticSearchResult[]>(`/api/v1/movies/${movieId}/search${versionId ? `?versionId=${versionId}` : ''}`),
 }
 
-export type SeriesEpisodeRef = { id: number; seasonNumber: number; episodeNumber: number; absoluteEpisodeNumber: number | null; title: string }
+export type SeriesEpisodeRef = Schemas['SeriesEpisodeRef']
 
 /** One series version's verdict over every episode the release covers. */
-export type SeriesVersionDecision = VersionDecision & { targetIds: number[] }
+export type SeriesVersionDecision = Schemas['SeriesVersionDecisionResponse']
 
-export type SeriesRelease = Omit<Release, 'edition' | 'parsedTitle' | 'parsedYear' | 'matchesMovie' | 'versions'> & {
-  parsedSeriesTitle: string | null
-  /** False when the release names another show; it is still judged and can be grabbed by hand. */
-  matchesSeries: boolean
-  /** The episodes it covers in TVDB numbering; empty when it maps to none (the reason is in `rejections`). */
-  episodes: SeriesEpisodeRef[]
-  episodesLabel: string | null
-  fullSeason: boolean
-  versions: SeriesVersionDecision[]
-  /** Which numbering found its episodes; null when it maps to none. */
-  numbering: EpisodeNumbering | null
-  /** Found on the series' order only, nothing in the name confirms it: never grabbed automatically. */
-  held: boolean
-}
+export type SeriesRelease = Schemas['SeriesReleaseResponse']
 
 /** Which numbering a release matched its episodes on. */
-export type EpisodeNumbering = 'tvdb' | 'xem' | 'order' | 'absolute'
+export type EpisodeNumbering = Schemas['EpisodeNumbering']
 
-export type SeriesSearchResult = {
-  seriesId: number
-  scope: 'episode' | 'season' | 'series'
-  seasonNumber: number | null
-  episodeId: number | null
-  label: string
-  searchedAt: string
-  indexersQueried: number
-  releases: SeriesRelease[]
-  indexerErrors: { indexerId: number; indexer: string; kind: IndexerFailureKind; message: string }[]
-  query: string | null
-  /** TVDB numbering found no acceptable release: the series' order was asked too. */
-  orderFallback: boolean
-}
+export type SeriesSearchResult = Schemas['SeriesSearchResponse']
 
 // ---- wanted ----------------------------------------------------------------
 
-export type WantedFilter = 'missing' | 'cutoffUnmet'
+export type WantedFilter = Schemas['WantedFilter']
 
-export type WantedItem = {
-  movieId: number
-  movieTitle: string
-  year: number | null
-  posterUrl: string | null
-  versionId: number
-  versionName: string
-  qualityProfile: string
-  kind: WantedFilter
-  currentQuality: string | null
-  currentScore: number | null
-  cutoffQuality: string
-  lastSearchAt: string | null
-  searchAttempts: number
-  /** When the cutoff-unmet job may search it again; null means at its next pass. */
-  nextSearchAt: string | null
-}
+export type WantedItem = Schemas['WantedItemResponse']
 
-export type WantedPage = { items: WantedItem[]; total: number; page: number; pageSize: number }
+export type WantedPage = Schemas['WantedPageResponse']
 
 export const wanted = {
   list: (filter?: WantedFilter, page = 1, pageSize = 50) =>
@@ -876,81 +462,17 @@ export const wanted = {
 
 // ---- rss -------------------------------------------------------------------
 
-export type RssMovieRef = { id: number; title: string; year: number | null; posterUrl: string | null }
+export type RssMovieRef = Schemas['RssMovieRef']
 
-export type RssSeriesRef = { id: number; title: string; year: number | null; posterUrl: string | null }
+export type RssSeriesRef = Schemas['RssSeriesRef']
 
-export type RssRelease = {
-  guid: string
-  title: string
-  indexerId: number
-  indexer: string
-  size: number
-  seeders: number | null
-  leechers: number | null
-  publishDate: string
-  seenAt: string
-  infoUrl: string | null
-  flags: string
-  qualityId: number
-  quality: string
-  revisionVersion: number
-  isRepack: boolean
-  edition: string | null
-  releaseGroup: string | null
-  languages: string[]
-  customFormats: string[]
-  parsedTitle: string | null
-  parsedYear: number | null
-  movie: RssMovieRef | null
-  unmatchedReason: string | null
-  versions: VersionDecision[]
-  attributedVersionId: number | null
-  attributedVersionName: string | null
-  /** Set when the pass sent the release to a download client. */
-  grabId: number | null
-  /** Why the attributed release was not grabbed after all. */
-  grabError: string | null
-  /** Shadow mode: the pick recorded in place of a grab. */
-  shadowPickId: number | null
-  /** A series release: the series of the library (then `movie` is null); verdicts and attribution are the series versions'. */
-  series: RssSeriesRef | null
-  /** The episodes it covers: "S01E05", "S01E01–S01E10 (10 episodes)". */
-  episodes: string | null
-  episodeIds: number[] | null
-}
+export type RssRelease = Schemas['RssReleaseResponse']
 
-export type RssIndexerStatus = { indexerId: number; indexer: string; lastRunAt: string | null; lastError: string | null; lastFetched: number; lastNew: number }
+export type RssIndexerStatus = Schemas['RssIndexerStatusResponse']
 
-export type RssStatus = {
-  /** Bigarr__Rss__Enabled: the pass is one of the scheduled tasks. */
-  enabled: boolean
-  /** Bigarr__Scheduler__Enabled: when false the pass only runs when triggered. */
-  schedulerEnabled: boolean
-  intervalMinutes: number
-  running: boolean
-  lastRunAt: string | null
-  /** Set only when the pass runs on its own. */
-  nextRunAt: string | null
-  stored: number
-  matched: number
-  wouldGrab: number
-  indexers: RssIndexerStatus[]
-  grabbed: number
-  /** Shadow mode: releases recorded as picks instead of grabs. */
-  picked: number
-}
+export type RssStatus = Schemas['RssStatusResponse']
 
-export type RssSyncResult = {
-  indexers: number
-  fetched: number
-  new: number
-  matched: number
-  wouldGrab: number
-  indexerErrors: { indexerId: number; indexer: string; kind: IndexerFailureKind; message: string }[]
-  grabbed: number
-  picked: number
-}
+export type RssSyncResult = Schemas['RssSyncResponse']
 
 export const rss = {
   status: () => api<RssStatus>('/api/v1/rss'),
@@ -961,31 +483,13 @@ export const rss = {
 
 // ---- download clients ------------------------------------------------------
 
-export type DownloadClientImplementation = 'qBittorrent' | 'mock'
+export type DownloadClientImplementation = Schemas['DownloadClientImplementation']
 
-export type DownloadClient = {
-  id: number
-  name: string
-  implementation: DownloadClientImplementation
-  enabled: boolean
-  host: string | null
-  port: number
-  useSsl: boolean
-  urlBase: string | null
-  username: string | null
-  password: string | null
-  category: string
-  /** Series grabs go to this one (Sonarr's `tv-sonarr`). */
-  seriesCategory: string
-  addPaused: boolean
-  priority: number
-  protocol: 'torrent' | 'usenet'
-  createdAt: string
-}
+export type DownloadClient = Schemas['DownloadClientResponse']
 
 export type DownloadClientRequest = Omit<DownloadClient, 'id' | 'protocol' | 'createdAt'>
 
-export type DownloadClientTestResult = { version: string; apiVersion: string | null; category: string; categoryCreated: boolean }
+export type DownloadClientTestResult = Schemas['DownloadClientTestResponse']
 
 export const downloadClients = {
   list: () => api<DownloadClient[]>('/api/v1/downloadclients'),
@@ -1006,96 +510,27 @@ export const downloadClients = {
 
 // ---- grab & queue ----------------------------------------------------------
 
-export type GrabState = 'grabbed' | 'downloading' | 'importPending' | 'importing' | 'imported' | 'importFailed' | 'downloadFailed' | 'removed' | 'ignored'
+export type GrabState = Schemas['GrabState']
 
-export type DownloadItemStatus = 'queued' | 'downloading' | 'paused' | 'stalled' | 'completed' | 'failed' | 'unknown'
+export type DownloadItemStatus = Schemas['DownloadItemStatus']
 
-export type StatusSeverity = 'info' | 'warning' | 'error'
+export type StatusSeverity = Schemas['StatusSeverity']
 
-export type StatusMessage = { title: string; messages: string[]; severity: StatusSeverity }
+export type StatusMessage = Schemas['StatusMessage']
 
 /** The release as the search returned it: the search keeps no state, so the client carries the links. */
-export type GrabRequest = {
-  versionId: number
-  indexerId: number
-  guid: string
-  title: string
-  downloadUrl: string | null
-  magnetUrl: string | null
-  infoHash: string | null
-  size: number
-  seeders: number | null
-  flags: string
-  protocol: 'torrent' | 'usenet'
-  indexer: string
-  /** Kept with the pick in shadow mode. */
-  publishDate?: string | null
-  /** A series grab: the shared ids of the episodes covered; `versionId` is then the series version. */
-  episodeIds?: number[] | null
-  /** A series grab: the numbering the release matched on, recorded with the grab. */
-  numbering?: EpisodeNumbering | null
-}
+export type GrabRequest = Schemas['GrabRequest']
 
 /** A grab sent to a client; in shadow mode only `shadowPickId` and `grabbedAt` are set (`shadow` is true). */
-export type GrabResult = {
-  grabId: number | null
-  downloadId: string | null
-  downloadClientId: number | null
-  downloadClient: string | null
-  state: GrabState | null
-  grabbedAt: string
-  shadowPickId: number | null
-  shadow: boolean
-}
+export type GrabResult = Schemas['GrabResponse']
 
-export type QueueItem = {
-  grabId: number | null
-  downloadId: string
-  title: string
-  quality: string | null
-  movieId: number | null
-  movieTitle: string | null
-  movieYear: number | null
-  versionId: number | null
-  versionName: string | null
-  state: GrabState | null
-  status: DownloadItemStatus
-  size: number
-  sizeLeft: number
-  /** 0 to 1. */
-  progress: number
-  downloadRate: number
-  etaSeconds: number | null
-  downloadClientId: number
-  downloadClient: string
-  indexerId: number | null
-  indexer: string | null
-  outputPath: string | null
-  statusMessages: StatusMessage[]
-  addedAt: string
-  /** False for a torrent found in our category that Bigarr never grabbed. */
-  tracked: boolean
-  /** A series download: a series grab, or a torrent of the series category. */
-  series: boolean
-  seriesId: number | null
-  seriesTitle: string | null
-  seriesYear: number | null
-  /** The episodes the grab covers, in order. */
-  episodes: QueueEpisode[]
-}
+export type QueueItem = Schemas['QueueItemResponse']
 
-export type QueueEpisode = { episodeId: number; seasonNumber: number; episodeNumber: number; absoluteEpisodeNumber: number | null; title: string; hasFile: boolean }
+export type QueueEpisode = Schemas['QueueEpisodeResponse']
 
-export type QueueClientStatus = { downloadClientId: number; name: string; healthy: boolean; lastError: string | null; lastSuccessAt: string | null }
+export type QueueClientStatus = Schemas['QueueClientStatusResponse']
 
-export type Queue = {
-  lastPollAt: string | null
-  nextPollAt: string | null
-  pollSeconds: number
-  revision: number
-  items: QueueItem[]
-  clients: QueueClientStatus[]
-}
+export type Queue = Schemas['QueueResponse']
 
 export const queue = {
   get: () => api<Queue>('/api/v1/queue'),
@@ -1114,44 +549,20 @@ export const queue = {
 
 // ---- media management ------------------------------------------------------
 
-export type TransferMode = 'hardlinkOrCopy' | 'copy' | 'move'
+export type TransferMode = Schemas['TransferMode']
 
-export type NamingToken = { token: string; description: string; example: string; folder: boolean }
+export type NamingToken = Schemas['NamingTokenResponse']
 
 /** Radarr's and Sonarr's "Colon Replacement" (Custom is Sonarr's alone). */
-export type ColonReplacement = 'delete' | 'dash' | 'spaceDash' | 'spaceDashSpace' | 'smart' | 'custom'
+export type ColonReplacement = Schemas['ColonReplacement']
 
 export const filmColonReplacements: ColonReplacement[] = ['delete', 'dash', 'spaceDash', 'spaceDashSpace', 'smart']
 
 export const seriesColonReplacements: ColonReplacement[] = [...filmColonReplacements, 'custom']
 
-export type MediaManagement = {
-  renameFiles: boolean
-  fileNameTemplate: string
-  folderNameTemplate: string
-  transferMode: TransferMode
-  recycleBinPath: string | null
-  recycleBinRetentionDays: number
-  importExtraFiles: boolean
-  /** Comma list without dots: `srt,ass`. */
-  extraFileExtensions: string
-  /** ffprobe was found: imported files get media info, the backfill fills the older ones. */
-  mediaInfoAvailable: boolean
-  ffprobePath: string | null
-  fileNamePreview: string
-  folderNamePreview: string
-  tokens: NamingToken[]
-  /** Sonarr's "Season Pack Upgrade": how many of a pack's episodes must be upgraded for the pack to be. */
-  seasonPackUpgrade: SeasonPackUpgrade
-  /** Percent, for the threshold mode. */
-  seasonPackUpgradeThreshold: number
-  /** Radarr's "Replace Illegal Characters" for film names: on replaces them, off removes them. */
-  replaceIllegalCharacters: boolean
-  /** Radarr's "Colon Replacement" for film names (never custom). */
-  colonReplacement: ColonReplacement
-}
+export type MediaManagement = Schemas['MediaManagementResponse']
 
-export type SeasonPackUpgrade = 'all' | 'threshold' | 'any'
+export type SeasonPackUpgrade = Schemas['SeasonPackUpgrade']
 
 export type MediaManagementRequest = Pick<
   MediaManagement,
@@ -1169,9 +580,9 @@ export type MediaManagementRequest = Pick<
   | 'colonReplacement'
 >
 
-export type NamingPreview = { fileName: string | null; fileErrors: string[]; folderName: string | null; folderErrors: string[] }
+export type NamingPreview = Schemas['NamingPreviewResponse']
 
-export type BackfillResult = { mediaInfoAvailable: boolean; probed: number; remaining: number }
+export type BackfillResult = Schemas['BackfillResponse']
 
 export const mediaManagement = {
   get: () => api<MediaManagement>('/api/v1/mediamanagement'),
@@ -1192,25 +603,15 @@ export const mediaManagement = {
 
 // ---- series naming (Sonarr's) ------------------------------------------------
 
-export type MultiEpisodeStyle = 'extend' | 'duplicate' | 'repeat' | 'scene' | 'range' | 'prefixedRange'
+export type MultiEpisodeStyle = Schemas['MultiEpisodeStyle']
 
 export const multiEpisodeStyles: MultiEpisodeStyle[] = ['extend', 'duplicate', 'repeat', 'scene', 'range', 'prefixedRange']
 
-export type SeriesTokenScope = 'series' | 'season' | 'episode'
+export type SeriesTokenScope = Schemas['SeriesTokenScope']
 
-export type SeriesNamingToken = { token: string; description: string; example: string; scope: SeriesTokenScope }
+export type SeriesNamingToken = Schemas['SeriesNamingTokenResponse']
 
-export type SeriesNamingPreview = {
-  seriesFolder: string | null
-  seasonFolder: string | null
-  specialsFolder: string | null
-  standardEpisode: string | null
-  multiEpisode: string | null
-  dailyEpisode: string | null
-  animeEpisode: string | null
-  /** Keyed by template: seriesFolder, seasonFolder, specialsFolder, standardEpisode, dailyEpisode, animeEpisode. */
-  errors: Record<string, string[]>
-}
+export type SeriesNamingPreview = Schemas['SeriesNamingPreviewResponse']
 
 export type SeriesNamingRequest = {
   renameEpisodes: boolean
@@ -1229,61 +630,22 @@ export type SeriesNamingRequest = {
   customColonReplacement: string
 }
 
-export type SeriesNaming = SeriesNamingRequest & { preview: SeriesNamingPreview; tokens: SeriesNamingToken[] }
+export type SeriesNaming = Schemas['SeriesNamingResponse']
 
 // ---- manual import ---------------------------------------------------------
 
-export type ImportVersionOption = { versionId: number; versionName: string; isDefault: boolean; approved: boolean; rejections: string[] }
+export type ImportVersionOption = Schemas['ImportVersionOption']
 
-export type ManualImportFile = {
-  path: string
-  relativePath: string
-  name: string
-  size: number
-  isSample: boolean
-  parsedTitle: string | null
-  parsedYear: number | null
-  qualityId: number
-  quality: string
-  revisionVersion: number
-  isRepack: boolean
-  edition: string | null
-  releaseGroup: string | null
-  languages: string[]
-  movieId: number | null
-  movieTitle: string | null
-  movieYear: number | null
-  /** Why no movie was found, when none was. */
-  matchReason: string | null
-  /** The version the import would pick on its own, when one accepts the file. */
-  versionId: number | null
-  versions: ImportVersionOption[]
-  /** Side files that would come along (extra files setting); empty when the setting is off. */
-  extras: ManualImportExtra[]
-}
+export type ManualImportFile = Schemas['ManualImportFileResponse']
 
-export type ManualImportExtra = Pick<ExtraFile, 'path' | 'relativePath' | 'extension' | 'kind' | 'language' | 'forced' | 'hearingImpaired'>
+export type ManualImportExtra = Schemas['ManualImportExtraResponse']
 
-export type ManualImport = {
-  path: string
-  grabId: number | null
-  releaseTitle: string | null
-  defaultTransferMode: TransferMode
-  files: ManualImportFile[]
-}
+export type ManualImport = Schemas['ManualImportResponse']
 
 /** `extraPaths`: the side files to bring, as listed; omitted lets the import find them, empty brings none. */
-export type ManualImportItem = { path: string; versionId: number; qualityId?: number | null; grabId?: number | null; extraPaths?: string[] | null }
+export type ManualImportItem = Schemas['ManualImportItemRequest']
 
-export type ManualImportResult = {
-  path: string
-  versionId: number
-  imported: boolean
-  reason: string | null
-  mediaFileId: number | null
-  destinationPath: string | null
-  upgraded: boolean
-}
+export type ManualImportResult = Schemas['ManualImportResultResponse']
 
 export const manualImport = {
   /** The video files of a path or of a queued download, with what Bigarr makes of them. */
@@ -1300,82 +662,23 @@ export const manualImport = {
 
 // ---- series manual import, rename, episode files ----------------------------
 
-export type SeriesManualImportEpisode = { id: number; seasonNumber: number; episodeNumber: number; absoluteEpisodeNumber: number | null; title: string; hasFile: boolean }
+export type SeriesManualImportEpisode = Schemas['SeriesManualImportEpisode']
 
-export type SeriesManualImportFile = {
-  path: string
-  relativePath: string
-  name: string
-  size: number
-  isSample: boolean
-  qualityId: number
-  quality: string
-  revisionVersion: number
-  releaseGroup: string | null
-  languages: string[]
-  seriesId: number | null
-  seriesTitle: string | null
-  versionId: number | null
-  versions: { id: number; name: string; isDefault: boolean }[]
-  seasonNumber: number | null
-  episodes: SeriesManualImportEpisode[]
-  /** Why no series or episode was proposed. */
-  matchReason: string | null
-  /** Why the import would not take it on its own; the user can force it. */
-  rejections: string[]
-  extras: ManualImportExtra[]
-}
+export type SeriesManualImportFile = Schemas['SeriesManualImportFileResponse']
 
-export type SeriesManualImport = { path: string; grabId: number | null; releaseTitle: string | null; defaultTransferMode: TransferMode; files: SeriesManualImportFile[] }
+export type SeriesManualImport = Schemas['SeriesManualImportResponse']
 
-export type SeriesManualImportItem = { path: string; versionId: number; episodeIds: number[]; qualityId?: number | null; grabId?: number | null; extraPaths?: string[] | null }
+export type SeriesManualImportItem = Schemas['SeriesManualImportItemRequest']
 
-export type SeriesManualImportResult = {
-  path: string
-  versionId: number
-  imported: boolean
-  reason: string | null
-  episodeFileId: number | null
-  destinationPath: string | null
-  upgraded: boolean
-  episodes: string[]
-}
+export type SeriesManualImportResult = Schemas['SeriesManualImportResultResponse']
 
-export type SeriesRenamePreview = {
-  versionId: number
-  versionName: string
-  episodeFileId: number
-  seasonNumber: number
-  episodes: string[]
-  currentRelativePath: string
-  newRelativePath: string
-  changed: boolean
-  extras: ExtraRenamePreview[]
-}
+export type SeriesRenamePreview = Schemas['SeriesRenamePreviewResponse']
 
-export type SeriesRenameResult = { episodeFileId: number; relativePath: string; renamed: boolean; error: string | null }
+export type SeriesRenameResult = Schemas['SeriesRenameResultResponse']
 
-export type EpisodeExtra = { id: number; relativePath: string; extension: string; kind: ExtraFile['kind']; language: string | null; forced: boolean; hearingImpaired: boolean }
+export type EpisodeExtra = Schemas['EpisodeExtraResponse']
 
-export type EpisodeFileDetail = {
-  id: number
-  versionId: number
-  versionName: string
-  relativePath: string
-  path: string
-  size: number
-  dateAdded: string
-  quality: string
-  revisionVersion: number
-  releaseGroup: string | null
-  languages: string[]
-  originalReleaseTitle: string | null
-  mediaInfo: MediaInfo | null
-  customFormats: string[]
-  customFormatScore: number
-  episodes: SeriesManualImportEpisode[]
-  extras: EpisodeExtra[]
-}
+export type EpisodeFileDetail = Schemas['EpisodeFileDetailResponse']
 
 export const seriesFiles = {
   /** The video files of a path or of a queued download, with the mapper's proposal. */
@@ -1409,20 +712,12 @@ export const seriesFiles = {
 
 // ---- rename ----------------------------------------------------------------
 
-export type ExtraRenamePreview = { extraFileId: number; currentRelativePath: string; newRelativePath: string }
+export type ExtraRenamePreview = Schemas['ExtraRenamePreviewResponse']
 
 /** `extras` follow the file: renamed with it when it changes. */
-export type RenamePreview = {
-  versionId: number
-  versionName: string
-  mediaFileId: number
-  currentRelativePath: string
-  newRelativePath: string
-  changed: boolean
-  extras: ExtraRenamePreview[]
-}
+export type RenamePreview = Schemas['RenamePreviewResponse']
 
-export type RenameResult = { mediaFileId: number; relativePath: string; renamed: boolean; error: string | null }
+export type RenameResult = Schemas['RenameResultResponse']
 
 export const rename = {
   preview: (movieId: number) => api<RenamePreview[]>(`/api/v1/rename?movieId=${movieId}`),
@@ -1431,23 +726,9 @@ export const rename = {
 
 // ---- history ---------------------------------------------------------------
 
-export type HistoryEventType = 'grabbed' | 'downloadFailed' | 'imported' | 'upgraded' | 'importFailed' | 'fileDeleted' | 'renamed' | 'blocklisted' | 'defaultChanged'
+export type HistoryEventType = Schemas['HistoryEventType']
 
-export type HistoryEvent = {
-  id: number
-  eventType: HistoryEventType
-  movieId: number | null
-  tmdbId: number | null
-  movieTitle: string | null
-  versionId: number | null
-  versionName: string | null
-  sourceTitle: string | null
-  indexerId: number | null
-  indexerName: string | null
-  mediaFileId: number | null
-  data: Record<string, string>
-  createdAt: string
-}
+export type HistoryEvent = Schemas['HistoryEventResponse']
 
 export const history = {
   list: (options: { movieId?: number; versionId?: number; eventType?: HistoryEventType; limit?: number } = {}) => {
@@ -1463,29 +744,9 @@ export const history = {
 
 // ---- blocklist -------------------------------------------------------------
 
-export type BlocklistEntry = {
-  id: number
-  versionId: number
-  versionName: string | null
-  movieId: number | null
-  movieTitle: string | null
-  movieYear: number | null
-  posterUrl: string | null
-  sourceTitle: string
-  quality: string | null
-  releaseGuid: string | null
-  infoHash: string | null
-  indexerId: number | null
-  indexerName: string | null
-  reason: string | null
-  createdAt: string
-  /** A series entry: the show and the episode the release is blocked for (`S01E05`). */
-  seriesId?: number | null
-  seriesTitle?: string | null
-  episode?: string | null
-}
+export type BlocklistEntry = Schemas['BlocklistEntryResponse']
 
-export type BlocklistPage = { items: BlocklistEntry[]; total: number; page: number; pageSize: number }
+export type BlocklistPage = Schemas['BlocklistPageResponse']
 
 export const blocklist = {
   list: (options: { movieId?: number; seriesId?: number; page?: number; pageSize?: number } = {}) => {
@@ -1507,7 +768,7 @@ export const blocklist = {
  * `sonarr`: Sonarr v4's webhook payloads for the series events, for tools written for Sonarr.
  * `discord`: embeds for a Discord channel webhook, laid out like Radarr's (films) and Sonarr's (series) Discord connections.
  */
-export type WebhookFormat = 'bigarr' | 'radarr' | 'sonarr' | 'discord'
+export type WebhookFormat = Schemas['WebhookFormat']
 
 export const discordGrabFields = [
   'overview',
@@ -1547,87 +808,24 @@ export const discordImportFields = [
 ] as const
 export const discordManualInteractionFields = ['overview', 'rating', 'genres', 'version', 'quality', 'group', 'size', 'links', 'downloadTitle', 'poster', 'fanart', 'tags'] as const
 
-export type DiscordGrabField = (typeof discordGrabFields)[number]
-export type DiscordImportField = (typeof discordImportFields)[number]
-export type DiscordManualInteractionField = (typeof discordManualInteractionFields)[number]
+export type DiscordGrabField = Schemas['DiscordGrabField']
+export type DiscordImportField = Schemas['DiscordImportField']
+export type DiscordManualInteractionField = Schemas['DiscordManualInteractionField']
 
 /** Radarr's Discord settings. A missing field list takes Radarr's defaults; an empty one sends no field. */
-export type DiscordSettings = {
-  username?: string | null
-  avatar?: string | null
-  author?: string | null
-  /** Grabs and failed downloads. */
-  grabFields?: DiscordGrabField[] | null
-  /** Imports and upgrades; poster and fanart also apply to added and deleted films. */
-  importFields?: DiscordImportField[] | null
-  /** Import failures (Radarr's "manual interaction required"). */
-  manualInteractionFields?: DiscordManualInteractionField[] | null
-}
+export type DiscordSettings = Schemas['DiscordSettings']
 
-export type NotificationEndpointRequest = {
-  name: string
-  url: string
-  secret?: string | null
-  enabled?: boolean
-  /** Event types to send; empty means every event. */
-  events?: string[]
-  /** Tag ids: only films whose versions carry one of them. Empty means every film. */
-  tags?: number[]
-  format?: WebhookFormat
-  /** Radarr format only: `default`, `all` or `version:<name>`, like an API key's view. */
-  view?: string
-  /** Discord format only. */
-  discord?: DiscordSettings | null
-}
+export type NotificationEndpointRequest = Schemas['NotificationEndpointRequest']
 
-export type NotificationEndpoint = {
-  id: number
-  name: string
-  url: string
-  hasSecret: boolean
-  enabled: boolean
-  events: string[]
-  tags: number[]
-  format: WebhookFormat
-  view: string
-  discord: DiscordSettings | null
-  pendingDeliveries: number
-  failedDeliveries: number
-  lastDeliveredAt: string | null
-  lastError: string | null
-  createdAt: string
-}
+export type NotificationEndpoint = Schemas['NotificationEndpointResponse']
 
-export type NotificationEventType = {
-  type: string
-  description: string
-  /** What the Radarr format sends it as; null when that format does not send it. */
-  radarrEventType: string | null
-  /** About no film (health, test): sent whatever the tags. */
-  ignoresTags: boolean
-  /** Whether the Discord format posts a message for it. */
-  sentToDiscord: boolean
-  /** What the Sonarr format sends it as; null when that format does not send it. */
-  sonarrEventType: string | null
-}
+export type NotificationEventType = Schemas['NotificationEventTypeResponse']
 
-export type WebhookTestResult = { statusCode: number | null; elapsedMs: number }
+export type WebhookTestResult = Schemas['WebhookTestResponse']
 
-export type WebhookDeliveryState = 'pending' | 'delivered' | 'givenUp'
+export type WebhookDeliveryState = Schemas['WebhookDeliveryState']
 
-export type WebhookDelivery = {
-  id: number
-  eventId: number
-  eventType: string
-  state: WebhookDeliveryState
-  attempts: number
-  nextAttemptAt: string | null
-  lastAttemptAt: string | null
-  deliveredAt: string | null
-  lastStatusCode: number | null
-  lastError: string | null
-  createdAt: string
-}
+export type WebhookDelivery = Schemas['WebhookDeliveryResponse']
 
 export const notifications = {
   list: () => api<NotificationEndpoint[]>('/api/v1/notifications'),
@@ -1646,21 +844,9 @@ export const notifications = {
 
 // ---- tasks & health --------------------------------------------------------
 
-export type ScheduledTask = {
-  name: string
-  displayName: string
-  intervalMinutes: number
-  enabled: boolean
-  running: boolean
-  lastRunAt: string | null
-  lastDurationMs: number | null
-  lastSucceeded: boolean | null
-  lastSummary: string | null
-  lastError: string | null
-  nextRunAt: string | null
-}
+export type ScheduledTask = Schemas['ScheduledTaskResponse']
 
-export type TaskRunResult = { name: string; success: boolean; durationMs: number; summary: string | null; error: string | null; ranAt: string }
+export type TaskRunResult = Schemas['TaskRunResponse']
 
 export const tasks = {
   list: () => api<ScheduledTask[]>('/api/v1/system/tasks'),
@@ -1668,11 +854,11 @@ export const tasks = {
   run: (name: string) => post<TaskRunResult>(`/api/v1/system/tasks/${encodeURIComponent(name)}/run`),
 }
 
-export type HealthIssueType = 'notice' | 'warning' | 'error'
+export type HealthIssueType = Schemas['HealthIssueType']
 
-export type HealthIssue = { source: string; type: HealthIssueType; message: string }
+export type HealthIssue = Schemas['HealthIssue']
 
-export type Health = { checkedAt: string | null; issues: HealthIssue[] }
+export type Health = Schemas['HealthResponse']
 
 export const health = {
   get: () => api<Health>('/api/v1/health'),
@@ -1686,86 +872,25 @@ export const eventsUrl = '/api/v1/events'
 
 // ---- migration (import from Radarr) ----------------------------------------
 
-export type RadarrImportPreviewRequest = { url: string; apiKey: string }
+export type RadarrImportPreviewRequest = Schemas['RadarrImportPreviewRequest']
 
-export type RadarrProfilePreview = { id: number; name: string; movies: number; suggestedProfileId: number | null }
+export type RadarrProfilePreview = Schemas['RadarrProfilePreview']
 
 /** `reachable`: the Radarr path exists on this host as is, no path translation needed. */
-export type RadarrRootFolderPreview = { path: string; movies: number; suggestedRootFolderId: number | null; reachable: boolean }
+export type RadarrRootFolderPreview = Schemas['RadarrRootFolderPreview']
 
-export type RadarrTagPreview = { id: number; label: string; movies: number }
+export type RadarrTagPreview = Schemas['RadarrTagPreview']
 
-export type RadarrImportPreview = {
-  radarrVersion: string
-  movies: number
-  withFile: number
-  monitored: number
-  alreadyInLibrary: number
-  exclusions: number
-  historyRecords: number
-  blocklist: number
-  customFormats: number
-  suggestedVersionName: string
-  profiles: RadarrProfilePreview[]
-  rootFolders: RadarrRootFolderPreview[]
-  tags: RadarrTagPreview[]
-}
+export type RadarrImportPreview = Schemas['RadarrImportPreviewResponse']
 
-export type RadarrImportRequest = {
-  url: string
-  apiKey: string
-  versionName: string
-  /** Radarr quality profile id → Bigarr quality profile id. */
-  profileMap: Record<number, number>
-  /** Radarr root folder path → Bigarr root folder id. */
-  rootFolderMap: Record<string, number>
-  importTags: boolean
-  importExclusions: boolean
-  importHistory: boolean
-  importBlocklist: boolean
-  importCustomFormats: boolean
-  keepMonitored: boolean
-  includeMoviesWithoutFile: boolean
-  /** Shadow mode: keep following this Radarr with the same mapping once the import is done. */
-  follow?: boolean
-  /** Give each mapped profile the qualities, cutoff and upgrade setting of its Radarr profile. */
-  importProfileQualities?: boolean
-  /** Copy Radarr's "Replace Illegal Characters" and "Colon Replacement" into the film naming settings (import only; the follow never rewrites them). */
-  importNaming?: boolean
-}
+export type RadarrImportRequest = Schemas['RadarrImportRequest']
 
-export type RadarrImportState = 'idle' | 'queued' | 'running' | 'completed' | 'failed'
+export type RadarrImportState = Schemas['RadarrImportState']
 
 /** `tmdbId` is null for a line about a custom format or a profile; `movieId` is set when the film is in Bigarr. */
-export type RadarrImportIssue = { title: string; tmdbId: number | null; reason: string; movieId: number | null }
+export type RadarrImportIssue = Schemas['RadarrImportIssue']
 
-export type RadarrImportStatus = {
-  state: RadarrImportState
-  startedAt: string | null
-  finishedAt: string | null
-  total: number
-  processed: number
-  moviesAdded: number
-  versionsAdded: number
-  versionsUpdated: number
-  filesAdded: number
-  filesMissing: number
-  skipped: number
-  failed: number
-  tagsAdded: number
-  exclusionsAdded: number
-  historyAdded: number
-  blocklistAdded: number
-  customFormatsAdded: number
-  customFormatsUpdated: number
-  profilesScored: number
-  profileQualitiesCopied: number
-  current: string | null
-  error: string | null
-  issues: RadarrImportIssue[]
-  /** Radarr's illegal character and colon settings were copied into media management. */
-  namingImported: boolean
-}
+export type RadarrImportStatus = Schemas['RadarrImportStatusResponse']
 
 export const migration = {
   preview: (body: RadarrImportPreviewRequest) => post<RadarrImportPreview>('/api/v1/migration/radarr/preview', body),
@@ -1777,62 +902,17 @@ export const migration = {
 // ---- migration (import from Tautulli) ---------------------------------------
 
 /** `path`: the copy of tautulli.db on the Bigarr host, typed or where an upload put it. */
-export type TautulliImportPreviewRequest = { path: string; mediaServerId: number }
+export type TautulliImportPreviewRequest = Schemas['TautulliImportPreviewRequest']
 
-export type TautulliImportPreview = {
-  tautulliVersion: string | null
-  users: number
-  deletedUsers: number
-  usersKnown: number
-  firstPlayAt: string | null
-  lastPlayAt: string | null
-  historyRows: number
-  plays: number
-  moviePlays: number
-  episodePlays: number
-  /** Music, photos, Live TV: left out. */
-  otherPlays: number
-  movies: number
-  episodes: number
-  moviePlaysWithFilm: number
-  moviePlaysWithVersion: number
-  /** No id yet but a Plex guid: the import asks Plex. */
-  moviePlaysAskPlex: number
-  moviePlaysUnmatched: number
-  alreadyImported: number
-  overlappingLive: number
-}
+export type TautulliImportPreview = Schemas['TautulliImportPreviewResponse']
 
-export type TautulliImportRequest = TautulliImportPreviewRequest & { askPlex: boolean }
+export type TautulliImportRequest = Schemas['TautulliImportRequest']
 
-export type TautulliImportIssue = { title: string; year: number | null; reason: string; plays: number }
+export type TautulliImportIssue = Schemas['TautulliImportIssue']
 
-export type TautulliImportStatus = {
-  state: RadarrImportState
-  startedAt: string | null
-  finishedAt: string | null
-  total: number
-  processed: number
-  usersAdded: number
-  itemsAdded: number
-  playsAdded: number
-  streamsAdded: number
-  playsExtended: number
-  alreadyImported: number
-  overlappingLive: number
-  otherSkipped: number
-  moviePlays: number
-  moviePlaysWithFilm: number
-  moviePlaysWithVersion: number
-  plexAsked: number
-  plexResolved: number
-  current: string | null
-  error: string | null
-  issues: TautulliImportIssue[]
-  uploadDeleted: boolean
-}
+export type TautulliImportStatus = Schemas['TautulliImportStatusResponse']
 
-export type TautulliUpload = { path: string; bytes: number }
+export type TautulliUpload = Schemas['TautulliUploadResponse']
 
 /** Sends the raw file as the body, reporting the share sent so far (0–1): a Tautulli database runs to hundreds of megabytes. */
 function uploadTautulli(file: File, onProgress: (share: number) => void): Promise<TautulliUpload> {
@@ -1873,7 +953,7 @@ export const tautulliImport = {
 
 // ---- migration (import from Sonarr) ----------------------------------------
 
-export type SonarrRootFolderPreview = { path: string; series: number; suggestedRootFolderId: number | null; reachable: boolean }
+export type SonarrRootFolderPreview = Schemas['SonarrRootFolderPreview']
 
 export type SonarrImportPreview = {
   sonarrVersion: string
@@ -1925,40 +1005,9 @@ export type SonarrImportRequest = {
 }
 
 /** `tvdbId` is null for a line about a profile; `seriesId` is set when the series is in Bigarr. */
-export type SonarrImportIssue = { title: string; tvdbId: number | null; reason: string; seriesId: number | null }
+export type SonarrImportIssue = Schemas['SonarrImportIssue']
 
-export type SonarrImportStatus = {
-  state: RadarrImportState
-  startedAt: string | null
-  finishedAt: string | null
-  total: number
-  processed: number
-  seriesAdded: number
-  versionsAdded: number
-  versionsUpdated: number
-  episodesAdded: number
-  filesAdded: number
-  filesMissing: number
-  skipped: number
-  failed: number
-  tagsAdded: number
-  exclusionsAdded: number
-  historyAdded: number
-  blocklistAdded: number
-  profilesScored: number
-  profileQualitiesCopied: number
-  current: string | null
-  error: string | null
-  issues: SonarrImportIssue[]
-  profilesCreated: number
-  qualitySizesUpdated: number
-  customFormatsAdded: number
-  customFormatsReused: number
-  customFormatsRenamed: number
-  customFormatsUpdated: number
-  /** Sonarr's naming was copied into media management. */
-  namingImported: boolean
-}
+export type SonarrImportStatus = Schemas['SonarrImportStatusResponse']
 
 export const sonarrMigration = {
   preview: (body: RadarrImportPreviewRequest) => post<SonarrImportPreview>('/api/v1/migration/sonarr/preview', body),
@@ -1970,31 +1019,7 @@ export const sonarrMigration = {
 // ---- shadow mode: followed Radarrs -------------------------------------------
 
 /** A Radarr Bigarr follows in shadow mode. The key comes back masked (`********`); sending the mask keeps the stored one. */
-export type FollowedRadarr = {
-  id: number
-  name: string
-  url: string
-  apiKey: string
-  versionName: string
-  profileMap: Record<number, number>
-  rootFolderMap: Record<string, number>
-  importTags: boolean
-  keepMonitored: boolean
-  includeMoviesWithoutFile: boolean
-  enabled: boolean
-  /** The next pass reads Radarr's history from here (a few minutes earlier, to be safe). */
-  historyCheckpoint: string
-  lastSyncAt: string | null
-  lastSummary: string | null
-  lastError: string | null
-  lastErrorAt: string | null
-  /** The last call of Radarr's webhook and its eventType (MovieAdded, Grab, Download, Test…). */
-  lastWebhookAt: string | null
-  lastWebhookEvent: string | null
-  grabs: number
-  inFlight: number
-  createdAt: string
-}
+export type FollowedRadarr = Schemas['FollowedRadarrResponse']
 
 export type FollowedRadarrRequest = {
   name: string
@@ -2010,46 +1035,14 @@ export type FollowedRadarrRequest = {
   enabled: boolean
 }
 
-export type FollowedRadarrTest = { appName: string | null; version: string | null; movies: number }
+export type FollowedRadarrTest = Schemas['FollowedRadarrTestResponse']
 
-export type RadarrFollowPass = { followedRadarrId: number; name: string; success: boolean; summary: string; grabs: number; resolved: number; picksShown: number; searchedOnAdd: number }
+export type RadarrFollowPass = Schemas['RadarrFollowPass']
 
-export type ShadowStatus = {
-  enabled: boolean
-  picks: number
-  lastPickAt: string | null
-  radarrGrabs: number
-  sightings: number
-  radarrs: FollowedRadarr[]
-  seriesPicks: number
-  sonarrGrabs: number
-  sonarrs: FollowedSonarr[] | null
-}
+export type ShadowStatus = Schemas['ShadowStatusResponse']
 
 /** A Sonarr Bigarr follows in shadow mode, the twin of a followed Radarr. */
-export type FollowedSonarr = {
-  id: number
-  name: string
-  url: string
-  apiKey: string
-  versionName: string
-  profileMap: Record<number, number>
-  rootFolderMap: Record<string, number>
-  importTags: boolean
-  keepMonitored: boolean
-  enabled: boolean
-  historyCheckpoint: string
-  lastSyncAt: string | null
-  lastSummary: string | null
-  lastError: string | null
-  lastErrorAt: string | null
-  /** The last call of Sonarr's webhook and its eventType (SeriesAdd, Grab, Download, Test…). */
-  lastWebhookAt: string | null
-  lastWebhookEvent: string | null
-  grabs: number
-  inFlight: number
-  createdAt: string
-}
+export type FollowedSonarr = Schemas['FollowedSonarrResponse']
 
 export type FollowedSonarrRequest = {
   name: string
@@ -2063,199 +1056,61 @@ export type FollowedSonarrRequest = {
   enabled: boolean
 }
 
-export type FollowedSonarrTest = { appName: string | null; version: string | null; series: number }
+export type FollowedSonarrTest = Schemas['FollowedSonarrTestResponse']
 
-export type SonarrFollowPass = { followedSonarrId: number; name: string; success: boolean; summary: string; grabs: number; resolved: number; picksShown: number; searchedOnAdd: number }
+export type SonarrFollowPass = Schemas['SonarrFollowPass']
 
 export const KEY_MASK = '********'
 
 // ---- shadow mode: the comparison ---------------------------------------------
 
-export type CompareOutcome = 'same' | 'different' | 'bigarrOnly' | 'radarrOnly'
+export type CompareOutcome = Schemas['CompareOutcome']
 
 /** Bigarr's parser and engine (RSS rules) on a release Radarr grabbed, for that version, when the grab was read. */
-export type BigarrVerdict = {
-  /** Set when the release would not even reach the engine: not this film, unparsable, film not in Bigarr yet. */
-  unmatched: string | null
-  approved: boolean
-  rejections: string[]
-  customFormatScore: number
-  customFormats: string[]
-  quality: string | null
-  attributedVersion: string | null
-  currentQuality: string | null
-  currentScore: number | null
-  /** The version's "file" then was Bigarr's own latest pick: the file Bigarr would have had. */
-  currentIsPick: boolean
-  /** Series: the episodes Bigarr read in the title. */
-  episodes?: string | null
-}
+export type BigarrVerdict = Schemas['BigarrVerdict']
 
 /** Radarr's parse of a release Bigarr picked, and the film's state in Radarr then. */
-export type RadarrView = {
-  /** TMDB id of the film Radarr maps the title to; null when it maps it to none. */
-  tmdbId: number | null
-  quality: string | null
-  customFormats: string[]
-  customFormatScore: number
-  monitored: boolean | null
-  fileQuality: string | null
-  fileScore: number | null
-  error: string | null
-}
+export type RadarrView = Schemas['RadarrView']
 
-export type SightingVerdict = { versionName: string; approved: boolean; rejections: string[]; customFormatScore: number }
+export type SightingVerdict = Schemas['SightingVerdict']
 
-export type ComparePick = {
-  id: number
-  pickedAt: string
-  lastPickedAt: string
-  picks: number
-  trigger: string
-  title: string
-  indexer: string | null
-  size: number
-  quality: string | null
-  releaseGroup: string | null
-  languages: string[]
-  customFormats: string[]
-  customFormatScore: number
-  publishDate: string | null
-  radarr: RadarrView | null
-}
+export type ComparePick = Schemas['ComparePickResponse']
 
-export type RadarrGrabState = 'grabbed' | 'imported' | 'failed' | 'ignored'
+export type RadarrGrabState = Schemas['RadarrGrabState']
 
-export type CompareGrab = {
-  id: number
-  radarrName: string
-  grabbedAt: string
-  title: string
-  indexer: string | null
-  size: number
-  quality: string | null
-  releaseGroup: string | null
-  languages: string[]
-  customFormats: string[]
-  customFormatScore: number | null
-  publishedAt: string | null
-  /** Radarr's releaseSource: Rss, Search, UserInvokedSearch, InteractiveSearch, ReleasePush. */
-  releaseSource: string | null
-  state: RadarrGrabState
-  resolvedAt: string | null
-  bigarr: BigarrVerdict | null
-}
+export type CompareGrab = Schemas['CompareGrabResponse']
 
-export type CompareSighting = {
-  seenAt: string
-  indexer: string
-  title: string
-  matched: boolean
-  unmatchedReason: string | null
-  attributedVersion: string | null
-  verdict: SightingVerdict | null
-}
+export type CompareSighting = Schemas['CompareSightingResponse']
 
-export type CompareRow = {
-  key: string
-  outcome: CompareOutcome
-  tmdbId: number
-  movieId: number | null
-  movieTitle: string
-  year: number | null
-  posterUrl: string | null
-  versionName: string
-  at: string
-  radarr: CompareGrab | null
-  bigarr: ComparePick | null
-  /** Other picks made while Radarr's download was in flight. */
-  alsoPicked: ComparePick[]
-  /** Positive when Bigarr picked first, in seconds. */
-  bigarrLeadSeconds: number | null
-  /** Radarr-only rows: what Bigarr's feeds saw of Radarr's release; null means never seen. */
-  sighting: CompareSighting | null
-}
+export type CompareRow = Schemas['CompareRowResponse']
 
-export type CompareCounts = { same: number; different: number; bigarrOnly: number; radarrOnly: number; total: number }
+export type CompareCounts = Schemas['CompareCounts']
 
-export type CompareResult = {
-  from: string | null
-  to: string
-  windowHours: number
-  shadowEnabled: boolean
-  versions: string[]
-  summary: CompareCounts
-  byVersion: { versionName: string; counts: CompareCounts }[]
-  rows: CompareRow[]
-  total: number
-  page: number
-  pageSize: number
-}
+export type CompareResult = Schemas['CompareResponse']
 
 /** `tmdbId`: one film only (the film page). `days: 0` means all time. */
 export type CompareQuery = { version?: string; outcome?: CompareOutcome; days: number; windowHours: number; page: number; pageSize: number; tmdbId?: number }
 
 // ---- shadow mode: the comparison with Sonarr ---------------------------------
 
-export type SeriesCompareOutcome = 'same' | 'different' | 'bigarrOnly' | 'sonarrOnly'
+export type SeriesCompareOutcome = Schemas['SeriesCompareOutcome']
 
 /** Sonarr's parse of a release Bigarr picked, and those episodes' state in Sonarr then. */
-export type SonarrView = {
-  tvdbId: number | null
-  episodes: string | null
-  quality: string | null
-  customFormats: string[]
-  customFormatScore: number
-  monitored: boolean | null
-  episodesWithFile: number | null
-  error: string | null
-}
+export type SonarrView = Schemas['SonarrView']
 
-export type SeriesComparePick = Omit<ComparePick, 'radarr'> & { fullSeason: boolean; episodes: string; sonarr: SonarrView | null }
+export type SeriesComparePick = Schemas['SeriesComparePickResponse']
 
-export type SeriesCompareGrab = Omit<CompareGrab, 'radarrName'> & { sonarrName: string; releaseType: string | null; fullSeason: boolean; episodes: string }
+export type SeriesCompareGrab = Schemas['SeriesCompareGrabResponse']
 
-export type SeriesCompareRow = {
-  key: string
-  outcome: SeriesCompareOutcome
-  tvdbId: number
-  seriesId: number | null
-  seriesTitle: string
-  year: number | null
-  posterUrl: string | null
-  versionName: string
-  at: string
-  /** Every episode either side covers on the row. */
-  episodes: string
-  /** The first season the row covers. */
-  seasonNumber: number
-  sonarr: SeriesCompareGrab[]
-  bigarr: SeriesComparePick[]
-  alsoPicked: SeriesComparePick[]
-  bigarrLeadSeconds: number | null
-  sighting: CompareSighting | null
-}
+export type SeriesCompareRow = Schemas['SeriesCompareRowResponse']
 
-export type SeriesCompareCounts = { same: number; different: number; bigarrOnly: number; sonarrOnly: number; total: number }
+export type SeriesCompareCounts = Schemas['SeriesCompareCounts']
 
 /** One show: one line until opened, its rows newest first. */
-export type SeriesCompareGroup = {
-  tvdbId: number
-  seriesId: number | null
-  seriesTitle: string
-  year: number | null
-  posterUrl: string | null
-  counts: SeriesCompareCounts
-  latestAt: string
-  rows: SeriesCompareRow[]
-}
+export type SeriesCompareGroup = Schemas['SeriesCompareGroupResponse']
 
 /** `total` counts shows; pages are pages of shows. */
-export type SeriesCompareResult = Omit<CompareResult, 'summary' | 'byVersion' | 'rows'> & {
-  summary: SeriesCompareCounts
-  byVersion: { versionName: string; counts: SeriesCompareCounts }[]
-  groups: SeriesCompareGroup[]
-}
+export type SeriesCompareResult = Schemas['SeriesCompareResponse']
 
 export type SeriesCompareQuery = Omit<CompareQuery, 'outcome' | 'tmdbId'> & { outcome?: SeriesCompareOutcome; tvdbId?: number }
 
@@ -2308,28 +1163,15 @@ export const shadow = {
 
 // ---- media servers ----------------------------------------------------------
 
-export type MediaServerKind = 'plex' | 'jellyfin' | 'emby'
+export type MediaServerKind = Schemas['MediaServerKind']
 
-export type PathMapping = { from: string; to: string }
+export type PathMapping = Schemas['PathMappingDto']
 
-export type MediaServer = {
-  id: number
-  name: string
-  kind: MediaServerKind
-  url: string
-  token: string
-  enabled: boolean
-  pathMappings: PathMapping[]
-  lastRefreshAt: string | null
-  lastError: string | null
-  lastErrorAt: string | null
-  isFailing: boolean
-  createdAt: string
-}
+export type MediaServer = Schemas['MediaServerResponse']
 
 export type MediaServerRequest = { name: string; kind: MediaServerKind; url: string; token: string; enabled: boolean; pathMappings: PathMapping[] }
 
-export type MediaServerTestResult = { name: string | null; version: string | null; movieLibraries: number }
+export type MediaServerTestResult = Schemas['MediaServerTestResponse']
 
 export const mediaServers = {
   list: () => api<MediaServer[]>('/api/v1/mediaservers'),
@@ -2346,160 +1188,50 @@ export const mediaServers = {
 
 // ---- playback ---------------------------------------------------------------
 
-export type MediaItemKind = 'movie' | 'episode'
-export type PlaybackState = 'playing' | 'paused' | 'buffering'
+export type MediaItemKind = Schemas['MediaItemKind']
+export type PlaybackState = Schemas['PlaybackState']
 export type StreamDecision = 'directPlay' | 'directStream' | 'transcode'
-export type MinimumPlayUnit = 'seconds' | 'percent'
+export type MinimumPlayUnit = Schemas['MinimumPlayUnit']
 
-export type PlaybackUserRef = { id: number; name: string; thumbUrl: string | null }
+export type PlaybackUserRef = Schemas['PlaybackUserRef']
 
-export type PlaybackItemRef = {
-  id: number
-  kind: MediaItemKind
-  title: string
-  year: number | null
-  showTitle: string | null
-  seasonNumber: number | null
-  episodeNumber: number | null
-  durationMs: number | null
-  libraryTitle: string | null
-  movieId: number | null
-  /** The title the server (or Tautulli) gave, under which a film not linked is kept. Set on plays. */
-  serverTitle?: string | null
-  /** The film was chosen by hand, or unlinked by hand when `movieId` is null. */
-  linkedByHand?: boolean
-}
+export type PlaybackItemRef = Schemas['PlaybackItemRef']
 
-export type SuggestionReason = 'sameTmdbId' | 'sameImdbId' | 'tmdbSearch' | 'titleAndYear' | 'sameTitle' | 'closeTitle'
+export type SuggestionReason = Schemas['SuggestionReason']
 
 /** A library film the played item may be: why, the surest reason first, and how many versions it has. */
-export type LinkSuggestion = { movieId: number; title: string; year: number | null; posterUrl: string | null; versions: number; score: number; reasons: SuggestionReason[] }
+export type LinkSuggestion = Schemas['LinkSuggestion']
 
 /** `tmdbSearched` is false when TMDB could not be reached: the library alone was looked at. */
-export type LinkSuggestions = { itemId: number; suggestions: LinkSuggestion[]; tmdbSearched: boolean }
+export type LinkSuggestions = Schemas['LinkSuggestionsResponse']
 
-export type ItemLink = { itemId: number; movieId: number | null; versionId: number | null; linkedByHand: boolean; plays: number }
+export type ItemLink = Schemas['ItemLinkResponse']
 
 /** What the media server says about a stream: every field may be missing. */
-export type StreamDetails = {
-  playerTitle: string | null
-  playerProduct: string | null
-  playerPlatform: string | null
-  playerPlatformVersion: string | null
-  playerDevice: string | null
-  playerId: string | null
-  ipAddress: string | null
-  local: boolean | null
-  secure: boolean | null
-  relayed: boolean | null
-  bandwidth: number | null
-  decision: StreamDecision | null
-  videoDecision: string | null
-  audioDecision: string | null
-  subtitleDecision: string | null
-  hardwareTranscode: boolean | null
-  sourceContainer: string | null
-  sourceVideoResolution: string | null
-  sourceVideoCodec: string | null
-  sourceDynamicRange: string | null
-  sourceAudioCodec: string | null
-  sourceAudioChannels: number | null
-  sourceBitrate: number | null
-  streamContainer: string | null
-  streamVideoResolution: string | null
-  streamVideoCodec: string | null
-  streamAudioCodec: string | null
-  streamAudioChannels: number | null
-  streamBitrate: number | null
-  serverFilePath: string | null
-}
+export type StreamDetails = Schemas['StreamDetails']
 
 /** How a live transcode keeps up: speed 1 = real time; throttled = far enough ahead that Plex slows down (good). */
-export type PlexTranscode = {
-  speed: number | null
-  throttled: boolean | null
-  bufferedMs: number | null
-  hardwareDecoding: string | null
-  hardwareEncoding: string | null
-  protocol: string | null
-  complete: boolean | null
-}
+export type PlexTranscode = Schemas['PlexTranscode']
 
 /** Where a stream came from, looked up when shown: the local network, or a place for a public address. */
-export type PlaybackLocation = { local: boolean; city: string | null; region: string | null; country: string | null; countryCode: string | null }
+export type PlaybackLocation = Schemas['PlaybackLocation']
 
-export type PlaybackSession = {
-  id: number
-  serverId: number
-  sessionKey: string
-  user: PlaybackUserRef
-  item: PlaybackItemRef
-  state: PlaybackState
-  viewOffsetMs: number
-  startedAt: string
-  pausedSeconds: number
-  versionId: number | null
-  versionName: string | null
-  details: StreamDetails
-  transcode: PlexTranscode | null
-  /** The film's images when Bigarr manages it. */
-  posterUrl: string | null
-  fanartUrl: string | null
-  location: PlaybackLocation | null
-  /** Plex gave the stream's session id, so it can be stopped from Bigarr. */
-  canStop: boolean
-  /** How long ago the server gave `viewOffsetMs`. */
-  positionAgeMs: number
-}
+export type PlaybackSession = Schemas['PlaybackSessionResponse']
 
-export type PlaybackServerStatus = { id: number; name: string; connected: boolean; error: string | null; since: string | null }
+export type PlaybackServerStatus = Schemas['PlaybackServerStatus']
 
-export type NowPlaying = { servers: PlaybackServerStatus[]; sessions: PlaybackSession[] }
+export type NowPlaying = Schemas['NowPlayingResponse']
 
-export type Play = {
-  id: number
-  user: PlaybackUserRef
-  item: PlaybackItemRef
-  startedAt: string
-  stoppedAt: string
-  playedSeconds: number
-  pausedSeconds: number
-  maxOffsetMs: number
-  durationMs: number | null
-  watched: boolean
-  source: 'live' | 'serverHistory' | 'tautulli'
-  movieId: number | null
-  versionId: number | null
-  versionName: string | null
-  streams: number
-  decision: StreamDecision | null
-  player: string | null
-  platform: string | null
-  local: boolean | null
-}
+export type Play = Schemas['PlayResponse']
 
-export type PlaysPage = { page: number; pageSize: number; totalRecords: number; records: Play[] }
+export type PlaysPage = Schemas['PlaysPageResponse']
 
 /** `name` is the one Bigarr shows (the display name when set), `serverName` the account's on the server. */
-export type PlaybackUser = {
-  id: number
-  name: string
-  thumbUrl: string | null
-  isOwner: boolean
-  plays: number
-  /** Null: never seen play (an account the Tautulli import brought with no history). */
-  lastSeenAt: string | null
-  serverName: string
-  keepHistory: boolean
-  /** The server is still shared with them (plex.tv's list), null when not known yet. */
-  onServer: boolean | null
-  /** When plex.tv said so; null when it is the Tautulli import's idea. */
-  onServerCheckedAt: string | null
-}
+export type PlaybackUser = Schemas['PlaybackUserResponse']
 
-export type VersionPlays = { versionId: number | null; versionName: string | null; plays: number; users: number; transcodes: number; lastPlayedAt: string | null }
+export type VersionPlays = Schemas['VersionPlaysResponse']
 
-export type PlaybackSettings = { minimumPlay: number; minimumPlayUnit: MinimumPlayUnit; watchedPercent: number }
+export type PlaybackSettings = Schemas['PlaybackSettingsDto']
 
 export type PlaySortKey = 'startedAt' | 'user' | 'title' | 'version' | 'played'
 
@@ -2526,32 +1258,18 @@ export type PlaysQuery = {
 }
 
 /** Plays started in the last `days` days, or ever when null. */
-export type WatchTime = { days: number | null; plays: number; seconds: number }
+export type WatchTime = Schemas['WatchTimeResponse']
 
-export type DecisionCounts = { directPlay: number; directStream: number; transcode: number; unknown: number }
+export type DecisionCounts = Schemas['DecisionCountsResponse']
 
-export type PlaybackUserStats = {
-  id: number
-  name: string
-  displayName: string | null
-  thumbUrl: string | null
-  isOwner: boolean
-  keepHistory: boolean
-  firstSeenAt: string
-  /** Null: never seen play (an account the Tautulli import brought with no history). */
-  lastSeenAt: string | null
-  lastPlayedAt: string | null
-  watchTime: WatchTime[]
-  players: { player: string; platform: string | null; plays: number; seconds: number; lastPlayedAt: string }[]
-  decisions: DecisionCounts
-}
+export type PlaybackUserStats = Schemas['PlaybackUserStatsResponse']
 
-export type UpdatePlaybackUser = { displayName: string | null; keepHistory: boolean | null }
+export type UpdatePlaybackUser = Schemas['UpdatePlaybackUserRequest']
 
-export type TopEntry = { title: string; movieId: number | null; userId: number | null; plays: number; users: number; seconds: number; lastPlayedAt: string }
+export type TopEntry = Schemas['TopEntryResponse']
 
 /** The plays of an hour or a weekday, split by kind and by decision (plays without a stream are in `plays` only). */
-export type PlaysSplit = { plays: number; movies: number; episodes: number; directPlay: number; directStream: number; transcode: number }
+export type PlaysSplit = Schemas['PlaysSplitResponse']
 
 export type PlaybackStats = {
   days: number | null
@@ -2575,30 +1293,10 @@ export type PlaybackStats = {
 }
 
 /** One session of a play, with everything the server said about it. */
-export type PlayStream = {
-  id: number
-  startedAt: string
-  stoppedAt: string
-  startOffsetMs: number
-  endOffsetMs: number
-  pausedSeconds: number
-  filePath: string | null
-  versionId: number | null
-  versionName: string | null
-  details: StreamDetails
-  location: PlaybackLocation | null
-}
+export type PlayStream = Schemas['PlayStreamResponse']
 
 /** An address a user played from, newest first. */
-export type PlaybackAddress = {
-  ipAddress: string
-  location: PlaybackLocation | null
-  streams: number
-  firstSeenAt: string
-  lastSeenAt: string
-  lastPlayer: string | null
-  lastPlatform: string | null
-}
+export type PlaybackAddress = Schemas['PlaybackAddressResponse']
 
 export const playback = {
   nowPlaying: () => api<NowPlaying>('/api/v1/playback/sessions'),
@@ -2647,224 +1345,55 @@ export function slugify(value: string): string {
 
 // ---- series ----------------------------------------------------------------
 
-export type SeriesType = 'standard' | 'anime' | 'daily'
-export type SeriesStatus = 'upcoming' | 'continuing' | 'ended' | 'deleted'
-export type MonitoringOption = 'all' | 'future' | 'missing' | 'existing' | 'pilot' | 'firstSeason' | 'latestSeason' | 'none'
-export type NewItemMonitoring = 'all' | 'none'
+export type SeriesType = Schemas['SeriesType']
+export type SeriesStatus = Schemas['SeriesStatus']
+export type MonitoringOption = Schemas['MonitoringOption']
+export type NewItemMonitoring = Schemas['NewItemMonitoring']
 
 /** Per version: monitored and aired (or with a file), files, monitored, every episode outside the specials, bytes. */
-export type EpisodeStatistics = {
-  episodeCount: number
-  episodeFileCount: number
-  monitoredEpisodeCount: number
-  totalEpisodeCount: number
-  sizeOnDisk: number
-}
+export type EpisodeStatistics = Schemas['EpisodeStatistics']
 
-export type SeriesLookupResult = {
-  tvdbId: number | null
-  tmdbId: number | null
-  imdbId: string | null
-  title: string
-  originalTitle: string | null
-  year: number | null
-  overview: string | null
-  posterUrl: string | null
-  status: SeriesStatus
-  network: string | null
-  suggestedType: SeriesType
-  existingSeriesId: number | null
-}
+export type SeriesLookupResult = Schemas['SeriesLookupResult']
 
-export type SeriesVersionSummary = {
-  id: number
-  name: string
-  isDefault: boolean
-  monitored: boolean
-  qualityProfileId: number
-  qualityProfile: string
-  statistics: EpisodeStatistics
-  mode: VersionMode
-  rootFolderId: number
-  /** Tag ids. */
-  tags: number[]
-  monitorNewItems: NewItemMonitoring
-  /** Downloading (an active grab), missing (a monitored episode aired without a file), available, or pending (nothing aired to fetch). */
-  status: VersionStatus
-  /** The qualities of its files, best first. */
-  qualities: string[]
-  /** Null without a file; false when a file's quality is below the profile cutoff. */
-  cutoffMet: boolean | null
-}
+export type SeriesVersionSummary = Schemas['SeriesVersionSummary']
 
-export type SeriesSummary = {
-  id: number
-  tvdbId: number | null
-  tmdbId: number | null
-  title: string
-  sortTitle: string
-  year: number | null
-  status: SeriesStatus
-  network: string | null
-  seriesType: SeriesType
-  posterUrl: string | null
-  addedAt: string
-  monitored: boolean
-  seasonCount: number
-  nextAiring: string | null
-  versions: SeriesVersionSummary[]
-}
+export type SeriesSummary = Schemas['SeriesSummary']
 
-export type SeriesVersion = {
-  id: number
-  name: string
-  mode: VersionMode
-  qualityProfileId: number
-  qualityProfile: string
-  isDefault: boolean
-  monitored: boolean
-  seasonFolder: boolean
-  monitorNewItems: NewItemMonitoring
-  rootFolderId: number
-  rootFolderPath: string
-  folderName: string
-  path: string
-  createdAt: string
-  tags: number[]
-  statistics: EpisodeStatistics
-  constraints: Constraints | null
-}
+export type SeriesVersion = Schemas['SeriesVersionResponse']
 
-export type SeasonVersionState = { versionId: number; monitored: boolean; statistics: EpisodeStatistics }
+export type SeasonVersionState = Schemas['SeasonVersionState']
 
-export type Season = {
-  seasonNumber: number
-  title: string | null
-  overview: string | null
-  posterUrl: string | null
-  episodeCount: number
-  airedEpisodeCount: number
-  versions: SeasonVersionState[]
-}
+export type Season = Schemas['SeasonResponse']
 
-export type Series = {
-  id: number
-  tvdbId: number | null
-  tmdbId: number | null
-  imdbId: string | null
-  title: string
-  originalTitle: string | null
-  sortTitle: string
-  year: number | null
-  overview: string | null
-  status: SeriesStatus
-  network: string | null
-  runtime: number | null
-  airTime: string | null
-  originalCountry: string | null
-  originalLanguage: string | null
-  seriesType: SeriesType
-  ordering: EpisodeOrder
-  /** The TMDB episode group when `ordering` is one. */
-  episodeGroupId: string | null
-  episodeGroupName: string | null
-  episodeGroupType: EpisodeGroupType | null
-  /** Episodes of the order with no TVDB counterpart: listed, not tracked. */
-  orderOnlyEpisodes: OrderOnlyEpisode[] | null
-  genres: string[]
-  alternativeTitles: { title: string; language: string | null }[]
-  posterUrl: string | null
-  fanartUrl: string | null
-  firstAired: string | null
-  lastAired: string | null
-  defaultRootFolderId: number
-  addedAt: string
-  lastMetadataRefreshAt: string | null
-  monitored: boolean
-  seasons: Season[]
-  versions: SeriesVersion[]
-}
+export type Series = Schemas['SeriesResponse']
 
-export type EpisodeVersionState = { versionId: number; targetId: number; monitored: boolean; hasFile: boolean; episodeFileId: number | null }
+export type EpisodeVersionState = Schemas['EpisodeVersionState']
 
-export type Episode = {
-  /** Shared by every version of the series. */
-  id: number
-  tvdbId: number | null
-  tmdbId: number | null
-  seasonNumber: number
-  episodeNumber: number
-  absoluteEpisodeNumber: number | null
-  airDate: string | null
-  airDateUtc: string | null
-  title: string
-  overview: string | null
-  runtime: number | null
-  imageUrl: string | null
-  isSpecial: boolean
-  hasAired: boolean
-  versions: EpisodeVersionState[]
-  /** Numbers in the series' alternative order; null in the TVDB order or when the order lacks the episode. */
-  orderSeasonNumber: number | null
-  orderEpisodeNumber: number | null
-  orderAbsoluteNumber: number | null
-  /** What the page shows and the files are named after. */
-  displaySeasonNumber: number
-  displayEpisodeNumber: number
-  displayAbsoluteNumber: number | null
-  /** The series shows another order and this episode has no counterpart there. */
-  notInOrder: boolean
-}
+export type Episode = Schemas['EpisodeResponse']
 
 // ---- series order -----------------------------------------------------
 
-export type EpisodeOrder = 'tvdb' | 'tmdbDefault' | 'tmdbEpisodeGroup'
+export type EpisodeOrder = Schemas['EpisodeOrder']
 
 export type EpisodeGroupType = 'originalAirDate' | 'absolute' | 'dvd' | 'digital' | 'storyArc' | 'production' | 'tv'
 
-export type OrderOnlyEpisode = { seasonNumber: number; episodeNumber: number; absoluteNumber: number | null; title: string | null; airDate: string | null; tmdbId: number | null }
+export type OrderOnlyEpisode = Schemas['OrderOnlyEpisode']
 
-export type OrderChoice = { ordering: EpisodeOrder; episodeGroupId: string | null; episodeGroupName: string | null; episodeGroupType: EpisodeGroupType | null }
+export type OrderChoice = Schemas['OrderChoiceResponse']
 
 export type EpisodeGroup = { id: string; name: string; type: EpisodeGroupType; groupCount: number; episodeCount: number }
 
-export type OrderChange = {
-  id: number
-  from: OrderChoice
-  to: OrderChoice
-  appliedAt: string
-  undoneAt: string | null
-  /** The latest change, not undone: undo is offered until the next change. */
-  canUndo: boolean
-  filesMoved: number
-  unmatchedFiles: number
-}
+export type OrderChange = Schemas['OrderChangeResponse']
 
 export type SeriesOrders = { seriesId: number; current: OrderChoice; groups: EpisodeGroup[]; lastChange: OrderChange | null; unavailable: string | null }
 
-export type OrderFileStatus = 'move' | 'unchanged' | 'unmatched' | 'conflict'
+export type OrderFileStatus = Schemas['OrderFileStatus']
 
-export type OrderPreview = {
-  seriesId: number
-  from: OrderChoice
-  to: OrderChoice
-  episodes: number
-  episodesMoving: number
-  episodesNotInOrder: number
-  files: number
-  filesMoving: number
-  filesUnchanged: number
-  filesUnmatched: number
-  filesConflicting: number
-  largeChange: boolean
-  episodeChanges: { episodeId: number; title: string; tvdb: string; from: string; to: string | null }[]
-  fileChanges: { episodeFileId: number; versionId: number; versionName: string; episodes: string[]; from: string; to: string; status: OrderFileStatus; detail: string | null }[]
-  orderOnly: OrderOnlyEpisode[]
-}
+export type OrderPreview = Schemas['OrderPreviewResponse']
 
-export type OrderFileResult = { episodeFileId: number; from: string; to: string; moved: boolean; error: string | null }
+export type OrderFileResult = Schemas['OrderFileResult']
 
-export type OrderChoiceRequest = { ordering: EpisodeOrder; episodeGroupId?: string | null }
+export type OrderChoiceRequest = Schemas['OrderChoiceRequest']
 
 export type AddSeriesRequest = {
   tvdbId: number | null
@@ -2905,64 +1434,26 @@ export type UpdateSeriesVersionRequest = {
 export const monitoringOptions: MonitoringOption[] = ['all', 'future', 'missing', 'existing', 'pilot', 'firstSeason', 'latestSeason', 'none']
 export const seriesTypes: SeriesType[] = ['standard', 'anime', 'daily']
 
-export type UnmatchedFileReason = 'notParsable' | 'episodeNotFound' | 'ambiguous' | 'wrongSeriesType' | 'duplicate' | 'notAnEpisode'
+export type UnmatchedFileReason = Schemas['UnmatchedFileReason']
 
-export type EpisodeFile = {
-  id: number
-  versionId: number
-  relativePath: string
-  path: string
-  seasonNumber: number
-  size: number
-  dateAdded: string
-  qualityId: number
-  quality: string
-  revisionVersion: number
-  isRepack: boolean
-  releaseGroup: string | null
-  languages: string[]
-  originalReleaseTitle: string | null
-  mediaInfo: MediaInfo | null
-  episodeIds: number[]
-  /** "S01E01", "S01E02-E03". */
-  episodes: string
-}
+export type EpisodeFile = Schemas['EpisodeFileResponse']
 
-export type UnmatchedEpisodeFile = {
-  id: number
-  versionId: number
-  relativePath: string
-  path: string
-  size: number
-  reason: UnmatchedFileReason
-  detail: string | null
-  discoveredAt: string
-  lastSeenAt: string
-}
+export type UnmatchedEpisodeFile = Schemas['UnmatchedEpisodeFileResponse']
 
-export type SeriesFiles = { files: EpisodeFile[]; unmatched: UnmatchedEpisodeFile[] }
+export type SeriesFiles = Schemas['SeriesFilesResponse']
 
-export type MapSeriesFolderRequest = { seriesId?: number | null; tvdbId?: number | null; tmdbId?: number | null; qualityProfileId?: number | null }
+export type MapSeriesFolderRequest = Schemas['MapSeriesFolderRequest']
 
 /** Null fields are left untouched; `seriesType` applies to the series whatever `versions` picks. */
-export type SeriesBulkUpdateRequest = {
-  seriesIds: number[]
-  versions: VersionSelector
-  monitored?: boolean | null
-  qualityProfileId?: number | null
-  monitorNewItems?: NewItemMonitoring | null
-  tagIds?: number[] | null
-  applyTags?: TagsMode | null
-  seriesType?: SeriesType | null
-}
+export type SeriesBulkUpdateRequest = Schemas['SeriesBulkUpdateRequest']
 
-export type BulkSeriesResult = Omit<BulkMovieResult, 'movieId'> & { seriesId: number }
+export type BulkSeriesResult = Schemas['BulkSeriesResult']
 
-export type SeriesBulkResponse = { results: BulkSeriesResult[] }
+export type SeriesBulkResponse = Schemas['SeriesBulkResponse']
 
-export type SeriesBulkDeleteRequest = { seriesIds: number[]; versions: VersionSelector; deleteFiles: boolean; dryRun: boolean }
+export type SeriesBulkDeleteRequest = Schemas['SeriesBulkDeleteRequest']
 
-export type SeriesBulkDeleteResponse = { dryRun: boolean; recycleBin: string | null; results: BulkSeriesResult[] }
+export type SeriesBulkDeleteResponse = Schemas['SeriesBulkDeleteResponse']
 
 export const series = {
   list: () => api<SeriesSummary[]>('/api/v1/series'),
@@ -3002,32 +1493,9 @@ export const series = {
 
 // ---- series automation ------------------------------------------------
 
-export type SeriesWantedItem = {
-  targetId: number
-  seriesId: number
-  seriesTitle: string
-  year: number | null
-  posterUrl: string | null
-  versionId: number
-  versionName: string
-  qualityProfile: string
-  episodeId: number
-  seasonNumber: number
-  episodeNumber: number
-  absoluteEpisodeNumber: number | null
-  episodeTitle: string
-  airDateUtc: string | null
-  kind: WantedFilter
-  currentQuality: string | null
-  currentScore: number | null
-  cutoffQuality: string
-  lastSearchAt: string | null
-  searchAttempts: number
-  /** When the missing/cutoff-unmet job may search it again; null means at its next pass. */
-  nextSearchAt: string | null
-}
+export type SeriesWantedItem = Schemas['SeriesWantedItemResponse']
 
-export type SeriesWantedPage = { items: SeriesWantedItem[]; total: number; page: number; pageSize: number }
+export type SeriesWantedPage = Schemas['SeriesWantedPageResponse']
 
 export const seriesWanted = {
   list: (filter?: WantedFilter, page = 1, pageSize = 50, seriesId?: number) =>
@@ -3036,30 +1504,7 @@ export const seriesWanted = {
   search: (targetIds?: number[], filter?: WantedFilter) => post<{ queued: number }>('/api/v1/series/wanted/search', { targetIds: targetIds ?? null, filter: filter ?? null }),
 }
 
-export type HeldRelease = {
-  id: number
-  seriesId: number
-  seriesTitle: string
-  seriesYear: number | null
-  posterUrl: string | null
-  versionId: number
-  versionName: string
-  episodeIds: number[]
-  /** `S01E05`, `S01E05-E06`: TVDB numbers. */
-  episodes: string
-  title: string
-  quality: string | null
-  customFormatScore: number
-  size: number
-  seeders: number | null
-  indexer: string | null
-  publishDate: string | null
-  reason: string
-  source: string
-  heldAt: string
-  lastSeenAt: string
-  dismissedAt: string | null
-}
+export type HeldRelease = Schemas['HeldReleaseResponse']
 
 export const heldReleases = {
   list: (seriesId?: number, includeDismissed = false) =>
@@ -3069,30 +1514,9 @@ export const heldReleases = {
 }
 
 /** Sonarr's calendar legend. */
-export type CalendarStatus = 'unaired' | 'onAir' | 'missing' | 'downloading' | 'downloaded' | 'unmonitored'
+export type CalendarStatus = Schemas['CalendarStatus']
 
-export type CalendarEpisode = {
-  seriesId: number
-  seriesTitle: string
-  seriesType: SeriesType
-  network: string | null
-  posterUrl: string | null
-  versionId: number
-  versionName: string
-  isDefaultVersion: boolean
-  episodeId: number
-  seasonNumber: number
-  episodeNumber: number
-  absoluteEpisodeNumber: number | null
-  title: string
-  airDate: string | null
-  airDateUtc: string | null
-  runtime: number | null
-  monitored: boolean
-  hasFile: boolean
-  quality: string | null
-  status: CalendarStatus
-}
+export type CalendarEpisode = Schemas['CalendarEpisodeResponse']
 
 export const calendar = {
   /** `start` and `end` are UTC instants, the end excluded; at most 62 days. */

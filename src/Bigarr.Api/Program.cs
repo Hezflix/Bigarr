@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Bigarr.Api.Features.Auth;
@@ -39,6 +40,8 @@ using Bigarr.Api.Infrastructure.RadarrImport;
 using Bigarr.Api.Infrastructure.SonarrImport;
 using Bigarr.Api.Infrastructure.Xem;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -204,10 +207,36 @@ builder.Services.AddSingleton<HealthState>();
 builder.Services.AddScoped<HealthCheckService>();
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
 builder.Services.AddHealthChecks().AddDbContextCheck<BigarrDbContext>();
-builder.Services.AddOpenApi("v1");
+// System.Text.Json reads a number from a string too, so the document says "integer or string": the client only ever
+// receives numbers, and that is what its types should say.
+//
+// A response always carries every property, default value or not, so everything but a request body lists them all as
+// required: the client never has to guard against a field the server always sends.
+builder.Services.AddOpenApi("v1", o => o.AddSchemaTransformer((schema, context, _) =>
+{
+    if (schema.Properties is { Count: > 0 } properties && !context.JsonTypeInfo.Type.Name.EndsWith("Request", StringComparison.Ordinal))
+    {
+        schema.Required = new HashSet<string>(properties.Keys);
+    }
+
+    if (schema.Type is { } type && type.HasFlag(JsonSchemaType.String) && (type.HasFlag(JsonSchemaType.Integer) || type.HasFlag(JsonSchemaType.Number)))
+    {
+        schema.Type = type & ~JsonSchemaType.String;
+        schema.Pattern = null;
+    }
+
+    return Task.CompletedTask;
+}));
 builder.Services.AddSingleton<ProcessStart>();
 builder.Services.AddProblemDetails();
 builder.Services.AddBigarrResponseCompression();
+
+// The build writes the OpenAPI document by running this entry point: it needs the endpoints, not the database or the
+// background loops.
+if (Assembly.GetEntryAssembly()?.GetName().Name == "GetDocument.Insider")
+{
+    builder.Services.RemoveAll<IHostedService>();
+}
 
 var app = builder.Build();
 app.Services.GetRequiredService<ProcessStart>();
@@ -228,7 +257,7 @@ app.UseRadarrCompat();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapOpenApi(); // /openapi/v1.json — feeds the generated TypeScript client
+app.MapOpenApi(); // /openapi/v1.json, the same document the build writes for the TypeScript types
 app.MapAuth();
 app.MapApiKeys();
 app.MapSystem();
