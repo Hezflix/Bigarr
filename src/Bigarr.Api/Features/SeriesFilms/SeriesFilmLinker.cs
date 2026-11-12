@@ -31,7 +31,7 @@ public sealed record LinkPass(int Created, int Removed, int KeptAsFiles, int Fai
 /// the film already has its file, the film's wins and the special's own file goes to the recycle bin.
 /// <see cref="SeriesFilmPlanner"/> runs these rules on paper for the review page.
 /// </summary>
-public sealed class SeriesFilmLinker(BigarrDbContext db, RecycleBin recycleBin, ImportService importer, TimeProvider time, ILogger<SeriesFilmLinker> logger)
+public sealed class SeriesFilmLinker(BigarrDbContext db, RecycleBin recycleBin, ImportService importer, SeriesFilmLinkQueue queue, TimeProvider time, ILogger<SeriesFilmLinker> logger)
 {
     /// <summary>The adopted file's name in the film's folder until the film engine imports it under the film naming.</summary>
     private const string AdoptPrefix = ".bigarr-adopt-";
@@ -43,7 +43,33 @@ public sealed class SeriesFilmLinker(BigarrDbContext db, RecycleBin recycleBin, 
     public Task<LinkPass> ReconcileAllAsync(CancellationToken ct) => ReconcileAsync(l => true, ct);
 
     /// <summary>Links matching <paramref name="links"/>, plus every orphaned hardlink (rare, and their link row is gone).</summary>
+    /// <summary>
+    /// One pass at a time in the whole process: the runner, the scheduled job and the reconcile endpoint each load and
+    /// write the same links and files, and an adoption's own <c>imported</c> event starts a pass while the first is
+    /// still running. A conflict that slips through anyway (a file deleted meanwhile) is left to the next pass.
+    /// </summary>
     private async Task<LinkPass> ReconcileAsync(System.Linq.Expressions.Expression<Func<SeriesMovieLink, bool>> links, CancellationToken ct)
+    {
+        await queue.Gate.WaitAsync(ct);
+        try
+        {
+            db.ChangeTracker.Clear();
+            return await PassAsync(links, ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            logger.LogWarning(ex, "Series film links: the data changed during the pass; the next pass takes it up");
+            db.ChangeTracker.Clear();
+            queue.Enqueue(LinkWork.All);
+            return new LinkPass(0, 0, 0, 1);
+        }
+        finally
+        {
+            queue.Gate.Release();
+        }
+    }
+
+    private async Task<LinkPass> PassAsync(System.Linq.Expressions.Expression<Func<SeriesMovieLink, bool>> links, CancellationToken ct)
     {
         var config = await db.MediaManagement.AsNoTracking().FirstOrDefaultAsync(c => c.Id == MediaManagementConfig.SingletonId, ct) ?? MediaManagementConfig.Default();
         var pass = new Counter();

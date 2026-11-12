@@ -148,8 +148,10 @@ public sealed class SeriesFilmAdoptTests(BigarrApiFactory factory) : IClassFixtu
             MakeWritable(filmRoot.Path);
         }
 
-        // Fixed: the next pass adopts it.
-        Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/api/v1/series-films/links/reconcile", null)).StatusCode);
+        // Fixed: the next pass adopts it. Passes never overlap: the adoption's own imported event starts the keeper while
+        // these run, and two passes at once on the same link used to clash (a 500 on Linux).
+        var passes = await Task.WhenAll(client.PostAsync("/api/v1/series-films/links/reconcile", null), client.PostAsync("/api/v1/series-films/links/reconcile", null));
+        Assert.All(passes, p => Assert.Equal(HttpStatusCode.OK, p.StatusCode));
         var fixedRow = (await ReviewAsync(client)).Rows.Single(r => r.EpisodeId == mugen.EpisodeId);
         Assert.Null(fixedRow.LinkError);
         Assert.True(fixedRow.FilmHasFile);

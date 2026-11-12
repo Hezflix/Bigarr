@@ -26,6 +26,9 @@ public sealed class SeriesFilmLinkQueue
 
     public int Pending => _pending.Count;
 
+    /// <summary>Held by every link keeper pass (<see cref="SeriesFilmLinker"/>): passes never overlap.</summary>
+    public SemaphoreSlim Gate { get; } = new(1, 1);
+
     public void Enqueue(LinkWork work)
     {
         ArgumentNullException.ThrowIfNull(work);
