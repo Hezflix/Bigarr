@@ -60,6 +60,14 @@ public static class PlaybackEndpoints
             return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
         });
 
+        // The films not linked whose film is sure, to confirm before linking them; asked for by hand, links nothing.
+        group.MapGet("/items/sure-matches", async Task<Ok<SureMatchesResponse>> (SureMatches matches, CancellationToken ct) =>
+            TypedResults.Ok(await matches.PreviewAsync(ct)));
+
+        // Links the pairs confirmed from the sure matches; an item linked meanwhile is skipped.
+        group.MapPost("/items/links", async Task<Ok<LinkManyResponse>> (LinkManyRequest request, ItemLinks links, CancellationToken ct) =>
+            TypedResults.Ok(await links.LinkManyAsync(request, ct)));
+
         // Films of the library the item may be, for the link picker; asked for by hand, never run on its own.
         group.MapGet("/items/{id:int}/suggestions", async Task<Results<Ok<LinkSuggestionsResponse>, ProblemHttpResult>> (int id, LinkSuggestions suggestions, CancellationToken ct) =>
         {
@@ -141,6 +149,7 @@ public static class PlaybackEndpoints
         services.AddScoped<PlaybackStats>();
         services.AddScoped<ItemLinks>();
         services.AddScoped<LinkSuggestions>();
+        services.AddScoped<SureMatches>();
         services.AddScoped<PlexHistoryBackstop>();
         services.AddScoped<IScheduledJob, PlexHistoryJob>();
         services.AddScoped<ServerAccess>();

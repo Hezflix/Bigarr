@@ -70,34 +70,46 @@ public sealed class LinkSuggestions(BigarrDbContext db, IMetadataProvider metada
         }
 
         var facts = new ItemFacts(item.Title, item.OriginalTitle, item.Year, item.TmdbId, item.ImdbId);
+        var films = await FilmsAsync(ct);
+        var (hits, searched) = await SearchTmdbAsync(facts, ct);
+        var suggestions = await WithPostersAsync(Rank(facts, films, hits), ct);
+        return Result<LinkSuggestionsResponse>.Ok(new LinkSuggestionsResponse(itemId, suggestions, searched));
+    }
+
+    /// <summary>Every library film with the titles it goes by, read once for any number of items.</summary>
+    public async Task<List<Film>> FilmsAsync(CancellationToken ct)
+    {
         var rows = await db.Movies.AsNoTracking()
             .Select(m => new { m.Id, m.TmdbId, m.ImdbId, m.Title, m.OriginalTitle, m.Year, m.AlternativeTitles })
             .ToListAsync(ct);
-        var films = rows.Select(m => new Film(m.Id, m.TmdbId, m.ImdbId, m.Title, m.OriginalTitle, m.Year, m.AlternativeTitles.Select(a => a.Title).ToList())).ToList();
+        return rows.Select(m => new Film(m.Id, m.TmdbId, m.ImdbId, m.Title, m.OriginalTitle, m.Year, m.AlternativeTitles.Select(a => a.Title).ToList())).ToList();
+    }
 
-        var (hits, searched) = await SearchTmdbAsync(facts, ct);
-        var ranked = Rank(facts, films, hits);
+    /// <summary>The suggestions with each film's poster and number of versions.</summary>
+    public async Task<List<LinkSuggestion>> WithPostersAsync(List<LinkSuggestion> ranked, CancellationToken ct)
+    {
         if (ranked.Count == 0)
         {
-            return Result<LinkSuggestionsResponse>.Ok(new LinkSuggestionsResponse(itemId, [], searched));
+            return ranked;
         }
 
-        var ids = ranked.Select(r => r.MovieId).ToList();
+        var ids = ranked.Select(r => r.MovieId).Distinct().ToList();
         var extra = await db.Movies.AsNoTracking()
             .Where(m => ids.Contains(m.Id))
             .Select(m => new { m.Id, m.Images, Versions = db.MovieVersions.Count(v => v.MovieId == m.Id) })
             .ToDictionaryAsync(m => m.Id, ct);
-        var suggestions = ranked.Select(r => r with
+        return ranked.Select(r => r with
         {
             PosterUrl = extra[r.MovieId].Images.FirstOrDefault(i => i.Type == ImageType.Poster)?.RemoteUrl,
             Versions = extra[r.MovieId].Versions,
         }).ToList();
-        return Result<LinkSuggestionsResponse>.Ok(new LinkSuggestionsResponse(itemId, suggestions, searched));
     }
 
     /// <summary>TMDB's films for the item's titles, the year's first; nothing (and false) when TMDB cannot be reached.</summary>
-    private async Task<(List<MovieMetadata> Hits, bool Searched)> SearchTmdbAsync(ItemFacts facts, CancellationToken ct)
+    public async Task<(List<MovieMetadata> Hits, bool Searched)> SearchTmdbAsync(ItemFacts facts, CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(facts);
+
         var hits = new List<MovieMetadata>();
         try
         {
@@ -113,6 +125,44 @@ public sealed class LinkSuggestions(BigarrDbContext db, IMetadataProvider metada
         }
 
         return (hits, true);
+    }
+
+    /// <summary>How far a sure match must lead the runner-up: a close second means the owner should choose.</summary>
+    public const int SureLead = 15;
+
+    /// <summary>
+    /// The best suggestion when it is sure enough to link without looking, else null. Sure is: the item's TMDB or IMDb id
+    /// is the film's (and the runner-up has no id of its own), or its title, or TMDB's search for it, found the film with
+    /// the very same year; and the film leads the runner-up by <see cref="SureLead"/> points at least. A year off by one,
+    /// an item without a year, a close title or a same title alone are never sure: those stay for the picker.
+    /// </summary>
+    public static LinkSuggestion? Sure(ItemFacts item, IReadOnlyList<Film> films, IReadOnlyList<LinkSuggestion> ranked)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(films);
+        ArgumentNullException.ThrowIfNull(ranked);
+
+        if (ranked.Count == 0)
+        {
+            return null;
+        }
+
+        var best = ranked[0];
+        var second = ranked.Count > 1 ? ranked[1] : null;
+        static bool ById(LinkSuggestion s) => s.Reasons.Contains(SuggestionReason.SameTmdbId) || s.Reasons.Contains(SuggestionReason.SameImdbId);
+        if (ById(best))
+        {
+            return second is not null && ById(second) ? null : best;
+        }
+
+        var year = films.FirstOrDefault(f => f.Id == best.MovieId)?.Year;
+        var found = best.Reasons.Contains(SuggestionReason.TitleAndYear) || best.Reasons.Contains(SuggestionReason.TmdbSearch);
+        if (!found || item.Year is null || year != item.Year)
+        {
+            return null;
+        }
+
+        return second is null || best.Score - second.Score >= SureLead ? best : null;
     }
 
     /// <summary>

@@ -1207,6 +1207,17 @@ export type LinkSuggestions = Schemas['LinkSuggestionsResponse']
 
 export type ItemLink = Schemas['ItemLinkResponse']
 
+/** A film not linked whose film is sure, and the plays it carries. */
+export type SureMatch = Schemas['SureMatch']
+
+/** `withoutSureMatch`: the films not linked left for the picker. */
+export type SureMatches = Schemas['SureMatchesResponse']
+
+export type ItemFilmPair = Schemas['ItemFilmPair']
+
+/** `skipped`: items linked meanwhile, gone or not films. */
+export type LinkMany = Schemas['LinkManyResponse']
+
 /** What the media server says about a stream: every field may be missing. */
 export type StreamDetails = Schemas['StreamDetails']
 
@@ -1320,6 +1331,8 @@ export const playback = {
   /** Asked for by hand from the link picker; never run on its own. */
   linkSuggestions: (itemId: number) => api<LinkSuggestions>(`/api/v1/playback/items/${itemId}/suggestions`),
   linkItem: (itemId: number, movieId: number | null, versionId: number | null = null) => put<ItemLink>(`/api/v1/playback/items/${itemId}/link`, { movieId, versionId }),
+  sureMatches: () => api<SureMatches>('/api/v1/playback/items/sure-matches'),
+  linkMany: (links: ItemFilmPair[]) => post<LinkMany>('/api/v1/playback/items/links', { links }),
   stats: (days: number | null, userId: number | null = null) =>
     api<PlaybackStats>(
       `/api/v1/playback/stats?${new URLSearchParams({ ...(days === null ? {} : { days: String(days) }), ...(userId === null ? {} : { userId: String(userId) }), tz: Intl.DateTimeFormat().resolvedOptions().timeZone })}`,

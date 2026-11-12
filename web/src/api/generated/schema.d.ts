@@ -6717,6 +6717,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/playback/items/sure-matches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SureMatchesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/playback/items/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LinkManyRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LinkManyResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/playback/items/{id}/suggestions": {
         parameters: {
             query?: never;
@@ -9005,6 +9079,12 @@ export interface components {
             tvCategories: null | number[];
             animeCategories: null | number[];
         };
+        ItemFilmPair: {
+            /** Format: int32 */
+            itemId: number;
+            /** Format: int32 */
+            movieId: number;
+        };
         ItemLinkResponse: {
             /** Format: int32 */
             itemId: number;
@@ -9022,6 +9102,13 @@ export interface components {
             movieId: null | number;
             /** Format: int32 */
             versionId: null | number;
+        };
+        LinkManyRequest: {
+            links: components["schemas"]["ItemFilmPair"][];
+        };
+        LinkManyResponse: {
+            linked: components["schemas"]["ItemLinkResponse"][];
+            skipped: number[];
         };
         LinkSuggestion: {
             /** Format: int32 */
@@ -11432,6 +11519,25 @@ export interface components {
         };
         /** @enum {unknown} */
         SuggestionReason: "sameTmdbId" | "sameImdbId" | "tmdbSearch" | "titleAndYear" | "sameTitle" | "closeTitle";
+        SureMatch: {
+            item: components["schemas"]["SureMatchItem"];
+            film: components["schemas"]["LinkSuggestion"];
+        };
+        SureMatchesResponse: {
+            matches: components["schemas"]["SureMatch"][];
+            /** Format: int32 */
+            withoutSureMatch: number;
+            tmdbSearched: boolean;
+        };
+        SureMatchItem: {
+            /** Format: int32 */
+            id: number;
+            title: string;
+            /** Format: int32 */
+            year: null | number;
+            /** Format: int32 */
+            plays: number;
+        };
         SystemStatusResponse: {
             appName: string;
             version: string;
