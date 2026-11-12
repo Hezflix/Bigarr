@@ -181,10 +181,10 @@ function HealthBadge() {
         'ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-medium tabular-nums group-data-[collapsible=icon]:hidden',
         hasError ? 'bg-red-500/15 text-red-700 dark:text-red-300' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
       )}
-      aria-label={t('health.badge', { count: issues.length })}
       data-testid="health-badge"
     >
-      {issues.length}
+      <span aria-hidden="true">{issues.length}</span>
+      <span className="sr-only">{t('health.badge', { count: issues.length })}</span>
     </span>
   )
 }

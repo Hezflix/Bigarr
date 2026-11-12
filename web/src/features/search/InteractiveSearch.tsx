@@ -115,21 +115,23 @@ export function InteractiveSearch({ movie }: { movie: Movie }) {
     <section className="flex flex-col gap-3" data-testid="interactive-search">
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-xl font-semibold tracking-tight">{t('search.title')}</h2>
-        <form onSubmit={submit} className="ml-auto flex flex-wrap items-center gap-2" role="search">
-          <Input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={t('search.queryPlaceholder')}
-            aria-label={t('search.queryLabel')}
-            maxLength={200}
-            className="w-72"
-            data-testid="search-query"
-          />
-          <Button type="submit" disabled={query.isFetching || movie.versions.length === 0} data-testid="search-run">
-            <SearchIcon className={query.isFetching ? 'animate-pulse' : undefined} />
-            {query.isFetching ? t('search.searching') : submitted !== null && submitted === text.trim() ? t('search.searchAgain') : t('search.search')}
-          </Button>
-        </form>
+        <search className="ml-auto">
+          <form onSubmit={submit} className="flex flex-wrap items-center gap-2">
+            <Input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={t('search.queryPlaceholder')}
+              aria-label={t('search.queryLabel')}
+              maxLength={200}
+              className="w-72"
+              data-testid="search-query"
+            />
+            <Button type="submit" disabled={query.isFetching || movie.versions.length === 0} data-testid="search-run">
+              <SearchIcon className={query.isFetching ? 'animate-pulse' : undefined} />
+              {query.isFetching ? t('search.searching') : submitted !== null && submitted === text.trim() ? t('search.searchAgain') : t('search.search')}
+            </Button>
+          </form>
+        </search>
       </div>
 
       {submitted === null && <p className="text-sm text-muted-foreground">{t('search.hint')}</p>}

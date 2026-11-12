@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { AudioLinesIcon, CaptionsIcon, ChevronDownIcon, FilmIcon, GaugeIcon, LayoutGridIcon, ListIcon, LoaderIcon, PackageIcon, PauseIcon, PlayIcon, SquareIcon } from 'lucide-react'
@@ -85,16 +85,18 @@ export function NowPlayingPage() {
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">{t('playback.nowTitle')}</h1>
         {data && data.sessions.length > 0 && <Badge variant="secondary">{t('playback.streams', { count: data.sessions.length })}</Badge>}
-        <div className="ml-auto flex rounded-md border p-0.5" role="group" aria-label={t('playback.view')}>
-          <Button size="sm" variant={view === 'cards' ? 'secondary' : 'ghost'} className="h-7 gap-1.5" aria-pressed={view === 'cards'} onClick={() => choose('cards')} data-testid="view-cards">
-            <LayoutGridIcon className="size-3.5" />
-            {t('playback.viewCards')}
-          </Button>
-          <Button size="sm" variant={view === 'rows' ? 'secondary' : 'ghost'} className="h-7 gap-1.5" aria-pressed={view === 'rows'} onClick={() => choose('rows')} data-testid="view-rows">
-            <ListIcon className="size-3.5" />
-            {t('playback.viewRows')}
-          </Button>
-        </div>
+        <fieldset className="ml-auto shrink-0" aria-label={t('playback.view')}>
+          <div className="flex rounded-md border p-0.5">
+            <Button size="sm" variant={view === 'cards' ? 'secondary' : 'ghost'} className="h-7 gap-1.5" aria-pressed={view === 'cards'} onClick={() => choose('cards')} data-testid="view-cards">
+              <LayoutGridIcon className="size-3.5" />
+              {t('playback.viewCards')}
+            </Button>
+            <Button size="sm" variant={view === 'rows' ? 'secondary' : 'ghost'} className="h-7 gap-1.5" aria-pressed={view === 'rows'} onClick={() => choose('rows')} data-testid="view-rows">
+              <ListIcon className="size-3.5" />
+              {t('playback.viewRows')}
+            </Button>
+          </div>
+        </fieldset>
       </div>
 
       {query.isPending && <Skeleton className="h-40 w-full" />}
@@ -154,7 +156,7 @@ function Title({ session }: { session: PlaybackSession }) {
 
 function PosterImage({ session, width, className }: { session: PlaybackSession; width: number; className: string }) {
   return session.posterUrl ? (
-    <img src={sizedImage(session.posterUrl, width)} onError={hideBroken} alt="" className={cn('aspect-[2/3] shrink-0 rounded-md object-cover shadow-sm', className)} />
+    <img src={sizedImage(session.posterUrl, width)} onError={hideBroken} alt="" aria-hidden="true" className={cn('aspect-[2/3] shrink-0 rounded-md object-cover shadow-sm', className)} />
   ) : (
     <div className={cn('flex aspect-[2/3] shrink-0 items-center justify-center rounded-md bg-muted text-xs font-semibold text-muted-foreground', className)} aria-hidden="true">
       {session.item.title.slice(0, 2).toUpperCase()}
@@ -339,7 +341,7 @@ function StopButton({ session, onStop, className }: { session: PlaybackSession; 
 function Avatar({ name, url, className }: { name: string; url: string | null; className?: string }) {
   const [broken, setBroken] = useState(false)
   return url && !broken ? (
-    <img src={url} alt="" className={cn('size-8 shrink-0 rounded-full object-cover', className)} onError={() => setBroken(true)} />
+    <img src={url} alt="" aria-hidden="true" className={cn('size-8 shrink-0 rounded-full object-cover', className)} onError={() => setBroken(true)} />
   ) : (
     <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground', className)} aria-hidden="true">
       {name.slice(0, 1).toUpperCase()}
@@ -351,6 +353,7 @@ function Avatar({ name, url, className }: { name: string; url: string | null; cl
 function SessionRows({ sessions, live, onStop }: { sessions: PlaybackSession[]; live: Live; onStop: (session: PlaybackSession) => void }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState<number | null>(null)
+  const rowsId = useId()
 
   return (
     <div className="divide-y overflow-hidden rounded-lg border" data-testid="now-playing-rows">
@@ -360,37 +363,40 @@ function SessionRows({ sessions, live, onStop }: { sessions: PlaybackSession[]; 
         const position = live.positionOf(session)
         return (
           <div key={session.id} className="relative" data-session={session.id}>
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={(e) => !(e.target as HTMLElement).closest('a') && setOpen(expanded ? null : session.id)}
-              onKeyDown={(e) => {
-                if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
-                  e.preventDefault()
-                  setOpen(expanded ? null : session.id)
-                }
-              }}
-              aria-expanded={expanded}
-              className="flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted/50"
-            >
-              <PosterImage session={session} width={92} className="w-7 rounded-sm" />
-              <StateIcon session={session} className="size-3.5" />
-              <span className="w-24 shrink-0 truncate">{session.user.name}</span>
-              <span className="min-w-0 flex-1 truncate font-medium">
-                <Title session={session} />
-              </span>
-              {session.versionName && <Badge variant="secondary">{session.versionName}</Badge>}
-              <span className="hidden w-28 sm:block">
-                <DecisionBadge decision={d.decision} />
-              </span>
-              <span className="hidden w-36 lg:block">
-                <LiveProgress session={session} live={live} className="h-1.5" />
-              </span>
-              <Times session={session} live={live} className="hidden w-24 text-right text-xs tabular-nums text-muted-foreground md:block">
-                {t('playback.left', { time: formatOffset(remainingMs(session, position)) })}
-              </Times>
-              <span className="hidden w-20 text-right text-xs tabular-nums text-muted-foreground md:block">{d.bandwidth !== null && t('playback.mbps', { value: (d.bandwidth / 1000).toFixed(1) })}</span>
-              <ChevronDownIcon className={cn('size-4 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-180')} />
+            {/*
+              The row toggles through a real button under it; the row's content is that button's <label>, so a click
+              anywhere on it toggles too, while the title link inside still navigates (a label does not activate its
+              control for a click on a link) and the time left keeps its tooltip.
+            */}
+            <div className="relative hover:bg-muted/50">
+              <button
+                id={`${rowsId}-${session.id}`}
+                type="button"
+                aria-expanded={expanded}
+                aria-label={`${session.user.name} · ${itemLabel(session.item)}`}
+                onClick={() => setOpen(expanded ? null : session.id)}
+                className="absolute inset-0 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+              />
+              <label htmlFor={`${rowsId}-${session.id}`} className="relative flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left text-sm">
+                <PosterImage session={session} width={92} className="w-7 rounded-sm" />
+                <StateIcon session={session} className="size-3.5" />
+                <span className="w-24 shrink-0 truncate">{session.user.name}</span>
+                <span className="min-w-0 flex-1 truncate font-medium">
+                  <Title session={session} />
+                </span>
+                {session.versionName && <Badge variant="secondary">{session.versionName}</Badge>}
+                <span className="hidden w-28 sm:block">
+                  <DecisionBadge decision={d.decision} />
+                </span>
+                <span className="hidden w-36 lg:block">
+                  <LiveProgress session={session} live={live} className="h-1.5" />
+                </span>
+                <Times session={session} live={live} className="hidden w-24 text-right text-xs tabular-nums text-muted-foreground md:block">
+                  {t('playback.left', { time: formatOffset(remainingMs(session, position)) })}
+                </Times>
+                <span className="hidden w-20 text-right text-xs tabular-nums text-muted-foreground md:block">{d.bandwidth !== null && t('playback.mbps', { value: (d.bandwidth / 1000).toFixed(1) })}</span>
+                <ChevronDownIcon className={cn('size-4 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-180')} />
+              </label>
             </div>
             {expanded && (
               <div className="grid gap-4 bg-muted/30 py-3 pr-4 pl-12 md:grid-cols-2">
