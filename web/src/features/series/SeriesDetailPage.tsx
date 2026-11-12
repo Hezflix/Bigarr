@@ -380,8 +380,8 @@ function ConstraintsSummary({ version }: { version: SeriesVersion }) {
   const parts = [
     c.edition ? t('seriesDetail.titlePattern', { value: c.edition }) : null,
     c.releaseGroup ? t('versions.group', { value: c.releaseGroup }) : null,
-    (c.requiredCustomFormatIds?.length ?? 0) > 0 ? t('seriesDetail.requiredCount', { count: c.requiredCustomFormatIds!.length }) : null,
-    (c.forbiddenCustomFormatIds?.length ?? 0) > 0 ? t('seriesDetail.forbiddenCount', { count: c.forbiddenCustomFormatIds!.length }) : null,
+    c.requiredCustomFormatIds?.length ? t('seriesDetail.requiredCount', { count: c.requiredCustomFormatIds.length }) : null,
+    c.forbiddenCustomFormatIds?.length ? t('seriesDetail.forbiddenCount', { count: c.forbiddenCustomFormatIds.length }) : null,
   ].filter(Boolean)
   return (
     <span className="text-xs text-muted-foreground" data-testid="version-constraints-summary">
@@ -551,7 +551,7 @@ function AddVersionDialog({ series: s, open, onOpenChange, onDone }: { series: S
   const effectiveName = name.trim() || (profile ? seriesVersionName(profile.name) : '')
 
   const add = useMutation({
-    mutationFn: () => seriesApi.addVersion(s.id, { name: effectiveName, qualityProfileId: profile!.id, monitor }),
+    mutationFn: () => seriesApi.addVersion(s.id, { name: effectiveName, qualityProfileId: profile?.id ?? 0, monitor }),
     onSuccess: (created) => {
       onOpenChange(false)
       setName('')
@@ -937,6 +937,7 @@ function EpisodeTable({
         {episodes.map((episode) => {
           const state = episode.versions.find((v) => v.versionId === version.id)
           const monitored = state?.monitored ?? false
+          const file = files.get(episode.id)
           return (
             <TableRow key={episode.id} data-testid="episode" className={cn(!episode.hasAired && 'text-muted-foreground')}>
               <TableCell className="py-1.5 pl-4">
@@ -966,13 +967,13 @@ function EpisodeTable({
                 <EpisodeFileCell file={files.get(episode.id)} episode={episode} />
               </TableCell>
               <TableCell className="py-1 pr-4 whitespace-nowrap text-right">
-                {episode.notInOrder && files.get(episode.id) && (
+                {episode.notInOrder && file && (
                   <Button
                     type="button"
                     size="icon"
                     variant="ghost"
                     className="size-7 text-amber-700 dark:text-amber-300"
-                    onClick={() => setFixing(files.get(episode.id)!)}
+                    onClick={() => setFixing(file)}
                     aria-label={t('seriesOrder.fix')}
                     title={t('seriesOrder.fix')}
                     data-testid="episode-file-fix"
@@ -980,7 +981,7 @@ function EpisodeTable({
                     <WrenchIcon />
                   </Button>
                 )}
-                {files.get(episode.id) && <EpisodeFileActions seriesId={s.id} file={files.get(episode.id)!} onChanged={onChanged} />}
+                {file && <EpisodeFileActions seriesId={s.id} file={file} onChanged={onChanged} />}
                 <Button
                   type="button"
                   size="icon"

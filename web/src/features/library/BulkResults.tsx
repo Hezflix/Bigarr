@@ -33,7 +33,7 @@ const outcomeVariant: Record<BulkOutcome, 'secondary' | 'destructive' | 'outline
 export function countOutcomes(results: BulkItemResult[]) {
   const counts = new Map<BulkOutcome, number>()
   for (const r of results) counts.set(r.outcome, (counts.get(r.outcome) ?? 0) + 1)
-  return outcomeOrder.filter((o) => counts.has(o)).map((outcome) => ({ outcome, count: counts.get(outcome)! }))
+  return outcomeOrder.filter((o) => counts.has(o)).map((outcome) => ({ outcome, count: counts.get(outcome) ?? 0 }))
 }
 
 /** "Updated 98 · Unchanged 12 · Skipped 2" */

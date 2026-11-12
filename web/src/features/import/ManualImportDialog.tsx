@@ -33,7 +33,7 @@ export function ManualImportDialog({ grabId, path: initialPath, title, onClose }
 
   const listing = useQuery({
     queryKey: ['manualImport', grabId ?? null, grabId ? null : loadedPath],
-    queryFn: () => manualImport.list(grabId ? { grabId } : { path: loadedPath! }),
+    queryFn: () => manualImport.list(grabId ? { grabId } : { path: loadedPath ?? '' }),
     enabled: !!grabId || !!loadedPath,
     retry: false,
     staleTime: Number.POSITIVE_INFINITY,
@@ -63,9 +63,8 @@ export function ManualImportDialog({ grabId, path: initialPath, title, onClose }
 
   const sortedMovies = useMemo(() => [...(library.data ?? [])].sort((a, b) => a.sortTitle.localeCompare(b.sortTitle)), [library.data])
 
-  const items: ManualImportItem[] = Object.entries(selections)
-    .filter(([, s]) => s.selected && s.versionId !== null)
-    .map(([filePath, s]) => ({ path: filePath, versionId: s.versionId!, qualityId: s.qualityId, grabId: grabId ?? null, extraPaths: s.extras }))
+  const items: ManualImportItem[] = Object.entries(selections).flatMap(([filePath, s]) =>
+    !s.selected || s.versionId === null ? [] : [{ path: filePath, versionId: s.versionId, qualityId: s.qualityId, grabId: grabId ?? null, extraPaths: s.extras }])
 
   const run = useMutation({
     mutationFn: () => manualImport.import(items, mode === 'default' ? null : mode),

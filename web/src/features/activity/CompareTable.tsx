@@ -387,7 +387,8 @@ function RadarrViewText({ pick, tmdbId }: { pick: ComparePick; tmdbId: number })
 /** Radarr grabbed, Bigarr did not: whether its feeds ever carried the release, and what it thought of it. */
 function RadarrOnlyWhy({ row }: { row: CompareRow }) {
   const { t } = useTranslation()
-  const grab = row.radarr!
+  const grab = row.radarr
+  if (!grab) return null
   const sighting = row.sighting
   const verdict = sighting?.verdict
   return (
@@ -437,7 +438,7 @@ function BigarrOnlyWhy({ row }: { row: CompareRow }) {
   return (
     <Card title={t('compare.whyNotRadarr')} tone="radarr">
       <Field label={t('compare.radarrSays')}>
-        <RadarrViewText pick={row.bigarr!} tmdbId={row.tmdbId} />
+        {row.bigarr && <RadarrViewText pick={row.bigarr} tmdbId={row.tmdbId} />}
       </Field>
       <p className="text-xs text-muted-foreground">{t('compare.bigarrOnlyHint')}</p>
     </Card>

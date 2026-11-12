@@ -285,7 +285,7 @@ function FollowedSonarrDialog({ sonarr, onClose, onSaved }: { sonarr: FollowedSo
   const set = <K extends keyof FollowedSonarrRequest>(key: K, value: FollowedSonarrRequest[K]) => setForm((f) => ({ ...f, [key]: value }))
 
   const keyTyped = (form.apiKey ?? '').trim().length > 0 && form.apiKey !== KEY_MASK
-  const payload = (): FollowedSonarrRequest => ({ ...form, name: form.name.trim(), url: form.url.trim(), apiKey: keyTyped ? form.apiKey!.trim() : KEY_MASK, versionName: form.versionName.trim() })
+  const payload = (): FollowedSonarrRequest => ({ ...form, name: form.name.trim(), url: form.url.trim(), apiKey: keyTyped ? (form.apiKey ?? '').trim() : KEY_MASK, versionName: form.versionName.trim() })
 
   // A saved Sonarr whose URL and key are untouched is read with its stored key: the key never comes back to the browser.
   const load = useMutation({

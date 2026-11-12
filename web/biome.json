@@ -32,6 +32,9 @@
       "a11y": "warn",
       "suspicious": {
         "noArrayIndexKey": "warn"
+      },
+      "style": {
+        "noNonNullAssertion": "error"
       }
     }
   },

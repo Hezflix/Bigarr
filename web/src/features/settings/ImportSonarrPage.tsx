@@ -199,7 +199,7 @@ function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: Son
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {preview.customFormats!.map((f) => (
+                {(preview.customFormats ?? []).map((f) => (
                   <TableRow key={f.sonarrId}>
                     <TableCell className="font-medium">{f.sonarrName}</TableCell>
                     <TableCell>
