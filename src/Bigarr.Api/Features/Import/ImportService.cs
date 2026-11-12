@@ -57,7 +57,9 @@ public sealed record ImportPlan(
     /// <summary>What the download client reported (folder or file), for the extra files. Null: judged from the video's folder.</summary>
     string? ReleasePath = null,
     /// <summary>The extra files picked in the manual import, exactly; null finds them per the media management settings.</summary>
-    IReadOnlyList<string>? ExtraPaths = null);
+    IReadOnlyList<string>? ExtraPaths = null,
+    /// <summary>A series special's file the film adopts (specials as films): journaled with the import.</summary>
+    string? AdoptedFrom = null);
 
 /// <summary>
 /// Completed download handling: find the video in what the client wrote, attach it to its version (the grab
@@ -485,6 +487,11 @@ public sealed class ImportService(
         if (plan.Force)
         {
             data["manual"] = "true";
+        }
+
+        if (plan.AdoptedFrom is not null)
+        {
+            data["adoptedFrom"] = plan.AdoptedFrom;
         }
 
         if (plan.Grab is not null)

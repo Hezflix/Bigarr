@@ -26,10 +26,16 @@ public sealed record LinkPass(int Created, int Removed, int KeptAsFiles, int Fai
 /// episode file (still one copy on disk); one whose film file is gone is removed.</item>
 /// </list>
 /// Never a copy: when the hardlink fails (two filesystems, a bind mount), the link records why and health reports it.
-/// A plain file the special had before it was linked goes to the recycle bin once the film's file replaces it.
+/// A plain file the special has of its own is <b>adopted</b> when the film has none: it is moved into the film's folder
+/// (a rename on the same filesystem, never a copy) and imported there by the film engine, then hardlinked back. When
+/// the film already has its file, the film's wins and the special's own file goes to the recycle bin.
+/// <see cref="SeriesFilmPlanner"/> runs these rules on paper for the review page.
 /// </summary>
-public sealed class SeriesFilmLinker(BigarrDbContext db, RecycleBin recycleBin, TimeProvider time, ILogger<SeriesFilmLinker> logger)
+public sealed class SeriesFilmLinker(BigarrDbContext db, RecycleBin recycleBin, ImportService importer, TimeProvider time, ILogger<SeriesFilmLinker> logger)
 {
+    /// <summary>The adopted file's name in the film's folder until the film engine imports it under the film naming.</summary>
+    private const string AdoptPrefix = ".bigarr-adopt-";
+
     public Task<LinkPass> ReconcileMovieAsync(int movieId, CancellationToken ct) => ReconcileAsync(l => l.MovieId == movieId, ct);
 
     public Task<LinkPass> ReconcileSeriesAsync(int seriesId, CancellationToken ct) => ReconcileAsync(l => l.SeriesId == seriesId, ct);
@@ -90,6 +96,13 @@ public sealed class SeriesFilmLinker(BigarrDbContext db, RecycleBin recycleBin, 
         return File.Exists(path) ? (file, path) : null;
     }
 
+    /// <summary>What the series naming needs to know of the film's file.</summary>
+    public static EpisodeFileFacts FactsOf(Bigarr.Domain.Movies.MediaFile file, string path)
+    {
+        ArgumentNullException.ThrowIfNull(file);
+        return new EpisodeFileFacts(file.Quality?.Name, file.Revision.Version, file.Revision.Real, file.Revision.IsRepack, file.ReleaseGroup, file.Languages, file.MediaInfo, [], file.OriginalReleaseTitle, Path.GetFileNameWithoutExtension(path));
+    }
+
     private async Task ReconcileLinkAsync(SeriesMovieLink link, MediaManagementConfig config, Counter pass, CancellationToken ct)
     {
         var source = SourceOf(link.Movie);
@@ -100,6 +113,19 @@ public sealed class SeriesFilmLinker(BigarrDbContext db, RecycleBin recycleBin, 
             .ToListAsync(ct);
 
         string? failure = null;
+        if (source is null && link.Movie.Versions.FirstOrDefault(v => v.IsDefault) is { } filmVersion
+            && SeriesFilmPlanner.Adoptable(link.Series.Versions, targets, link.EpisodeId, (t, _) => t.Monitored) is { } adoption)
+        {
+            failure = await AdoptAsync(link, filmVersion, adoption, pass, ct);
+            source = SourceOf(link.Movie);
+            if (failure is not null)
+            {
+                link.LinkError = failure;
+                link.LinkErrorAt = time.GetUtcNow().UtcDateTime;
+                return;
+            }
+        }
+
         foreach (var version in link.Series.Versions)
         {
             var target = targets.FirstOrDefault(t => t.VersionId == version.Id);
@@ -122,7 +148,7 @@ public sealed class SeriesFilmLinker(BigarrDbContext db, RecycleBin recycleBin, 
             }
 
             var extension = Path.GetExtension(src.Path);
-            var facts = new EpisodeFileFacts(src.File.Quality?.Name, src.File.Revision.Version, src.File.Revision.Real, src.File.Revision.IsRepack, src.File.ReleaseGroup, src.File.Languages, src.File.MediaInfo, [], src.File.OriginalReleaseTitle, Path.GetFileNameWithoutExtension(src.Path));
+            var facts = FactsOf(src.File, src.Path);
             var relative = SeriesNaming.RelativePath(config, link.Series, version, [link.Episode], facts, extension, Path.GetFileName(src.Path));
             var destination = Path.Combine(folder, relative);
 
@@ -153,6 +179,12 @@ public sealed class SeriesFilmLinker(BigarrDbContext db, RecycleBin recycleBin, 
             else if (current is { IsFilmLink: true })
             {
                 RemoveLinkedFile(current, target, folder, pass);
+            }
+
+            if (current is not null)
+            {
+                // The new hardlink's row may take the old one's name (a re-import keeping its name): the removal goes first.
+                await db.SaveChangesAsync(ct);
             }
 
             if (File.Exists(destination))
@@ -195,6 +227,123 @@ public sealed class SeriesFilmLinker(BigarrDbContext db, RecycleBin recycleBin, 
 
         link.LinkError = failure;
         link.LinkErrorAt = failure is null ? null : time.GetUtcNow().UtcDateTime;
+    }
+
+    /// <summary>
+    /// The film has no file and the special has one of its own: it becomes the film's file. A hardlink under a hidden
+    /// name in the film's folder (refused across filesystems: never a copy), imported there by the film engine with a
+    /// move (a rename in the same folder) under the film naming, with its quality and media info; then the special's
+    /// own name goes and the keeper hardlinks the film's file back. Null when done, else why (the special is untouched).
+    /// </summary>
+    private async Task<string?> AdoptAsync(SeriesMovieLink link, Bigarr.Domain.Movies.MovieVersion filmVersion, SeriesFilmPlanner.Adoption adoption, Counter pass, CancellationToken ct)
+    {
+        var filmFolder = Path.Combine(filmVersion.RootFolder.Path, filmVersion.FolderName);
+        var createdFolder = !Directory.Exists(filmFolder);
+        var staging = Path.Combine(filmFolder, AdoptPrefix + Guid.NewGuid().ToString("N") + Path.GetExtension(adoption.Path));
+        string? reason;
+        try
+        {
+            Directory.CreateDirectory(filmFolder);
+            if (!FileTransfer.TryHardlink(adoption.Path, staging, out reason))
+            {
+                reason = $"{adoption.Version.Name}: cannot move {adoption.Path} into {filmFolder} ({reason}); not copied, the special keeps its file";
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            reason = $"{adoption.Version.Name}: cannot move {adoption.Path} into {filmFolder} ({ex.Message}); not copied, the special keeps its file";
+        }
+
+        if (reason is not null)
+        {
+            CleanUp(null, createdFolder ? filmFolder : null);
+            logger.LogWarning("Series film link {LinkId}: {Failure}", link.Id, reason);
+            pass.Failed++;
+            return reason;
+        }
+
+        var file = adoption.File;
+        var version = await importer.LoadVersionAsync(filmVersion.Id, ct);
+        if (version is null)
+        {
+            CleanUp(staging, createdFolder ? filmFolder : null);
+            return "the film's default version is gone";
+        }
+
+        var quality = new Bigarr.Parsing.Qualities.QualityModel(
+            Bigarr.Parsing.Qualities.Quality.All.FirstOrDefault(q => q.Id == file.QualityId) ?? Bigarr.Parsing.Qualities.Quality.Unknown,
+            new Bigarr.Parsing.Qualities.Revision(file.Revision.Version, file.Revision.Real, file.Revision.IsRepack));
+        var parsed = new Bigarr.Parsing.Model.ParsedMovieInfo
+        {
+            Quality = quality,
+            ReleaseGroup = file.ReleaseGroup!,
+            Languages = [.. Bigarr.Parsing.Languages.Language.All.Where(l => l.Id > 0 && file.Languages.Contains(l.Name, StringComparer.OrdinalIgnoreCase))],
+        };
+        var releaseTitle = file.OriginalReleaseTitle ?? Path.GetFileNameWithoutExtension(adoption.Path);
+        ImportOutcome outcome;
+        try
+        {
+            outcome = await importer.ExecuteAsync(
+                new ImportPlan(staging, version, releaseTitle, parsed, quality, file.IndexerFlags, null, Force: false, TransferMode.Move, ExtraPaths: [], AdoptedFrom: adoption.Path),
+                ct);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            outcome = ImportOutcome.Failed(ex.Message);
+        }
+
+        if (!outcome.Success)
+        {
+            CleanUp(staging, createdFolder ? filmFolder : null);
+            var failure = $"{adoption.Version.Name}: the film could not take {adoption.Path} ({outcome.Reason}); the special keeps its file";
+            logger.LogWarning("Series film link {LinkId}: {Failure}", link.Id, failure);
+            pass.Failed++;
+            return failure;
+        }
+
+        // The film's name holds the bytes now: the special's own name goes, the hardlink pass puts the film's file back.
+        try
+        {
+            File.Delete(adoption.Path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning(ex, "Could not remove the adopted special's name {Path}", adoption.Path);
+        }
+
+        adoption.Target.EpisodeFile = null;
+        adoption.Target.EpisodeFileId = null;
+        db.EpisodeFiles.Remove(file);
+
+        // Saved before the hardlink's row is added: it often takes the very same name (one row per version and path).
+        await db.SaveChangesAsync(ct);
+        if (link.Movie.Versions.FirstOrDefault(v => v.Id == filmVersion.Id)?.File is { } adopted)
+        {
+            await db.Entry(adopted).Reference(f => f.Quality).LoadAsync(ct);
+        }
+
+        logger.LogInformation("Series film link {LinkId}: the film {Title} adopted the special's file {Path}", link.Id, link.Movie.Title, adoption.Path);
+        return null;
+    }
+
+    private void CleanUp(string? staging, string? emptyFolder)
+    {
+        try
+        {
+            if (staging is not null && File.Exists(staging))
+            {
+                File.Delete(staging);
+            }
+
+            if (emptyFolder is not null && Directory.Exists(emptyFolder) && !Directory.EnumerateFileSystemEntries(emptyFolder).Any())
+            {
+                Directory.Delete(emptyFolder);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning(ex, "Could not clean up after a refused adoption in {Folder}", emptyFolder ?? staging);
+        }
     }
 
     private void RemoveLinkedFile(EpisodeFile file, EpisodeTarget? target, string folder, Counter pass)

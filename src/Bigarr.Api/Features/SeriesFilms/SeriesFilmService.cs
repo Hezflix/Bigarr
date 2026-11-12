@@ -17,6 +17,7 @@ public sealed class SeriesFilmService(
     BigarrDbContext db,
     IMetadataProvider movies,
     MovieService movieService,
+    SeriesFilmPlanner planner,
     SeriesFilmLinkQueue links,
     TimeProvider time,
     ILogger<SeriesFilmService> logger)
@@ -55,6 +56,8 @@ public sealed class SeriesFilmService(
                     special.MovieMatch = SpecialMovieMatch.TitleAndRuntime;
                     special.MovieTmdbId = film.TmdbId;
                     special.MovieImdbId = film.ImdbId;
+                    special.MovieTitle = film.Title;
+                    special.MovieYear = film.Year;
                 }
             }
             catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
@@ -72,6 +75,7 @@ public sealed class SeriesFilmService(
             special.MovieCheckedAt ??= Now;
         }
 
+        await NameFilmsAsync(series.Title, specials, ct);
         await db.SaveChangesAsync(ct);
 
         var config = await db.MediaManagement.AsNoTracking().FirstOrDefaultAsync(c => c.Id == MediaManagementConfig.SingletonId, ct) ?? MediaManagementConfig.Default();
@@ -96,6 +100,30 @@ public sealed class SeriesFilmService(
         }
 
         return added;
+    }
+
+    /// <summary>
+    /// The TMDB title and year of each candidate's film not in the library yet, read once (TVDB's linked movie gives
+    /// only ids), so the review page can say which film a special would become.
+    /// </summary>
+    private async Task NameFilmsAsync(string seriesTitle, List<Episode> specials, CancellationToken ct)
+    {
+        var unnamed = specials.Where(e => SeriesFilmDetection.IsCandidate(e) && e.MovieTmdbId is not null && e.MovieTitle is null).Take(MaxTitleSearches).ToList();
+        foreach (var special in unnamed)
+        {
+            try
+            {
+                if (await movies.GetMovieAsync(special.MovieTmdbId!.Value, ct) is { } film)
+                {
+                    special.MovieTitle = film.Title;
+                    special.MovieYear = film.Year;
+                }
+            }
+            catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
+            {
+                logger.LogDebug(ex, "{Series}: TMDB film {TmdbId} not read; named next refresh", seriesTitle, special.MovieTmdbId);
+            }
+        }
     }
 
     private async Task<MovieMetadata?> FindByTitleAsync(Episode special, string seriesTitle, CancellationToken ct)
@@ -131,7 +159,8 @@ public sealed class SeriesFilmService(
             .AsSplitQuery()
             .ToListAsync(ct);
         var byEpisode = linkRows.ToDictionary(l => l.EpisodeId);
-        var shown = episodes.Where(e => SeriesFilmDetection.IsCandidate(e) || byEpisode.ContainsKey(e.Id)).OrderBy(e => e.EpisodeNumber).ToList();
+        // A candidate the user dismissed leaves the suggestions (the review page still lists it).
+        var shown = episodes.Where(e => (SeriesFilmDetection.IsCandidate(e) && e.MovieDismissedAt is null) || byEpisode.ContainsKey(e.Id)).OrderBy(e => e.EpisodeNumber).ToList();
         var shownIds = shown.Select(e => e.Id).ToList();
         var tmdbIds = shown.Where(e => e.MovieTmdbId is not null).Select(e => e.MovieTmdbId!.Value).ToList();
         var inLibrary = await db.Movies.AsNoTracking().Where(m => tmdbIds.Contains(m.TmdbId)).ToDictionaryAsync(m => m.TmdbId, m => m.Id, ct);
@@ -225,7 +254,7 @@ public sealed class SeriesFilmService(
         var movie = await db.Movies.FirstOrDefaultAsync(m => m.TmdbId == tmdbId, ct);
         if (movie is null)
         {
-            var profileId = request.QualityProfileId ?? await DefaultFilmProfileAsync(ct);
+            var profileId = request.QualityProfileId ?? (await planner.DefaultFilmProfileAsync(ct))?.Id;
             var rootId = request.RootFolderId ?? await db.RootFolders.Where(r => r.Kind == MediaKind.Movies).OrderBy(r => r.Id).Select(r => (int?)r.Id).FirstOrDefaultAsync(ct);
             if (profileId is null)
             {
@@ -237,7 +266,9 @@ public sealed class SeriesFilmService(
                 return Failure.Invalid("No film root folder", "Add a film root folder in Settings → Library first.");
             }
 
-            var created = await movieService.AddMovieAsync(new AddMovieRequest(tmdbId.Value, profileId.Value, rootId.Value, SearchOnAdd: request.SearchOnAdd), ct);
+            // The special's own file becomes the film's file (adopted by the keeper): nothing to search for then.
+            var adopting = await planner.WillAdoptAsync(episode.Id, null, ct);
+            var created = await movieService.AddMovieAsync(new AddMovieRequest(tmdbId.Value, profileId.Value, rootId.Value, SearchOnAdd: request.SearchOnAdd && !adopting), ct);
             if (!created.IsSuccess)
             {
                 return created.Failure!;
@@ -265,6 +296,8 @@ public sealed class SeriesFilmService(
             episode.MovieTmdbId = tmdbId;
         }
 
+        episode.MovieDismissedAt = null;
+
         // Wanted in the show's folders: the special is monitored where the version is; the film engine does the searching.
         foreach (var target in episode.Targets.Where(t => t.Version.Monitored))
         {
@@ -289,6 +322,50 @@ public sealed class SeriesFilmService(
         db.SeriesMovieLinks.Remove(link);
         await db.SaveChangesAsync(ct);
         links.Enqueue(new LinkWork(null, seriesId));
+        return Result<bool>.Ok(true);
+    }
+
+    /// <summary>
+    /// Links several specials at once with the defaults (review page): each one as <see cref="AddAsync"/> does, one
+    /// after the other; a failure is reported for its special and the others go on.
+    /// </summary>
+    public async Task<List<LinkSeriesFilmResult>> LinkManyAsync(IReadOnlyCollection<int> episodeIds, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(episodeIds);
+        var seriesOf = await db.Episodes.AsNoTracking().Where(e => episodeIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.SeriesId, ct);
+        var results = new List<LinkSeriesFilmResult>();
+        foreach (var episodeId in episodeIds.Distinct())
+        {
+            if (!seriesOf.TryGetValue(episodeId, out var seriesId))
+            {
+                results.Add(new LinkSeriesFilmResult(episodeId, false, "Episode not found."));
+                continue;
+            }
+
+            var result = await AddAsync(seriesId, new AddSeriesFilmRequest(episodeId), ct);
+            results.Add(new LinkSeriesFilmResult(episodeId, result.IsSuccess, result.IsSuccess ? null : result.Failure!.Detail ?? result.Failure.Title));
+            db.ChangeTracker.Clear();
+        }
+
+        return results;
+    }
+
+    /// <summary>The user says the candidate is not a film to link (or takes that back). A linked special is unlinked first.</summary>
+    public async Task<Result<bool>> SetDismissedAsync(int seriesId, int episodeId, bool dismissed, CancellationToken ct)
+    {
+        var episode = await db.Episodes.Include(e => e.MovieLink).FirstOrDefaultAsync(e => e.Id == episodeId && e.SeriesId == seriesId, ct);
+        if (episode is null)
+        {
+            return Failure.NotFound("Episode");
+        }
+
+        if (dismissed && episode.MovieLink is not null)
+        {
+            return Failure.Conflict("Linked", $"S00E{episode.EpisodeNumber:00} is linked to a film: unlink it first.");
+        }
+
+        episode.MovieDismissedAt = dismissed ? Now : null;
+        await db.SaveChangesAsync(ct);
         return Result<bool>.Ok(true);
     }
 
@@ -320,13 +397,5 @@ public sealed class SeriesFilmService(
             l.AfterSeason,
             l.BeforeSeason,
             SeriesFilmDetection.Label(l.AfterSeason, l.BeforeSeason))).ToList();
-    }
-
-    /// <summary>The system <c>1080p</c> profile when it takes films, else the first film profile.</summary>
-    private async Task<int?> DefaultFilmProfileAsync(CancellationToken ct)
-    {
-        var profiles = await db.QualityProfiles.AsNoTracking().Where(p => p.Kind == ProfileKind.Movies || p.Kind == ProfileKind.Both)
-            .Select(p => new { p.Id, p.Name, p.IsSystem }).ToListAsync(ct);
-        return profiles.OrderByDescending(p => p.IsSystem && p.Name == "1080p").ThenByDescending(p => p.IsSystem).ThenBy(p => p.Id).Select(p => (int?)p.Id).FirstOrDefault();
     }
 }

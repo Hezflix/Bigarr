@@ -74,6 +74,7 @@ builder.Services.AddScoped<SeriesQueries>();
 builder.Services.AddScoped<SeriesBulkEditService>();
 builder.Services.AddScoped<SeriesFilmService>();
 builder.Services.AddScoped<SeriesFilmLinker>();
+builder.Services.AddScoped<SeriesFilmPlanner>();
 builder.Services.AddSingleton<SeriesFilmLinkQueue>();
 builder.Services.AddHostedService<SeriesFilmLinkRunner>();
 builder.Services.AddScoped<TagService>();

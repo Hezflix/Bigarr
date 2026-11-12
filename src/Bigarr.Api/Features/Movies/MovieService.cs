@@ -670,6 +670,13 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
     private async Task<string> FolderNameAsync(string title, string? originalTitle, int? year, int tmdbId, string? imdbId, string versionName, CancellationToken ct)
     {
         var config = await MediaManagementAsync(ct);
+        return FolderName(config, title, originalTitle, year, tmdbId, imdbId, versionName);
+    }
+
+    /// <summary>The folder a film added now would get (also what the specials-as-films review shows before adding).</summary>
+    public static string FolderName(MediaManagementConfig config, string title, string? originalTitle, int? year, int tmdbId, string? imdbId, string versionName)
+    {
+        ArgumentNullException.ThrowIfNull(config);
         var name = NamingTemplate.RenderFolder(config.FolderNameTemplate, new NamingContext(title, originalTitle, year, tmdbId, imdbId, versionName), config.FilmNameCleaning);
         return name.Length == 0 || name == "_" ? FolderNameBuilder.Build(title, year, config.FilmNameCleaning) : name;
     }
