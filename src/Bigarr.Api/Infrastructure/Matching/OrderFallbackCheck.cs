@@ -11,7 +11,7 @@ namespace Bigarr.Api.Infrastructure.Matching;
 public sealed record OrderFallbackVerdict(bool Confirmed, string? Contradiction);
 
 /// <summary>
-/// Checks a release found on the series' alternative order (blueprint §8): an air date in its name within ±2 days of the
+/// Checks a release found on the series' alternative order: an air date in its name within ±2 days of the
 /// episode's, or the episode's title in its name, confirms it; an air date too far contradicts it. Releases carry no
 /// runtime (Torznab gives none), so runtime cannot weigh in. Without any of these, the hit stays ambiguous.
 /// </summary>

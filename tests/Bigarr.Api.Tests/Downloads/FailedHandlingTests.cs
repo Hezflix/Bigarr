@@ -12,7 +12,7 @@ using static Bigarr.Api.Tests.Import.ImportTestHelpers;
 
 namespace Bigarr.Api.Tests.Downloads;
 
-/// <summary>Failed handling (blueprint §5): a dead download is blocklisted, dropped from the client and replaced.</summary>
+/// <summary>Failed handling: a dead download is blocklisted, dropped from the client and replaced.</summary>
 public sealed class FailedHandlingTests(BigarrApiFactory factory) : IClassFixture<BigarrApiFactory>
 {
     [Fact]

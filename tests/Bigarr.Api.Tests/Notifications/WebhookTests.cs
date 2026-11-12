@@ -9,7 +9,7 @@ using static Bigarr.Api.Tests.Import.ImportTestHelpers;
 
 namespace Bigarr.Api.Tests.Notifications;
 
-/// <summary>Outbox and webhooks (blueprint §3.9): events leave the process signed, are retried, and survive a restart.</summary>
+/// <summary>Outbox and webhooks: events leave the process signed, are retried, and survive a restart.</summary>
 public sealed class WebhookTests
 {
     [Fact]

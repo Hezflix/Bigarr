@@ -15,7 +15,7 @@ using ParserQuality = Bigarr.Parsing.Qualities.Quality;
 namespace Bigarr.Api.Features.Search;
 
 /// <summary>
-/// Interactive search for a series (blueprint §5, Sonarr's manual search): an episode, a season (packs and single
+/// Interactive search for a series (Sonarr's manual search): an episode, a season (packs and single
 /// episodes together) or the whole series, every indexer in parallel, each release parsed with Sonarr's parser, mapped
 /// to episodes and judged by every version of the series, rejections spelled out. As for films the search keeps no
 /// state; the grab sends the release back with the episodes it covers.
@@ -134,7 +134,7 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
             }
         }
 
-        // Blueprint §8: TVDB numbering found no acceptable release for what was asked: the series' alternative order is
+        // TVDB numbering found no acceptable release for what was asked: the series' alternative order is
         // tried, on the releases already found and with a request by the order's numbers. A hit there is confirmed by
         // the release (air date, episode title) or held for a manual choice.
         var orderFallback = false;

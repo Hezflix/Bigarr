@@ -65,5 +65,5 @@ public sealed record SeriesSearchResponse(
     string? Query = null,
     /// <summary>A whole-series search: the seasons the request by ids left uncovered, then searched one by one.</summary>
     List<int>? FallbackSeasons = null,
-    /// <summary>TVDB numbering found no acceptable release: the series' order was asked too (blueprint §8).</summary>
+    /// <summary>TVDB numbering found no acceptable release: the series' order was asked too.</summary>
     bool OrderFallback = false);

@@ -16,12 +16,12 @@ using Microsoft.Extensions.Options;
 namespace Bigarr.Api.Features.Downloads;
 
 /// <summary>
-/// One poll of the download clients (blueprint §5, "suivi"): every tracked grab moves along its state machine from
+/// One poll of the download clients ("suivi"): every tracked grab moves along its state machine from
 /// what its client reports, a grab absent for N polls is <see cref="GrabState.Removed"/>, and the queue projection is
 /// rebuilt and published. A finished download waits in <see cref="GrabState.ImportPending"/> until the import worker
 /// takes it (<see cref="ImportQueue"/>); a completed torrent of our category that Bigarr never grabbed is adopted so
-/// the import can match it by its title (blueprint §5). A download the client reports failed, or stalled past the
-/// threshold, is blocklisted, removed from the client and replaced by an automatic search (failed handling, §5).
+/// the import can match it by its title. A download the client reports failed, or stalled past the
+/// threshold, is blocklisted, removed from the client and replaced by an automatic search (failed handling).
 /// </summary>
 public sealed class QueuePoller(
     BigarrDbContext db,
@@ -279,7 +279,7 @@ public sealed class QueuePoller(
         }
     }
 
-    /// <summary>The state machine of §3.5 driven by what the client reports. Returns the failure reason when the download just failed.</summary>
+    /// <summary>The download state machine, driven by what the client reports. Returns the failure reason when the download just failed.</summary>
     private string? Advance(Grab grab, DownloadItem item, DateTime now, DownloadsOptions settings, List<StatusMessage> messages)
     {
         switch (grab.State)
@@ -335,7 +335,7 @@ public sealed class QueuePoller(
     }
 
     /// <summary>
-    /// Failed handling (blueprint §5): the grab fails, the release is blocklisted for its version (the default one for a
+    /// Failed handling: the grab fails, the release is blocklisted for its version (the default one for a
     /// one-shot; every (version, episode) pair of a series grab), the torrent leaves the client, and the journal and the
     /// outbox get the event. Returns the film version, or the series episodes, to search for a replacement (Sonarr's
     /// RedownloadFailedDownloadService), which the caller queues after the save.

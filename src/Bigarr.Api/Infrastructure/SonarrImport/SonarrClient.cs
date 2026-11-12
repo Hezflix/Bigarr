@@ -191,7 +191,7 @@ public sealed record SonarrParseResult(
 public sealed class SonarrUnavailableException(string message, Exception? inner = null) : Exception(message, inner);
 
 /// <summary>
-/// Reads an existing Sonarr over its v3 API (Sonarr v3 and v4 both serve it), to migrate its library into Bigarr (S4) and
+/// Reads an existing Sonarr over its v3 API (Sonarr v3 and v4 both serve it), to migrate its library into Bigarr and
 /// to follow it in shadow mode. Only ever GETs.
 /// </summary>
 public sealed class SonarrClient(IHttpClientFactory httpClientFactory)

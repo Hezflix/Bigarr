@@ -744,7 +744,7 @@ function SeasonList({
     for (const file of files ?? []) for (const episodeId of file.episodeIds) map.set(episodeId, file)
     return map
   }, [files])
-  // Another order regroups the episodes by its own seasons (blueprint §8); TVDB's seasons otherwise.
+  // Another order regroups the episodes by its own seasons; TVDB's seasons otherwise.
   const alt = s.ordering !== 'tvdb'
   const blocks = useMemo(() => {
     if (!alt || !episodes) {

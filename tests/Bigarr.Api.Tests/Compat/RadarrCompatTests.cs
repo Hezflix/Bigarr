@@ -9,7 +9,7 @@ using static Bigarr.Api.Tests.Compat.CompatTestHelpers;
 namespace Bigarr.Api.Tests.Compat;
 
 /// <summary>
-/// The M7 acceptance (blueprint §6, §7): one Seerr with two Radarr entries on the same Bigarr, one key per version, adds
+/// The M7 acceptance: one Seerr with two Radarr entries on the same Bigarr, one key per version, adds
 /// the same film twice and follows two versions without noticing; Bazarr's <c>all</c> key lists both lines.
 /// </summary>
 public sealed class RadarrCompatTests(BigarrApiFactory factory) : IClassFixture<BigarrApiFactory>
@@ -18,7 +18,7 @@ public sealed class RadarrCompatTests(BigarrApiFactory factory) : IClassFixture<
     public async Task The_compat_api_is_key_only_and_announces_a_recent_radarr()
     {
         var session = await SessionAsync(factory);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await session.GetAsync("/api/v3/system/status")).StatusCode); // a cookie never opens /api/v3 (§3.8)
+        Assert.Equal(HttpStatusCode.Unauthorized, (await session.GetAsync("/api/v3/system/status")).StatusCode); // a cookie never opens /api/v3
         Assert.Equal(HttpStatusCode.Unauthorized, (await factory.CreateAnonymousClient().GetAsync("/api/v3/system/status")).StatusCode);
 
         var (byQuery, key) = await KeyClientAsync(factory, session, "status-query", "default");
@@ -32,7 +32,7 @@ public sealed class RadarrCompatTests(BigarrApiFactory factory) : IClassFixture<
         Assert.Equal("Bigarr", body.GetProperty("instanceName").GetString());
         Assert.True(Version.Parse(RadarrCompat.ApplicationVersion) >= new Version(4, 0, 4, 0)); // Prowlarr's floor
 
-        // Bazarr probes the Radarr 0.x path first and switches to v3 on a 404 (§7.1); Prowlarr sends the key as a header.
+        // Bazarr probes the Radarr 0.x path first and switches to v3 on a 404; Prowlarr sends the key as a header.
         Assert.Equal(HttpStatusCode.NotFound, (await byQuery.GetAsync("/api/system/status")).StatusCode);
         var byHeader = factory.CreateAnonymousClient();
         byHeader.DefaultRequestHeaders.Add("X-Api-Key", key);
@@ -113,7 +113,7 @@ public sealed class RadarrCompatTests(BigarrApiFactory factory) : IClassFixture<
         Assert.Equal(HttpStatusCode.BadRequest, badRoot.StatusCode);
         Assert.Equal("RootFolderPath", (await badRoot.ReadJsonAsync())[0].GetProperty("propertyName").GetString());
 
-        // Seerr re-monitors an unmonitored version with PUT /movie and reads monitored back (§7.2).
+        // Seerr re-monitors an unmonitored version with PUT /movie and reads monitored back.
         var unmonitor = await session.PutAsJsonAsync($"/api/v1/movies/{movie.Id}/versions/{fourKId}", new UpdateVersionRequest(Monitored: false));
         Assert.Equal(HttpStatusCode.OK, unmonitor.StatusCode);
         Assert.False((await (await seerr4k.GetAsync($"/api/v3/movie/{fourKId}")).ReadJsonAsync()).GetProperty("monitored").GetBoolean());
@@ -145,7 +145,7 @@ public sealed class RadarrCompatTests(BigarrApiFactory factory) : IClassFixture<
         Assert.Equal(0, history.GetProperty("totalRecords").GetInt32());
         Assert.True(history.TryGetProperty("records", out _));
 
-        // Each Seerr deletes its own line; the last one takes the film with it (§3.11). 404 afterwards, which Seerr tolerates.
+        // Each Seerr deletes its own line; the last one takes the film with it. 404 afterwards, which Seerr tolerates.
         Assert.Equal(HttpStatusCode.NotFound, (await seerrHd.DeleteAsync($"/api/v3/movie/{fourKId}?deleteFiles=true&addImportExclusion=false")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await seerr4k.DeleteAsync($"/api/v3/movie/{fourKId}?deleteFiles=true&addImportExclusion=false")).StatusCode);
         var afterFirst = (await session.GetFromJsonAsync<MovieResponse>($"/api/v1/movies/{movie.Id}", Json))!;

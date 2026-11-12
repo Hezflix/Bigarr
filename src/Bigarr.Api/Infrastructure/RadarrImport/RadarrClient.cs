@@ -160,7 +160,7 @@ public sealed record RadarrBlocklistPage(int Page, int PageSize, int TotalRecord
 /// <summary>Raised when Radarr cannot be reached or refuses the key; the message is meant for the screen.</summary>
 public sealed class RadarrUnavailableException(string message, Exception? inner = null) : Exception(message, inner);
 
-/// <summary>Reads an existing Radarr over its v3 API, to migrate its library into Bigarr (M8) and to follow it in shadow mode. Only ever GETs.</summary>
+/// <summary>Reads an existing Radarr over its v3 API, to migrate its library into Bigarr and to follow it in shadow mode. Only ever GETs.</summary>
 public sealed class RadarrClient(IHttpClientFactory httpClientFactory)
 {
     public const string HttpClientName = "bigarr-radarr-import";

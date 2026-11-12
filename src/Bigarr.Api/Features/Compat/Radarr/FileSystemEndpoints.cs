@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Bigarr.Api.Features.Compat.Radarr;
 
-/// <summary><c>GET /filesystem?path=</c>: the folder browser behind Bazarr's path mapping screen (§7.3). Folders only unless asked.</summary>
+/// <summary><c>GET /filesystem?path=</c>: the folder browser behind Bazarr's path mapping screen. Folders only unless asked.</summary>
 public static class FileSystemEndpoints
 {
     public static void MapCompatFileSystem(this RouteGroupBuilder group)

@@ -37,7 +37,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
-/** Quality profiles and definitions (blueprint §3.6): ranks live inside a profile, sizes on the definitions. */
+/** Quality profiles and definitions: ranks live inside a profile, sizes on the definitions. */
 export function QualitySettingsPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()

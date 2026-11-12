@@ -3,7 +3,7 @@ namespace Bigarr.Api.Features.Series;
 using Bigarr.Api.Infrastructure.Auth;
 using Microsoft.AspNetCore.Http.HttpResults;
 
-/// <summary>The per-show order (S6): list the orders, preview a switch, apply it, undo it; the manual fix of a file.</summary>
+/// <summary>The per-show order: list the orders, preview a switch, apply it, undo it; the manual fix of a file.</summary>
 public static class SeriesOrderEndpoints
 {
     public static IEndpointRouteBuilder MapSeriesOrders(this IEndpointRouteBuilder app)

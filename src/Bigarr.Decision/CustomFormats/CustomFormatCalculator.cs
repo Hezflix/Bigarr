@@ -1,7 +1,7 @@
 namespace Bigarr.Decision.CustomFormats;
 
 /// <summary>
-/// Evaluates every custom format against an input, at read time (blueprint §3.6). Radarr's rule: specifications are
+/// Evaluates every custom format against an input, at read time. Radarr's rule: specifications are
 /// grouped by implementation; a group passes when none of its required specifications fails and at least one
 /// specification matches; the format matches when every group passes.
 /// </summary>

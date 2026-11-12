@@ -8,12 +8,12 @@ public sealed class Grab
 {
     public int Id { get; set; }
 
-    /// <summary>FK added when the Indexers slice lands (M2). Name is snapshotted for display and history.</summary>
+    /// <summary>FK added when the Indexers slice lands. Name is snapshotted for display and history.</summary>
     public int? IndexerId { get; set; }
 
     public string? IndexerName { get; set; }
 
-    /// <summary>FK added when the Downloads slice lands (M4).</summary>
+    /// <summary>FK added when the Downloads slice lands.</summary>
     public int? DownloadClientId { get; set; }
 
     public string? DownloadClientName { get; set; }
@@ -35,7 +35,7 @@ public sealed class Grab
 
     public DateTime GrabbedAt { get; set; } = DateTime.UtcNow;
 
-    /// <summary>Series grabs: which numbering the release matched its episodes on (blueprint §8). Null for films.</summary>
+    /// <summary>Series grabs: which numbering the release matched its episodes on. Null for films.</summary>
     public Tv.EpisodeNumbering? Numbering { get; set; }
 
     /// <summary>Last poll where the client still listed this download. Drives the <see cref="GrabState.Removed"/> transition.</summary>
@@ -58,7 +58,7 @@ public sealed class Grab
         return link;
     }
 
-    /// <summary>Moves to <paramref name="next"/> and mirrors the active flag on every target link (§3.5).</summary>
+    /// <summary>Moves to <paramref name="next"/> and mirrors the active flag on every target link.</summary>
     public void TransitionTo(GrabState next)
     {
         if (State.IsTerminal())

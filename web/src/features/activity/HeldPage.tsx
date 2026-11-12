@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatAge, formatBytes, formatDateTime } from '@/i18n'
 
-/** Releases RSS or a search matched on a show's alternative order only (S6): Activity → Held for review. */
+/** Releases RSS or a search matched on a show's alternative order only: Activity → Held for review. */
 export function HeldPage() {
   const { t } = useTranslation()
   const list = useQuery({ queryKey: ['held'], queryFn: () => heldReleases.list(), refetchInterval: 60_000 })

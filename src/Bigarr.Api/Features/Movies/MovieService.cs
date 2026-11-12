@@ -421,7 +421,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
         return unknown.Count == 0 ? Result<List<Tag>>.Ok(tags) : Failure.Invalid("Unknown tag", $"No tag with id {string.Join(", ", unknown)}.");
     }
 
-    /// <summary>Constraints may name custom formats (§3.3); they must exist and not contradict each other.</summary>
+    /// <summary>Constraints may name custom formats; they must exist and not contradict each other.</summary>
     private async Task<Failure?> ValidateCustomFormatsAsync(AcquisitionConstraints? constraints, CancellationToken ct)
     {
         if (constraints is null)

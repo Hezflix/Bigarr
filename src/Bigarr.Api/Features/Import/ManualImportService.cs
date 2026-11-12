@@ -18,7 +18,7 @@ using ParserQuality = Bigarr.Parsing.Qualities.Quality;
 namespace Bigarr.Api.Features.Import;
 
 /// <summary>
-/// Manual import (blueprint §5): list the video files of a path or of a queued download with what Bigarr makes of
+/// Manual import: list the video files of a path or of a queued download with what Bigarr makes of
 /// them (film, quality, version that would take it, reasons), then import what the user picked, forced.
 /// </summary>
 public sealed class ManualImportService(BigarrDbContext db, ImportService importer, MediaManagementService settings, DownloadClientResolver resolver, TargetContextFactory contexts, CustomFormatScorer scorer, QueueState queue, ILogger<ManualImportService> logger)

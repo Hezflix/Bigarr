@@ -13,7 +13,7 @@ using Bigarr.Domain.Tv;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
-/// The per-show order (blueprint §8, S6): which numbering names and shows a series' episodes. Switching is a preview
+/// The per-show order: which numbering names and shows a series' episodes. Switching is a preview
 /// (every file's current → new path, episodes that move, what cannot be placed), then an apply that renames the files
 /// on disk through the S5 rename (moves within the version folder, never a delete, hardlinks kept), journaled so the
 /// latest change can be undone until the next one. An episode's identity and its TVDB numbers never change: files,

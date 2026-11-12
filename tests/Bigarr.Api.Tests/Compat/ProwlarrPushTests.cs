@@ -8,7 +8,7 @@ using static Bigarr.Api.Tests.Compat.CompatTestHelpers;
 
 namespace Bigarr.Api.Tests.Compat;
 
-/// <summary>§7.4: Prowlarr reads the schema, pushes Torznab indexers pointing at itself, and recognises them by key and URL.</summary>
+/// <summary>Prowlarr reads the schema, pushes Torznab indexers pointing at itself, and recognises them by key and URL.</summary>
 public sealed class ProwlarrPushTests(BigarrApiFactory factory) : IClassFixture<BigarrApiFactory>
 {
     [Fact]

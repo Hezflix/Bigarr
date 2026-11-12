@@ -70,7 +70,7 @@ public static class NotificationsEndpoints
             return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
         });
 
-        // text/event-stream of every dispatched event: the event name is the type, the data the payload (blueprint §3.9).
+        // text/event-stream of every dispatched event: the event name is the type, the data the payload.
         app.MapGet("/api/v1/events", (EventStream stream, CancellationToken ct) =>
                 TypedResults.ServerSentEvents(Items(stream, ct)))
             .WithTags("Notifications")

@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bigarr.Api.Tests.Persistence;
 
-/// <summary>The decisions of blueprint §3, enforced by the schema itself.</summary>
+/// <summary>The data model's decisions, enforced by the schema itself.</summary>
 public sealed class ModelInvariantsTests : IDisposable
 {
     private readonly SqliteTestDatabase _database = new();

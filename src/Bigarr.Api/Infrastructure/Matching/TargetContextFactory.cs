@@ -12,8 +12,8 @@ using Microsoft.Extensions.Options;
 namespace Bigarr.Api.Infrastructure.Matching;
 
 /// <summary>
-/// Turns movie versions into what the decision engine may know (blueprint §3.10): profile, definitions, current file,
-/// runtime, blocklist (a one-shot borrows the default version's, §3.5), active grab, availability, default flag.
+/// Turns movie versions into what the decision engine may know: profile, definitions, current file,
+/// runtime, blocklist (a one-shot borrows the default version's), active grab, availability, default flag.
 /// Movies must come with Versions → QualityProfile and File loaded.
 /// </summary>
 /// <remarks>

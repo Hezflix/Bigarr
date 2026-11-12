@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 
 namespace Bigarr.Api.Infrastructure.Media;
 
-/// <summary>Runs ffprobe (part of ffmpeg) on a file. Missing binary: said once in the logs, media info stays empty (blueprint §3.4).</summary>
+/// <summary>Runs ffprobe (part of ffmpeg) on a file. Missing binary: said once in the logs, media info stays empty.</summary>
 public sealed class FfprobeMediaInfoReader(IOptions<MediaOptions> options, ILogger<FfprobeMediaInfoReader> logger) : IMediaInfoReader
 {
     private readonly Lazy<string?> _executable = new(() => ExecutableLocator.Find(string.IsNullOrWhiteSpace(options.Value.FfprobePath) ? "ffprobe" : options.Value.FfprobePath));

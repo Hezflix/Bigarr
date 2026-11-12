@@ -65,7 +65,7 @@ function cachedSearchText(queryClient: ReturnType<typeof useQueryClient>, movieI
 }
 
 /**
- * Interactive search for one film: every indexer once, every release judged by every version (blueprint §5). The
+ * Interactive search for one film: every indexer once, every release judged by every version. The
  * version is chosen when grabbing; each release suggests the one it fits. A typed text replaces the film's ids and
  * titles for films listed under another name; the releases are still judged against this film's versions.
  */
@@ -309,7 +309,7 @@ function ReleaseRow({
   target: Version | undefined
   grabbing: boolean
   onGrab: (versionId: number) => void
-  /** Creates a one-shot version for this release and grabs it there (blueprint §3.3). */
+  /** Creates a one-shot version for this release and grabs it there. */
   onGrabOneShot: () => void
 }) {
   const { t } = useTranslation()

@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 namespace Bigarr.Api.Features.Compat.Radarr;
 
 /// <summary>
-/// The Radarr v3 compatible surface (blueprint §7): what Seerr, Bazarr and Prowlarr call. A foreign contract with its
+/// The Radarr v3 compatible surface: what Seerr, Bazarr and Prowlarr call. A foreign contract with its
 /// own lifecycle, kept apart from the v1 API: it calls the slices through their public services, applies the API
 /// key's view, and translates to the *arr shape. It never touches EF directly, which is what keeps it disposable.
 /// </summary>
@@ -42,7 +42,7 @@ public static class RadarrCompat
     public static JsonHttpResult<RadarrError> Error(int statusCode, string message) =>
         TypedResults.Json(new RadarrError(message), Json, statusCode: statusCode);
 
-    /// <summary>The <c>X-Application-Version</c> header on every compat response, including errors: Prowlarr reads it on <c>POST /indexer/test</c> (§7.1).</summary>
+    /// <summary>The <c>X-Application-Version</c> header on every compat response, including errors: Prowlarr reads it on <c>POST /indexer/test</c>.</summary>
     public static IApplicationBuilder UseRadarrCompat(this IApplicationBuilder app)
     {
         app.Use(async (context, next) =>

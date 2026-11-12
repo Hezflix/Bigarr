@@ -5,7 +5,7 @@ using Bigarr.Parsing.Model;
 
 namespace Bigarr.Api.Infrastructure.Matching;
 
-/// <summary>Is this release the film we searched for? Identifiers first, then titles and year (blueprint §5).</summary>
+/// <summary>Is this release the film we searched for? Identifiers first, then titles and year.</summary>
 public static class ReleaseMatcher
 {
     public static ParsedMovieInfo? TryParse(string title)

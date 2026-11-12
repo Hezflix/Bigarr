@@ -2,7 +2,7 @@ using Bigarr.Domain.Acquisition;
 
 namespace Bigarr.Domain.Downloads;
 
-/// <summary>Where grabs are sent (blueprint §3.7): a qBittorrent instance and the category Bigarr owns in it.</summary>
+/// <summary>Where grabs are sent: a qBittorrent instance and the category Bigarr owns in it.</summary>
 public sealed class DownloadClient
 {
     public const int MinPriority = 1;

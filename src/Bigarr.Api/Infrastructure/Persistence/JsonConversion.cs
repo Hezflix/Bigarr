@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Bigarr.Api.Infrastructure.Persistence;
 
-/// <summary>Stores a complex property as a JSON text column (blueprint: constraints, images, media info…).</summary>
+/// <summary>Stores a complex property as a JSON text column (constraints, images, media info…).</summary>
 public static class JsonConversion
 {
     public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);

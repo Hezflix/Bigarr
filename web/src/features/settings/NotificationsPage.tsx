@@ -145,7 +145,7 @@ const sentAs = (type: NotificationEventType, format: WebhookFormat) =>
 /** The compat formats describe one version per Radarr movie or Sonarr series: they take a view. */
 const hasView = (format: WebhookFormat) => format === 'radarr' || format === 'sonarr'
 
-/** Outgoing webhooks (blueprint §3.7, §3.9): where events go, signed, retried until they land. */
+/** Outgoing webhooks: where events go, signed, retried until they land. */
 export function NotificationsPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()

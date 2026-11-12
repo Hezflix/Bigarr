@@ -10,7 +10,7 @@ using static Bigarr.Api.Tests.Import.ImportTestHelpers;
 
 namespace Bigarr.Api.Tests.Server;
 
-/// <summary>Backups (M7): a zip of a consistent database snapshot, restored by staging the file and restarting.</summary>
+/// <summary>Backups: a zip of a consistent database snapshot, restored by staging the file and restarting.</summary>
 public sealed class BackupTests
 {
     [Fact]

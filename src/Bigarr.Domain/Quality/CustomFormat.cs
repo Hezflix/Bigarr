@@ -2,7 +2,7 @@ namespace Bigarr.Domain.Quality;
 
 /// <summary>
 /// Specifications are kept as raw JSON in the TRaSH / Radarr schema so guide files import unchanged.
-/// Matching is evaluated at read time, never stored (§3.4).
+/// Matching is evaluated at read time, never stored.
 /// </summary>
 public sealed class CustomFormat
 {

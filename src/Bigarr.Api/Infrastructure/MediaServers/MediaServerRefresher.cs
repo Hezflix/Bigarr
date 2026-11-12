@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Bigarr.Api.Infrastructure.MediaServers;
 
 /// <summary>
-/// Tells every enabled media server about a changed folder (blueprint §3.9: one more consumer of the outbox, like the
+/// Tells every enabled media server about a changed folder (one more consumer of the outbox, like the
 /// webhooks and the compat hub). A server that does not answer is retried a few times with growing delays; the
 /// outcome is written on the server row so the health check and the settings page can show it.
 /// </summary>

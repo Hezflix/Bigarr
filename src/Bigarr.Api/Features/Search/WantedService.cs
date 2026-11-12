@@ -11,8 +11,8 @@ using Microsoft.Extensions.Options;
 namespace Bigarr.Api.Features.Search;
 
 /// <summary>
-/// What the library still wants (blueprint §5, job cutoff unmet): managed monitored versions, available, without an
-/// active download, that have no file or a file below their profile's cutoff. Computed, not stored (§8).
+/// What the library still wants (job cutoff unmet): managed monitored versions, available, without an
+/// active download, that have no file or a file below their profile's cutoff. Computed, not stored.
 /// SQL keeps the versions that can be wanted, as light rows; availability and the cutoff are judged in memory. A file's
 /// custom formats are matched only when its score decides the verdict or is shown, and remembered between requests
 /// (<see cref="FileFormatMatches"/>): judging every file again for each page made the list slow on a large library.
@@ -252,8 +252,8 @@ public sealed class WantedService(BigarrDbContext db, CustomFormatScorer scorer,
 }
 
 /// <summary>
-/// Searches what is wanted and due, a bounded batch per pass (blueprint §5, M6): film versions, then series versions'
-/// missing and cutoff-unmet episodes (S7), each with its own batch, both behind the same switch.
+/// Searches what is wanted and due, a bounded batch per pass: film versions, then series versions'
+/// missing and cutoff-unmet episodes, each with its own batch, both behind the same switch.
 /// </summary>
 public sealed class CutoffUnmetSearchJob(WantedService wanted, AutomaticSearchService search, SeriesWantedService seriesWanted, SeriesAutomaticSearchService seriesSearch, IOptions<SearchOptions> options) : IScheduledJob
 {

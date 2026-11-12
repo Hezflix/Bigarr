@@ -36,7 +36,7 @@ public sealed class CompatCommandLog
 }
 
 /// <summary>
-/// <c>POST /command</c> (§7.2, §7.3): Seerr sends <c>MoviesSearch</c> after an add and <c>RefreshMonitoredDownloads</c>, Bazarr
+/// <c>POST /command</c>: Seerr sends <c>MoviesSearch</c> after an add and <c>RefreshMonitoredDownloads</c>, Bazarr
 /// <c>RescanMovie</c> after a subtitle; dashboards and mobile apps send the Wanted page's "search all" commands. Movie ids
 /// are version ids and are filtered by the key's view like everything else.
 /// </summary>

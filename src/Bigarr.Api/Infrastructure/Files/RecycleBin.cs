@@ -1,7 +1,7 @@
 namespace Bigarr.Api.Infrastructure.Files;
 
 /// <summary>
-/// Replaced and deleted files go to the recycle bin when one is configured (blueprint §3.7), keeping their path relative
+/// Replaced and deleted files go to the recycle bin when one is configured, keeping their path relative
 /// to the root folder so they can be put back by hand. Without a bin they are deleted for good. Retention is counted from
 /// the moment the file entered the bin, not from its original modification time.
 /// </summary>

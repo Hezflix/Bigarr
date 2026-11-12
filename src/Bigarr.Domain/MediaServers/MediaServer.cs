@@ -11,9 +11,9 @@ public enum MediaServerKind
 public sealed record PathMapping(string From, string To);
 
 /// <summary>
-/// A Plex, Jellyfin or Emby server told about library changes (M8): a file imported, upgraded, renamed or deleted
+/// A Plex, Jellyfin or Emby server told about library changes: a file imported, upgraded, renamed or deleted
 /// triggers a scan of its folder, so the film shows up without waiting for the server's own schedule. Phase 3
-/// (blueprint §9) reuses this connection for sessions and statistics.
+/// reuses this connection for sessions and statistics.
 /// </summary>
 public sealed class MediaServer
 {

@@ -16,7 +16,7 @@ using Microsoft.Extensions.Options;
 namespace Bigarr.Api.Features.Downloads;
 
 /// <summary>
-/// Grab (blueprint §5): send the release to a download client, then write the durable mapping (<see cref="Grab"/> +
+/// Grab: send the release to a download client, then write the durable mapping (<see cref="Grab"/> +
 /// <see cref="GrabTarget"/>) and the journal entry in one transaction. Interactive: the user decided, the engine's
 /// verdict is not re-checked here; only "one active download per target" is. In shadow mode every path ends in a
 /// recorded pick instead (<see cref="ShadowPickRecorder"/>): no client is called, whatever is configured.

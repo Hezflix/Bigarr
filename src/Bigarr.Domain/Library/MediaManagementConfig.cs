@@ -2,7 +2,7 @@ using Bigarr.Domain.Naming;
 
 namespace Bigarr.Domain.Library;
 
-/// <summary>How a file gets from the download client into the library (blueprint §3.7).</summary>
+/// <summary>How a file gets from the download client into the library.</summary>
 public enum TransferMode
 {
     /// <summary>Hardlink when the two paths share a filesystem, copy otherwise. The torrent keeps seeding either way.</summary>
@@ -32,7 +32,7 @@ public enum SeasonPackUpgrade
 }
 
 /// <summary>
-/// Single row (id 1): naming templates, renaming on/off, transfer mode and recycle bin (blueprint §3.7). Read by the
+/// Single row (id 1): naming templates, renaming on/off, transfer mode and recycle bin. Read by the
 /// import, the rename command, version creation and file deletion.
 /// </summary>
 public sealed class MediaManagementConfig
@@ -52,7 +52,7 @@ public sealed class MediaManagementConfig
 
     public string FileNameTemplate { get; set; } = DefaultFileNameTemplate;
 
-    /// <summary>Applied when a version is created; the folder name is then frozen (§3.3).</summary>
+    /// <summary>Applied when a version is created; the folder name is then frozen.</summary>
     public string FolderNameTemplate { get; set; } = DefaultFolderNameTemplate;
 
     public TransferMode TransferMode { get; set; } = TransferMode.HardlinkOrCopy;

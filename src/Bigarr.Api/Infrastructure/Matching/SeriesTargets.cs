@@ -16,7 +16,7 @@ namespace Bigarr.Api.Infrastructure.Matching;
 /// <summary>
 /// One series as the decision engine sees it: every version with its (version, episode) targets, each target's file
 /// (or, in shadow mode, its latest pick), blocklist and active grab. <see cref="ContextsFor"/> turns the episodes a
-/// release covers into one target context per version (blueprint §3.10: the engine never sees a <c>Series</c>).
+/// release covers into one target context per version (the engine never sees a <c>Series</c>).
 /// </summary>
 public sealed class SeriesTargets
 {

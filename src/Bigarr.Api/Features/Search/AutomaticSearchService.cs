@@ -13,7 +13,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Bigarr.Api.Features.Search;
 
 /// <summary>
-/// Automatic search (blueprint §5, mode auto): every indexer with automatic search enabled, each release judged for
+/// Automatic search (mode auto): every indexer with automatic search enabled, each release judged for
 /// the versions asked, the best approved one grabbed. Triggered on add, after a failed download, by the cutoff-unmet
 /// job and by the user; only the user's searches ignore monitoring and availability.
 /// </summary>

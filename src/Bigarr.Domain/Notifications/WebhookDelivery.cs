@@ -12,7 +12,7 @@ public enum WebhookDeliveryState
 }
 
 /// <summary>
-/// One event to one endpoint (blueprint §3.9). The row is the retry state: the sender picks up whatever is due, so a
+/// One event to one endpoint. The row is the retry state: the sender picks up whatever is due, so a
 /// delivery that failed just before a restart is tried again after it.
 /// </summary>
 public sealed class WebhookDelivery

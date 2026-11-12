@@ -10,7 +10,7 @@ using static Bigarr.Api.Tests.Import.ImportTestHelpers;
 
 namespace Bigarr.Api.Tests.Server;
 
-/// <summary>The scheduler is a table plus an API (blueprint §3.7); the health checks say what stops the loop.</summary>
+/// <summary>The scheduler is a table plus an API; the health checks say what stops the loop.</summary>
 public sealed class TasksAndHealthTests(BigarrApiFactory factory) : IClassFixture<BigarrApiFactory>
 {
     [Fact]

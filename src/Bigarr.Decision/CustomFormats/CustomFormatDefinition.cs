@@ -11,7 +11,7 @@ public sealed record CustomFormatSpecificationDefinition(
     IReadOnlyDictionary<string, JsonElement> Fields);
 
 /// <summary>
-/// A custom format as the guides publish it (blueprint §3.6): a name and a list of specifications. Scores are not
+/// A custom format as the guides publish it: a name and a list of specifications. Scores are not
 /// part of it; they live on each quality profile. <see cref="TrashScores"/> keeps the guide's suggestions.
 /// </summary>
 public sealed record CustomFormatDefinition(

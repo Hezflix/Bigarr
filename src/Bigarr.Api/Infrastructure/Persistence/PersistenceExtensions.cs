@@ -16,7 +16,7 @@ public static class PersistenceExtensions
             Pooling = true,
         }.ToString();
 
-        // The outbox interceptor wakes the dispatcher once a save carrying events has committed (blueprint §3.9).
+        // The outbox interceptor wakes the dispatcher once a save carrying events has committed.
         services.AddDbContext<BigarrDbContext>((sp, o) => o.UseSqlite(connectionString).AddInterceptors(sp.GetRequiredService<OutboxInterceptor>()));
         services.AddHostedService<DatabaseInitializer>();
         return services;

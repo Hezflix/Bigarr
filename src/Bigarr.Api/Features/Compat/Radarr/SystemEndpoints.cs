@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 namespace Bigarr.Api.Features.Compat.Radarr;
 
 /// <summary>
-/// <c>GET /api/v3/system/status</c> (§7.1): Seerr reads <c>urlBase</c>, Bazarr reads <c>version</c>, Prowlarr reads the
+/// <c>GET /api/v3/system/status</c>: Seerr reads <c>urlBase</c>, Bazarr reads <c>version</c>, Prowlarr reads the
 /// version too. The legacy <c>GET /api/system/status</c> Bazarr probes first is simply not mapped: its 404 is the signal.
 /// </summary>
 public static class SystemEndpoints

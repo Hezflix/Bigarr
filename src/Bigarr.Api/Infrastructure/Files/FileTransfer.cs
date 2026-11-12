@@ -11,7 +11,7 @@ public enum TransferOutcome
 }
 
 /// <summary>
-/// Puts a downloaded file into the library (blueprint §5): hardlink when both paths share a filesystem so the torrent
+/// Puts a downloaded file into the library: hardlink when both paths share a filesystem so the torrent
 /// keeps seeding for free, copy when they do not (or when asked), move when the user accepts losing the seed.
 /// Copies land under a temporary name and are renamed at the end, so a crash never leaves a half file in place.
 /// </summary>

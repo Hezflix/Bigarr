@@ -97,7 +97,7 @@ function useQueueStream(): boolean {
   return live
 }
 
-/** The download clients' state joined to the grabs (blueprint §3.5): a projection, refreshed by every poll. */
+/** The download clients' state joined to the grabs: a projection, refreshed by every poll. */
 export function QueuePage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()

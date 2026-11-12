@@ -74,7 +74,7 @@ public sealed record SeriesFileOutcome(
 }
 
 /// <summary>
-/// Completed download handling for series (blueprint §5 applied to episodes, Sonarr's <c>ImportApprovedEpisodes</c>):
+/// Completed download handling for series (Sonarr's <c>ImportApprovedEpisodes</c>):
 /// every video file of the download is parsed and mapped to episodes (the grab's episodes are the strong hint, the S2
 /// mapper decides otherwise, an ambiguity is never guessed), judged against the files in place by the same upgrade
 /// rule as the search (per episode), named by the series templates, hardlinked/copied/moved like a film, probed, its
@@ -622,7 +622,7 @@ public sealed class SeriesImportService(
     }
 
     /// <summary>
-    /// Title → series in the library → the version whose profile and constraints accept the release (blueprint §5,
+    /// Title → series in the library → the version whose profile and constraints accept the release (
     /// fallback), then one grab target per episode the title covers. Nothing found → manual import.
     /// </summary>
     private async Task<(int? VersionId, string? Reason)> AttributeAsync(Grab grab, ParsedEpisodeInfo? parsed, List<FileInfo> files, CancellationToken ct)

@@ -60,10 +60,10 @@ public sealed record ImportPlan(
     IReadOnlyList<string>? ExtraPaths = null);
 
 /// <summary>
-/// Completed download handling (blueprint §5): find the video in what the client wrote, attach it to its version (the grab
+/// Completed download handling: find the video in what the client wrote, attach it to its version (the grab
 /// remembers it; a torrent added by hand is matched by its title), refuse what is not an upgrade, hardlink/copy/move it
 /// into the version's folder under the naming template, probe it, replace the old file through the recycle bin, journal.
-/// A failed import is never blocklisted: the release is not at fault (§3.5).
+/// A failed import is never blocklisted: the release is not at fault.
 /// </summary>
 public sealed class ImportService(
     BigarrDbContext db,
@@ -446,7 +446,7 @@ public sealed class ImportService(
         };
         version.File = file;
 
-        // One shot: grabbed once, never again (§3.3).
+        // One shot: grabbed once, never again.
         if (version.Mode == VersionMode.OneShot)
         {
             version.Monitored = false;
@@ -662,7 +662,7 @@ public sealed class ImportService(
         logger.LogWarning("Import of {Title} failed: {Reason} {Details}", grab.ReleaseTitle, reason, string.Join(" | ", details));
     }
 
-    /// <summary>Title → film in the library → the version whose profile and constraints accept the release (blueprint §5, fallback).</summary>
+    /// <summary>Title → film in the library → the version whose profile and constraints accept the release (fallback).</summary>
     private async Task<(MovieVersion? Version, string? Reason)> AttributeAsync(Grab grab, ParsedMovieInfo? parsed, QualityModel quality, long size, CancellationToken ct)
     {
         var movies = await contexts.MoviesWithVersions().ToListAsync(ct);

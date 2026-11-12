@@ -24,7 +24,7 @@ public sealed class DownloadsOptions
     /// <summary>A failed download is removed from its client (files included) once blocklisted, like Radarr's "remove failed".</summary>
     public bool RemoveFailedDownloads { get; set; } = true;
 
-    /// <summary>A failed download queues an automatic search for a replacement (blueprint §5, failed handling).</summary>
+    /// <summary>A failed download queues an automatic search for a replacement (failed handling).</summary>
     public bool SearchAfterFailure { get; set; } = true;
 
     /// <summary>A download stalled for this long is treated as failed. 0 leaves stalled torrents alone, as Radarr does.</summary>

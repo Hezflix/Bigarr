@@ -212,7 +212,7 @@ public sealed class SeriesWantedAndHeldTests(SeriesApiFactory factory) : IClassF
     }
 }
 
-/// <summary>Shadow mode (§10) holds for the new paths: the missing/cutoff-unmet job records series picks and sends nothing.</summary>
+/// <summary>Shadow mode holds for the new paths: the missing/cutoff-unmet job records series picks and sends nothing.</summary>
 public sealed class SeriesShadowAutomationTests(ShadowSeriesApiFactory factory) : IClassFixture<ShadowSeriesApiFactory>
 {
     [Fact]

@@ -179,7 +179,7 @@ public sealed class ImportFlowTests(BigarrApiFactory factory) : IClassFixture<Bi
             Assert.Equal(3, Directory.GetFiles(folder).Length);
             Assert.All(new[] { mainFile, uhdFile, cutFile }, v => Assert.Equal(folder, v.Path));
 
-            // One shot: grabbed once, monitoring switched off at import (§3.3). The managed versions keep watching.
+            // One shot: grabbed once, monitoring switched off at import. The managed versions keep watching.
             Assert.False(cutFile.Monitored);
             Assert.True(mainFile.Monitored);
             Assert.True(uhdFile.Monitored);

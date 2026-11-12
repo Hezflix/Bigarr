@@ -6,11 +6,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bigarr.Api.Features.Compat.Radarr;
 
-/// <summary>One line of the compat library: a version and its film. The line's <c>id</c> is the version's (§7.1).</summary>
+/// <summary>One line of the compat library: a version and its film. The line's <c>id</c> is the version's.</summary>
 public sealed record CompatRow(Movie Movie, MovieVersion Version);
 
 /// <summary>
-/// The API key's view applied before mapping (blueprint §3.8, §7.1): <c>default</c> shows a film as its default version,
+/// The API key's view applied before mapping: <c>default</c> shows a film as its default version,
 /// <c>all</c> one line per version, <c>version:&lt;name&gt;</c> only the versions of that name. An id outside the view
 /// does not exist for the caller.
 /// </summary>

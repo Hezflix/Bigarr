@@ -3,14 +3,14 @@ using System.Text.Json;
 namespace Bigarr.Api.Features.Compat.Radarr;
 
 /// <summary>
-/// Radarr v3 shapes (blueprint §7.5), reduced to what Seerr and Bazarr read plus what makes a record look like Radarr's.
+/// Radarr v3 shapes, reduced to what Seerr and Bazarr read plus what makes a record look like Radarr's.
 /// Null members are left out of the JSON (see <see cref="RadarrCompat.Json"/>).
 /// </summary>
 public sealed record RadarrLanguage(int Id, string Name);
 
 public sealed record RadarrAlternateTitle(int Id, string SourceType, int MovieMetadataId, string Title);
 
-/// <param name="Url">Relative, served by <c>/MediaCover</c> (§7.3); Bazarr derives <c>poster-500.jpg</c> from it.</param>
+/// <param name="Url">Relative, served by <c>/MediaCover</c>; Bazarr derives <c>poster-500.jpg</c> from it.</param>
 public sealed record RadarrImage(string CoverType, string Url, string RemoteUrl);
 
 public sealed record RadarrRating(int Votes, double Value, string Type = "user");
@@ -69,7 +69,7 @@ public sealed record RadarrCollection(string Title, int TmdbId);
 
 public sealed record RadarrMovie
 {
-    /// <summary>The <see cref="Bigarr.Domain.Movies.MovieVersion"/> id, never the film's (§7.1). Zero on a lookup result that is not in the view.</summary>
+    /// <summary>The <see cref="Bigarr.Domain.Movies.MovieVersion"/> id, never the film's. Zero on a lookup result that is not in the view.</summary>
     public int Id { get; init; }
 
     public required string Title { get; init; }
@@ -138,7 +138,7 @@ public sealed record RadarrMovie
 
     public int TmdbId { get; init; }
 
-    /// <summary>The TMDB id as a string, common to every version of the film (§7.1).</summary>
+    /// <summary>The TMDB id as a string, common to every version of the film.</summary>
     public required string TitleSlug { get; init; }
 
     public string? RootFolderPath { get; init; }
@@ -166,7 +166,7 @@ public sealed record RadarrMovie
     public RadarrStatistics? Statistics { get; init; }
 }
 
-/// <summary>What Seerr posts and puts (§7.2). Unknown members are ignored, like Radarr does.</summary>
+/// <summary>What Seerr posts and puts. Unknown members are ignored, like Radarr does.</summary>
 public sealed record RadarrMovieRequest
 {
     public int Id { get; init; }
@@ -222,7 +222,7 @@ public sealed record RadarrStatusMessage(string Title, List<string> Messages);
 
 public sealed record RadarrQueueItem(
     int Id,
-    /// <summary>Version id (§7.2).</summary>
+    /// <summary>Version id.</summary>
     int MovieId,
     List<RadarrLanguage> Languages,
     RadarrQuality Quality,

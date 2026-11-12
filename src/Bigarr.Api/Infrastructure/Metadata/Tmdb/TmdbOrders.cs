@@ -5,7 +5,7 @@ using Bigarr.Domain.Tv;
 namespace Bigarr.Api.Infrastructure.Metadata.Tmdb;
 
 /// <summary>
-/// Turns TMDB's answers into the numbers of an alternative order (blueprint §8). Pure, shared by the live provider and
+/// Turns TMDB's answers into the numbers of an alternative order. Pure, shared by the live provider and
 /// the fixtures. TMDB's default order keeps its season/episode numbers; an episode group numbers its parts as seasons
 /// (part order, 0 for a specials part, shifted by one when the regular parts start at 0) and its episodes by their place.
 /// Absolute numbers run over the regular seasons in order.

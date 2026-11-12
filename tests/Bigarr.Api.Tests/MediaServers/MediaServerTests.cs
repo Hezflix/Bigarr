@@ -15,7 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Bigarr.Api.Tests.MediaServers;
 
-/// <summary>Media servers (M8): an imported file makes Plex and Jellyfin scan its folder, under their own paths; a server that fails shows in health.</summary>
+/// <summary>Media servers: an imported file makes Plex and Jellyfin scan its folder, under their own paths; a server that fails shows in health.</summary>
 public sealed class MediaServerTests(BigarrApiFactory factory) : IClassFixture<BigarrApiFactory>
 {
     [Fact]

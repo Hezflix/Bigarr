@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 namespace Bigarr.Api.Features.Downloads;
 
 /// <summary>
-/// The queue is not a table (blueprint §3.5): this is the in-memory projection of what the download clients report,
+/// The queue is not a table: this is the in-memory projection of what the download clients report,
 /// republished after every poll to whoever listens on the SSE stream, plus the bookkeeping the tracker needs
 /// between polls (missed polls per grab, client health).
 /// </summary>

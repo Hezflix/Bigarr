@@ -108,7 +108,7 @@ public static partial class NamingTemplate
         });
     }
 
-    /// <summary>Empty when the template is usable. <paramref name="forFile"/> adds the collision rule of blueprint §3.3.</summary>
+    /// <summary>Empty when the template is usable. <paramref name="forFile"/> adds the collision rule.</summary>
     public static IReadOnlyList<string> Validate(string? template, bool forFile)
     {
         var errors = new List<string>();
@@ -144,7 +144,7 @@ public static partial class NamingTemplate
         return errors;
     }
 
-    /// <summary>Quality or version name in the template: what keeps two files of one folder apart (blueprint §3.3).</summary>
+    /// <summary>Quality or version name in the template: what keeps two files of one folder apart.</summary>
     public static bool HasDiscriminant(string template) =>
         TokenRegex().Matches(template).Select(m => Normalize(m.Groups["token"].Value)).Any(n => n is "quality full" or "quality title" or "version");
 

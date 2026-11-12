@@ -3,7 +3,7 @@ using Bigarr.Domain.Tags;
 
 namespace Bigarr.Domain.Indexers;
 
-/// <summary>A release source (blueprint §3.7). Torznab at the MVP; Newznab and usenet come with a usenet download client.</summary>
+/// <summary>A release source. Torznab at the MVP; Newznab and usenet come with a usenet download client.</summary>
 public sealed class Indexer
 {
     /// <summary>Radarr's default movie categories: Movies and every sub-category (Foreign, Other, SD, HD, UHD, BluRay, 3D, DVD, WEB-DL).</summary>

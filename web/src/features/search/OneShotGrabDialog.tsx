@@ -17,7 +17,7 @@ function escapeRegex(value: string): string {
 }
 
 /**
- * "Grab as an alternative version" (blueprint §3.3, §5): a one-shot version is created next to the others, then the
+ * "Grab as an alternative version": a one-shot version is created next to the others, then the
  * release is grabbed for it. Two calls from here; the version is removed again when the grab is refused.
  */
 export function OneShotGrabDialog({ movie, release, defaultProfileId, onClose }: { movie: Movie; release: Release; defaultProfileId: number; onClose: () => void }) {

@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 namespace Bigarr.Api.Features.Compat.Radarr;
 
 /// <summary>
-/// <c>/MediaCover/{id}/poster-500.jpg</c> (§7.3): Bazarr shows Radarr's posters through Radarr, so the relative URLs in
+/// <c>/MediaCover/{id}/poster-500.jpg</c>: Bazarr shows Radarr's posters through Radarr, so the relative URLs in
 /// <c>images[]</c> must answer. The id is the compat id (a version), the cache is per film in the config directory, the
 /// bytes come from TMDB once. Size suffixes map to TMDB's own sizes instead of resizing anything here.
 /// </summary>

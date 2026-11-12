@@ -46,7 +46,7 @@ async function copy(text: string): Promise<boolean> {
   }
 }
 
-/** API keys and the recipes for the apps that speak Radarr (blueprint §3.8, §7): one key per app, the key's view decides what it sees. */
+/** API keys and the recipes for the apps that speak Radarr: one key per app, the key's view decides what it sees. */
 export function ConnectPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()

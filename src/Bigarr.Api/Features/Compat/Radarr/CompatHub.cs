@@ -14,11 +14,11 @@ public sealed record SignalRMessage(string Name, object Body);
 
 public sealed record ResourceChange(string Action, ResourceStub Resource);
 
-/// <summary>The part of the movie resource Bazarr reads from a change (§7.3): it fetches the rest with <c>GET /movie/{id}</c>.</summary>
+/// <summary>The part of the movie resource Bazarr reads from a change: it fetches the rest with <c>GET /movie/{id}</c>.</summary>
 public sealed record ResourceStub(int Id, string Title, int? Year, int TmdbId, string TitleSlug);
 
 /// <summary>
-/// Radarr's SignalR hub at <c>/signalr/messages</c> (§7.3): Bazarr relies on it for incremental updates. Connections are
+/// Radarr's SignalR hub at <c>/signalr/messages</c>: Bazarr relies on it for incremental updates. Connections are
 /// grouped by the key's view, so a change reaches only the clients whose view contains the version.
 /// </summary>
 [Authorize(Policy = AuthPolicies.ApiKey)]
@@ -46,7 +46,7 @@ public sealed class CompatHub : Hub
 }
 
 /// <summary>
-/// Turns dispatched outbox events into hub messages (blueprint §3.9: the hub is a consumer of the outbox, like SSE and
+/// Turns dispatched outbox events into hub messages (the hub is a consumer of the outbox, like SSE and
 /// webhooks). A version's change goes to the <c>all</c> group, to the <c>default</c> group when it is the default, and
 /// to its <c>version:&lt;name&gt;</c> group; a film's deletion fans out over its versions.
 /// </summary>

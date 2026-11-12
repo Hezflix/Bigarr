@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 namespace Bigarr.Api.Features.Compat.Radarr;
 
 /// <summary>
-/// <c>/history</c> (§7.3): Bazarr reads the grabs of a film (<c>eventType=1</c>, <c>movieIds=</c>) to refine its releases.
+/// <c>/history</c>: Bazarr reads the grabs of a film (<c>eventType=1</c>, <c>movieIds=</c>) to refine its releases.
 /// Our journal is per version; a compat <c>movieId</c> is a version id, so the filter lands on <c>TargetId</c>.
 /// </summary>
 public static class HistoryEndpoints

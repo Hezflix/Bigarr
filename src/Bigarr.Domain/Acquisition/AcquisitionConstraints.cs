@@ -22,7 +22,7 @@ public sealed class AcquisitionConstraints
     public bool IsEmpty =>
         Edition is null && ReleaseGroup is null && RequiredCustomFormatIds.Count == 0 && ForbiddenCustomFormatIds.Count == 0;
 
-    /// <summary>Used to pick the most specific version when several accept the same release (§3.3).</summary>
+    /// <summary>Used to pick the most specific version when several accept the same release.</summary>
     [JsonIgnore]
     public int Specificity =>
         (Edition is null ? 0 : 1) + (ReleaseGroup is null ? 0 : 1) + RequiredCustomFormatIds.Count + ForbiddenCustomFormatIds.Count;

@@ -64,7 +64,7 @@ function testSummary(t: TFunction, result: DownloadClientTestResult): string {
   return t(result.categoryCreated ? 'downloadClients.testOkCreated' : 'downloadClients.testOk', { version: result.version, category: result.category })
 }
 
-/** Where grabs go: qBittorrent instances and the category Bigarr owns in each (blueprint §3.7). */
+/** Where grabs go: qBittorrent instances and the category Bigarr owns in each. */
 export function DownloadClientsPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()

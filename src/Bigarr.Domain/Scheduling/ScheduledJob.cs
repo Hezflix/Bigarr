@@ -1,7 +1,7 @@
 namespace Bigarr.Domain.Scheduling;
 
 /// <summary>
-/// The persisted half of the scheduler (blueprint §3.7): when a job last ran and how it went, so a restart resumes the
+/// The persisted half of the scheduler: when a job last ran and how it went, so a restart resumes the
 /// cadence instead of running everything at once. Intervals come from configuration, not from this row.
 /// </summary>
 public sealed class ScheduledJob

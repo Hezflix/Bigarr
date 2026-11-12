@@ -14,7 +14,7 @@ public enum CompatViewKind
     Version = 2,
 }
 
-/// <summary>What an API key sees through the Radarr-compatible API (blueprint §3.8). Stored as text.</summary>
+/// <summary>What an API key sees through the Radarr-compatible API. Stored as text.</summary>
 public sealed record CompatView
 {
     public static readonly CompatView Default = new(CompatViewKind.Default, null);

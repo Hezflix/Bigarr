@@ -1,6 +1,6 @@
 namespace Bigarr.Domain.Movies;
 
-/// <summary>Subset of ffprobe output kept on the file. Nullable until the backfill job has run (§3.4).</summary>
+/// <summary>Subset of ffprobe output kept on the file. Nullable until the backfill job has run.</summary>
 public sealed class MediaInfo
 {
     public string? ContainerFormat { get; set; }

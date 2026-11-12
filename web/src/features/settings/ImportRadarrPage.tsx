@@ -17,7 +17,7 @@ type Step = 'connect' | 'map' | 'run'
 
 const isBusy = (status: RadarrImportStatus | undefined) => status?.state === 'queued' || status?.state === 'running'
 
-/** Moving in from an existing Radarr (M8): connect, map profiles and root folders, follow the import. */
+/** Moving in from an existing Radarr: connect, map profiles and root folders, follow the import. */
 export function ImportRadarrPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()

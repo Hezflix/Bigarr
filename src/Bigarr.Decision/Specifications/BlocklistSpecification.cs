@@ -1,6 +1,6 @@
 namespace Bigarr.Decision.Specifications;
 
-/// <summary>Guid or info hash when there is one, title otherwise (blueprint §3.5). The slice supplies the right list.</summary>
+/// <summary>Guid or info hash when there is one, title otherwise. The slice supplies the right list.</summary>
 public sealed class BlocklistSpecification : IReleaseSpecification
 {
     public Rejection? Evaluate(ReleaseCandidate candidate, TargetContext target)

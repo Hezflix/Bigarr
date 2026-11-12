@@ -47,7 +47,7 @@ function testSummary(t: TFunction, result: MediaServerTestResult): string {
 
 const formatDate = (value: string | null) => (value ? formatDateTime(value) : null)
 
-/** The Plex, Jellyfin and Emby servers told about library changes (M8). */
+/** The Plex, Jellyfin and Emby servers told about library changes. */
 export function MediaServersPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()

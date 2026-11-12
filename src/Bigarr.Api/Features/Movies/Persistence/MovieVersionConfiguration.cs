@@ -19,7 +19,7 @@ public sealed class MovieVersionConfiguration : IEntityTypeConfiguration<MovieVe
 
         builder.HasIndex(v => new { v.MovieId, v.Name }).IsUnique();
 
-        // Exactly one default per movie: partial unique index (blueprint §3.3).
+        // Exactly one default per movie: partial unique index.
         builder.HasIndex(v => v.MovieId, "IX_MovieVersions_MovieId_IsDefault")
             .IsUnique()
             .HasFilter("\"IsDefault\" = 1");

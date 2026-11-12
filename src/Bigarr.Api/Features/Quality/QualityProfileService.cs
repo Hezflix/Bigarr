@@ -7,7 +7,7 @@ using ParserQuality = Bigarr.Parsing.Qualities.Quality;
 
 namespace Bigarr.Api.Features.Quality;
 
-/// <summary>Quality profiles and definitions (§3.6). Ranks exist only inside a profile: the items list must hold every quality once.</summary>
+/// <summary>Quality profiles and definitions. Ranks exist only inside a profile: the items list must hold every quality once.</summary>
 public sealed class QualityProfileService(BigarrDbContext db, ILogger<QualityProfileService> logger)
 {
     public const int MaxNameLength = 128;

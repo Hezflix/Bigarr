@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 namespace Bigarr.Api.Infrastructure.Metadata;
 
 /// <summary>
-/// Live series metadata (blueprint §8): TVDB gives the episode list, numbering, specials and absolute numbers; TMDB
+/// Live series metadata: TVDB gives the episode list, numbering, specials and absolute numbers; TMDB
 /// gives images, overviews and its ids. The two are linked through remote ids (TVDB's TheMovieDB id, else TMDB's
 /// <c>find</c> by TVDB id). A show TVDB lacks is numbered by TMDB alone. Either client may be missing (no key).
 /// </summary>

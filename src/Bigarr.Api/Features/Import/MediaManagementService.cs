@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bigarr.Api.Features.Import;
 
-/// <summary>The single media management row (blueprint §3.7): created on first read, validated on write.</summary>
+/// <summary>The single media management row: created on first read, validated on write.</summary>
 public sealed class MediaManagementService(BigarrDbContext db, IMediaInfoReader probe)
 {
     public async Task<MediaManagementConfig> GetAsync(CancellationToken ct)

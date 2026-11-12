@@ -73,7 +73,7 @@ public static class EpisodeMapper
     }
 
     /// <summary>
-    /// The fallback on the series' alternative order (blueprint §8): season/episode numbers, season packs and absolute
+    /// The fallback on the series' alternative order: season/episode numbers, season packs and absolute
     /// numbers read in the order's numbering. Only for a series whose order is not TVDB, and only when TVDB found
     /// nothing acceptable: the caller verifies the hit. Air dates are order-independent: a daily name is not remapped.
     /// </summary>
@@ -172,7 +172,7 @@ public static class EpisodeMapper
         }
 
         // Scene numbers map to TVDB's numbers, which every episode keeps whatever the series' display order: XEM
-        // serves the TVDB pass only, never the fallback on the alternative order (blueprint §8).
+        // serves the TVDB pass only, never the fallback on the alternative order.
         var useScene = sceneSource;
         if (!useScene)
         {

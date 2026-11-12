@@ -2,7 +2,7 @@ using Bigarr.Decision.Specifications;
 
 namespace Bigarr.Decision;
 
-/// <summary>Runs every specification and keeps every rejection: the interactive search shows them all (blueprint §5).</summary>
+/// <summary>Runs every specification and keeps every rejection: the interactive search shows them all.</summary>
 public sealed class ReleaseEvaluator
 {
     /// <summary>What the interactive search applies: the user decides about monitoring and availability.</summary>

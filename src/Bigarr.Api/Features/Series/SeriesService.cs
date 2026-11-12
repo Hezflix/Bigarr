@@ -157,7 +157,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             return Failure.NotFound(request.TvdbId is not null ? $"TVDB series {request.TvdbId}" : $"TMDB series {request.TmdbId}");
         }
 
-        // A show TVDB knows is numbered by TVDB (S1): without a TVDB answer it is not added with TMDB's numbering, which
+        // A show TVDB knows is numbered by TVDB: without a TVDB answer it is not added with TMDB's numbering, which
         // a later refresh with TVDB would have to throw away. Only a show without a TVDB id takes TMDB's list.
         if (found.NumberedByTmdb && found.TvdbId is not null)
         {
@@ -558,7 +558,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             return Failure.NotFound("Series");
         }
 
-        // A show TVDB identifies is numbered by TVDB only (S1): without a TVDB key its episode list is left as it is,
+        // A show TVDB identifies is numbered by TVDB only: without a TVDB key its episode list is left as it is,
         // never replaced by TMDB's numbering, and no provider is asked.
         if (series.TvdbId is not null && !metadata.CanNumberByTvdb)
         {

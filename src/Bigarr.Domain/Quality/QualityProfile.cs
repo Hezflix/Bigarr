@@ -18,7 +18,7 @@ public sealed class QualityProfile
 
     public int CutoffFormatScore { get; set; }
 
-    /// <summary>Minimum score gain for an upgrade at equal quality rank (§3.6). A higher rank always passes.</summary>
+    /// <summary>Minimum score gain for an upgrade at equal quality rank. A higher rank always passes.</summary>
     public int MinUpgradeFormatScore { get; set; }
 
     /// <summary>ISO 639-1 code. Non-null: Bazarr reads it from the profile.</summary>

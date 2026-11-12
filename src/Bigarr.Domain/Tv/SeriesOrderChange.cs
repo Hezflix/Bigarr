@@ -33,7 +33,7 @@ public sealed record OrderFileMove(int EpisodeFileId, int VersionId, string From
 public sealed record OrderExtraMove(int ExtraFileId, string From, string To);
 
 /// <summary>
-/// Journal of one order switch of a series (blueprint §8): what the order and the episodes' alternative numbers were,
+/// Journal of one order switch of a series: what the order and the episodes' alternative numbers were,
 /// and every file moved on disk. Only the latest change of a series can be undone, until the next change.
 /// </summary>
 public sealed class SeriesOrderChange

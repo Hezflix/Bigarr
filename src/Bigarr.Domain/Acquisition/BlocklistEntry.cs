@@ -1,6 +1,6 @@
 namespace Bigarr.Domain.Acquisition;
 
-/// <summary>Scoped to a managed version; one-shot versions read and feed the default version's list (§3.5).</summary>
+/// <summary>Scoped to a managed version; one-shot versions read and feed the default version's list.</summary>
 public sealed class BlocklistEntry
 {
     public int Id { get; set; }

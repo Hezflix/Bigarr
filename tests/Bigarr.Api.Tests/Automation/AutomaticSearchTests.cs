@@ -11,7 +11,7 @@ using static Bigarr.Api.Tests.Import.ImportTestHelpers;
 
 namespace Bigarr.Api.Tests.Automation;
 
-/// <summary>M6, mode auto (blueprint §5): the best approved release is grabbed without anyone picking it.</summary>
+/// <summary>M6, mode auto: the best approved release is grabbed without anyone picking it.</summary>
 public sealed class AutomaticSearchTests(BigarrApiFactory factory) : IClassFixture<BigarrApiFactory>
 {
     [Fact]

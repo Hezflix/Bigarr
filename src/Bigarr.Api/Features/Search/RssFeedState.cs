@@ -1,7 +1,7 @@
 namespace Bigarr.Api.Features.Search;
 
 /// <summary>
-/// What the RSS loop has seen, in memory (blueprint §3.5 keeps the queue as a projection too): the last few hundred
+/// What the RSS loop has seen, in memory (the queue is a projection too): the last few hundred
 /// releases with their latest verdicts (one entry per release, however many passes judged it), the guids already
 /// seen so a pass can tell what is new, and per-indexer health. Lost on restart on purpose; grabs and history are the
 /// durable trace.

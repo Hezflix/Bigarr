@@ -19,7 +19,7 @@ public static class CompatEndpoints
     }
 
     /// <summary>
-    /// The whole surface behind one API key policy: the human session never opens <c>/api/v3</c> (§3.8). Routing is
+    /// The whole surface behind one API key policy: the human session never opens <c>/api/v3</c>. Routing is
     /// case-insensitive, so Seerr's <c>/qualityProfile</c> and Bazarr's <c>/qualityprofile</c> land on the same handler.
     /// </summary>
     public static IEndpointRouteBuilder MapRadarrCompat(this IEndpointRouteBuilder app)

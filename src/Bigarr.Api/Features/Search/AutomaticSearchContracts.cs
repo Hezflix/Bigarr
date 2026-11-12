@@ -1,6 +1,6 @@
 namespace Bigarr.Api.Features.Search;
 
-/// <summary>Who asked for the search. The user bypasses monitoring and availability, the system does not (blueprint §5).</summary>
+/// <summary>Who asked for the search. The user bypasses monitoring and availability, the system does not.</summary>
 public enum SearchTrigger
 {
     User = 1,

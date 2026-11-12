@@ -20,7 +20,7 @@ public abstract record RadarrWebhookPayload
     public string? ApplicationUrl { get; init; }
 }
 
-/// <param name="Id">The compat movie id, i.e. the version id: the same <c>id</c> as <c>GET /api/v3/movie</c> (§7.1).</param>
+/// <param name="Id">The compat movie id, i.e. the version id: the same <c>id</c> as <c>GET /api/v3/movie</c>.</param>
 /// <param name="FilePath">Declared by Radarr but never filled by its webhook; kept for the shape.</param>
 /// <param name="ReleaseDate">Radarr's <c>PhysicalReleaseDate()</c>, <c>yyyy-MM-dd</c>.</param>
 public sealed record RadarrWebhookMovie(

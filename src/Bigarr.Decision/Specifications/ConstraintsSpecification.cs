@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 
 namespace Bigarr.Decision.Specifications;
 
-/// <summary>Per-version constraints (blueprint §3.3). Custom format constraints join in M3 with the scoring.</summary>
+/// <summary>Per-version constraints. Custom format constraints join in M3 with the scoring.</summary>
 public sealed class ConstraintsSpecification : IReleaseSpecification
 {
     public Rejection? Evaluate(ReleaseCandidate candidate, TargetContext target)

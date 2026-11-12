@@ -51,7 +51,7 @@ public sealed class Series
 
     public SeriesType SeriesType { get; set; } = SeriesType.Standard;
 
-    /// <summary>Numbering shown and used for naming (blueprint §8). Changed only through the order switch (preview, apply, undo).</summary>
+    /// <summary>Numbering shown and used for naming. Changed only through the order switch (preview, apply, undo).</summary>
     public EpisodeOrder Ordering { get; set; } = EpisodeOrder.Tvdb;
 
     /// <summary>TMDB episode group id when <see cref="Ordering"/> is <see cref="EpisodeOrder.TmdbEpisodeGroup"/>.</summary>

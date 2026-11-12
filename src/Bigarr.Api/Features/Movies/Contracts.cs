@@ -22,9 +22,9 @@ public sealed record AddMovieRequest(
     string? VersionName = null,
     bool Monitored = true,
     MinimumAvailability MinimumAvailability = MinimumAvailability.Released,
-    /// <summary>Search the indexers right away, in the background (blueprint §5: "si monitored et disponibilité atteinte, recherche immédiate").</summary>
+    /// <summary>Search the indexers right away, in the background ("si monitored et disponibilité atteinte, recherche immédiate").</summary>
     bool SearchOnAdd = false,
-    /// <summary>Tags of the default version (§3.3).</summary>
+    /// <summary>Tags of the default version.</summary>
     List<int>? TagIds = null);
 
 public sealed record ConstraintsDto(

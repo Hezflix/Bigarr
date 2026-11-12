@@ -1,6 +1,6 @@
 namespace Bigarr.Decision.Specifications;
 
-/// <summary>The profile's floor for custom format scores (§3.6): a release scoring below it is never wanted.</summary>
+/// <summary>The profile's floor for custom format scores: a release scoring below it is never wanted.</summary>
 public sealed class MinimumFormatScoreSpecification : IReleaseSpecification
 {
     public Rejection? Evaluate(ReleaseCandidate candidate, TargetContext target)

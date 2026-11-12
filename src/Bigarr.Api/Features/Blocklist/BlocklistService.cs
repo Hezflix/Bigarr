@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Bigarr.Api.Features.Blocklist;
 
 /// <summary>
-/// The blocklist (blueprint §3.5): per managed version, a one-shot reading and feeding its film's default version.
+/// The blocklist: per managed version, a one-shot reading and feeding its film's default version.
 /// Entries are added by a failed download or a removal from the queue, read by the decision engine, and dropped by hand.
 /// </summary>
 public sealed class BlocklistService(BigarrDbContext db)
@@ -67,7 +67,7 @@ public sealed class BlocklistService(BigarrDbContext db)
             });
         }
 
-        // Series: one entry per (version, episode) pair the grab covered, read back by the episode decision (S7).
+        // Series: one entry per (version, episode) pair the grab covered, read back by the episode decision.
         var episodeTargets = await db.EpisodeTargets.AsNoTracking()
             .Include(t => t.Episode)
             .Include(t => t.Version).ThenInclude(v => v.Series)

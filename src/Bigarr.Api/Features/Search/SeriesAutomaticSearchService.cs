@@ -312,7 +312,7 @@ public sealed class SeriesAutomaticSearchService(
             }
         }
 
-        // 3. Blueprint §8: still uncovered and the series shows another order: its seasons asked by the order's numbers,
+        // 3. Still uncovered and the series shows another order: its seasons asked by the order's numbers,
         // the releases mapped on TVDB first, then on the order (a hit there confirmed by the release, else held).
         var uncovered = wanted.Where(e => !taken.Contains(e.Id)).ToList();
         if (stop is null && uncovered.Count > 0 && series.Ordering != EpisodeOrder.Tvdb)
@@ -331,7 +331,7 @@ public sealed class SeriesAutomaticSearchService(
             await held.RecordAsync(versionId, series.Id, stillHeld, context.TriggerName, ct);
         }
 
-        // The backoff (blueprint §5): a searched episode a release now covers starts over, the others wait longer.
+        // The backoff: a searched episode a release now covers starts over, the others wait longer.
         var covered = wanted.Count(e => taken.Contains(e.Id));
         var coveredTargets = wanted.Where(e => taken.Contains(e.Id)).Select(e => targets.Slot(versionId, e.Id)!.Target.Id).ToList();
         var emptyTargets = wanted.Where(e => !taken.Contains(e.Id)).Select(e => targets.Slot(versionId, e.Id)!.Target.Id).ToList();

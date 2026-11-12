@@ -31,7 +31,7 @@ const headline: Record<HistoryEventType, string[]> = {
   blocklisted: ['reason'],
 }
 
-/** The journal (blueprint §3.5): what happened to which version, and why a file is there. */
+/** The journal: what happened to which version, and why a file is there. */
 export function HistoryTable({ events, showMovie = true }: { events: HistoryEvent[]; showMovie?: boolean }) {
   const { t } = useTranslation()
 

@@ -32,7 +32,7 @@ public static class MetadataExtensions
             services.AddSingleton<IMetadataProvider, FixtureMetadataProvider>();
         }
 
-        // Series (blueprint §8): TVDB numbers the episodes, TMDB brings ids and images. Either key alone works.
+        // Series: TVDB numbers the episodes, TMDB brings ids and images. Either key alone works.
         services.Configure<TvdbOptions>(configuration.GetSection(TvdbOptions.Section));
         var tvdb = configuration.GetSection(TvdbOptions.Section).Get<TvdbOptions>() ?? new TvdbOptions();
         if (tvdb.HasApiKey)

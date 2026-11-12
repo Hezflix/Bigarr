@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Bigarr.Api.Features.Compat.Radarr;
 
-/// <summary><c>/rootfolder</c>: Seerr offers them at request time, Bazarr checks their reachability before every sync (§7.3).</summary>
+/// <summary><c>/rootfolder</c>: Seerr offers them at request time, Bazarr checks their reachability before every sync.</summary>
 public static class RootFoldersEndpoints
 {
     public static void MapCompatRootFolders(this RouteGroupBuilder group)

@@ -7,7 +7,7 @@ public sealed class SearchOptions
 
     public const int MinimumIntervalMinutes = 10;
 
-    /// <summary>The cutoff-unmet job: searches the missing and upgradable versions whose backoff has elapsed (blueprint §5).</summary>
+    /// <summary>The cutoff-unmet job: searches the missing and upgradable versions whose backoff has elapsed.</summary>
     public bool CutoffUnmetEnabled { get; set; } = true;
 
     public int CutoffUnmetIntervalMinutes { get; set; } = 60;
@@ -28,7 +28,7 @@ public sealed class SearchOptions
     public TimeSpan CutoffUnmetInterval => TimeSpan.FromMinutes(Math.Max(MinimumIntervalMinutes, CutoffUnmetIntervalMinutes));
 }
 
-/// <summary>Interval doubling after each empty search, capped (blueprint §5: "jamais un balayage complet périodique").</summary>
+/// <summary>Interval doubling after each empty search, capped ("jamais un balayage complet périodique").</summary>
 public static class SearchBackoff
 {
     public static TimeSpan Delay(int attempts, SearchOptions options)
