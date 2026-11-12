@@ -132,6 +132,30 @@ public sealed class AuthEndpointsTests(BigarrApiFactory factory) : IClassFixture
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Changing_the_password_ends_every_other_session_and_keeps_the_one_that_changed_it()
+    {
+        using var app = new ConfiguredBigarrApiFactory(null, null);
+        async Task<HttpClient> OpenAsync(string password)
+        {
+            var opened = app.CreateClientWithCookies();
+            Assert.Equal(HttpStatusCode.NoContent, (await opened.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest(BigarrApiFactory.AdminUsername, password))).StatusCode);
+            return opened;
+        }
+
+        var mine = await OpenAsync(BigarrApiFactory.AdminPassword);
+        var other = await OpenAsync(BigarrApiFactory.AdminPassword);
+        Assert.Equal(HttpStatusCode.OK, (await other.GetAsync("/api/v1/auth/me")).StatusCode);
+
+        const string changed = "another-password-456";
+        Assert.Equal(HttpStatusCode.NoContent, (await mine.PostAsJsonAsync("/api/v1/auth/password", new ChangePasswordRequest(BigarrApiFactory.AdminPassword, changed))).StatusCode);
+
+        // The session opened with the old password is over; the one that changed it goes on; the new password opens new ones.
+        Assert.Equal(HttpStatusCode.Unauthorized, (await other.GetAsync("/api/v1/auth/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await mine.GetAsync("/api/v1/auth/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await (await OpenAsync(changed)).GetAsync("/api/v1/auth/me")).StatusCode);
+    }
+
     private async Task<HttpClient> LoginAsync()
     {
         var client = factory.CreateClientWithCookies();

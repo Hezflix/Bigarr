@@ -33,6 +33,7 @@ public static class AuthEndpoints
         BigarrDbContext db,
         TimeProvider time,
         IPasswordHasher<User> hasher,
+        SessionStamps stamps,
         ILoggerFactory loggerFactory)
     {
         if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrEmpty(request.Password))
@@ -55,13 +56,18 @@ public static class AuthEndpoints
             return TypedResults.Unauthorized();
         }
 
-        if (verdict == PasswordVerificationResult.SuccessRehashNeeded)
+        var rehashed = verdict == PasswordVerificationResult.SuccessRehashNeeded;
+        if (rehashed)
         {
             user.PasswordHash = hasher.HashPassword(user, request.Password);
         }
 
         user.LastLoginAt = time.GetUtcNow().UtcDateTime;
         await db.SaveChangesAsync(http.RequestAborted);
+        if (rehashed)
+        {
+            stamps.Changed(user);
+        }
 
         await http.SignInAsync(
             AuthSchemes.Session,
@@ -87,7 +93,8 @@ public static class AuthEndpoints
         ClaimsPrincipal principal,
         HttpContext http,
         BigarrDbContext db,
-        IPasswordHasher<User> hasher)
+        IPasswordHasher<User> hasher,
+        SessionStamps stamps)
     {
         if (string.IsNullOrEmpty(request.NewPassword) || request.NewPassword.Length < MinPasswordLength)
         {
@@ -105,6 +112,14 @@ public static class AuthEndpoints
 
         user.PasswordHash = hasher.HashPassword(user, request.NewPassword);
         await db.SaveChangesAsync(http.RequestAborted);
+
+        // Every session opened with the old password ends here; this one goes on with a cookie for the new one.
+        stamps.Changed(user);
+        var current = await http.AuthenticateAsync(AuthSchemes.Session);
+        await http.SignInAsync(
+            AuthSchemes.Session,
+            BigarrPrincipal.ForUser(user, AuthSchemes.Session),
+            new AuthenticationProperties { IsPersistent = current.Properties?.IsPersistent ?? true });
         return TypedResults.NoContent();
     }
 }

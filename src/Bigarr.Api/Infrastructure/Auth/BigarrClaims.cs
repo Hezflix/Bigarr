@@ -5,6 +5,9 @@ public static class BigarrClaims
     public const string ApiKeyId = "bigarr:apikey";
 
     public const string CompatView = "bigarr:compatview";
+
+    /// <summary>On a session cookie: a fingerprint of the password the session was opened with (<see cref="SessionStamps"/>).</summary>
+    public const string SessionStamp = "bigarr:stamp";
 }
 
 public static class AuthSchemes
