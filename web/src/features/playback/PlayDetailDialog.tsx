@@ -15,7 +15,7 @@ import { StreamTracks } from './StreamTracks'
 /** A play and the sessions it was made of: player, network, what happened to each track, the file. */
 export function PlayDetailDialog({ play, onClose }: { play: Play | null; onClose: () => void }) {
   const { t } = useTranslation()
-  const streams = useQuery({ queryKey: ['playback', 'streams', play?.id], queryFn: () => playback.streams(play!.id), enabled: play !== null })
+  const streams = useQuery({ queryKey: ['playback', 'streams', play?.id], queryFn: () => playback.streams(play?.id ?? 0), enabled: play !== null })
   const [linking, setLinking] = useState(false)
   const linked = play !== null && (play.movieId !== null || play.item.movieId !== null)
 

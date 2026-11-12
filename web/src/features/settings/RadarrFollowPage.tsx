@@ -285,7 +285,7 @@ function FollowedRadarrDialog({ radarr, onClose, onSaved }: { radarr: FollowedRa
   const set = <K extends keyof FollowedRadarrRequest>(key: K, value: FollowedRadarrRequest[K]) => setForm((f) => ({ ...f, [key]: value }))
 
   const keyTyped = (form.apiKey ?? '').trim().length > 0 && form.apiKey !== KEY_MASK
-  const payload = (): FollowedRadarrRequest => ({ ...form, name: form.name.trim(), url: form.url.trim(), apiKey: keyTyped ? form.apiKey!.trim() : KEY_MASK, versionName: form.versionName.trim() })
+  const payload = (): FollowedRadarrRequest => ({ ...form, name: form.name.trim(), url: form.url.trim(), apiKey: keyTyped ? (form.apiKey ?? '').trim() : KEY_MASK, versionName: form.versionName.trim() })
 
   // A saved Radarr whose URL and key are untouched is read with its stored key: the key never comes back to the browser.
   const load = useMutation({

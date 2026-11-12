@@ -41,6 +41,9 @@
       },
       "suspicious": {
         "noArrayIndexKey": "warn"
+      },
+      "style": {
+        "noNonNullAssertion": "error"
       }
     }
   },

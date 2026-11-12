@@ -205,9 +205,14 @@ describe('series library view', () => {
   test('presets: the film ones, plus continuing (next airing first) and ended', () => {
     const list = seriesPresets(versionNames(shows))
     expect(list.map((p) => p.id)).toEqual(['all', 'missing', 'missing-4k', 'cutoffUnmet', 'recent', 'unmonitored', 'continuing', 'ended'])
-    const count = (id: string) => shows.filter((s) => seriesMatchesFilter(s, list.find((p) => p.id === id)!.filter, now)).length
+    const preset = (id: string) => {
+      const found = list.find((p) => p.id === id)
+      if (!found) throw new Error(`no preset ${id}`)
+      return found
+    }
+    const count = (id: string) => shows.filter((s) => seriesMatchesFilter(s, preset(id).filter, now)).length
     expect([count('missing'), count('missing-4k'), count('cutoffUnmet'), count('continuing'), count('ended')]).toEqual([0, 1, 1, 1, 1])
-    expect(list.find((p) => p.id === 'continuing')!.sort).toEqual({ key: 'nextAiring', direction: 'asc' })
+    expect(preset('continuing').sort).toEqual({ key: 'nextAiring', direction: 'asc' })
     expect(sameSeriesFilter({ ...emptySeriesFilter, scope: 'all' }, emptySeriesFilter)).toBe(true)
   })
 

@@ -114,7 +114,7 @@ function SourceStep({
   })
 
   const previewMutation = useMutation({
-    mutationFn: () => tautulliImport.preview({ path: path.trim(), mediaServerId: serverId! }),
+    mutationFn: () => tautulliImport.preview({ path: path.trim(), mediaServerId: serverId ?? 0 }),
     onSuccess: onPreview,
   })
 

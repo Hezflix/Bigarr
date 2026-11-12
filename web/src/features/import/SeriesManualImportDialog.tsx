@@ -43,7 +43,7 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
 
   const listing = useQuery({
     queryKey: ['seriesManualImport', grabId ?? null, grabId ? null : loadedPath, seriesId ?? null],
-    queryFn: () => seriesFiles.list(grabId ? { grabId } : { path: loadedPath!, seriesId }),
+    queryFn: () => seriesFiles.list(grabId ? { grabId } : { path: loadedPath ?? '', seriesId }),
     enabled: !!grabId || !!loadedPath,
     retry: false,
     staleTime: Number.POSITIVE_INFINITY,
@@ -73,9 +73,11 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
 
   const sortedSeries = useMemo(() => [...(library.data ?? [])].sort((a, b) => a.sortTitle.localeCompare(b.sortTitle)), [library.data])
 
-  const items: SeriesManualImportItem[] = Object.entries(selections)
-    .filter(([, s]) => s.selected && s.versionId !== null && s.episodeIds.length > 0)
-    .map(([filePath, s]) => ({ path: filePath, versionId: s.versionId!, episodeIds: s.episodeIds, qualityId: s.qualityId, grabId: grabId ?? null, extraPaths: s.extras }))
+  const items: SeriesManualImportItem[] = Object.entries(selections).flatMap(([filePath, s]) =>
+    !s.selected || s.versionId === null || s.episodeIds.length === 0
+      ? []
+      : [{ path: filePath, versionId: s.versionId, episodeIds: s.episodeIds, qualityId: s.qualityId, grabId: grabId ?? null, extraPaths: s.extras }],
+  )
 
   const run = useMutation({
     mutationFn: () => seriesFiles.import(items, mode === 'default' ? null : mode),
