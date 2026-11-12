@@ -47,7 +47,9 @@ public sealed class UnmatchedEpisodeFile
     /// <summary>What the parser saw, or the candidate episodes.</summary>
     public string? Detail { get; set; }
 
-    public DateTime DiscoveredAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime DiscoveredAt { get; set; }
 
-    public DateTime LastSeenAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime LastSeenAt { get; set; }
 }

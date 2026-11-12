@@ -52,5 +52,6 @@ public sealed class FollowedRadarr
     /// <summary>Radarr's <c>eventType</c> of that call: <c>MovieAdded</c>, <c>Grab</c>, <c>Download</c>, <c>Test</c>…</summary>
     public string? LastWebhookEvent { get; set; }
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime CreatedAt { get; set; }
 }

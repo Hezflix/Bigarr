@@ -37,10 +37,9 @@ public sealed class HealthCheckService(
     IOptions<RssSyncOptions> rss,
     IOptions<SchedulerOptions> schedulerOptions,
     IOptions<ShadowOptions> shadow,
+    ProcessStart start,
     TimeProvider time)
 {
-    private static readonly DateTime StartedAt = DateTime.UtcNow;
-
     public async Task<List<HealthIssue>> CheckAsync(CancellationToken ct)
     {
         var issues = new List<HealthIssue>();
@@ -111,7 +110,7 @@ public sealed class HealthCheckService(
         {
             var lastRun = scheduler.TryGet(RssSyncJob.JobName, out var runtime) ? runtime.LastRunAt : null;
             var overdue = rss.Value.Interval * 2;
-            var reference = lastRun ?? StartedAt;
+            var reference = lastRun ?? start.At;
             if (now - reference > overdue)
             {
                 issues.Add(new HealthIssue("rss", HealthIssueType.Warning, lastRun is null

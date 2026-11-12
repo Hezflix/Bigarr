@@ -56,7 +56,8 @@ public sealed class Movie
 
     public RootFolder DefaultRootFolder { get; set; } = null!;
 
-    public DateTime AddedAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime AddedAt { get; set; }
 
     public DateTime? LastMetadataRefreshAt { get; set; }
 
@@ -67,7 +68,7 @@ public sealed class Movie
     /// <summary>Computed: at least one monitored version. Not mapped.</summary>
     public bool Monitored => Versions.Any(v => v.Monitored);
 
-    public static Movie FromMetadata(MovieMetadata metadata, int defaultRootFolderId)
+    public static Movie FromMetadata(MovieMetadata metadata, int defaultRootFolderId, DateTime now)
     {
         ArgumentNullException.ThrowIfNull(metadata);
 
@@ -78,12 +79,12 @@ public sealed class Movie
             SortTitle = Movies.SortTitle.Build(metadata.Title),
             DefaultRootFolderId = defaultRootFolderId,
         };
-        movie.ApplyMetadata(metadata);
+        movie.ApplyMetadata(metadata, now);
         return movie;
     }
 
     /// <summary>Refreshes the metadata cache. Never touches versions, files or the root folder.</summary>
-    public void ApplyMetadata(MovieMetadata metadata)
+    public void ApplyMetadata(MovieMetadata metadata, DateTime now)
     {
         ArgumentNullException.ThrowIfNull(metadata);
 
@@ -106,6 +107,6 @@ public sealed class Movie
         PhysicalReleaseDate = metadata.PhysicalReleaseDate;
         CollectionTmdbId = metadata.CollectionTmdbId;
         Images = [.. metadata.Images];
-        LastMetadataRefreshAt = DateTime.UtcNow;
+        LastMetadataRefreshAt = now;
     }
 }

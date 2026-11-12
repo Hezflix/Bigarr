@@ -30,8 +30,6 @@ public sealed record SystemStatusResponse(
 
 public static class SystemEndpoints
 {
-    private static readonly DateTime StartedAt = DateTime.UtcNow;
-
     public static readonly string Version =
         typeof(SystemEndpoints).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0";
 
@@ -45,12 +43,12 @@ public static class SystemEndpoints
         return app;
     }
 
-    private static Ok<SystemStatusResponse> Status(IOptions<BigarrOptions> options, IOptions<SchedulerOptions> scheduler, IOptions<ShadowOptions> shadow, IHostEnvironment environment, IMetadataProvider metadata, ISeriesMetadataProvider seriesMetadata) =>
+    private static Ok<SystemStatusResponse> Status(IOptions<BigarrOptions> options, IOptions<SchedulerOptions> scheduler, IOptions<ShadowOptions> shadow, IHostEnvironment environment, IMetadataProvider metadata, ISeriesMetadataProvider seriesMetadata, ProcessStart start) =>
         TypedResults.Ok(new SystemStatusResponse(
             AppName: "Bigarr",
             Version: Version,
             EnvironmentName: environment.EnvironmentName,
-            StartedAt: StartedAt,
+            StartedAt: start.At,
             RuntimeVersion: RuntimeInformation.FrameworkDescription,
             Os: RuntimeInformation.OSDescription,
             IsDocker: string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase),

@@ -33,7 +33,8 @@ public sealed class Grab
 
     public DownloadProtocol Protocol { get; set; } = DownloadProtocol.Torrent;
 
-    public DateTime GrabbedAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime GrabbedAt { get; set; }
 
     /// <summary>Series grabs: which numbering the release matched its episodes on. Null for films.</summary>
     public Tv.EpisodeNumbering? Numbering { get; set; }

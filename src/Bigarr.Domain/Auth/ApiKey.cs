@@ -19,7 +19,8 @@ public sealed class ApiKey
 
     public CompatView CompatView { get; set; } = CompatView.Default;
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime CreatedAt { get; set; }
 
     public DateTime? LastUsedAt { get; set; }
 

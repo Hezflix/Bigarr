@@ -67,7 +67,8 @@ public sealed class Indexer
     /// <summary>Id of the Prowlarr indexer behind this row, read from the <c>/{id}/</c> of the URL Prowlarr pushes; Prowlarr then owns the row.</summary>
     public int? ProwlarrId { get; set; }
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime CreatedAt { get; set; }
 
     public DownloadProtocol Protocol => DownloadProtocol.Torrent;
 }

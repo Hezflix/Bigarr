@@ -9,5 +9,6 @@ public sealed class SeriesExclusion
 
     public required string Title { get; set; }
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime CreatedAt { get; set; }
 }

@@ -36,5 +36,6 @@ public sealed class ExtraFile
     /// <summary>SDH / closed captions.</summary>
     public bool HearingImpaired { get; set; }
 
-    public DateTime DateAdded { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime DateAdded { get; set; }
 }
