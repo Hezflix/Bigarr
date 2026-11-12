@@ -11,7 +11,7 @@ namespace Bigarr.Domain.Events;
 /// </summary>
 public abstract record DomainEvent
 {
-    public DateTime OccurredAt { get; init; } = DateTime.UtcNow;
+    public DateTime OccurredAt { get; init; }
 
     /// <summary>camelCase name used by the outbox, the SSE stream and webhook subscriptions.</summary>
     [JsonIgnore]

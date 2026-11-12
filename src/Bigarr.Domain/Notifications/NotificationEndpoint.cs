@@ -38,7 +38,8 @@ public sealed class NotificationEndpoint
     /// <summary>For the Discord format: the webhook's name, avatar and the fields of each message. Null for the other formats.</summary>
     public DiscordSettings? Discord { get; set; }
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime CreatedAt { get; set; }
 
     public bool Subscribes(string eventType) => Events.Count == 0 || Events.Contains(eventType, StringComparer.Ordinal);
 

@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using System.Reflection;
+using Bigarr.Domain;
 using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Auth;
 using Bigarr.Domain.Downloads;
@@ -15,6 +18,7 @@ using Bigarr.Domain.Shadow;
 using Bigarr.Domain.Tags;
 using Bigarr.Domain.Tv;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace Bigarr.Api.Infrastructure.Persistence;
 
@@ -22,8 +26,21 @@ namespace Bigarr.Api.Infrastructure.Persistence;
 /// Single database. Entity configurations live in the slice that owns the entity
 /// (<c>Features/*/Persistence</c>) and are discovered by assembly scan.
 /// </summary>
-public sealed class BigarrDbContext(DbContextOptions<BigarrDbContext> options) : DbContext(options)
+public sealed class BigarrDbContext : DbContext
 {
+    private static readonly ConcurrentDictionary<Type, PropertyInfo[]> SetWhenAdded = new();
+
+    private readonly TimeProvider _time;
+
+    /// <param name="options">Provider and interceptors.</param>
+    /// <param name="time">The application clock, from the container. The system clock when the context is built by hand.</param>
+    public BigarrDbContext(DbContextOptions<BigarrDbContext> options, TimeProvider? time = null)
+        : base(options)
+    {
+        _time = time ?? TimeProvider.System;
+        ChangeTracker.Tracked += StampWhenAdded;
+    }
+
     public DbSet<Movie> Movies => Set<Movie>();
 
     public DbSet<MovieExclusion> MovieExclusions => Set<MovieExclusion>();
@@ -131,6 +148,35 @@ public sealed class BigarrDbContext(DbContextOptions<BigarrDbContext> options) :
     public DbSet<PlaybackSession> PlaybackSessions => Set<PlaybackSession>();
 
     public DbSet<PlaybackSettings> PlaybackSettings => Set<PlaybackSettings>();
+
+    /// <summary>
+    /// Fills the <see cref="SetWhenAddedAttribute"/> timestamps of an entity the moment it is tracked as new, from the same
+    /// clock as the rest of the application. A value the caller already set is kept.
+    /// </summary>
+    private void StampWhenAdded(object? sender, EntityTrackedEventArgs e)
+    {
+        if (e.FromQuery || e.Entry.State != EntityState.Added)
+        {
+            return;
+        }
+
+        var properties = SetWhenAdded.GetOrAdd(
+            e.Entry.Metadata.ClrType,
+            static type => [.. type.GetProperties().Where(p => p.PropertyType == typeof(DateTime) && p.IsDefined(typeof(SetWhenAddedAttribute), inherit: true))]);
+        if (properties.Length == 0)
+        {
+            return;
+        }
+
+        var now = _time.GetUtcNow().UtcDateTime;
+        foreach (var property in properties)
+        {
+            if ((DateTime)property.GetValue(e.Entry.Entity)! == default)
+            {
+                property.SetValue(e.Entry.Entity, now);
+            }
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

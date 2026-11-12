@@ -11,19 +11,17 @@ namespace Bigarr.Api.Features.Compat.Radarr;
 /// </summary>
 public static class SystemEndpoints
 {
-    private static readonly DateTime StartedAt = DateTime.UtcNow;
-
     public static void MapCompatSystem(this RouteGroupBuilder group)
     {
         group.MapGet("/system/status", Status);
     }
 
-    private static JsonHttpResult<RadarrSystemStatus> Status(IOptions<BigarrOptions> options, IHostEnvironment environment) =>
+    private static JsonHttpResult<RadarrSystemStatus> Status(IOptions<BigarrOptions> options, IHostEnvironment environment, Server.ProcessStart start) =>
         RadarrCompat.Ok(new RadarrSystemStatus(
             AppName: "Radarr",
             InstanceName: "Bigarr",
             Version: RadarrCompat.ApplicationVersion,
-            BuildTime: StartedAt,
+            BuildTime: start.At,
             IsDebug: false,
             IsProduction: environment.IsProduction(),
             IsAdmin: false,
@@ -46,7 +44,7 @@ public static class SystemEndpoints
             UrlBase: string.Empty,
             RuntimeVersion: Environment.Version.ToString(),
             RuntimeName: "netCore",
-            StartTime: StartedAt,
+            StartTime: start.At,
             PackageVersion: Server.SystemEndpoints.Version,
             PackageAuthor: "Bigarr",
             PackageUpdateMechanism: "docker"));

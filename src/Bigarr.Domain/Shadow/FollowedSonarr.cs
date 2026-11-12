@@ -63,5 +63,6 @@ public sealed class FollowedSonarr
     /// <summary>Sonarr's <c>eventType</c> of that call: <c>SeriesAdd</c>, <c>Grab</c>, <c>Download</c>, <c>Test</c>…</summary>
     public string? LastWebhookEvent { get; set; }
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime CreatedAt { get; set; }
 }

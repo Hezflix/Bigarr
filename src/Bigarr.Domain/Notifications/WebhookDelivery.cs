@@ -49,7 +49,8 @@ public sealed class WebhookDelivery
 
     public string? LastError { get; set; }
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime CreatedAt { get; set; }
 
     public WebhookDeliveryState State =>
         DeliveredAt is not null ? WebhookDeliveryState.Delivered

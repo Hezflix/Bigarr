@@ -29,5 +29,6 @@ public sealed class EpisodeExtraFile
 
     public bool HearingImpaired { get; set; }
 
-    public DateTime DateAdded { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime DateAdded { get; set; }
 }

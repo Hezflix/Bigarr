@@ -80,7 +80,8 @@ public sealed class Series
 
     public RootFolder DefaultRootFolder { get; set; } = null!;
 
-    public DateTime AddedAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime AddedAt { get; set; }
 
     public DateTime? LastMetadataRefreshAt { get; set; }
 
@@ -101,7 +102,7 @@ public sealed class Series
     /// <summary>Computed: at least one monitored version. Not mapped.</summary>
     public bool Monitored => Versions.Any(v => v.Monitored);
 
-    public static Series FromMetadata(SeriesMetadata metadata, int defaultRootFolderId)
+    public static Series FromMetadata(SeriesMetadata metadata, int defaultRootFolderId, DateTime now)
     {
         ArgumentNullException.ThrowIfNull(metadata);
 
@@ -112,12 +113,12 @@ public sealed class Series
             DefaultRootFolderId = defaultRootFolderId,
             SeriesType = metadata.SuggestedType,
         };
-        series.ApplyMetadata(metadata);
+        series.ApplyMetadata(metadata, now);
         return series;
     }
 
     /// <summary>Refreshes the series-level cache. Seasons and episodes are synchronised by the slice (they carry per-version state).</summary>
-    public void ApplyMetadata(SeriesMetadata metadata)
+    public void ApplyMetadata(SeriesMetadata metadata, DateTime now)
     {
         ArgumentNullException.ThrowIfNull(metadata);
 
@@ -141,6 +142,6 @@ public sealed class Series
         Images = [.. metadata.Images];
         FirstAired = metadata.FirstAired;
         LastAired = metadata.LastAired;
-        LastMetadataRefreshAt = DateTime.UtcNow;
+        LastMetadataRefreshAt = now;
     }
 }

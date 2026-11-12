@@ -21,5 +21,6 @@ public sealed class BlocklistEntry
 
     public string? Reason { get; set; }
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime CreatedAt { get; set; }
 }

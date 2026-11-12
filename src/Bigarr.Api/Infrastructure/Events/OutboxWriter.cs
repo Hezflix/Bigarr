@@ -13,11 +13,17 @@ public sealed class OutboxWriter(BigarrDbContext db, TimeProvider time)
     {
         ArgumentNullException.ThrowIfNull(domainEvent);
 
+        var now = time.GetUtcNow().UtcDateTime;
+        if (domainEvent.OccurredAt == default)
+        {
+            domainEvent = domainEvent with { OccurredAt = now };
+        }
+
         var row = new OutboxEvent
         {
             Type = domainEvent.Type,
             Payload = EventJson.Serialize(domainEvent),
-            CreatedAt = time.GetUtcNow().UtcDateTime,
+            CreatedAt = now,
         };
         db.Outbox.Add(row);
         return row;

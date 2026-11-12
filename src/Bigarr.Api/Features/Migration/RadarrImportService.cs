@@ -1,9 +1,10 @@
+using System.Text.Json;
 using Bigarr.Api.Features.Quality;
 using Bigarr.Api.Features.Tags;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Events;
-using Bigarr.Api.Infrastructure.RadarrImport;
 using Bigarr.Api.Infrastructure.Persistence;
+using Bigarr.Api.Infrastructure.RadarrImport;
 using Bigarr.Decision.CustomFormats;
 using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Common;
@@ -16,7 +17,6 @@ using Bigarr.Domain.Quality;
 using Bigarr.Domain.Shadow;
 using Bigarr.Domain.Tags;
 using Bigarr.Parsing;
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bigarr.Api.Features.Migration;
@@ -476,7 +476,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
                 return;
             }
 
-            movie = Movie.FromMetadata(found, root.Id);
+            movie = Movie.FromMetadata(found, root.Id, time.GetUtcNow().UtcDateTime);
             movie.AddedAt = item.Added ?? now;
             // Radarr's snapshot is good enough to start; a later refresh normalizes it against the provider.
             movie.LastMetadataRefreshAt = null;

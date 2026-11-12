@@ -140,7 +140,7 @@ public sealed partial class LibraryScanner(BigarrDbContext db, IMetadataProvider
 
         if (movie is null)
         {
-            movie = Movie.FromMetadata(found, root.Id);
+            movie = Movie.FromMetadata(found, root.Id, time.GetUtcNow().UtcDateTime);
             db.Movies.Add(movie);
             progress.MovieAdded();
         }

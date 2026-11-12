@@ -81,6 +81,7 @@ public static class ApiKeysEndpoints
         int id,
         ClaimsPrincipal user,
         BigarrDbContext db,
+        TimeProvider time,
         CancellationToken cancellationToken)
     {
         var userId = user.UserId();
@@ -92,7 +93,7 @@ public static class ApiKeysEndpoints
 
         if (!key.IsRevoked)
         {
-            key.RevokedAt = DateTime.UtcNow;
+            key.RevokedAt = time.GetUtcNow().UtcDateTime;
             await db.SaveChangesAsync(cancellationToken);
         }
 

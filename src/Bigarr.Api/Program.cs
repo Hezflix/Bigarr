@@ -205,10 +205,12 @@ builder.Services.AddScoped<HealthCheckService>();
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
 builder.Services.AddHealthChecks().AddDbContextCheck<BigarrDbContext>();
 builder.Services.AddOpenApi("v1");
+builder.Services.AddSingleton<ProcessStart>();
 builder.Services.AddProblemDetails();
 builder.Services.AddBigarrResponseCompression();
 
 var app = builder.Build();
+app.Services.GetRequiredService<ProcessStart>();
 
 app.UseForwardedHeaders();
 app.UseExceptionHandler();
