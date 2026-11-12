@@ -96,6 +96,8 @@ public sealed class BigarrDbContext(DbContextOptions<BigarrDbContext> options) :
 
     public DbSet<ScheduledJob> ScheduledJobs => Set<ScheduledJob>();
 
+    public DbSet<StandingHealthIssue> StandingHealthIssues => Set<StandingHealthIssue>();
+
     public DbSet<MediaServer> MediaServers => Set<MediaServer>();
 
     public DbSet<ShadowPick> ShadowPicks => Set<ShadowPick>();

@@ -259,22 +259,35 @@ public sealed class HealthCheckJob(HealthCheckService checks, HealthState state,
     {
         var issues = await checks.CheckAsync(ct);
         var now = time.GetUtcNow().UtcDateTime;
-        var (raised, resolved) = state.Update(issues, now);
 
-        foreach (var issue in raised.Where(i => i.Type != HealthIssueType.Notice))
+        // What was standing is read from the database, so a restart neither raises every issue again nor forgets to
+        // resolve one fixed while the app was down. The new baseline and its events commit together; the in-memory
+        // copy follows only then, so a failed save is simply diffed again by the next check.
+        var standing = await db.StandingHealthIssues.ToListAsync(ct);
+        foreach (var issue in issues.Where(i => !standing.Any(s => HealthState.Same(s.Source, s.Message, i))))
         {
-            outbox.Publish(new HealthIssueRaised(issue.Source, issue.Type, issue.Message) { OccurredAt = now });
+            db.StandingHealthIssues.Add(new Bigarr.Domain.Scheduling.StandingHealthIssue { Source = issue.Source, Type = issue.Type, Message = issue.Message, RaisedAt = now });
+            if (issue.Type != HealthIssueType.Notice)
+            {
+                outbox.Publish(new HealthIssueRaised(issue.Source, issue.Type, issue.Message) { OccurredAt = now });
+            }
         }
 
-        foreach (var issue in resolved.Where(i => i.Type != HealthIssueType.Notice))
+        foreach (var gone in standing.Where(s => !issues.Any(i => HealthState.Same(s.Source, s.Message, i))))
         {
-            outbox.Publish(new HealthIssueResolved(issue.Source, issue.Message, issue.Type) { OccurredAt = now });
+            db.StandingHealthIssues.Remove(gone);
+            if (gone.Type != HealthIssueType.Notice)
+            {
+                outbox.Publish(new HealthIssueResolved(gone.Source, gone.Message, gone.Type) { OccurredAt = now });
+            }
         }
 
         if (db.ChangeTracker.HasChanges())
         {
             await db.SaveChangesAsync(ct);
         }
+
+        state.Replace(issues, now);
 
         var errors = issues.Count(i => i.Type == HealthIssueType.Error);
         var warnings = issues.Count(i => i.Type == HealthIssueType.Warning);

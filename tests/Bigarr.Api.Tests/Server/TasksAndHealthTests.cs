@@ -6,6 +6,8 @@ using Bigarr.Api.Features.Server.Health;
 using Bigarr.Api.Features.Server.Tasks;
 using Bigarr.Api.Tests.Auth;
 using Bigarr.Domain.Events;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using static Bigarr.Api.Tests.Import.ImportTestHelpers;
 
 namespace Bigarr.Api.Tests.Server;
@@ -47,6 +49,46 @@ public sealed class TasksAndHealthTests(BigarrApiFactory factory) : IClassFixtur
 
         Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsync("/api/v1/system/tasks/nope/run", null)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await factory.CreateAnonymousClient().GetAsync("/api/v1/system/tasks")).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_restart_neither_raises_standing_issues_again_nor_forgets_to_resolve_one_fixed_meanwhile()
+    {
+        var configDirectory = Path.Combine(Path.GetTempPath(), $"bigarr-health-restart-{Guid.NewGuid():N}");
+        int raisedBefore;
+
+        // First life: nothing is configured, the check raises its warnings once.
+        using (var first = new ConfiguredBigarrApiFactory(configDirectory, null, deleteOnDispose: false))
+        {
+            var client = await ClientAsync(first);
+            Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/api/v1/health/check", null)).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/api/v1/health/check", null)).StatusCode);
+            raisedBefore = await EventsAsync(first, "healthIssue");
+            Assert.True(raisedBefore >= 2, "the indexer and download client warnings were expected");
+            Assert.Equal(0, await EventsAsync(first, "healthRestored"));
+        }
+
+        // Second life on the same database: one cause is fixed before the first check of this life.
+        using (var second = new ConfiguredBigarrApiFactory(configDirectory, null, deleteOnDispose: true))
+        {
+            var client = await ClientAsync(second);
+            var indexer = await AddMockIndexerAsync(client, "Mock health restart");
+            var health = (await (await client.PostAsync("/api/v1/health/check", null)).Content.ReadFromJsonAsync<HealthResponse>(Json))!;
+            Assert.DoesNotContain(health.Issues, i => i.Source == "indexers");
+            Assert.Contains(health.Issues, i => i.Source == "downloadClients");
+
+            // The download client warning was already standing: not raised again. The indexer one went away: resolved.
+            Assert.Equal(raisedBefore, await EventsAsync(second, "healthIssue"));
+            Assert.Equal(1, await EventsAsync(second, "healthRestored"));
+            await client.DeleteAsync($"/api/v1/indexers/{indexer.Id}");
+        }
+    }
+
+    private static async Task<int> EventsAsync(BigarrApiFactory app, string type)
+    {
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<Bigarr.Api.Infrastructure.Persistence.BigarrDbContext>();
+        return await db.Outbox.AsNoTracking().CountAsync(e => e.Type == type);
     }
 
     [Fact]
