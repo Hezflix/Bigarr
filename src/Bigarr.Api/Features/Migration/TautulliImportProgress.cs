@@ -1,7 +1,7 @@
 namespace Bigarr.Api.Features.Migration;
 
 /// <summary>Mutable, in-memory progress of one Tautulli import. Read by the API while the import writes it.</summary>
-public sealed class TautulliImportProgress(TautulliImportRequest request)
+public sealed class TautulliImportProgress(TautulliImportRequest request) : IImportProgress<TautulliImportStatusResponse>
 {
     public const int MaxIssues = 500;
 
