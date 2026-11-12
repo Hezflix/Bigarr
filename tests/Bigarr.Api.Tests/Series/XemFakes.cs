@@ -16,9 +16,12 @@ public static class XemFakes
 {
     public const int FrierenTvdbId = 424536;
 
-    public static XemClient RecordedClient() => new(new HttpClient(new RecordedHandler()) { BaseAddress = new Uri("https://xem.test/map/") });
+    public static XemClient RecordedClient() => new(new HttpClient(new RecordedHandler()) { BaseAddress = new Uri("https://xem.test/map/") }, NoDelay());
 
-    public static XemClient UnreachableClient() => new(new HttpClient(new UnreachableHandler()) { BaseAddress = new Uri("https://xem.test/map/") });
+    public static XemClient UnreachableClient() => new(new HttpClient(new UnreachableHandler()) { BaseAddress = new Uri("https://xem.test/map/") }, NoDelay());
+
+    /// <summary>A throttle that spaces nothing, for the tests that are not about spacing.</summary>
+    public static XemThrottle NoDelay() => new(TimeProvider.System, TimeSpan.Zero);
 
     public static XemService Service(BigarrDbContext db, TimeProvider time, IXemClient client, bool enabled = true) =>
         new(db, client, new XemMappedIds(time), Options.Create(new XemOptions { Enabled = enabled }), time, NullLogger<XemService>.Instance);
