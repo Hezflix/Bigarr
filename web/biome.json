@@ -30,7 +30,10 @@
     "rules": {
       "preset": "recommended",
       "a11y": {
-        "noLabelWithoutControl": "warn",
+        "noLabelWithoutControl": {
+          "level": "error",
+          "options": { "inputComponents": ["Checkbox"] }
+        },
         "useSemanticElements": "error",
         "useFocusableInteractive": "error",
         "noNoninteractiveElementToInteractiveRole": "error",
