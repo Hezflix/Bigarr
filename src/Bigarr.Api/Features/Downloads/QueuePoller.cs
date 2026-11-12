@@ -149,6 +149,12 @@ public sealed class QueuePoller(
                         readyToImport.Add(grab.Id);
                     }
                 }
+                else if (grab.State == GrabState.Importing)
+                {
+                    // The import worker owns the grab: it ends the import itself (failed when the torrent is gone), and
+                    // a "removed" written from this poll's copy could land on top of its outcome.
+                    messages.Add(new StatusMessage { Title = "Not in the download client", Messages = [$"{client.Name} no longer lists the torrent; the import decides."], Severity = StatusSeverity.Info });
+                }
                 else if (grab.IsActive)
                 {
                     if (grab.State == GrabState.Grabbed && now - grab.GrabbedAt < FreshGrabGrace)
