@@ -10,29 +10,59 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Bigarr.Api.Features.Compat.Radarr;
 
-/// <summary>Recent commands, in memory: Radarr lets clients poll <c>/command/{id}</c>; none of ours does, but the shape is there.</summary>
+/// <summary>
+/// Recent commands, in memory: Radarr lets clients poll <c>/command/{id}</c> until it reads <c>completed</c>. A
+/// command whose work goes on in the background is recorded <c>queued</c> with a probe that tells when that work is
+/// over; reading the command asks the probe, so a client that polls to completion gets there.
+/// </summary>
 public sealed class CompatCommandLog
 {
     private const int Keep = 100;
 
-    private readonly ConcurrentQueue<RadarrCommand> _recent = new();
+    private readonly ConcurrentDictionary<int, Entry> _recent = new();
     private int _nextId;
 
-    public RadarrCommand Record(string name, Dictionary<string, JsonElement> body, string status, string? message, DateTime now)
+    private sealed record Entry(RadarrCommand Command, Func<bool>? Finished);
+
+    /// <param name="finished">For a <c>queued</c> command: true once its background work is over. Null when the status never changes.</param>
+    public RadarrCommand Record(string name, Dictionary<string, JsonElement> body, string status, string? message, DateTime now, Func<bool>? finished = null)
     {
         var id = Interlocked.Increment(ref _nextId);
         var command = new RadarrCommand(id, name, name, message, body, "normal", status, status == "completed" ? "successful" : "unknown", now, now, status == "completed" ? now : null, status == "completed" ? "00:00:00" : null, "manual", now, true, true);
-        _recent.Enqueue(command);
-        while (_recent.Count > Keep && _recent.TryDequeue(out _))
+        _recent[id] = new Entry(command, status == "completed" ? null : finished);
+        foreach (var old in _recent.Keys.Where(k => k <= id - Keep))
         {
+            _recent.TryRemove(old, out _);
         }
 
         return command;
     }
 
-    public List<RadarrCommand> Recent() => _recent.OrderByDescending(c => c.Id).ToList();
+    public List<RadarrCommand> Recent(DateTime now) => _recent.Keys.OrderByDescending(k => k).Select(k => Find(k, now)).OfType<RadarrCommand>().ToList();
 
-    public RadarrCommand? Find(int id) => _recent.FirstOrDefault(c => c.Id == id);
+    public RadarrCommand? Find(int id, DateTime now)
+    {
+        if (!_recent.TryGetValue(id, out var entry))
+        {
+            return null;
+        }
+
+        if (entry.Finished is null || !entry.Finished())
+        {
+            return entry.Command;
+        }
+
+        var done = entry.Command with
+        {
+            Status = "completed",
+            Result = "successful",
+            Ended = now,
+            Duration = (now - entry.Command.Queued).ToString(@"hh\:mm\:ss", System.Globalization.CultureInfo.InvariantCulture),
+            StateChangeTime = now,
+        };
+        _recent[id] = new Entry(done, null);
+        return done;
+    }
 }
 
 /// <summary>
@@ -45,9 +75,9 @@ public static class CommandEndpoints
     public static void MapCompatCommands(this RouteGroupBuilder group)
     {
         group.MapPost("/command", RunAsync);
-        group.MapGet("/command", JsonHttpResult<List<RadarrCommand>> (CompatCommandLog log) => RadarrCompat.Ok(log.Recent()));
-        group.MapGet("/command/{id:int}", Results<JsonHttpResult<RadarrCommand>, NotFound> (int id, CompatCommandLog log) =>
-            log.Find(id) is { } command ? RadarrCompat.Ok(command) : TypedResults.NotFound());
+        group.MapGet("/command", JsonHttpResult<List<RadarrCommand>> (CompatCommandLog log, TimeProvider time) => RadarrCompat.Ok(log.Recent(time.GetUtcNow().UtcDateTime)));
+        group.MapGet("/command/{id:int}", Results<JsonHttpResult<RadarrCommand>, NotFound> (int id, CompatCommandLog log, TimeProvider time) =>
+            log.Find(id, time.GetUtcNow().UtcDateTime) is { } command ? RadarrCompat.Ok(command) : TypedResults.NotFound());
     }
 
     private static async Task<Results<JsonHttpResult<RadarrCommand>, JsonHttpResult<List<RadarrValidationFailure>>>> RunAsync(
@@ -79,23 +109,21 @@ public static class CommandEndpoints
             case "moviesearch":
                 {
                     var visible = await library.VisibleVersionIdsAsync(view, ct);
-                    var queued = 0;
-                    foreach (var id in ids.Where(visible.Contains))
-                    {
-                        if (searches.TryEnqueue(id, SearchTrigger.User))
-                        {
-                            queued++;
-                        }
-                    }
-
-                    return RadarrCompat.Created(log.Record("MoviesSearch", body, "queued", $"{queued} version(s) queued for search", now));
+                    var queued = ids.Where(visible.Contains).Where(id => searches.TryEnqueue(id, SearchTrigger.User)).ToList();
+                    return RadarrCompat.Created(log.Record("MoviesSearch", body, "queued", $"{queued.Count} version(s) queued for search", now, Searched(queued)));
                 }
 
             case "missingmoviessearch":
-                return RadarrCompat.Created(log.Record("MissingMoviesSearch", body, "queued", await SearchWantedAsync(WantedFilter.Missing), now));
+                {
+                    var queued = await SearchWantedAsync(WantedFilter.Missing);
+                    return RadarrCompat.Created(log.Record("MissingMoviesSearch", body, "queued", $"{queued.Count} version(s) queued for search", now, Searched(queued)));
+                }
 
             case "cutoffunmetmoviessearch":
-                return RadarrCompat.Created(log.Record("CutoffUnmetMoviesSearch", body, "queued", await SearchWantedAsync(WantedFilter.CutoffUnmet), now));
+                {
+                    var queued = await SearchWantedAsync(WantedFilter.CutoffUnmet);
+                    return RadarrCompat.Created(log.Record("CutoffUnmetMoviesSearch", body, "queued", $"{queued.Count} version(s) queued for search", now, Searched(queued)));
+                }
 
             case "refreshmovie":
                 {
@@ -117,12 +145,15 @@ public static class CommandEndpoints
                 return RadarrCompat.Created(log.Record("RescanMovie", body, "completed", null, now));
 
             case "refreshmonitoreddownloads":
+                // Asking for a poll is the whole command: it is done once asked.
                 queue.RequestRefresh();
-                return RadarrCompat.Created(log.Record("RefreshMonitoredDownloads", body, "queued", null, now));
+                return RadarrCompat.Created(log.Record("RefreshMonitoredDownloads", body, "completed", null, now));
 
             case "rsssync":
-                _ = Task.Run(() => tasks.RunAsync(RssSyncJob.JobName, CancellationToken.None), CancellationToken.None);
-                return RadarrCompat.Created(log.Record("RssSync", body, "queued", null, now));
+                {
+                    var sync = Task.Run(() => tasks.RunAsync(RssSyncJob.JobName, CancellationToken.None), CancellationToken.None);
+                    return RadarrCompat.Created(log.Record("RssSync", body, "queued", null, now, () => sync.IsCompleted));
+                }
 
             default:
                 return RadarrCompat.BadRequest("Name", $"Unknown command '{name}'.");
@@ -130,12 +161,14 @@ public static class CommandEndpoints
 
         // Like Radarr's: every wanted version the key sees, the least recently searched first, with no cap. The runner
         // searches one at a time within each indexer's rate limit, so a long list is a slow trickle, not a burst.
-        async Task<string> SearchWantedAsync(WantedFilter filter)
+        async Task<List<int>> SearchWantedAsync(WantedFilter filter)
         {
             var visible = await library.VisibleVersionIdsAsync(view, ct);
             var versionIds = await wanted.LeastRecentlySearchedAsync(filter, ct);
-            var queued = versionIds.Count(id => visible.Contains(id) && searches.TryEnqueue(id, SearchTrigger.User));
-            return $"{queued} version(s) queued for search";
+            return versionIds.Where(id => visible.Contains(id) && searches.TryEnqueue(id, SearchTrigger.User)).ToList();
         }
+
+        // A search command is over once none of the versions it queued is waiting or being searched any more.
+        Func<bool> Searched(List<int> queued) => () => !queued.Any(searches.IsPending);
     }
 }
