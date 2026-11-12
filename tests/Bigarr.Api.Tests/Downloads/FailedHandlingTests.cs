@@ -8,6 +8,8 @@ using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Downloads;
 using Bigarr.Domain.History;
 using Bigarr.Domain.Movies;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using static Bigarr.Api.Tests.Import.ImportTestHelpers;
 
 namespace Bigarr.Api.Tests.Downloads;
@@ -15,6 +17,61 @@ namespace Bigarr.Api.Tests.Downloads;
 /// <summary>Failed handling: a dead download is blocklisted, dropped from the client and replaced.</summary>
 public sealed class FailedHandlingTests(BigarrApiFactory factory) : IClassFixture<BigarrApiFactory>
 {
+    [Fact]
+    public async Task A_failed_torrent_only_leaves_its_client_once_the_failure_is_recorded()
+    {
+        // Its own app: the replacement search this leaves behind must not show in the other tests' queue.
+        using var app = new ConfiguredBigarrApiFactory(null, null);
+        var client = await ClientAsync(app);
+        var (hd, _) = await ProfilesAsync(client);
+        var root = await AddRootAsync(client, Path.Combine(Path.GetTempPath(), $"bigarr-failed-order-{Guid.NewGuid():N}"));
+        var movie = await AddMovieAsync(client, 335984, hd, root.Id); // Blade Runner 2049
+        var version = movie.Versions.Single();
+        var indexer = await AddMockIndexerAsync(client, "Mock fail order");
+        var downloadClient = await AddMockClientAsync(client, "Mock qbt fail order");
+        var torrents = app.Services.GetRequiredService<Bigarr.Api.Infrastructure.Downloads.Mock.MockDownloadClientState>();
+
+        try
+        {
+            var release = (await SearchAsync(client, movie.Id)).Releases.First(r => r.Versions.Any(v => v.Approved));
+            var grab = await GrabAsync(client, release, version.Id);
+            await RefreshAsync(client);
+            Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/v1/downloadclients/mock/{grab.DownloadId}/fail?message=Disk%20full", null)).StatusCode);
+
+            // The database refuses the poll's save (a journal line cannot be written).
+            await SqlAsync(app, "CREATE TRIGGER refuse_history BEFORE INSERT ON History BEGIN SELECT RAISE(ABORT, 'refused'); END;");
+            try
+            {
+                Assert.Equal(HttpStatusCode.InternalServerError, (await client.PostAsync("/api/v1/queue/refresh", null)).StatusCode);
+            }
+            finally
+            {
+                await SqlAsync(app, "DROP TRIGGER refuse_history;");
+            }
+
+            // Nothing was recorded, so nothing was removed: the torrent is still there to fail again.
+            Assert.Contains(torrents.All, t => t.Hash == grab.DownloadId);
+
+            // The next poll does the whole failed handling, blocklist included, and only then lets the torrent go.
+            var row = Assert.Single((await RefreshAsync(client)).Items, r => r.GrabId == grab.GrabId);
+            Assert.Equal(GrabState.DownloadFailed, row.State);
+            Assert.Single((await client.GetFromJsonAsync<BlocklistPageResponse>($"/api/v1/blocklist?movieId={movie.Id}", Json))!.Items);
+            Assert.DoesNotContain(torrents.All, t => t.Hash == grab.DownloadId);
+        }
+        finally
+        {
+            await client.DeleteAsync($"/api/v1/downloadclients/{downloadClient.Id}");
+            await client.DeleteAsync($"/api/v1/indexers/{indexer.Id}");
+            await client.DeleteAsync($"/api/v1/movies/{movie.Id}");
+        }
+    }
+
+    private static async Task SqlAsync(BigarrApiFactory app, string sql)
+    {
+        using var scope = app.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<Bigarr.Api.Infrastructure.Persistence.BigarrDbContext>().Database.ExecuteSqlRawAsync(sql);
+    }
+
     [Fact]
     public async Task A_failed_download_is_blocklisted_removed_and_replaced_by_a_search()
     {

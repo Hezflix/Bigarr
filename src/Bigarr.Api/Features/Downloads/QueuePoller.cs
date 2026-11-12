@@ -38,6 +38,8 @@ public sealed class QueuePoller(
 {
     public const string FailedMessageTitle = "Download failed";
 
+    private readonly List<FailedRemoval> _removeAfterSave = [];
+
     /// <summary>A grab the client does not list yet is given this long before absences count.</summary>
     public static readonly TimeSpan FreshGrabGrace = TimeSpan.FromSeconds(45);
 
@@ -100,6 +102,7 @@ public sealed class QueuePoller(
         var readyToImport = new List<int>();
         var searchAfterSave = new List<int>();
         var seriesSearchAfterSave = new List<SeriesSearchRequest>();
+        _removeAfterSave.Clear();
 
         foreach (var grab in grabs)
         {
@@ -211,6 +214,8 @@ public sealed class QueuePoller(
         {
             await db.SaveChangesAsync(ct);
         }
+
+        await RemoveFailedAsync(ct);
 
         foreach (var grabId in readyToImport)
         {
@@ -354,20 +359,15 @@ public sealed class QueuePoller(
             followUp.Add("Release blocklisted.");
         }
 
-        var removed = false;
-        if (settings.RemoveFailedDownloads && grab.DownloadId is not null)
+        // The torrent only leaves the client once the failure is committed (RemoveFailedAsync): removed first, a save
+        // that then failed would leave a downloading grab with no torrent, later counted "removed" without its
+        // blocklist entry.
+        var removed = settings.RemoveFailedDownloads && grab.DownloadId is not null;
+        var removal = removed ? new FailedRemoval(grab, client, $"Removed from {client.Name}.") : null;
+        if (removal is not null)
         {
-            try
-            {
-                await resolver.For(client).RemoveAsync(client, grab.DownloadId, deleteFiles: true, ct);
-                removed = true;
-                followUp.Add($"Removed from {client.Name}.");
-            }
-            catch (DownloadClientException ex)
-            {
-                logger.LogWarning("Could not remove the failed download {Title} from {Client}: {Message}", grab.ReleaseTitle, client.Name, ex.Message);
-                followUp.Add($"Could not remove it from {client.Name}: {ex.Message}");
-            }
+            followUp.Add(removal.Line);
+            _removeAfterSave.Add(removal);
         }
 
         var seriesVersion = episodes.FirstOrDefault()?.Version;
@@ -397,6 +397,7 @@ public sealed class QueuePoller(
             line.Data["removedFromClient"] = removed ? "true" : "false";
             line.Data["searchQueued"] = searching && replaceEpisodes.Contains(target.EpisodeId) ? "true" : "false";
             db.History.Add(line);
+            removal?.History.Add(line);
         }
 
         if (episodes.Count > 0)
@@ -415,7 +416,7 @@ public sealed class QueuePoller(
             return (null, searching ? new SeriesSearchRequest(seriesVersion.Id, replaceEpisodes, SearchTrigger.FailedDownload) : null);
         }
 
-        db.History.Add(new HistoryEvent
+        var failedLine = new HistoryEvent
         {
             TargetId = version?.Id,
             MovieId = version?.MovieId,
@@ -436,7 +437,9 @@ public sealed class QueuePoller(
                 ["searchQueued"] = searching ? "true" : "false",
             },
             CreatedAt = now,
-        });
+        };
+        db.History.Add(failedLine);
+        removal?.History.Add(failedLine);
 
         outbox.Publish(new DownloadFailed(
             version is null ? null : MovieRef.From(version.Movie),
@@ -450,6 +453,47 @@ public sealed class QueuePoller(
 
         logger.LogWarning("{Title} failed in {Client}: {Reason}. {FollowUp}", grab.ReleaseTitle, client.Name, reason, string.Join(" ", followUp));
         return (searching ? version!.Id : null, null);
+    }
+
+    /// <summary>
+    /// The failed torrents leave their client, now that the failure is committed. One the client would not let go
+    /// stays there and shows in the queue as failed; the grab's note and its journal line are corrected to say so.
+    /// </summary>
+    private async Task RemoveFailedAsync(CancellationToken ct)
+    {
+        var corrected = false;
+        foreach (var removal in _removeAfterSave)
+        {
+            try
+            {
+                await resolver.For(removal.Client).RemoveAsync(removal.Client, removal.Grab.DownloadId!, deleteFiles: true, ct);
+            }
+            catch (DownloadClientException ex)
+            {
+                logger.LogWarning("Could not remove the failed download {Title} from {Client}: {Message}", removal.Grab.ReleaseTitle, removal.Client.Name, ex.Message);
+                var instead = $"Could not remove it from {removal.Client.Name}: {ex.Message}";
+                removal.Grab.StatusMessages = removal.Grab.StatusMessages
+                    .Select(m => new StatusMessage { Title = m.Title, Severity = m.Severity, Messages = m.Messages.Select(line => line == removal.Line ? instead : line).ToList() })
+                    .ToList();
+                foreach (var line in removal.History)
+                {
+                    line.Data = new Dictionary<string, string>(line.Data) { ["removedFromClient"] = "false" };
+                }
+
+                corrected = true;
+            }
+        }
+
+        _removeAfterSave.Clear();
+        if (corrected)
+        {
+            await db.SaveChangesAsync(ct);
+        }
+    }
+
+    private sealed record FailedRemoval(Grab Grab, DownloadClient Client, string Line)
+    {
+        public List<HistoryEvent> History { get; } = [];
     }
 
     private static QueueItemResponse Row(Grab grab, DownloadItem? item, MovieVersion? version, List<Bigarr.Domain.Tv.EpisodeTarget> episodes, DownloadClient? client, List<StatusMessage> messages, DateTime now)
