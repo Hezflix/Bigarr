@@ -11602,6 +11602,8 @@ export interface components {
              * @default 0
              */
             transcode: number;
+            /** Format: int32 */
+            seriesId: null | number;
         };
         TranscodedVersionResponse: {
             /** Format: int32 */

@@ -77,8 +77,9 @@ const nowPlayingRoute = createRoute({ getParentRoute: () => appRoute, path: '/pl
 const playsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/playback/plays',
-  validateSearch: (search: Record<string, unknown>): { kind?: 'movie' | 'episode' | 'unmatched' } => ({
+  validateSearch: (search: Record<string, unknown>): { kind?: 'movie' | 'episode' | 'unmatched'; q?: string } => ({
     kind: search.kind === 'movie' || search.kind === 'episode' || search.kind === 'unmatched' ? search.kind : undefined,
+    q: typeof search.q === 'string' && search.q.trim() ? search.q : undefined,
   }),
   component: lazyRouteComponent(() => import('./features/playback/PlaysPage'), 'PlaysPage'),
 })

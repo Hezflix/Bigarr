@@ -96,25 +96,7 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
     /// The series of Bigarr that the shows are, with their images and their seasons', in one query whatever the number
     /// of episodes. A show is matched by its TVDB id first, then TMDB, then IMDb.
     /// </summary>
-    public async Task<SeriesArtwork> SeriesArtworkAsync(IEnumerable<ShowIds> shows, CancellationToken ct)
-    {
-        ArgumentNullException.ThrowIfNull(shows);
-
-        var wanted = shows.ToList();
-        var tvdb = wanted.Select(w => w.TvdbId).OfType<int>().Distinct().ToList();
-        var tmdb = wanted.Select(w => w.TmdbId).OfType<int>().Distinct().ToList();
-        var imdb = wanted.Select(w => w.ImdbId).OfType<string>().Distinct(StringComparer.Ordinal).ToList();
-        if (tvdb.Count + tmdb.Count + imdb.Count == 0)
-        {
-            return new SeriesArtwork([]);
-        }
-
-        var series = await db.Series.AsNoTracking()
-            .Where(s => (s.TvdbId != null && tvdb.Contains(s.TvdbId.Value)) || (s.TmdbId != null && tmdb.Contains(s.TmdbId.Value)) || (s.ImdbId != null && imdb.Contains(s.ImdbId)))
-            .Select(s => new SeriesArtwork.Entry(s.TvdbId, s.TmdbId, s.ImdbId, s.Images, s.Seasons.Select(x => new SeriesArtwork.SeasonImages(x.SeasonNumber, x.Images)).ToList()))
-            .ToListAsync(ct);
-        return new SeriesArtwork(series);
-    }
+    public Task<SeriesArtwork> SeriesArtworkAsync(IEnumerable<ShowIds> shows, CancellationToken ct) => SeriesArtwork.LoadAsync(db, shows, ct);
 
     /// <summary>
     /// Stops a stream on its player, with an optional message shown to the viewer. Manual only: nothing in Bigarr calls
@@ -504,21 +486,51 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
 }
 
 /// <summary>
-/// Series images for episodes: the series' poster (the season's when the series has none) and its fanart for the banner.
+/// The Bigarr series that played shows are, matched by the show's TVDB id first, then TMDB, then IMDb: their page (the
+/// stats' Top shows link to it) and their images for episodes, the series' poster (the season's when the series has
+/// none) and its fanart for the banner.
 /// </summary>
 public sealed class SeriesArtwork(List<SeriesArtwork.Entry> series)
 {
     public sealed record SeasonImages(int SeasonNumber, List<MediaImage> Images);
 
-    public sealed record Entry(int? TvdbId, int? TmdbId, string? ImdbId, List<MediaImage> Images, List<SeasonImages> Seasons);
+    public sealed record Entry(int Id, int? TvdbId, int? TmdbId, string? ImdbId, List<MediaImage> Images, List<SeasonImages> Seasons);
 
-    public PlaybackService.Artwork For(PlaybackService.ShowIds show, int? seasonNumber)
+    /// <summary>The series that the shows are, with their images and their seasons', in one query whatever the number of shows.</summary>
+    public static async Task<SeriesArtwork> LoadAsync(BigarrDbContext db, IEnumerable<PlaybackService.ShowIds> shows, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(shows);
+
+        var wanted = shows.ToList();
+        var tvdb = wanted.Select(w => w.TvdbId).OfType<int>().Distinct().ToList();
+        var tmdb = wanted.Select(w => w.TmdbId).OfType<int>().Distinct().ToList();
+        var imdb = wanted.Select(w => w.ImdbId).OfType<string>().Distinct(StringComparer.Ordinal).ToList();
+        if (tvdb.Count + tmdb.Count + imdb.Count == 0)
+        {
+            return new SeriesArtwork([]);
+        }
+
+        var series = await db.Series.AsNoTracking()
+            .Where(s => (s.TvdbId != null && tvdb.Contains(s.TvdbId.Value)) || (s.TmdbId != null && tmdb.Contains(s.TmdbId.Value)) || (s.ImdbId != null && imdb.Contains(s.ImdbId)))
+            .Select(s => new Entry(s.Id, s.TvdbId, s.TmdbId, s.ImdbId, s.Images, s.Seasons.Select(x => new SeasonImages(x.SeasonNumber, x.Images)).ToList()))
+            .ToListAsync(ct);
+        return new SeriesArtwork(series);
+    }
+
+    /// <summary>The series a show is: TVDB id first, then TMDB, then IMDb. Null when Bigarr does not follow it.</summary>
+    public Entry? Match(PlaybackService.ShowIds show)
     {
         ArgumentNullException.ThrowIfNull(show);
 
-        var entry = (show.TvdbId is { } tvdb ? series.FirstOrDefault(s => s.TvdbId == tvdb) : null)
+        return (show.TvdbId is { } tvdb ? series.FirstOrDefault(s => s.TvdbId == tvdb) : null)
             ?? (show.TmdbId is { } tmdb ? series.FirstOrDefault(s => s.TmdbId == tmdb) : null)
             ?? (show.ImdbId is { } imdb ? series.FirstOrDefault(s => string.Equals(s.ImdbId, imdb, StringComparison.Ordinal)) : null);
+    }
+
+    public PlaybackService.Artwork For(PlaybackService.ShowIds show, int? seasonNumber)
+    {
+        var entry = Match(show);
         if (entry is null)
         {
             return PlaybackService.Artwork.None;

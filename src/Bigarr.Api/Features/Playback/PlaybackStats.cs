@@ -20,9 +20,9 @@ public sealed record PlaysSplitResponse(int Plays, int Movies, int Episodes, int
 
 /// <summary>
 /// One row of a top list. <c>DirectPlay</c>, <c>DirectStream</c> and <c>Transcode</c> split its plays by their furthest
-/// decision, for the platforms (zero elsewhere).
+/// decision, for the platforms (zero elsewhere). <c>SeriesId</c>: the Bigarr series a top show is, when Bigarr follows it.
 /// </summary>
-public sealed record TopEntryResponse(string Title, int? MovieId, int? UserId, int Plays, int Users, long Seconds, DateTime LastPlayedAt, int DirectPlay = 0, int DirectStream = 0, int Transcode = 0);
+public sealed record TopEntryResponse(string Title, int? MovieId, int? UserId, int Plays, int Users, long Seconds, DateTime LastPlayedAt, int DirectPlay = 0, int DirectStream = 0, int Transcode = 0, int? SeriesId = null);
 
 /// <summary>The most streams at once in the period, and when it first happened.</summary>
 public sealed record ConcurrencyResponse(int Streams, DateTime? At);
@@ -74,6 +74,9 @@ public sealed class PlaybackStats(BigarrDbContext db, TimeProvider time)
                 p.Item.Title,
                 p.Item.Year,
                 p.Item.ShowTitle,
+                p.Item.ShowTvdbId,
+                p.Item.ShowTmdbId,
+                p.Item.ShowImdbId,
                 p.VersionName,
                 p.StartedAt,
                 p.StoppedAt,
@@ -145,7 +148,7 @@ public sealed class PlaybackStats(BigarrDbContext db, TimeProvider time)
             byHour,
             byWeekday,
             Top(plays.Where(p => p.Kind == MediaItemKind.Movie), p => p.MovieId is { } id ? $"m{id}" : $"t{p.Title}\n{p.Year}", p => p.Year is { } y ? $"{p.Title} ({y})" : p.Title, p => p.MovieId, _ => null),
-            Top(plays.Where(p => p.Kind == MediaItemKind.Episode), p => p.ShowTitle ?? p.Title, p => p.ShowTitle ?? p.Title, _ => null, _ => null),
+            await TopShowsAsync(plays, ct),
             Top(plays, p => p.UserId.ToString(System.Globalization.CultureInfo.InvariantCulture), p => p.UserName, _ => null, p => p.UserId),
             Top(plays, p => p.UserId.ToString(System.Globalization.CultureInfo.InvariantCulture), p => p.UserName, _ => null, p => p.UserId, byTime: true),
             TopPlatforms(plays, streamsByPlay, decisionOf),
@@ -190,6 +193,24 @@ public sealed class PlaybackStats(BigarrDbContext db, TimeProvider time)
             ? entries.OrderByDescending(t => t.Seconds).ThenByDescending(t => t.Plays)
             : entries.OrderByDescending(t => t.Plays).ThenByDescending(t => t.Seconds);
         return ordered.ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase).Take(TopCount).ToList();
+    }
+
+    /// <summary>
+    /// The most played shows, each with the Bigarr series it is when Bigarr follows it: matched like Now playing's
+    /// artwork, by the show's ids from its latest play that has some, in one query for the whole list.
+    /// </summary>
+    private async Task<List<TopEntryResponse>> TopShowsAsync(List<PlayRow> plays, CancellationToken ct)
+    {
+        static string Show(PlayRow p) => p.ShowTitle ?? p.Title;
+        var episodes = plays.Where(p => p.Kind == MediaItemKind.Episode).ToList();
+        var top = Top(episodes, Show, Show, _ => null, _ => null);
+        var ids = episodes.Where(p => p.ShowTvdbId is not null || p.ShowTmdbId is not null || p.ShowImdbId is not null)
+            .GroupBy(Show, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.MaxBy(p => p.StoppedAt)!, StringComparer.Ordinal)
+            .Where(e => top.Any(t => t.Title == e.Key))
+            .ToDictionary(e => e.Key, e => new PlaybackService.ShowIds(e.Value.ShowTvdbId, e.Value.ShowTmdbId, e.Value.ShowImdbId), StringComparer.Ordinal);
+        var series = await SeriesArtwork.LoadAsync(db, ids.Values, ct);
+        return top.Select(t => ids.TryGetValue(t.Title, out var show) && series.Match(show) is { } found ? t with { SeriesId = found.Id } : t).ToList();
     }
 
     /// <summary>
@@ -249,7 +270,7 @@ public sealed class PlaybackStats(BigarrDbContext db, TimeProvider time)
             .Take(TopCount * 2)
             .ToList();
 
-    private sealed record PlayRow(int Id, int UserId, string UserName, MediaItemKind Kind, int? MovieId, string Title, int? Year, string? ShowTitle, string? VersionName, DateTime StartedAt, DateTime StoppedAt, int PlayedSeconds);
+    private sealed record PlayRow(int Id, int UserId, string UserName, MediaItemKind Kind, int? MovieId, string Title, int? Year, string? ShowTitle, int? ShowTvdbId, int? ShowTmdbId, string? ShowImdbId, string? VersionName, DateTime StartedAt, DateTime StoppedAt, int PlayedSeconds);
 
     private sealed record StreamRow(int PlayId, DateTime StartedAt, DateTime StoppedAt, string? Platform, StreamDecision? Decision, string? SourceResolution);
 }

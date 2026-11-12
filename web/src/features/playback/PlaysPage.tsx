@@ -55,9 +55,10 @@ function bounds(filters: Filters): { from?: string; to?: string } {
 export function PlaysPage() {
   const { t } = useTranslation()
   const [page, setPage] = useState(1)
-  // `?kind=unmatched` (the Tautulli import report's link) opens the page on that filter.
-  const initialKind = useSearch({ from: '/app/playback/plays' }).kind
-  const [filters, setFilters] = useState<Filters>(() => ({ ...noFilters, kind: initialKind ?? 'all' }))
+  // `?kind=unmatched` (the Tautulli import report's link) opens the page on that filter; `?q=` with a title search
+  // (the stats' link for a show Bigarr does not follow).
+  const initial = useSearch({ from: '/app/playback/plays' })
+  const [filters, setFilters] = useState<Filters>(() => ({ ...noFilters, kind: initial.kind ?? 'all', search: initial.q ?? '' }))
   const [sort, setSort] = useState<PlaySort>({ key: 'startedAt', direction: 'desc' })
   const [selected, setSelected] = useState<Play | null>(null)
   const search = useDeferredValue(filters.search.trim())
