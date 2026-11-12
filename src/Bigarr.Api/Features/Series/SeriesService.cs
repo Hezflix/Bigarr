@@ -633,8 +633,8 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
 
         alerts.Accepted(seriesId);
 
-        // TheXEM's map is read again only for new episodes or when it is older than the slow schedule's cadence.
-        await xem.RefreshSeriesAsync(series, series.Episodes.ToList(), ct, sync.Added.Count > 0 ? null : xem.RefreshInterval);
+        // TheXEM's map is read again only for new episodes or when it is older than the kept-for window (a day by default).
+        await xem.RefreshSeriesAsync(series, series.Episodes.ToList(), ct, sync.Added.Count > 0 ? null : xem.MapMaxAge);
 
         // Both numberings stay current: the alternative order is re-read and re-linked (files are not renamed here).
         await SeriesOrderService.RelinkAsync(metadata, logger, series, series.Episodes.Where(e => !sync.Removed.Contains(e)).ToList(), ct);

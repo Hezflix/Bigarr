@@ -215,9 +215,9 @@ public sealed class HealthCheckService(
             issues.Add(new HealthIssue("seriesRefresh", HealthIssueType.Warning, $"The series refresh did not finish (TVDB or TMDB failing): {refresh.LastError}"));
         }
 
-        if (xemOptions.Value.Enabled && xem.LastFailure is { } failure && await db.Series.AnyAsync(s => s.UseSceneNumbering, ct))
+        if (xemOptions.Value.Enabled && xem.LastFailure is { } failure)
         {
-            issues.Add(new HealthIssue("xem", HealthIssueType.Warning, $"TheXEM is unreachable since {failure.At:yyyy-MM-dd HH:mm} UTC: scene numbers stay as last read. {failure.Message}"));
+            issues.Add(new HealthIssue("xem", HealthIssueType.Warning, $"TheXEM pass cut short on {failure.At:yyyy-MM-dd HH:mm} UTC, scene numbers stay as last read until it completes. {failure.Message}"));
         }
 
         if (!await db.RootFolders.AnyAsync(r => r.Kind == MediaKind.Series, ct))

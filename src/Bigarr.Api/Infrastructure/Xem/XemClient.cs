@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 
@@ -22,9 +23,11 @@ public interface IXemClient
 
 /// <summary>
 /// HTTP client for <c>/map/havemap</c>, <c>/map/all</c> and <c>/map/allNames</c> with <c>origin=tvdb</c>, read the way
-/// Sonarr's <c>XemProxy</c> reads them (develop c018578, GPL-3.0). Never Sonarr's own services.
+/// Sonarr's <c>XemProxy</c> reads them (develop c018578, GPL-3.0). Never Sonarr's own services. Every request goes
+/// through the <see cref="XemThrottle"/>; a 429 or 503 pauses it for the answer's <c>Retry-After</c> and surfaces as a
+/// <see cref="XemRateLimitedException"/>.
 /// </summary>
-public sealed class XemClient(HttpClient http) : IXemClient
+public sealed class XemClient(HttpClient http, XemThrottle throttle) : IXemClient
 {
     public const string HttpClientName = "xem";
 
@@ -83,7 +86,17 @@ public sealed class XemClient(HttpClient http) : IXemClient
 
     private async Task<T?> GetAsync<T>(string resource, CancellationToken ct)
     {
-        var result = await http.GetFromJsonAsync<XemResult<T>>(resource, Json, ct)
+        using var lease = await throttle.EnterAsync(ct);
+        using var response = await http.GetAsync(resource, ct);
+        if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)
+        {
+            var wait = RetryAfter(response);
+            throttle.Pause(wait);
+            throw new XemRateLimitedException(wait, $"TheXEM answered {(int)response.StatusCode} for {resource}, asking for {wait.TotalSeconds:0} s.");
+        }
+
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<XemResult<T>>(Json, ct)
                      ?? throw new HttpRequestException($"Empty answer from TheXEM for {resource}.");
 
         if (string.Equals(result.Result, "failure", StringComparison.OrdinalIgnoreCase))
@@ -97,6 +110,14 @@ public sealed class XemClient(HttpClient http) : IXemClient
         }
 
         return result.Data;
+    }
+
+    private TimeSpan RetryAfter(HttpResponseMessage response)
+    {
+        var header = response.Headers.RetryAfter;
+        var wait = header?.Delta
+                   ?? (header?.Date is { } date ? date - throttle.UtcNow : throttle.DefaultRetryAfter);
+        return wait < TimeSpan.FromSeconds(1) ? TimeSpan.FromSeconds(1) : wait;
     }
 
     private static bool TryReadInt(JsonElement value, out int number)
