@@ -279,4 +279,38 @@ public sealed class WebhookTests
         }, "the retried delivery");
         Assert.Equal(1, delivered.Attempts);
     }
+
+    [Fact]
+    public async Task A_disabled_endpoint_is_not_reported_as_failing_for_what_it_left_undelivered()
+    {
+        await using var sink = await WebhookSink.StartAsync();
+        sink.StatusCode = 500;
+        using var factory = new ConfiguredBigarrApiFactory(null, new Dictionary<string, string>
+        {
+            ["Bigarr:Notifications:SweepSeconds"] = "1",
+            ["Bigarr:Notifications:MaxAttempts"] = "1",
+        });
+        var client = await ClientAsync(factory);
+        var request = new NotificationEndpointRequest("Switched off", sink.Url, Events: ["movieAdded"]);
+        var created = await client.PostAsJsonAsync("/api/v1/notifications", request, Json);
+        var endpointId = (await created.Content.ReadFromJsonAsync<NotificationEndpointResponse>(Json))!.Id;
+
+        var (hd, _) = await ProfilesAsync(client);
+        var root = await AddRootAsync(client, Path.Combine(factory.ConfigDirectory, "library"));
+        await AddMovieAsync(client, 603, hd, root.Id);
+        await WaitUntilAsync(async () =>
+        {
+            var list = (await client.GetFromJsonAsync<List<WebhookDeliveryResponse>>($"/api/v1/notifications/{endpointId}/deliveries", Json))!;
+            return list.FirstOrDefault(d => d.State == WebhookDeliveryState.GivenUp);
+        }, "the delivery to be given up");
+
+        // Enabled, it is failing and health says so.
+        var health = await (await client.PostAsync("/api/v1/health/check", null)).Content.ReadAsStringAsync();
+        Assert.Contains("Webhook Switched off is failing", health, StringComparison.Ordinal);
+
+        // Switched off, it is no longer anyone's problem.
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/v1/notifications/{endpointId}", request with { Enabled = false }, Json)).StatusCode);
+        health = await (await client.PostAsync("/api/v1/health/check", null)).Content.ReadAsStringAsync();
+        Assert.DoesNotContain("Webhook Switched off is failing", health, StringComparison.Ordinal);
+    }
 }
