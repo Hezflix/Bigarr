@@ -116,7 +116,7 @@ export function StatsPage() {
               <RankList entries={s.topMovies.slice(0, 6)} link={movieLink} sub={(e) => t('playback.usersCount', { count: e.users })} />
             </Section>
             <Section title={t('playback.topShows')}>
-              <RankList entries={s.topShows.slice(0, 6)} sub={(e) => t('playback.usersCount', { count: e.users })} />
+              <RankList entries={s.topShows.slice(0, 6)} link={showLink} sub={(e) => t('playback.usersCount', { count: e.users })} />
             </Section>
           </div>
           <Section title={t('playback.howServed')}>
@@ -255,6 +255,18 @@ const movieLink = (e: TopEntry) =>
     </Link>
   ) : (
     e.title
+  )
+
+/** A show Bigarr follows opens its series page; any other one, its plays. */
+const showLink = (e: TopEntry) =>
+  e.seriesId ? (
+    <Link to="/series/$seriesId" params={{ seriesId: String(e.seriesId) }} className="underline-offset-4 hover:underline" data-testid="top-show-series">
+      {e.title}
+    </Link>
+  ) : (
+    <Link to="/playback/plays" search={{ kind: 'episode', q: e.title }} className="underline-offset-4 hover:underline" data-testid="top-show-plays">
+      {e.title}
+    </Link>
   )
 
 const userLink = (e: TopEntry) =>

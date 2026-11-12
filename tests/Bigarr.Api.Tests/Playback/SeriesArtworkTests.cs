@@ -13,9 +13,9 @@ public sealed class SeriesArtworkTests
     {
         var artwork = new SeriesArtwork(
         [
-            new SeriesArtwork.Entry(100, null, null, [Poster("by-tvdb")], []),
-            new SeriesArtwork.Entry(null, 200, null, [Poster("by-tmdb")], []),
-            new SeriesArtwork.Entry(null, null, "tt0000300", [Poster("by-imdb"), new MediaImage(ImageType.Fanart, "https://image.tmdb.org/t/p/original/fanart.jpg")], []),
+            new SeriesArtwork.Entry(1, 100, null, null, [Poster("by-tvdb")], []),
+            new SeriesArtwork.Entry(2, null, 200, null, [Poster("by-tmdb")], []),
+            new SeriesArtwork.Entry(3, null, null, "tt0000300", [Poster("by-imdb"), new MediaImage(ImageType.Fanart, "https://image.tmdb.org/t/p/original/fanart.jpg")], []),
         ]);
 
         // Ids pointing at two series: TVDB's decides.
@@ -30,7 +30,7 @@ public sealed class SeriesArtworkTests
     [Fact]
     public void A_series_without_a_poster_falls_back_to_the_season_poster()
     {
-        var artwork = new SeriesArtwork([new SeriesArtwork.Entry(100, null, null, [], [new SeriesArtwork.SeasonImages(2, [Poster("season-2")])])]);
+        var artwork = new SeriesArtwork([new SeriesArtwork.Entry(1, 100, null, null, [], [new SeriesArtwork.SeasonImages(2, [Poster("season-2")])])]);
         Assert.EndsWith("season-2.jpg", artwork.For(new PlaybackService.ShowIds(100, null, null), 2).Poster);
         Assert.Null(artwork.For(new PlaybackService.ShowIds(100, null, null), 3).Poster);
     }
