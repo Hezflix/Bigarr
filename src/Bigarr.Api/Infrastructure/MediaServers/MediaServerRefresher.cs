@@ -139,7 +139,23 @@ public sealed class MediaServerRefresher(EventStream stream, IServiceScopeFactor
     {
         await foreach (var work in _work.Reader.ReadAllAsync(ct))
         {
-            if (await ProcessAsync(work, ct) || work.Attempt >= RetryDelays.Length)
+            bool done;
+            try
+            {
+                done = await ProcessAsync(work, ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // Nothing may end this loop: it is the only worker, and a faulted one would drop every later refresh in silence.
+                logger.LogError(ex, "Refresh of {Path} on media server {Server} crashed (attempt {Attempt})", work.Path, work.ServerId, work.Attempt + 1);
+                done = false;
+            }
+
+            if (done || work.Attempt >= RetryDelays.Length)
             {
                 continue;
             }
@@ -188,11 +204,24 @@ public sealed class MediaServerRefresher(EventStream stream, IServiceScopeFactor
         {
             throw;
         }
+        catch (DbUpdateConcurrencyException)
+        {
+            // The server was deleted while it was being told: there is no row left to write the outcome on.
+            return true;
+        }
         catch (Exception ex)
         {
             server.LastError = ex.Message;
             server.LastErrorAt = now;
-            await db.SaveChangesAsync(ct);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return true;
+            }
+
             logger.LogWarning("{Kind} {Server} refused the refresh of {Path} (attempt {Attempt}): {Error}", server.Kind, server.Name, work.Path, work.Attempt + 1, ex.Message);
             return false;
         }

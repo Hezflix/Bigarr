@@ -91,6 +91,43 @@ public sealed class MediaServerTests(BigarrApiFactory factory) : IClassFixture<B
     }
 
     [Fact]
+    public async Task A_server_deleted_while_it_is_being_told_does_not_stop_later_refreshes()
+    {
+        var session = await CompatTestHelpers.SessionAsync(factory);
+        await using var slow = await FakeHttpServer.StartAsync();
+        using var answer = new ManualResetEventSlim();
+        slow.Responder = r =>
+        {
+            if (r.Path == "/Library/Media/Updated")
+            {
+                answer.Wait(TimeSpan.FromSeconds(20));
+            }
+
+            return Jellyfin(r);
+        };
+        var created = await session.PostAsJsonAsync("/api/v1/mediaservers", new { name = "Slow Jellyfin", kind = "jellyfin", url = slow.Url, token = "jf-key", enabled = true });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var slowId = (await created.ReadJsonAsync()).GetProperty("id").GetInt32();
+
+        // The refresh is in flight when the server is deleted: its outcome has no row to land on.
+        await PublishImportAsync("/data/movies/Ronin (1998)/Ronin.1998.mkv");
+        await slow.WaitForAsync(r => r.Path == "/Library/Media/Updated");
+        Assert.Equal(HttpStatusCode.NoContent, (await session.DeleteAsync($"/api/v1/mediaservers/{slowId}")).StatusCode);
+        answer.Set();
+
+        // The worker is still there for the next server and the next file.
+        await using var next = await FakeHttpServer.StartAsync();
+        next.Responder = Jellyfin;
+        var nextCreated = await session.PostAsJsonAsync("/api/v1/mediaservers", new { name = "Next Jellyfin", kind = "jellyfin", url = next.Url, token = "jf-key", enabled = true });
+        var nextId = (await nextCreated.ReadJsonAsync()).GetProperty("id").GetInt32();
+        await PublishImportAsync("/data/movies/Thief (1981)/Thief.1981.mkv");
+        var update = await next.WaitForAsync(r => r.Path == "/Library/Media/Updated");
+        Assert.Contains("Thief (1981)", update.Body, StringComparison.Ordinal);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await session.DeleteAsync($"/api/v1/mediaservers/{nextId}")).StatusCode);
+    }
+
+    [Fact]
     public void Paths_are_translated_by_prefix_and_only_file_events_ask_for_a_scan()
     {
         var server = new MediaServer { Name = "Plex", Url = "http://plex:32400", Token = "t", PathMappings = [new PathMapping("/data/", "/mnt/media"), new PathMapping("/other", "D:\\Media")] };
