@@ -161,7 +161,8 @@ public sealed class HealthCheckService(
         }
 
         var failingEndpoints = await db.WebhookDeliveries.AsNoTracking()
-            .Where(d => d.DeliveredAt == null && (d.NextAttemptAt == null || d.Attempts >= 3))
+            // A disabled endpoint is not failing: what it left undelivered when it was switched off stays in its list.
+            .Where(d => d.Endpoint.Enabled && d.DeliveredAt == null && (d.NextAttemptAt == null || d.Attempts >= 3))
             .GroupBy(d => d.Endpoint.Name)
             .Select(g => new { Name = g.Key, Count = g.Count(), Error = g.OrderByDescending(d => d.LastAttemptAt).Select(d => d.LastError).FirstOrDefault() })
             .ToListAsync(ct);
