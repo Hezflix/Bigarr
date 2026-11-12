@@ -1,7 +1,7 @@
 namespace Bigarr.Api.Features.Migration;
 
 /// <summary>Mutable, in-memory progress of one Sonarr import, or of one pass of the follow. Read by the API while the import writes it.</summary>
-public sealed class SonarrImportProgress(SonarrImportRequest request)
+public sealed class SonarrImportProgress(SonarrImportRequest request) : IImportProgress<SonarrImportStatusResponse>
 {
     public const int MaxIssues = 500;
 

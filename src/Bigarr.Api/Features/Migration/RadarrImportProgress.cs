@@ -1,7 +1,7 @@
 namespace Bigarr.Api.Features.Migration;
 
 /// <summary>Mutable, in-memory progress of one Radarr import. Read by the API while the import writes it.</summary>
-public sealed class RadarrImportProgress(RadarrImportRequest request)
+public sealed class RadarrImportProgress(RadarrImportRequest request) : IImportProgress<RadarrImportStatusResponse>
 {
     public const int MaxIssues = 500;
 
