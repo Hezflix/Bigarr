@@ -23,3 +23,7 @@ csharp_style_var_for_built_in_types = true:suggestion
 csharp_style_var_when_type_is_apparent = true:suggestion
 csharp_style_var_elsewhere = true:suggestion
 dotnet_sort_system_directives_first = true
+
+# Vendored parsers stay byte-comparable with upstream, and migrations are generated: neither is formatted or analysed for style.
+[{src/Bigarr.Parsing/**.cs,tests/Bigarr.Parsing.Tests/**.cs,**/Migrations/**.cs}]
+generated_code = true

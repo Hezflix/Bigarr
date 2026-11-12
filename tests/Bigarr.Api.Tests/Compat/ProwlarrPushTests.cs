@@ -84,7 +84,17 @@ public sealed class ProwlarrPushTests(BigarrApiFactory factory) : IClassFixture<
 
         var updated = await prowlarr.PutAsJsonAsync($"/api/v3/indexer/{id}?forceSave=true", new
         {
-            body.id, body.name, body.implementation, body.configContract, enableRss = false, body.enableAutomaticSearch, body.enableInteractiveSearch, priority = 5, body.downloadClientId, body.tags, body.fields,
+            body.id,
+            body.name,
+            body.implementation,
+            body.configContract,
+            enableRss = false,
+            body.enableAutomaticSearch,
+            body.enableInteractiveSearch,
+            priority = 5,
+            body.downloadClientId,
+            body.tags,
+            body.fields,
         });
         Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
         stored = (await session.GetFromJsonAsync<IndexerResponse>($"/api/v1/indexers/{id}", Json))!;

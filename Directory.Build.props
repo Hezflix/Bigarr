@@ -9,6 +9,8 @@
     <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/Hezflix/Bigarr</RepositoryUrl>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
 
   <!-- One clock: application code asks TimeProvider, never the system clock (BannedSymbols.txt). The vendored parsers and the tests are exempt. -->

@@ -43,6 +43,7 @@ export function useLivePositions(sessions: PlaybackSession[] | undefined, receiv
   const [anchors, setAnchors] = useState<Map<number, Anchor>>(() => new Map())
   const [now, setNow] = useState(() => performance.now())
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: receivedAt is the trigger: it tells a new server answer from a re-render
   useEffect(() => {
     if (!sessions) return
     const at = performance.now()
@@ -66,7 +67,7 @@ export function useLivePositions(sessions: PlaybackSession[] | undefined, receiv
     /** The bar moves on smoothly unless the position just jumped or the stream stands still. */
     glides: (session: PlaybackSession) => {
       const anchor = anchors.get(session.id)
-      return anchor !== undefined && anchor.moving && !(anchor.snapped && now - anchor.at < 1_000)
+      return !!anchor?.moving && !(anchor.snapped && now - anchor.at < 1_000)
     },
   }
 }

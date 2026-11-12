@@ -77,19 +77,19 @@ public static class CommandEndpoints
         {
             case "moviessearch":
             case "moviesearch":
-            {
-                var visible = await library.VisibleVersionIdsAsync(view, ct);
-                var queued = 0;
-                foreach (var id in ids.Where(visible.Contains))
                 {
-                    if (searches.TryEnqueue(id, SearchTrigger.User))
+                    var visible = await library.VisibleVersionIdsAsync(view, ct);
+                    var queued = 0;
+                    foreach (var id in ids.Where(visible.Contains))
                     {
-                        queued++;
+                        if (searches.TryEnqueue(id, SearchTrigger.User))
+                        {
+                            queued++;
+                        }
                     }
-                }
 
-                return RadarrCompat.Created(log.Record("MoviesSearch", body, "queued", $"{queued} version(s) queued for search", now));
-            }
+                    return RadarrCompat.Created(log.Record("MoviesSearch", body, "queued", $"{queued} version(s) queued for search", now));
+                }
 
             case "missingmoviessearch":
                 return RadarrCompat.Created(log.Record("MissingMoviesSearch", body, "queued", await SearchWantedAsync(WantedFilter.Missing), now));
@@ -98,19 +98,19 @@ public static class CommandEndpoints
                 return RadarrCompat.Created(log.Record("CutoffUnmetMoviesSearch", body, "queued", await SearchWantedAsync(WantedFilter.CutoffUnmet), now));
 
             case "refreshmovie":
-            {
-                var refreshed = new HashSet<int>();
-                foreach (var id in ids)
                 {
-                    var row = await library.FindAsync(view, id, ct);
-                    if (row is not null && refreshed.Add(row.Movie.Id))
+                    var refreshed = new HashSet<int>();
+                    foreach (var id in ids)
                     {
-                        await movies.RefreshAsync(row.Movie.Id, ct);
+                        var row = await library.FindAsync(view, id, ct);
+                        if (row is not null && refreshed.Add(row.Movie.Id))
+                        {
+                            await movies.RefreshAsync(row.Movie.Id, ct);
+                        }
                     }
-                }
 
-                return RadarrCompat.Created(log.Record("RefreshMovie", body, "completed", $"{refreshed.Count} film(s) refreshed", now));
-            }
+                    return RadarrCompat.Created(log.Record("RefreshMovie", body, "completed", $"{refreshed.Count} film(s) refreshed", now));
+                }
 
             case "rescanmovie":
                 // Bazarr asks after writing a subtitle next to the file. Bigarr does not index subtitle files (yet): nothing to rescan.

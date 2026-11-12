@@ -2,9 +2,9 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Bigarr.Api.Features.Server.Tasks;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Persistence;
-using Bigarr.Api.Features.Server.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 

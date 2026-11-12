@@ -4,8 +4,8 @@ using Bigarr.Decision;
 using Bigarr.Decision.CustomFormats;
 using Bigarr.Domain.Indexers;
 using Bigarr.Domain.Tv;
-using Bigarr.Parsing.Episodes.Model;
 using Bigarr.Parsing.Episodes;
+using Bigarr.Parsing.Episodes.Model;
 using EpisodeParser = Bigarr.Parsing.Episodes.Parser;
 
 namespace Bigarr.Api.Infrastructure.Matching;

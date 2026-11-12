@@ -25,6 +25,7 @@ jobs:
         working-directory: web
         run: |
           bun install --frozen-lockfile
+          bun run lint
           bun run build
           bun run test
 
@@ -51,6 +52,9 @@ jobs:
 
       - name: Restore
         run: dotnet restore
+
+      - name: Format check
+        run: dotnet format --verify-no-changes --no-restore
 
       - name: Build
         run: dotnet build -c Release --no-restore

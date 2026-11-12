@@ -24,7 +24,17 @@ public sealed class SeriesQueries(BigarrDbContext db, TimeProvider time)
             .OrderBy(s => s.SortTitle)
             .Select(s => new
             {
-                s.Id, s.TvdbId, s.TmdbId, s.Title, s.SortTitle, s.Year, s.Status, s.Network, s.SeriesType, s.Images, s.AddedAt,
+                s.Id,
+                s.TvdbId,
+                s.TmdbId,
+                s.Title,
+                s.SortTitle,
+                s.Year,
+                s.Status,
+                s.Network,
+                s.SeriesType,
+                s.Images,
+                s.AddedAt,
                 SeasonCount = s.Seasons.Count(x => x.SeasonNumber > 0),
                 Versions = s.Versions.OrderByDescending(v => v.IsDefault).ThenBy(v => v.Id)
                     .Select(v => new VersionRow(

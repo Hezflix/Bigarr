@@ -91,6 +91,7 @@ export function LibraryTable<T extends LibraryItem, C extends string>({
   const height = rowHeight(density, posterSize)
   const virtualizer = useWindowVirtualizer({ count: items.length, estimateSize: () => height, overscan: 10, scrollMargin: offset })
   // The virtualizer keeps the row positions it computed: a new row height has to move every row.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: height is the trigger
   useEffect(() => virtualizer.measure(), [virtualizer, height])
   const template = [selection.selecting ? '2rem' : null, 'minmax(14rem, 2.5fr)', ...columns.map((c) => c.width)].filter(Boolean).join(' ')
 

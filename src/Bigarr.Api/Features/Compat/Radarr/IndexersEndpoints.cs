@@ -51,7 +51,7 @@ public static partial class IndexersEndpoints
             var result = await indexers.UpdateAsync(id, request, ct);
             if (result.IsSuccess)
             {
-                return RadarrCompat.Ok(ToResource(result.Value!)) ;
+                return RadarrCompat.Ok(ToResource(result.Value!));
             }
 
             return result.Failure!.StatusCode == StatusCodes.Status404NotFound ? TypedResults.NotFound() : RadarrCompat.BadRequest("Name", result.Failure.Detail ?? result.Failure.Title);

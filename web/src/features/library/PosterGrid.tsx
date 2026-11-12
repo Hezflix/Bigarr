@@ -52,6 +52,7 @@ export function LibraryPosterGrid<T extends LibraryItem>({ items, posterSize, de
   })
 
   // A new column count reshuffles every row: forget the measured heights.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the layout inputs are the trigger
   useEffect(() => virtualizer.measure(), [virtualizer, columns, lines, density])
 
   return (
