@@ -1,49 +1,48 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
-import { ArrowDownIcon, ArrowUpIcon, CheckIcon, ChevronDownIcon, ClockIcon, DownloadIcon, ExternalLinkIcon, SearchIcon, XIcon } from 'lucide-react'
+import { SearchIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, queue, search, type Series, type SeriesRelease, type SeriesVersion, type SeriesVersionDecision } from '@/api/client'
+import { ApiError, queue, search, type Series, type SeriesRelease, type SeriesVersion } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { formatAge, formatBytes } from '@/i18n'
-
-const approvedStyle = 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300'
-const temporaryStyle = 'border-amber-600/30 bg-amber-500/15 text-amber-700 dark:border-amber-400/30 dark:text-amber-300'
-const permanentStyle = 'border-red-600/30 bg-red-500/10 text-red-700 dark:border-red-400/30 dark:text-red-300'
+import {
+  commonComparators,
+  grabRequest,
+  GrabSplitButton,
+  IndexerErrors,
+  IndexerSizePeersCells,
+  isGrabbable,
+  permanentStyle,
+  ReleaseTitleCell,
+  SearchSkeleton,
+  SortableHead as SharedSortableHead,
+  sortReleases,
+  temporaryStyle,
+  useReleaseSort,
+  VerdictIcon,
+  VersionVerdicts,
+} from '@/features/search/releaseTable'
+import { formatAge } from '@/i18n'
 
 /** What is searched: an episode, a season, or the whole series. */
 export type SeriesSearchScope = { kind: 'episode'; episodeId: number; label: string } | { kind: 'season'; season: number; label: string; orderSeason?: boolean } | { kind: 'series'; label: string }
 
-/** "fit" is the server's ranking (best first); the others toggle, like the film search. */
-type SortKey = 'fit' | 'age' | 'title' | 'episodes' | 'indexer' | 'size' | 'peers'
-type Sort = { key: SortKey; direction: 'asc' | 'desc' }
-
-const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true })
-
-const comparators: Record<Exclude<SortKey, 'fit'>, (a: SeriesRelease, b: SeriesRelease) => number> = {
-  age: (a, b) => Date.parse(b.publishDate) - Date.parse(a.publishDate),
-  title: (a, b) => collator.compare(a.title, b.title),
-  episodes: (a, b) => a.episodes.length - b.episodes.length,
-  indexer: (a, b) => collator.compare(a.indexer, b.indexer),
-  size: (a, b) => a.size - b.size,
-  peers: (a, b) => (a.seeders ?? -1) - (b.seeders ?? -1),
+const comparators = {
+  ...commonComparators,
+  episodes: (a: SeriesRelease, b: SeriesRelease) => a.episodes.length - b.episodes.length,
 }
 
-function sorted(releases: SeriesRelease[], sort: Sort) {
-  if (sort.key === 'fit') return releases
-  const compare = comparators[sort.key]
-  const sign = sort.direction === 'asc' ? 1 : -1
-  return [...releases].sort((a, b) => sign * compare(a, b))
-}
+type SortKey = keyof typeof comparators
+
+const SortableHead = (props: Omit<Parameters<typeof SharedSortableHead<SortKey>>[0], 'testIdPrefix'>) => <SharedSortableHead testIdPrefix="series-sort" {...props} />
 
 const fits = (release: SeriesRelease) => release.matchesSeries && release.episodes.length > 0 && release.versions.some((v) => v.approved)
 
@@ -57,7 +56,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
   const queryClient = useQueryClient()
   const [submitted, setSubmitted] = useState('')
   const [text, setText] = useState('')
-  const [sort, setSort] = useState<Sort>({ key: 'fit', direction: 'asc' })
+  const [sort, onSort] = useReleaseSort<SortKey>()
   const scopeKey = scope.kind === 'episode' ? `e${scope.episodeId}` : scope.kind === 'season' ? `s${scope.season}${scope.orderSeason ? 'o' : ''}` : 'all'
   const query = useQuery({
     queryKey: ['seriesSearch', series.id, scopeKey, submitted],
@@ -72,23 +71,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
 
   const grab = useMutation({
     mutationFn: ({ release, versionId }: { release: SeriesRelease; versionId: number }) =>
-      queue.grab({
-        versionId,
-        indexerId: release.indexerId,
-        guid: release.guid,
-        title: release.title,
-        downloadUrl: release.downloadUrl,
-        magnetUrl: release.magnetUrl,
-        infoHash: release.infoHash,
-        size: release.size,
-        seeders: release.seeders,
-        flags: release.flags,
-        protocol: release.protocol,
-        indexer: release.indexer,
-        publishDate: release.publishDate,
-        episodeIds: release.episodes.map((e) => e.id),
-        numbering: release.numbering,
-      }),
+      queue.grab({ ...grabRequest(release, versionId), episodeIds: release.episodes.map((e) => e.id), numbering: release.numbering }),
     onSuccess: async (result, { release, versionId }) => {
       const version = versionById.get(versionId)?.name ?? ''
       if (result.shadow) toast.success(t('search.picked', { title: release.title, version }))
@@ -111,11 +94,9 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
     e.preventDefault()
     run(text.trim())
   }
-  const onSort = (key: SortKey) =>
-    setSort((current) => (key === 'fit' ? { key, direction: 'asc' } : current.key === key ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'asc' }))
 
   const data = query.data
-  const releases = data ? sorted(data.releases, sort) : []
+  const releases = data ? sortReleases(data.releases, sort, comparators) : []
   const acceptable = series.versions.map((v) => ({
     version: v,
     count: data?.releases.filter((r) => r.matchesSeries && r.episodes.length > 0 && r.versions.some((d) => d.versionId === v.id && d.approved)).length ?? 0,
@@ -151,13 +132,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
           )}
         </form>
 
-        {query.isFetching && !data && (
-          <div className="flex flex-col gap-2">
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-2/3" />
-          </div>
-        )}
+        {query.isFetching && !data && <SearchSkeleton />}
 
         {query.error && (
           <Alert variant="destructive">
@@ -165,21 +140,9 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
           </Alert>
         )}
 
-        {data && data.indexerErrors.length > 0 && (
-          <Alert>
-            <AlertDescription>
-              <ul className="flex flex-col gap-1">
-                {data.indexerErrors.map((e) => (
-                  <li key={e.indexerId}>
-                    <span className="font-medium">{e.indexer}</span>: {e.message}
-                  </li>
-                ))}
-              </ul>
-            </AlertDescription>
-          </Alert>
-        )}
+        {data && <IndexerErrors errors={data.indexerErrors} />}
 
-        {data && data.query && <p className="text-sm">{t('seriesSearch.textResults', { query: data.query })}</p>}
+        {data?.query && <p className="text-sm">{t('seriesSearch.textResults', { query: data.query })}</p>}
         {data?.orderFallback && (
           <p className="text-sm text-muted-foreground" data-testid="series-search-order-fallback">
             {t('seriesSearch.orderFallback')}
@@ -238,25 +201,6 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
   )
 }
 
-function SortableHead({ column, sort, onSort, title, children }: { column: SortKey; sort: Sort; onSort: (key: SortKey) => void; title?: string; children: ReactNode }) {
-  const active = sort.key === column
-  return (
-    <TableHead aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
-      <button type="button" className="flex items-center gap-1 text-left hover:text-foreground" onClick={() => onSort(column)} title={title} data-testid={`series-sort-${column}`}>
-        {children}
-        {active && (sort.direction === 'asc' ? <ArrowUpIcon className="size-3" /> : <ArrowDownIcon className="size-3" />)}
-      </button>
-    </TableHead>
-  )
-}
-
-function VerdictIcon({ decision }: { decision: SeriesVersionDecision | undefined }) {
-  if (!decision) return <span className="size-3.5" />
-  if (decision.approved) return <CheckIcon className="size-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-  if (decision.rejections.every((r) => r.temporary)) return <ClockIcon className="size-3.5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-  return <XIcon className="size-3.5 text-red-600 dark:text-red-400" aria-hidden="true" />
-}
-
 function ReleaseRow({
   release,
   versions,
@@ -273,8 +217,7 @@ function ReleaseRow({
   const { t } = useTranslation()
   const good = fits(release)
   const mapped = release.episodes.length > 0
-  const grabbable = mapped && release.protocol === 'torrent' && (!!release.downloadUrl || !!release.magnetUrl || !!release.infoHash)
-  const flags = release.flags === 'none' ? [] : release.flags.split(', ')
+  const grabbable = mapped && isGrabbable(release)
   const details = [release.releaseGroup, release.languages.length > 0 ? release.languages.join(', ') : null, release.isRepack ? t('search.repack') : null].filter(
     (d): d is string => !!d,
   )
@@ -298,32 +241,7 @@ function ReleaseRow({
           <TooltipContent>{new Date(release.publishDate).toLocaleString()}</TooltipContent>
         </Tooltip>
       </TableCell>
-      <TableCell className="min-w-[22rem] align-top whitespace-normal">
-        <span className={cn('flex items-start gap-1 break-all', good && 'font-medium text-foreground')}>
-          {release.infoUrl ? (
-            <a href={release.infoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline-offset-4 hover:underline">
-              {release.title}
-              <ExternalLinkIcon className="size-3 shrink-0" />
-            </a>
-          ) : (
-            release.title
-          )}
-        </span>
-        <span className="mt-1 flex flex-wrap items-center gap-1">
-          <Badge variant="secondary">{release.quality}</Badge>
-          {flags.map((flag) => (
-            <Badge key={flag} variant="outline">
-              {t(`search.flags.${flag}`, { defaultValue: flag })}
-            </Badge>
-          ))}
-          {release.customFormats.map((format) => (
-            <Badge key={format} variant="outline" className="border-violet-600/30 bg-violet-500/10 text-violet-700 dark:border-violet-400/30 dark:text-violet-300">
-              {format}
-            </Badge>
-          ))}
-          {details.length > 0 && <span className="text-xs text-muted-foreground">{details.join(' · ')}</span>}
-        </span>
-      </TableCell>
+      <ReleaseTitleCell release={release} good={good} details={details} className="min-w-[22rem]" />
       <TableCell className="align-top whitespace-nowrap" data-testid="release-episodes">
         {mapped ? (
           <span className="flex flex-col items-start gap-1">
@@ -335,7 +253,7 @@ function ReleaseRow({
               </Badge>
             )}
             {release.held && (
-              <Badge variant="outline" className="border-amber-600/30 bg-amber-500/15 text-amber-700 dark:border-amber-400/30 dark:text-amber-300" data-testid="release-held">
+              <Badge variant="outline" className={temporaryStyle} data-testid="release-held">
                 {t('seriesSearch.held')}
               </Badge>
             )}
@@ -344,11 +262,7 @@ function ReleaseRow({
           <span className="text-xs">—</span>
         )}
       </TableCell>
-      <TableCell className="align-top whitespace-nowrap">{release.indexer}</TableCell>
-      <TableCell className="align-top whitespace-nowrap">{formatBytes(release.size)}</TableCell>
-      <TableCell className="align-top whitespace-nowrap">
-        {release.seeders ?? '—'} <span className="text-muted-foreground">/ {release.leechers ?? '—'}</span>
-      </TableCell>
+      <IndexerSizePeersCells release={release} />
       <TableCell className="min-w-[18rem] align-top whitespace-normal" data-testid="series-release-fit">
         {release.rejections.length > 0 && (
           <span className="mb-1 flex flex-wrap gap-1">
@@ -359,82 +273,30 @@ function ReleaseRow({
             ))}
           </span>
         )}
-        <ul className="flex flex-col gap-1">
-          {release.versions.map((v) => (
-            <li key={v.versionId} className="flex items-start gap-1">
-              <span className="flex h-5 shrink-0 items-center gap-1">
-                <VerdictIcon decision={v} />
-                <span className={cn('text-xs font-medium whitespace-nowrap', v.approved && release.matchesSeries && 'text-foreground')}>
-                  {v.versionName}
-                  {v.customFormatScore !== 0 && <span className="font-normal text-muted-foreground"> · {t('search.score', { score: v.customFormatScore })}</span>}
-                </span>
-              </span>
-              <span className="flex flex-wrap gap-1">
-                {v.approved ? (
-                  <Badge variant="outline" className={approvedStyle}>
-                    {t('search.approved')}
-                  </Badge>
-                ) : (
-                  v.rejections.map((r) => (
-                    <Badge key={r.reason} variant="outline" className={cn('whitespace-normal text-left', r.temporary ? temporaryStyle : permanentStyle)}>
-                      {r.reason}
-                    </Badge>
-                  ))
-                )}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <VersionVerdicts decisions={release.versions} matches={release.matchesSeries} />
       </TableCell>
       <TableCell className="align-top">
-        <div className="flex justify-end">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span>
-                <Button
-                  type="button"
-                  variant={accepted ? 'default' : 'outline'}
-                  size="sm"
-                  className="max-w-40 rounded-r-none"
-                  onClick={() => target && onGrab(target.id)}
-                  disabled={grabbing || !grabbable || !target}
-                  aria-label={grabTip}
-                  data-testid="series-grab"
-                >
-                  <DownloadIcon className={grabbing ? 'animate-pulse' : undefined} />
-                  <span className="truncate">{target?.name}</span>
-                </Button>
+        <GrabSplitButton
+          accepted={accepted}
+          tip={grabTip}
+          targetName={target?.name}
+          grabbing={grabbing}
+          disabled={grabbing || !grabbable || !target}
+          menuDisabled={grabbing || !grabbable}
+          onGrab={() => target && onGrab(target.id)}
+          testId="series-grab"
+          menuClassName="min-w-56"
+        >
+          {versions.map((v) => (
+            <DropdownMenuItem key={v.id} onSelect={() => onGrab(v.id)}>
+              <VerdictIcon decision={decisionFor(v.id)} />
+              <span className={cn(v.id === target?.id && 'font-medium')}>{v.name}</span>
+              <span className="ml-auto pl-4 text-xs text-muted-foreground">
+                {[v.isDefault ? t('search.defaultVersion') : null, v.id === target?.id ? t('search.suggested') : null].filter(Boolean).join(' · ')}
               </span>
-            </TooltipTrigger>
-            <TooltipContent>{grabTip}</TooltipContent>
-          </Tooltip>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant={accepted ? 'default' : 'outline'}
-                size="sm"
-                className="rounded-l-none border-l-0 px-1.5"
-                disabled={grabbing || !grabbable}
-                aria-label={t('search.grabTo')}
-              >
-                <ChevronDownIcon />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-56">
-              <DropdownMenuLabel>{t('search.grabTo')}</DropdownMenuLabel>
-              {versions.map((v) => (
-                <DropdownMenuItem key={v.id} onSelect={() => onGrab(v.id)}>
-                  <VerdictIcon decision={decisionFor(v.id)} />
-                  <span className={cn(v.id === target?.id && 'font-medium')}>{v.name}</span>
-                  <span className="ml-auto pl-4 text-xs text-muted-foreground">
-                    {[v.isDefault ? t('search.defaultVersion') : null, v.id === target?.id ? t('search.suggested') : null].filter(Boolean).join(' · ')}
-                  </span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+            </DropdownMenuItem>
+          ))}
+        </GrabSplitButton>
       </TableCell>
     </TableRow>
   )

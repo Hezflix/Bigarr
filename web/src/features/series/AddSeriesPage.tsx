@@ -1,31 +1,26 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { Loader2Icon, SearchIcon } from 'lucide-react'
+import { Loader2Icon } from 'lucide-react'
 import { Trans, useTranslation } from 'react-i18next'
 import {
-  ApiError,
   monitoringOptions,
-  quality,
-  rootFolders,
-  rootsOfKind,
   series as seriesApi,
   seriesTypes,
   seriesVersionName,
   type MonitoringOption,
   type SeriesLookupResult,
   type SeriesType,
-  profilesFor,
 } from '@/api/client'
-import { Poster } from '@/components/Poster'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { AddError, AddFormHeader, IdSelectField, LookupResultCard, LookupSearch, useAddTargets, VersionNameField } from '@/features/library/addParts'
+import { useDebounced } from '@/hooks/useDebounced'
 
 const resultKey = (r: SeriesLookupResult) => `${r.tvdbId ?? ''}-${r.tmdbId ?? ''}`
 
@@ -33,13 +28,9 @@ export function AddSeriesPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [term, setTerm] = useState('')
-  const [debounced, setDebounced] = useState('')
   const [selected, setSelected] = useState<SeriesLookupResult | null>(null)
 
-  useEffect(() => {
-    const handle = setTimeout(() => setDebounced(term.trim()), 400)
-    return () => clearTimeout(handle)
-  }, [term])
+  const debounced = useDebounced(term.trim(), 400)
 
   const results = useQuery({
     queryKey: ['seriesLookup', debounced],
@@ -51,60 +42,48 @@ export function AddSeriesPage() {
     <>
       <h1 className="text-2xl font-semibold tracking-tight">{t('addSeries.title')}</h1>
 
-      <div className="relative max-w-xl">
-        <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          data-testid="series-lookup-input"
-          className="pl-9"
-          placeholder={t('addSeries.placeholder')}
-          value={term}
-          onChange={(e) => {
-            setTerm(e.target.value)
-            setSelected(null)
-          }}
-          autoFocus
-        />
-        {results.isFetching && <Loader2Icon className="absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />}
-      </div>
-
-      {results.isFetching && <p className="text-sm text-muted-foreground">{t('lookup.searching')}</p>}
-      {results.error && (
-        <Alert variant="destructive" className="max-w-xl">
-          <AlertDescription>{t('lookup.failed')}</AlertDescription>
-        </Alert>
-      )}
+      <LookupSearch
+        testId="series-lookup-input"
+        placeholder={t('addSeries.placeholder')}
+        value={term}
+        onChange={(value) => {
+          setTerm(value)
+          setSelected(null)
+        }}
+        fetching={results.isFetching}
+        failed={!!results.error}
+      />
 
       {!selected && results.data && (
         <div className="flex flex-col gap-3">
           {results.data.length === 0 && <p className="text-sm text-muted-foreground">{t('lookup.noResults')}</p>}
           {results.data.map((r) => (
-            <Card key={resultKey(r)} data-testid="series-lookup-result" className="py-4">
-              <CardContent className="flex items-start gap-4">
-                <Poster url={r.posterUrl} title={r.title} size="small" />
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <div className="flex flex-wrap items-baseline gap-2">
-                    <span className="font-medium">{r.title}</span>
-                    {r.year && <span className="text-sm text-muted-foreground">({r.year})</span>}
-                    {r.suggestedType !== 'standard' && <Badge variant="secondary">{t(`seriesType.${r.suggestedType}`)}</Badge>}
-                  </div>
-                  <span className="text-sm text-muted-foreground">
-                    {[r.network, r.originalTitle && r.originalTitle !== r.title ? r.originalTitle : null, r.tvdbId ? `TVDB ${r.tvdbId}` : null].filter(Boolean).join(' · ')}
-                  </span>
-                  {r.overview && <p className="line-clamp-3 text-sm text-muted-foreground">{r.overview}</p>}
-                </div>
-                {r.existingSeriesId ? (
-                  <Button asChild variant="outline">
-                    <Link to="/series/$seriesId" params={{ seriesId: String(r.existingSeriesId) }}>
-                      {t('lookup.alreadyInLibrary')}
-                    </Link>
-                  </Button>
-                ) : (
-                  <Button type="button" onClick={() => setSelected(r)}>
-                    {t('lookup.choose')}
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
+            <LookupResultCard
+              key={resultKey(r)}
+              testId="series-lookup-result"
+              posterUrl={r.posterUrl}
+              title={r.title}
+              year={r.year}
+              badge={r.suggestedType !== 'standard' && <Badge variant="secondary">{t(`seriesType.${r.suggestedType}`)}</Badge>}
+              subtitle={
+                <span className="text-sm text-muted-foreground">
+                  {[r.network, r.originalTitle && r.originalTitle !== r.title ? r.originalTitle : null, r.tvdbId ? `TVDB ${r.tvdbId}` : null].filter(Boolean).join(' · ')}
+                </span>
+              }
+              overview={r.overview}
+            >
+              {r.existingSeriesId ? (
+                <Button asChild variant="outline">
+                  <Link to="/series/$seriesId" params={{ seriesId: String(r.existingSeriesId) }}>
+                    {t('lookup.alreadyInLibrary')}
+                  </Link>
+                </Button>
+              ) : (
+                <Button type="button" onClick={() => setSelected(r)}>
+                  {t('lookup.choose')}
+                </Button>
+              )}
+            </LookupResultCard>
           ))}
         </div>
       )}
@@ -123,24 +102,13 @@ export function AddSeriesPage() {
 function AddForm({ show, onCancel, onAdded }: { show: SeriesLookupResult; onCancel: () => void; onAdded: (id: number) => void }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const profiles = useQuery({ queryKey: ['qualityProfiles'], queryFn: quality.profiles, select: profilesFor('series') })
-  const roots = useQuery({ queryKey: ['rootFolders'], queryFn: rootFolders.list, select: rootsOfKind('series') })
-  const [profileId, setProfileId] = useState<number | ''>('')
-  const [rootId, setRootId] = useState<number | ''>('')
+  const { profiles, roots, profileId, setProfileId, rootId, setRootId, profile, noRoot } = useAddTargets('series')
   const [versionName, setVersionName] = useState('')
   const [seriesType, setSeriesType] = useState<SeriesType>(show.suggestedType)
   const [monitor, setMonitor] = useState<MonitoringOption>('all')
   const [seasonFolder, setSeasonFolder] = useState(true)
   const [monitorNew, setMonitorNew] = useState(true)
 
-  useEffect(() => {
-    if (profileId === '' && profiles.data?.length) setProfileId(profiles.data[0].id)
-  }, [profiles.data, profileId])
-  useEffect(() => {
-    if (rootId === '' && roots.data?.length) setRootId(roots.data[0].id)
-  }, [roots.data, rootId])
-
-  const profile = profiles.data?.find((p) => p.id === profileId)
   const effectiveName = versionName.trim() || (profile ? seriesVersionName(profile.name) : '')
 
   const add = useMutation({
@@ -167,19 +135,10 @@ function AddForm({ show, onCancel, onAdded }: { show: SeriesLookupResult; onCanc
     add.mutate()
   }
 
-  const noRoot = roots.data && roots.data.length === 0
-
   return (
     <Card className="max-w-3xl">
       <form onSubmit={submit}>
-        <CardHeader className="grid-cols-[auto_1fr] gap-4">
-          <Poster url={show.posterUrl} title={show.title} size="small" className="row-span-2" />
-          <CardTitle className="flex flex-wrap items-baseline gap-2 text-lg">
-            {show.title}
-            {show.year && <span className="text-sm font-normal text-muted-foreground">({show.year})</span>}
-          </CardTitle>
-          {show.overview && <p className="line-clamp-3 text-sm text-muted-foreground">{show.overview}</p>}
-        </CardHeader>
+        <AddFormHeader posterUrl={show.posterUrl} title={show.title} year={show.year} overview={show.overview} />
 
         <CardContent className="mt-6 flex flex-col gap-4">
           {noRoot && (
@@ -231,43 +190,11 @@ function AddForm({ show, onCancel, onAdded }: { show: SeriesLookupResult; onCanc
               <p className="text-xs text-muted-foreground">{t('addSeries.seriesTypeHint')}</p>
             </div>
 
-            <div className="grid grid-cols-1 gap-2">
-              <Label htmlFor="series-profile">{t('addMovie.qualityProfile')}</Label>
-              <Select value={profileId === '' ? undefined : String(profileId)} onValueChange={(value) => setProfileId(Number(value))}>
-                <SelectTrigger id="series-profile" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {profiles.data?.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <IdSelectField id="series-profile" label={t('addMovie.qualityProfile')} value={profileId} onChange={setProfileId} options={profiles?.map((p) => ({ id: p.id, label: p.name }))} />
 
-            <div className="grid grid-cols-1 gap-2">
-              <Label htmlFor="series-root">{t('addMovie.rootFolder')}</Label>
-              <Select value={rootId === '' ? undefined : String(rootId)} onValueChange={(value) => setRootId(Number(value))}>
-                <SelectTrigger id="series-root" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {roots.data?.map((r) => (
-                    <SelectItem key={r.id} value={String(r.id)}>
-                      {r.path}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <IdSelectField id="series-root" label={t('addMovie.rootFolder')} value={rootId} onChange={setRootId} options={roots?.map((r) => ({ id: r.id, label: r.path }))} />
 
-            <div className="grid grid-cols-1 gap-2">
-              <Label htmlFor="series-version-name">{t('addMovie.versionName')}</Label>
-              <Input id="series-version-name" value={versionName} onChange={(e) => setVersionName(e.target.value)} placeholder={effectiveName} />
-              <p className="text-xs text-muted-foreground">{t('addMovie.versionNameHint')}</p>
-            </div>
+            <VersionNameField id="series-version-name" value={versionName} onChange={setVersionName} placeholder={effectiveName} />
           </div>
 
           <div className="flex flex-col gap-3">
@@ -285,11 +212,7 @@ function AddForm({ show, onCancel, onAdded }: { show: SeriesLookupResult; onCanc
             </div>
           </div>
 
-          {add.error && (
-            <Alert variant="destructive">
-              <AlertDescription>{add.error instanceof ApiError ? add.error.message : t('common.unexpectedError')}</AlertDescription>
-            </Alert>
-          )}
+          <AddError error={add.error} />
         </CardContent>
 
         <CardFooter className="mt-6 justify-end gap-2">

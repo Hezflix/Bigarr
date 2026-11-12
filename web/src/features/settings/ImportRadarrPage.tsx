@@ -1,50 +1,29 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, migration, type RadarrImportPreview, type RadarrImportRequest, type RadarrImportStatus } from '@/api/client'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Progress } from '@/components/ui/progress'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { ConnectForm, ImportIssues, ImportReport, isImportBusy, useImportRun } from '@/features/settings/importWizard'
 import { mappingComplete, ProfileMappingTable, RootFolderMappingTable, slugPattern, suggestedMapping, Toggle } from '@/features/settings/RadarrMapping'
 
-type Step = 'connect' | 'map' | 'run'
+type Step = 'connect' | 'map'
 
-const isBusy = (status: RadarrImportStatus | undefined) => status?.state === 'queued' || status?.state === 'running'
+const staleAfterImport = ['movies', 'wanted', 'rootFolders', 'tags'] as const
 
 /** Moving in from an existing Radarr: connect, map profiles and root folders, follow the import. */
 export function ImportRadarrPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [step, setStep] = useState<Step | null>(null)
   const [url, setUrl] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [preview, setPreview] = useState<RadarrImportPreview | null>(null)
 
-  const status = useQuery({
-    queryKey: ['radarrImport'],
-    queryFn: migration.status,
-    refetchInterval: (query) => (isBusy(query.state.data) ? 1000 : false),
-  })
-
-  // A page opened while an import runs (or just ran) shows it rather than an empty form.
-  useEffect(() => {
-    if (step !== null || !status.data) return
-    setStep(status.data.state === 'idle' ? 'connect' : 'run')
-  }, [step, status.data])
-
-  const importState = status.data?.state
-  useEffect(() => {
-    if (importState !== 'completed') return
-    for (const key of [['movies'], ['wanted'], ['rootFolders'], ['tags']]) {
-      void queryClient.invalidateQueries({ queryKey: key })
-    }
-  }, [importState, queryClient])
+  const { step, setStep, status } = useImportRun({ queryKey: 'radarrImport', queryFn: migration.status, firstStep: 'connect' as Step, invalidate: staleAfterImport })
 
   const previewMutation = useMutation({
     mutationFn: () => migration.preview({ url: url.trim(), apiKey: apiKey.trim() }),
@@ -54,39 +33,32 @@ export function ImportRadarrPage() {
     },
   })
 
-  const submitConnect = (e: FormEvent) => {
-    e.preventDefault()
-    previewMutation.mutate()
-  }
-
   return (
     <>
       <h1 className="text-2xl font-semibold tracking-tight">{t('importRadarr.title')}</h1>
       <p className="max-w-3xl text-sm text-muted-foreground">{t('importRadarr.intro')}</p>
 
       {(step === 'connect' || step === null) && (
-        <form className="flex max-w-xl flex-col gap-4" onSubmit={submitConnect} data-testid="radarr-connect-form">
-          <div className="grid grid-cols-1 gap-2">
-            <Label htmlFor="radarr-url">{t('importRadarr.url')}</Label>
-            <Input id="radarr-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://radarr:7878" autoFocus />
-            <p className="text-xs text-muted-foreground">{t('importRadarr.urlHint')}</p>
-          </div>
-          <div className="grid grid-cols-1 gap-2">
-            <Label htmlFor="radarr-key">{t('importRadarr.apiKey')}</Label>
-            <Input id="radarr-key" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} autoComplete="off" />
-            <p className="text-xs text-muted-foreground">{t('importRadarr.apiKeyHint')}</p>
-          </div>
-          {previewMutation.error && (
-            <Alert variant="destructive">
-              <AlertDescription>{previewMutation.error instanceof ApiError ? previewMutation.error.message : t('importRadarr.previewFailed')}</AlertDescription>
-            </Alert>
-          )}
-          <div>
-            <Button type="submit" disabled={previewMutation.isPending || url.trim().length === 0 || apiKey.trim().length === 0} data-testid="radarr-preview">
-              {previewMutation.isPending ? t('importRadarr.previewing') : t('importRadarr.preview')}
-            </Button>
-          </div>
-        </form>
+        <ConnectForm
+          app="radarr"
+          url={url}
+          onUrl={setUrl}
+          apiKey={apiKey}
+          onApiKey={setApiKey}
+          placeholder="http://radarr:7878"
+          texts={{
+            url: t('importRadarr.url'),
+            urlHint: t('importRadarr.urlHint'),
+            apiKey: t('importRadarr.apiKey'),
+            apiKeyHint: t('importRadarr.apiKeyHint'),
+            previewFailed: t('importRadarr.previewFailed'),
+            previewing: t('importRadarr.previewing'),
+            preview: t('importRadarr.preview'),
+          }}
+          error={previewMutation.error}
+          pending={previewMutation.isPending}
+          onSubmit={() => previewMutation.mutate()}
+        />
       )}
 
       {step === 'map' && preview && (
@@ -251,95 +223,50 @@ function MappingStep({ preview, url, apiKey, onBack, onStarted }: { preview: Rad
 
 function RunStep({ status, onAgain }: { status: RadarrImportStatus; onAgain: () => void }) {
   const { t } = useTranslation()
-  const busy = isBusy(status)
-  const progress = status.total > 0 ? Math.round((status.processed / status.total) * 100) : 0
+  const busy = isImportBusy(status)
 
   const counters = [
-    ['importRadarr.moviesAdded', status.moviesAdded],
-    ['importRadarr.versionsAdded', status.versionsAdded],
-    ['importRadarr.versionsUpdated', status.versionsUpdated],
-    ['importRadarr.filesAdded', status.filesAdded],
-    ['importRadarr.filesMissing', status.filesMissing],
-    ['importRadarr.skipped', status.skipped],
-    ['importRadarr.failed', status.failed],
-    ['importRadarr.tagsAdded', status.tagsAdded],
-    ['importRadarr.exclusionsAdded', status.exclusionsAdded],
-    ['importRadarr.historyAdded', status.historyAdded],
-    ['importRadarr.blocklistAdded', status.blocklistAdded],
-    ['importRadarr.customFormatsAdded', status.customFormatsAdded],
-    ['importRadarr.customFormatsUpdated', status.customFormatsUpdated],
-    ['importRadarr.profilesScored', status.profilesScored],
-    ['importRadarr.profileQualitiesCopied', status.profileQualitiesCopied],
-    ['importRadarr.namingImported', status.namingImported ? 1 : 0],
+    [t('importRadarr.moviesAdded'), status.moviesAdded],
+    [t('importRadarr.versionsAdded'), status.versionsAdded],
+    [t('importRadarr.versionsUpdated'), status.versionsUpdated],
+    [t('importRadarr.filesAdded'), status.filesAdded],
+    [t('importRadarr.filesMissing'), status.filesMissing],
+    [t('importRadarr.skipped'), status.skipped],
+    [t('importRadarr.failed'), status.failed],
+    [t('importRadarr.tagsAdded'), status.tagsAdded],
+    [t('importRadarr.exclusionsAdded'), status.exclusionsAdded],
+    [t('importRadarr.historyAdded'), status.historyAdded],
+    [t('importRadarr.blocklistAdded'), status.blocklistAdded],
+    [t('importRadarr.customFormatsAdded'), status.customFormatsAdded],
+    [t('importRadarr.customFormatsUpdated'), status.customFormatsUpdated],
+    [t('importRadarr.profilesScored'), status.profilesScored],
+    [t('importRadarr.profileQualitiesCopied'), status.profileQualitiesCopied],
+    [t('importRadarr.namingImported'), status.namingImported ? 1 : 0],
   ] as const
 
   return (
     <div className="flex flex-col gap-6" data-testid="radarr-run">
-      {busy && (
-        <section className="flex max-w-xl flex-col gap-2">
-          <h2 className="text-xl font-semibold tracking-tight">{t('importRadarr.progress')}</h2>
-          <Progress value={progress} />
-          <span className="text-xs text-muted-foreground">
-            {status.state === 'queued' ? t('importRadarr.queued') : t('importRadarr.processedOf', { processed: status.processed, total: status.total })}
-            {status.current ? ` · ${status.current}` : ''}
-          </span>
-        </section>
-      )}
+      <ImportReport status={status} counters={counters} />
 
-      {!busy && (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-xl font-semibold tracking-tight">{status.state === 'failed' ? t('importRadarr.reportFailed') : t('importRadarr.report')}</h2>
-          {status.error && (
-            <Alert variant="destructive">
-              <AlertDescription>{status.error}</AlertDescription>
-            </Alert>
-          )}
-          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {counters.map(([key, value]) => (
-              <div key={key} className="rounded-lg border p-3">
-                <dt className="text-xs text-muted-foreground">{t(key)}</dt>
-                <dd className="text-lg font-semibold tabular-nums">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-      )}
-
-      <section className="flex flex-col gap-3">
-        <h2 className="text-xl font-semibold tracking-tight">{t('importRadarr.issues')}</h2>
-        {status.issues.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{busy ? '' : t('importRadarr.noIssues')}</p>
-        ) : (
-          <div className="overflow-x-auto rounded-lg border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('importRadarr.issueTitle')}</TableHead>
-                  <TableHead>{t('importRadarr.issueTmdb')}</TableHead>
-                  <TableHead>{t('importRadarr.issueReason')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {status.issues.map((issue, i) => (
-                  <TableRow key={`${issue.tmdbId}-${i}`}>
-                    <TableCell className="font-medium">
-                      {issue.movieId !== null ? (
-                        <Link to="/movies/$movieId" params={{ movieId: String(issue.movieId) }} className="underline-offset-4 hover:underline">
-                          {issue.title}
-                        </Link>
-                      ) : (
-                        issue.title
-                      )}
-                    </TableCell>
-                    <TableCell className="tabular-nums">{issue.tmdbId ?? t('common.none')}</TableCell>
-                    <TableCell className="whitespace-normal">{issue.reason}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </section>
+      <ImportIssues
+        busy={busy}
+        noIssues={t('importRadarr.noIssues')}
+        titleHead={t('importRadarr.issueTitle')}
+        idHead={t('importRadarr.issueTmdb')}
+        issues={status.issues.map((issue, i) => ({
+          key: `${issue.tmdbId}-${i}`,
+          title:
+            issue.movieId !== null ? (
+              <Link to="/movies/$movieId" params={{ movieId: String(issue.movieId) }} className="underline-offset-4 hover:underline">
+                {issue.title}
+              </Link>
+            ) : (
+              issue.title
+            ),
+          id: issue.tmdbId,
+          reason: issue.reason,
+        }))}
+      />
 
       {!busy && (
         <div>
