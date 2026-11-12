@@ -36,3 +36,25 @@ export function StackedBars({ rows, series, labels, height = 200 }: { rows: Char
     </ChartContainer>
   )
 }
+
+/**
+ * One horizontal stacked bar per row, labelled on the left: a top list split by series, with the charts' colours,
+ * tooltip and legend.
+ */
+export function StackedRows({ rows, series, labels }: { rows: ChartRow[]; series: SeriesKey[]; labels: Record<SeriesKey, string> }) {
+  const config = Object.fromEntries(series.map((key) => [key, { label: labels[key], color: seriesColors[key] }])) satisfies ChartConfig
+  return (
+    <ChartContainer config={config} className="aspect-auto w-full" style={{ height: rows.length * 34 + 44 }}>
+      <BarChart data={rows} layout="vertical" margin={{ left: 0, right: 4, top: 0 }} barCategoryGap={6} accessibilityLayer>
+        <CartesianGrid horizontal={false} strokeDasharray="4 4" />
+        <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} allowDecimals={false} />
+        <YAxis type="category" dataKey="label" tickLine={false} axisLine={false} width={110} fontSize={12} />
+        <ChartTooltip cursor={{ fill: 'var(--muted)' }} content={<ChartTooltipContent />} />
+        <ChartLegend content={<ChartLegendContent />} />
+        {series.map((key, i) => (
+          <Bar key={key} dataKey={key} stackId="stack" fill={`var(--color-${key})`} radius={i === series.length - 1 ? [0, 3, 3, 0] : 0} isAnimationActive={false} />
+        ))}
+      </BarChart>
+    </ChartContainer>
+  )
+}

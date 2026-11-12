@@ -207,6 +207,13 @@ public sealed class PlaybackStatsTests : IAsyncLifetime, IDisposable
         Assert.Equal(("Made Up Show", 1), (Assert.Single(stats.TopShows).Title, stats.TopShows[0].Plays));
         Assert.Equal([("bob", 2), ("alice", 1)], stats.TopUsers.Select(u => (u.Title, u.Plays)).ToList());
         Assert.Equal([("Android", 2), ("Chrome", 1)], stats.TopPlatforms.Select(p => (p.Title, p.Plays)).ToList());
+
+        // Each platform's plays split by their furthest decision: P1 direct play and P3 direct stream on Android, P2
+        // transcoded at its second stream on Chrome. By watch time Chrome's 7000 s come before Android's 5400.
+        Assert.Equal([("Android", 1, 1, 0), ("Chrome", 0, 0, 1)], stats.TopPlatforms.Select(p => (p.Title, p.DirectPlay, p.DirectStream, p.Transcode)).ToList());
+        Assert.Equal([("Chrome", 7000L), ("Android", 5400L)], stats.TopPlatformsByTime.Select(p => (p.Title, p.Seconds)).ToList());
+        Assert.Equal((0, 0, 1), (stats.TopPlatformsByTime[0].DirectPlay, stats.TopPlatformsByTime[0].DirectStream, stats.TopPlatformsByTime[0].Transcode));
+        Assert.All(stats.TopUsers, u => Assert.Equal(0, u.DirectPlay + u.DirectStream + u.Transcode));
         Assert.Equal(new DecisionCountsResponse(1, 1, 1, 0), stats.Decisions);
 
         // P2's two streams touch at the hour without overlapping.
