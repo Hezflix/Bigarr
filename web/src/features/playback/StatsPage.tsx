@@ -274,7 +274,7 @@ function RankList({ entries, link, value = (e) => e.plays, format = (n) => Strin
   return (
     <ol className="flex flex-col gap-1.5">
       {entries.map((e, i) => (
-        <li key={`${e.title}\n${i}`} className="relative flex items-center gap-2 overflow-hidden rounded-md px-2 py-1 text-sm">
+        <li key={`${e.movieId ?? ''}:${e.userId ?? ''}:${e.title}`} className="relative flex items-center gap-2 overflow-hidden rounded-md px-2 py-1 text-sm">
           <span className="absolute inset-y-0 left-0 rounded-md bg-muted" style={{ width: `${(value(e) / max) * 100}%` }} aria-hidden="true" />
           <span className="relative w-4 text-xs text-muted-foreground tabular-nums">{i + 1}</span>
           <span className="relative min-w-0 flex-1 truncate">{link ? link(e) : e.title}</span>

@@ -355,6 +355,7 @@ function RunStep({ status, onAgain }: { status: TautulliImportStatus; onAgain: (
               </TableHeader>
               <TableBody>
                 {status.issues.map((issue, i) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: read-only report; titles may repeat
                   <TableRow key={`${issue.title}-${i}`}>
                     <TableCell className="font-medium">{issue.title}</TableCell>
                     <TableCell className="tabular-nums">{issue.year ?? t('common.none')}</TableCell>

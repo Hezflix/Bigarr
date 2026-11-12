@@ -42,9 +42,6 @@
         "noStaticElementInteractions": "error",
         "useKeyWithClickEvents": "error"
       },
-      "suspicious": {
-        "noArrayIndexKey": "warn"
-      },
       "style": {
         "noNonNullAssertion": "error"
       }
