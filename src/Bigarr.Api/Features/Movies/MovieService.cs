@@ -477,6 +477,25 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             return Failure.NotFound("Version");
         }
 
+        // Everything that can refuse the delete is checked before the disk is touched: a refusal must leave the file alone.
+        var siblings = movie.Versions.Where(v => v.Id != versionId).ToList();
+        MovieVersion? successor = null;
+        if (siblings.Count > 0 && version.IsDefault)
+        {
+            successor = promote is null ? null : siblings.FirstOrDefault(v => v.Id == promote);
+            if (successor is null)
+            {
+                return Failure.Conflict(
+                    "This is the default version",
+                    "Choose the new default among the other versions with ?promote=<versionId>.");
+            }
+
+            if (successor.Mode != VersionMode.Managed)
+            {
+                return Failure.Invalid("Only a managed version can become the default");
+            }
+        }
+
         if (deleteFiles && version.File is not null)
         {
             var removal = await RemoveFileFromDiskAsync(movie, version, ct);
@@ -486,7 +505,6 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             }
         }
 
-        var siblings = movie.Versions.Where(v => v.Id != versionId).ToList();
         var folder = Path.Combine(version.RootFolder.Path, version.FolderName);
         var folderShared = siblings.Any(v => v.RootFolderId == version.RootFolderId && v.FolderName == version.FolderName);
         if (siblings.Count == 0)
@@ -501,21 +519,8 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             return Result<bool>.Ok(true);
         }
 
-        if (version.IsDefault)
+        if (successor is not null)
         {
-            var successor = promote is null ? null : siblings.FirstOrDefault(v => v.Id == promote);
-            if (successor is null)
-            {
-                return Failure.Conflict(
-                    "This is the default version",
-                    "Choose the new default among the other versions with ?promote=<versionId>.");
-            }
-
-            if (successor.Mode != VersionMode.Managed)
-            {
-                return Failure.Invalid("Only a managed version can become the default");
-            }
-
             await SwitchDefaultAsync(movie, version, successor, ct);
         }
 

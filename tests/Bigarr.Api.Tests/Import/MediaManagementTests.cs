@@ -135,6 +135,42 @@ public sealed class MediaManagementTests(BigarrApiFactory factory) : IClassFixtu
         Assert.Contains(Directory.GetDirectories(_bin), d => Path.GetFileName(d).StartsWith("The Matrix (1999)", StringComparison.Ordinal) && Directory.GetFiles(d).Any(f => f.EndsWith("720p.BluRay.x264-GRP.mkv", StringComparison.Ordinal)));
     }
 
+    [Fact]
+    public async Task A_refused_version_delete_leaves_the_file_on_disk()
+    {
+        var client = await ClientAsync(factory);
+        var library = Path.Combine(_root, "refused");
+        var video = Video(library, "Inception (2010)", "Inception.2010.1080p.BluRay.x264-GRP.mkv");
+        var root = await AddRootAsync(client, library);
+        await ScanAsync(client, root.Id);
+        var movie = (await client.GetFromJsonAsync<List<MovieSummary>>("/api/v1/movies", Json))!.Single(m => m.TmdbId == 27205);
+        var defaultVersion = (await GetMovieAsync(client, movie.Id)).Versions.Single();
+        Assert.NotNull(defaultVersion.File);
+        var (_, uhd) = await ProfilesAsync(client);
+        var managed = await AddVersionAsync(client, movie.Id, new AddVersionRequest("4k", VersionMode.Managed, uhd));
+        var oneShot = await AddVersionAsync(client, movie.Id, new AddVersionRequest("imax", VersionMode.OneShot, uhd));
+        var current = await client.GetFromJsonAsync<MediaManagementResponse>("/api/v1/mediamanagement", Json);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync("/api/v1/mediamanagement", current!.ToRequest() with { RecycleBinPath = _bin }, Json)).StatusCode);
+
+        // The default version cannot go without a successor, and a one-shot cannot be that successor: both refusals
+        // come before anything is removed from disk.
+        var noSuccessor = await client.DeleteAsync($"/api/v1/movies/{movie.Id}/versions/{defaultVersion.Id}?deleteFiles=true");
+        Assert.Equal(HttpStatusCode.Conflict, noSuccessor.StatusCode);
+        var badSuccessor = await client.DeleteAsync($"/api/v1/movies/{movie.Id}/versions/{defaultVersion.Id}?deleteFiles=true&promote={oneShot.Id}");
+        Assert.Equal(HttpStatusCode.BadRequest, badSuccessor.StatusCode);
+
+        Assert.True(File.Exists(video), "a refused delete removed the file");
+        var kept = (await GetMovieAsync(client, movie.Id)).Versions.Single(v => v.Id == defaultVersion.Id);
+        Assert.NotNull(kept.File);
+        Assert.Empty(await HistoryAsync(client, movie.Id, HistoryEventType.FileDeleted));
+
+        // With a valid successor the file leaves through the recycle bin and the version goes.
+        var accepted = await client.DeleteAsync($"/api/v1/movies/{movie.Id}/versions/{defaultVersion.Id}?deleteFiles=true&promote={managed.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, accepted.StatusCode);
+        Assert.False(File.Exists(video));
+        Assert.True((await GetMovieAsync(client, movie.Id)).Versions.Single(v => v.Id == managed.Id).IsDefault);
+    }
+
     private static string Video(string root, string folder, string name)
     {
         var path = Path.Combine(root, folder, name);
