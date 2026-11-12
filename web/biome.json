@@ -29,7 +29,16 @@
     },
     "rules": {
       "preset": "recommended",
-      "a11y": "warn",
+      "a11y": {
+        "noLabelWithoutControl": "warn",
+        "useSemanticElements": "error",
+        "useFocusableInteractive": "error",
+        "noNoninteractiveElementToInteractiveRole": "error",
+        "noNoninteractiveElementInteractions": "error",
+        "useAriaPropsSupportedByRole": "error",
+        "noStaticElementInteractions": "error",
+        "useKeyWithClickEvents": "error"
+      },
       "suspicious": {
         "noArrayIndexKey": "warn"
       }
