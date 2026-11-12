@@ -12,12 +12,13 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { isImportBusy, useImportRun } from '@/features/settings/importWizard'
 import { Toggle } from '@/features/settings/RadarrMapping'
 import { formatBytes, formatDate } from '@/i18n'
 
-type Step = 'source' | 'preview' | 'run'
+type Step = 'source' | 'preview'
 
-const isBusy = (status: TautulliImportStatus | undefined) => status?.state === 'queued' || status?.state === 'running'
+const staleAfterImport = ['playback'] as const
 
 const number = new Intl.NumberFormat('en-GB')
 
@@ -25,28 +26,11 @@ const number = new Intl.NumberFormat('en-GB')
 export function ImportTautulliPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [step, setStep] = useState<Step | null>(null)
   const [path, setPath] = useState('')
   const [serverId, setServerId] = useState<number | null>(null)
   const [preview, setPreview] = useState<TautulliImportPreview | null>(null)
 
-  const status = useQuery({
-    queryKey: ['tautulliImport'],
-    queryFn: tautulliImport.status,
-    refetchInterval: (query) => (isBusy(query.state.data) ? 1000 : false),
-  })
-
-  // A page opened while an import runs (or just ran) shows it rather than an empty form.
-  useEffect(() => {
-    if (step !== null || !status.data) return
-    setStep(status.data.state === 'idle' ? 'source' : 'run')
-  }, [step, status.data])
-
-  const importState = status.data?.state
-  useEffect(() => {
-    if (importState !== 'completed') return
-    void queryClient.invalidateQueries({ queryKey: ['playback'] })
-  }, [importState, queryClient])
+  const { step, setStep, status } = useImportRun({ queryKey: 'tautulliImport', queryFn: tautulliImport.status, firstStep: 'source' as Step, invalidate: staleAfterImport })
 
   return (
     <>
@@ -290,7 +274,7 @@ function PreviewStep({ preview, path, serverId, onBack, onStarted }: { preview: 
 
 function RunStep({ status, onAgain }: { status: TautulliImportStatus; onAgain: () => void }) {
   const { t } = useTranslation()
-  const busy = isBusy(status)
+  const busy = isImportBusy(status)
   const progress = status.total > 0 ? Math.round((status.processed / status.total) * 100) : 0
 
   const counters = [

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
 import { ChevronDownIcon } from 'lucide-react'
@@ -13,24 +13,16 @@ import {
   type SeriesManualImportFile,
   type SeriesManualImportItem,
   type SeriesManualImportResult,
-  type TransferMode,
 } from '@/api/client'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { extraSummary } from '@/features/import/extraFiles'
-import { formatBytes } from '@/i18n'
+import { ImportFileCell, ImportFooter, ImportListingState, ImportPathForm, ImportQualityCell, rejectedStyle, type TransferChoice } from '@/features/import/manualImportParts'
 
-const rejectedStyle = 'border-amber-600/30 bg-amber-500/15 text-amber-700 dark:border-amber-400/30 dark:text-amber-300'
-const modes: TransferMode[] = ['hardlinkOrCopy', 'copy', 'move']
 
 type Selection = { selected: boolean; seriesId: number | null; versionId: number | null; episodeIds: number[]; qualityId: number; extras: string[] }
 
@@ -46,7 +38,7 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
   const [path, setPath] = useState(initialPath ?? '')
   const [loadedPath, setLoadedPath] = useState<string | null>(initialPath ?? null)
   const [selections, setSelections] = useState<Record<string, Selection>>({})
-  const [mode, setMode] = useState<'default' | TransferMode>('default')
+  const [mode, setMode] = useState<TransferChoice>('default')
   const [results, setResults] = useState<SeriesManualImportResult[] | null>(null)
 
   const listing = useQuery({
@@ -91,7 +83,7 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
       setResults(outcome)
       const ok = outcome.filter((r) => r.imported).length
       if (ok > 0) toast.success(t('seriesImport.importedCount', { count: ok }))
-      outcome.filter((r) => !r.imported).forEach((r) => toast.error(t('manualImport.failed', { reason: r.reason })))
+      for (const r of outcome.filter((r) => !r.imported)) toast.error(t('manualImport.failed', { reason: r.reason }))
       await queryClient.invalidateQueries({ queryKey: ['queue'] })
       await queryClient.invalidateQueries({ queryKey: ['series'] })
       await queryClient.invalidateQueries({ queryKey: ['seriesFiles'] })
@@ -101,11 +93,6 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
   })
 
   const update = (filePath: string, patch: Partial<Selection>) => setSelections((s) => ({ ...s, [filePath]: { ...s[filePath], ...patch } }))
-
-  const load = (e: FormEvent) => {
-    e.preventDefault()
-    if (path.trim()) setLoadedPath(path.trim())
-  }
 
   const files = listing.data?.files ?? []
 
@@ -117,32 +104,9 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
           <DialogDescription>{t('seriesImport.hint')}</DialogDescription>
         </DialogHeader>
 
-        {!grabId && (
-          <form className="flex flex-wrap items-end gap-2" onSubmit={load}>
-            <div className="grid min-w-64 flex-1 gap-2">
-              <Label htmlFor="smi-path">{t('manualImport.path')}</Label>
-              <Input id="smi-path" value={path} onChange={(e) => setPath(e.target.value)} placeholder={t('seriesImport.pathPlaceholder')} className="font-mono text-xs" />
-            </div>
-            <Button type="submit" variant="outline" disabled={!path.trim() || listing.isFetching}>
-              {t('manualImport.load')}
-            </Button>
-          </form>
-        )}
+        {!grabId && <ImportPathForm id="smi-path" path={path} onPath={setPath} placeholder={t('seriesImport.pathPlaceholder')} loading={listing.isFetching} onLoad={setLoadedPath} />}
 
-        {listing.isFetching && (
-          <div className="flex flex-col gap-2">
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-2/3" />
-          </div>
-        )}
-
-        {listing.error && (
-          <Alert variant="destructive">
-            <AlertDescription>{listing.error instanceof ApiError ? listing.error.message : t('manualImport.loadFailed')}</AlertDescription>
-          </Alert>
-        )}
-
-        {listing.data && files.length === 0 && <p className="text-sm text-muted-foreground">{t('manualImport.empty')}</p>}
+        <ImportListingState fetching={listing.isFetching} error={listing.error} empty={!!listing.data && files.length === 0} />
 
         {listing.data && files.length > 0 && (
           <div className="overflow-x-auto rounded-lg border">
@@ -173,34 +137,15 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
                           disabled={selection.versionId === null || selection.episodeIds.length === 0}
                         />
                       </TableCell>
-                      <TableCell className="min-w-[16rem] max-w-[22rem] align-top whitespace-normal">
-                        <span className="block break-all text-sm">{file.relativePath}</span>
-                        <span className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-                          <span>{formatBytes(file.size)}</span>
-                          {file.isSample && <Badge variant="outline">{t('manualImport.sample')}</Badge>}
-                          {file.releaseGroup && <span>{file.releaseGroup}</span>}
-                          {file.languages.length > 0 && <span>{file.languages.join(', ')}</span>}
-                        </span>
-                        {file.extras.length > 0 && (
-                          <div className="mt-2 grid gap-1">
-                            <span className="text-xs font-medium text-muted-foreground">{t('seriesImport.extras', { count: file.extras.length })}</span>
-                            {file.extras.map((extra) => (
-                              <label key={extra.path} className="flex items-start gap-2 text-xs">
-                                <Checkbox
-                                  checked={selection.extras.includes(extra.path)}
-                                  onCheckedChange={(v) => update(file.path, { extras: v === true ? [...selection.extras, extra.path] : selection.extras.filter((p) => p !== extra.path) })}
-                                  disabled={!selection.selected}
-                                  aria-label={t('manualImport.selectExtra', { name: extra.relativePath })}
-                                  className="mt-0.5"
-                                />
-                                <span className="grid">
-                                  <span className="break-all">{extra.relativePath}</span>
-                                  <span className="text-muted-foreground">{extraSummary(extra, t)}</span>
-                                </span>
-                              </label>
-                            ))}
-                          </div>
-                        )}
+                      <ImportFileCell
+                        file={file}
+                        selected={selection.selected}
+                        extras={selection.extras}
+                        onExtras={(extras) => update(file.path, { extras })}
+                        extrasLabel={t('seriesImport.extras', { count: file.extras.length })}
+                        result={result}
+                        className="max-w-[22rem]"
+                      >
                         {file.rejections.length > 0 && selection.seriesId === file.seriesId && (
                           <span className="mt-1 flex flex-wrap gap-1">
                             {file.rejections.map((reason) => (
@@ -210,26 +155,8 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
                             ))}
                           </span>
                         )}
-                        {result && (
-                          <span className={cn('mt-1 block break-all text-xs', result.imported ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive')}>
-                            {result.imported ? t('manualImport.imported', { path: result.destinationPath }) : t('manualImport.failed', { reason: result.reason })}
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="align-top">
-                        <Select value={String(selection.qualityId)} onValueChange={(v) => update(file.path, { qualityId: Number(v) })}>
-                          <SelectTrigger className="min-w-36" size="sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(qualities.data ?? []).map((q) => (
-                              <SelectItem key={q.id} value={String(q.id)}>
-                                {q.title ?? q.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
+                      </ImportFileCell>
+                      <ImportQualityCell value={selection.qualityId} onChange={(qualityId) => update(file.path, { qualityId })} qualities={qualities.data ?? []} />
                       <TableCell className="align-top">
                         <Select
                           value={selection.seriesId === null ? 'none' : String(selection.seriesId)}
@@ -294,34 +221,17 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
           </div>
         )}
 
-        <DialogFooter className="items-center gap-2 sm:justify-between">
-          <div className="flex items-center gap-2">
-            <Label htmlFor="smi-mode" className="text-muted-foreground">
-              {t('manualImport.transferMode')}
-            </Label>
-            <Select value={mode} onValueChange={(v) => setMode(v as 'default' | TransferMode)}>
-              <SelectTrigger id="smi-mode" size="sm" className="min-w-52">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="default">{t('manualImport.useDefault', { mode: listing.data ? t(`mediaManagement.transferModes.${listing.data.defaultTransferMode}`) : '…' })}</SelectItem>
-                {modes.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {t(`mediaManagement.transferModes.${m}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex gap-2">
-            <Button type="button" variant="ghost" onClick={onClose}>
-              {t('common.close')}
-            </Button>
-            <Button type="button" onClick={() => run.mutate()} disabled={items.length === 0 || run.isPending} data-testid="series-manual-import-run">
-              {run.isPending ? t('manualImport.importing') : t('manualImport.importCount', { count: items.length })}
-            </Button>
-          </div>
-        </DialogFooter>
+        <ImportFooter
+          id="smi-mode"
+          mode={mode}
+          onMode={setMode}
+          defaultMode={listing.data?.defaultTransferMode}
+          count={items.length}
+          running={run.isPending}
+          onRun={() => run.mutate()}
+          onClose={onClose}
+          runTestId="series-manual-import-run"
+        />
       </DialogContent>
     </Dialog>
   )
