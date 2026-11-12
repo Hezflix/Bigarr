@@ -118,17 +118,44 @@ public sealed partial class FileTransfer(ILogger<FileTransfer> logger)
         }
     }
 
+    /// <summary>
+    /// A move goes through the partial name like a copy does. On one filesystem that is two renames. Across
+    /// filesystems the runtime turns the first one into a copy, and that copy must not be written under the final
+    /// name: a process killed half-way would leave a truncated file there that the retry refuses to overwrite and a
+    /// library scan adopts. Under the partial name nothing ever reads it, and the retry overwrites it.
+    /// </summary>
     private static async Task MoveAsync(string source, string destination, CancellationToken ct)
     {
+        var partial = destination + PartialSuffix;
         try
         {
-            File.Move(source, destination, overwrite: false);
+            File.Move(source, partial, overwrite: true);
         }
-        catch (IOException) when (File.Exists(source) && !File.Exists(destination))
+        catch (IOException) when (File.Exists(source) && !File.Exists(partial))
         {
             // Across devices the runtime normally copies for us; when it does not, do it by hand.
             await CopyAsync(source, destination, ct);
             File.Delete(source);
+            return;
+        }
+
+        try
+        {
+            File.Move(partial, destination, overwrite: false);
+        }
+        catch
+        {
+            // The destination appeared meanwhile: the file goes back where it came from rather than stay hidden.
+            try
+            {
+                File.Move(partial, source, overwrite: false);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // left under the partial name; the original error is the one that matters
+            }
+
+            throw;
         }
     }
 
