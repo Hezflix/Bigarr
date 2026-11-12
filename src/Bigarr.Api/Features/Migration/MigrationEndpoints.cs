@@ -69,17 +69,24 @@ public static class MigrationEndpoints
         // The raw file as the body: a Tautulli database runs to hundreds of megabytes, past any form limit.
         group.MapPut("/upload", async Task<Results<Ok<TautulliUploadResponse>, ProblemHttpResult>> (HttpRequest http, TautulliImportService imports, TautulliImportRunner runner, CancellationToken ct) =>
         {
-            if (runner.IsBusy)
+            if (!runner.TryBeginUpload())
             {
-                return Infrastructure.Failure.Conflict("An import is running", "Wait for it to finish before uploading another database.").ToProblem();
+                return Infrastructure.Failure.Conflict("An import or an upload is running", "Wait for it to finish before uploading another database.").ToProblem();
             }
 
-            if (http.HttpContext.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } limit)
+            try
             {
-                limit.MaxRequestBodySize = null;
-            }
+                if (http.HttpContext.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } limit)
+                {
+                    limit.MaxRequestBodySize = null;
+                }
 
-            return TypedResults.Ok(await imports.SaveUploadAsync(http.Body, ct));
+                return TypedResults.Ok(await imports.SaveUploadAsync(http.Body, ct));
+            }
+            finally
+            {
+                runner.EndUpload();
+            }
         });
 
         group.MapPost("/preview", async Task<Results<Ok<TautulliImportPreviewResponse>, ProblemHttpResult>> (TautulliImportPreviewRequest request, TautulliImportService imports, CancellationToken ct) =>

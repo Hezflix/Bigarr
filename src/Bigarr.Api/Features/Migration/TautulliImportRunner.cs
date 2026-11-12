@@ -8,6 +8,7 @@ public sealed class TautulliImportRunner(IServiceScopeFactory scopeFactory, Time
     private readonly Channel<TautulliImportProgress> _queue = Channel.CreateUnbounded<TautulliImportProgress>();
     private readonly Lock _gate = new();
     private TautulliImportProgress? _current;
+    private bool _uploading;
 
     public TautulliImportStatusResponse Status()
     {
@@ -22,7 +23,7 @@ public sealed class TautulliImportRunner(IServiceScopeFactory scopeFactory, Time
     {
         lock (_gate)
         {
-            if (_current is { State: RadarrImportState.Queued or RadarrImportState.Running })
+            if (_uploading || _current is { State: RadarrImportState.Queued or RadarrImportState.Running })
             {
                 return null;
             }
@@ -42,6 +43,33 @@ public sealed class TautulliImportRunner(IServiceScopeFactory scopeFactory, Time
             {
                 return _current is { State: RadarrImportState.Queued or RadarrImportState.Running };
             }
+        }
+    }
+
+    /// <summary>
+    /// Claims the uploaded file for one upload, under the same lock as <see cref="Enqueue"/>: false while an import is
+    /// queued or running, or another upload is streaming. Until <see cref="EndUpload"/> no import starts, so an upload
+    /// never replaces the file under an import, and an import never deletes a file a newer upload just wrote.
+    /// </summary>
+    public bool TryBeginUpload()
+    {
+        lock (_gate)
+        {
+            if (_uploading || _current is { State: RadarrImportState.Queued or RadarrImportState.Running })
+            {
+                return false;
+            }
+
+            _uploading = true;
+            return true;
+        }
+    }
+
+    public void EndUpload()
+    {
+        lock (_gate)
+        {
+            _uploading = false;
         }
     }
 
