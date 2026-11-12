@@ -56,6 +56,22 @@ public sealed class FileTransferTests : IDisposable
     }
 
     [Fact]
+    public async Task A_move_goes_through_the_partial_name_and_replaces_what_a_killed_transfer_left_there()
+    {
+        var source = Write("a/move-me.mkv", 4096);
+        var moved = Path.Combine(_root, "d", "moved.mkv");
+
+        // What a transfer killed half-way leaves behind: never read by anything, overwritten by the retry.
+        Directory.CreateDirectory(Path.GetDirectoryName(moved)!);
+        await File.WriteAllBytesAsync(moved + ".bigarr-partial", new byte[100]);
+
+        Assert.Equal(TransferOutcome.Moved, await _transfer.TransferAsync(source, moved, TransferMode.Move, CancellationToken.None));
+        Assert.False(File.Exists(source));
+        Assert.Equal(4096, new FileInfo(moved).Length);
+        Assert.Empty(Directory.GetFiles(Path.Combine(_root, "d"), "*.bigarr-partial"));
+    }
+
+    [Fact]
     public async Task An_existing_destination_is_never_overwritten()
     {
         var source = Write("a/src.mkv", 10);
