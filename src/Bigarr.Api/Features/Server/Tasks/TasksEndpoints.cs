@@ -12,10 +12,11 @@ public static class TasksEndpoints
         group.MapGet("/", async Task<Ok<List<ScheduledTaskResponse>>> (TaskRunner runner, CancellationToken ct) =>
             TypedResults.Ok(await runner.ListAsync(ct)));
 
-        // Runs the job now and waits for it: what the "run" button and the tests call.
-        group.MapPost("/{name}/run", async Task<Results<Ok<TaskRunResponse>, ProblemHttpResult>> (string name, TaskRunner runner, CancellationToken ct) =>
+        // Runs the job now and waits for it: what the "run" button and the tests call. The run belongs to the app, not to
+        // the request: a closed tab or a proxy timeout must not cut a job half-way and leave no trace of the run.
+        group.MapPost("/{name}/run", async Task<Results<Ok<TaskRunResponse>, ProblemHttpResult>> (string name, TaskRunner runner, IHostApplicationLifetime lifetime) =>
         {
-            var result = await runner.RunAsync(name, ct);
+            var result = await runner.RunAsync(name, lifetime.ApplicationStopping);
             return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
         });
 
