@@ -1339,104 +1339,11 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
         return added;
     }
 
-    /// <summary>A Sonarr history line translated: its Bigarr type, UTC date and the data keys the history page reads.</summary>
-    public sealed record HistoryLine(SonarrHistoryItem Record, HistoryEventType Type, DateTime Date, Dictionary<string, string> Data);
+    /// <summary>How Sonarr words its history (see <see cref="ArrHistory"/>).</summary>
+    public static readonly ArrHistoryDialect HistoryDialect = new("sonarr", SonarrHistoryIdKey, HistoryType, quality => SonarrQualities.ToBigarr(quality?.Quality)?.Name, KeepsReleaseType: true);
 
-    /// <summary>
-    /// Sonarr's lines of one episode, oldest first, in Bigarr's terms, by the film rules: an import that follows an earlier
-    /// import, with no deletion in between other than the upgrade's own, becomes <see cref="HistoryEventType.Upgraded"/>;
-    /// events Bigarr has no counterpart for (<c>downloadIgnored</c>, <c>unknown</c>) are left out. A partial history (the
-    /// follow's lines since its checkpoint) starts from the file the episode had: <paramref name="hadFile"/>.
-    /// </summary>
-    public static IEnumerable<HistoryLine> HistoryLines(IEnumerable<SonarrHistoryItem> records, bool hadFile = false, string? fileQuality = null)
-    {
-        ArgumentNullException.ThrowIfNull(records);
-
-        var currentQuality = fileQuality;
-        var hasFile = hadFile;
-        foreach (var record in records)
-        {
-            if (HistoryType(record.EventType) is not { } type)
-            {
-                continue;
-            }
-
-            var raw = new Dictionary<string, string?>(record.Data ?? [], StringComparer.OrdinalIgnoreCase);
-            string? Raw(string key) => raw.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value) ? value.Trim() : null;
-
-            var data = new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["importedFrom"] = "sonarr",
-                [SonarrHistoryIdKey] = record.Id.ToString(CultureInfo.InvariantCulture),
-            };
-            void Put(string key, string? value)
-            {
-                if (!string.IsNullOrWhiteSpace(value))
-                {
-                    data[key] = value.Trim();
-                }
-            }
-
-            var quality = SonarrQualities.ToBigarr(record.Quality?.Quality)?.Name;
-            Put("quality", quality is "Unknown" ? null : quality);
-            Put("indexer", Raw("indexer"));
-            switch (type)
-            {
-                case HistoryEventType.Grabbed:
-                    Put("downloadClient", Raw("downloadClientName") ?? Raw("downloadClient"));
-                    Put("downloadId", record.DownloadId);
-                    Put("size", Raw("size"));
-                    Put("releaseGuid", Raw("guid"));
-                    Put("releaseGroup", Raw("releaseGroup"));
-                    Put("protocol", Raw("protocol"));
-                    Put("releaseType", Raw("releaseType"));
-                    Put("indexerFlags", Raw("indexerFlags") is { } flags && flags != "0" ? flags : null);
-                    break;
-                case HistoryEventType.Imported:
-                    Put("path", Raw("importedPath"));
-                    Put("source", Raw("droppedPath"));
-                    Put("size", Raw("size"));
-                    Put("downloadClient", Raw("downloadClientName") ?? Raw("downloadClient"));
-                    Put("downloadId", record.DownloadId);
-                    if (hasFile)
-                    {
-                        type = HistoryEventType.Upgraded;
-                        Put("previousQuality", currentQuality);
-                    }
-
-                    hasFile = true;
-                    currentQuality = data.GetValueOrDefault("quality");
-                    break;
-                case HistoryEventType.DownloadFailed:
-                    Put("reason", Raw("message"));
-                    Put("downloadClient", Raw("downloadClientName") ?? Raw("downloadClient"));
-                    Put("downloadId", record.DownloadId);
-                    break;
-                case HistoryEventType.FileDeleted:
-                    Put("reason", Raw("reason"));
-                    Put("path", record.SourceTitle);
-                    Put("size", Raw("size"));
-                    if (!string.Equals(Raw("reason"), "upgrade", StringComparison.OrdinalIgnoreCase))
-                    {
-                        hasFile = false;
-                        currentQuality = null;
-                    }
-
-                    break;
-                case HistoryEventType.Renamed:
-                    Put("from", Raw("sourcePath"));
-                    Put("to", Raw("path"));
-                    break;
-            }
-
-            if (record.CustomFormats is { Count: > 0 } formats)
-            {
-                Put("customFormats", string.Join(", ", formats.Select(f => f.Name).Where(n => !string.IsNullOrWhiteSpace(n))));
-            }
-
-            yield return new HistoryLine(record, type, Utc(record.Date), data);
-        }
-    }
+    public static IEnumerable<ArrHistoryLine<SonarrHistoryItem>> HistoryLines(IEnumerable<SonarrHistoryItem> records, bool hadFile = false, string? fileQuality = null) =>
+        ArrHistory.Lines(records, HistoryDialect, hadFile, fileQuality);
 
     public static HistoryEventType? HistoryType(string? sonarrEventType) => sonarrEventType?.ToLowerInvariant() switch
     {
