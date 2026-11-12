@@ -12,7 +12,8 @@ artifacts/
 src/Bigarr.Api/wwwroot/
 web/node_modules/
 web/dist/
-web/src/api/generated/
+# Written by the API build; the types generated from it (web/src/api/generated) are committed.
+web/openapi/
 
 # Local data
 *.db

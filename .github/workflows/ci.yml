@@ -59,6 +59,13 @@ jobs:
       - name: Build
         run: dotnet build -c Release --no-restore
 
+      # The build wrote the OpenAPI document: the committed TypeScript types must be the ones it produces.
+      - name: API types are current
+        working-directory: web
+        run: |
+          bun run gen:api
+          git diff --exit-code -- src/api/generated
+
       - name: Test
         run: dotnet test -c Release --no-build --logger "trx;LogFileName=results.trx" --results-directory TestResults
 
