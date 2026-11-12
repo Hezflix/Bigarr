@@ -13,6 +13,7 @@ using Bigarr.Domain.Tv;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
+using static Bigarr.Api.Features.Migration.ArrImportHelpers;
 namespace Bigarr.Api.Features.Shadow;
 
 /// <summary>The outcome of one pass over one followed Sonarr.</summary>
@@ -592,8 +593,6 @@ public sealed class SonarrFollower(
         SeriesReleaseJudge.Label(episodes.Distinct().OrderBy(e => e.Season).ThenBy(e => e.Episode)
             .Select(e => new Episode { Title = string.Empty, SeasonNumber = e.Season, EpisodeNumber = e.Episode })
             .ToList());
-
-    private static DateTime Utc(DateTime value) => value.Kind == DateTimeKind.Local ? value.ToUniversalTime() : DateTime.SpecifyKind(value, DateTimeKind.Utc);
 
     private static string? Truncate(string? value, int max) => value is null ? null : value.Length <= max ? value : value[..max];
 }
