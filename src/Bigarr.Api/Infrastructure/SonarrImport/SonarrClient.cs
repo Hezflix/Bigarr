@@ -135,7 +135,7 @@ public sealed record SonarrHistoryItem(
     List<RadarrLanguageRef>? Languages = null,
     int? CustomFormatScore = null,
     /// <summary>With <c>includeEpisode=true</c>: the episode the line is about.</summary>
-    SonarrEpisode? Episode = null);
+    SonarrEpisode? Episode = null) : Bigarr.Api.Features.Migration.IArrHistoryItem;
 
 public sealed record SonarrHistoryPage(int Page, int PageSize, int TotalRecords, List<SonarrHistoryItem>? Records);
 

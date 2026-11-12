@@ -139,7 +139,7 @@ public sealed record RadarrHistoryItem(
     Dictionary<string, string?>? Data,
     List<RadarrLanguageRef>? Languages = null,
     /// <summary>Recomputed by Radarr with the profile of today; the score at grab time is in <c>data.customFormatScore</c>.</summary>
-    int? CustomFormatScore = null);
+    int? CustomFormatScore = null) : Bigarr.Api.Features.Migration.IArrHistoryItem;
 
 /// <summary>What Radarr's parser reads in a release title.</summary>
 public sealed record RadarrParsedMovieInfo(RadarrQuality? Quality, string? ReleaseGroup, List<RadarrLanguageRef>? Languages);
