@@ -1,7 +1,7 @@
 import { useDeferredValue, useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useSearch } from '@tanstack/react-router'
-import { SearchIcon, XIcon } from 'lucide-react'
+import { SearchIcon, SparklesIcon, XIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { playback, type MediaItemKind, type Play, type PlaySortKey, type StreamDecision } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { PlayDetailDialog } from './PlayDetailDialog'
 import { PlaysTable, type PlaySort } from './PlaysTable'
+import { SureMatchesDialog } from './SureMatchesDialog'
 import { UserPicker } from './UserPicker'
 
 const pageSize = 50
@@ -61,6 +62,7 @@ export function PlaysPage() {
   const [filters, setFilters] = useState<Filters>(() => ({ ...noFilters, kind: initial.kind ?? 'all', search: initial.q ?? '' }))
   const [sort, setSort] = useState<PlaySort>({ key: 'startedAt', direction: 'desc' })
   const [selected, setSelected] = useState<Play | null>(null)
+  const [linkingSure, setLinkingSure] = useState(false)
   const search = useDeferredValue(filters.search.trim())
   const users = useQuery({ queryKey: ['playback', 'users'], queryFn: playback.users })
   const versions = useQuery({ queryKey: ['playback', 'playVersions'], queryFn: playback.playVersions })
@@ -177,6 +179,12 @@ export function PlaysPage() {
             {t('playback.clearFilters')}
           </Button>
         )}
+        {filters.kind === 'unmatched' && (
+          <Button variant="outline" size="sm" className="ml-auto" onClick={() => setLinkingSure(true)} data-testid="link-sure-matches">
+            <SparklesIcon />
+            {t('playback.sureMatches.action')}
+          </Button>
+        )}
       </div>
 
       {query.isPending && <Skeleton className="h-40 w-full" />}
@@ -201,6 +209,7 @@ export function PlaysPage() {
         </>
       )}
       <PlayDetailDialog play={selected} onClose={() => setSelected(null)} />
+      <SureMatchesDialog open={linkingSure} onClose={() => setLinkingSure(false)} />
     </>
   )
 }

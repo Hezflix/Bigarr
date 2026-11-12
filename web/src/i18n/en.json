@@ -2179,6 +2179,27 @@
         "closeTitle": "Close title"
       }
     },
+    "sureMatches": {
+      "action": "Link sure matches",
+      "title": "Link sure matches",
+      "hint": "Films not linked whose film Bigarr is sure of: the same id, or the same title or a TMDB match of the same year, well ahead of any other film. Nothing is linked until you confirm.",
+      "searching": "Looking for each film on TMDB and in the library…",
+      "failed": "Could not look for sure matches.",
+      "none": "No sure match: link the films one by one from their plays.",
+      "list": "Sure matches",
+      "plays_one": "{{count}} play",
+      "plays_other": "{{count}} plays",
+      "checkAll": "Select all",
+      "rest_one": "{{count}} film without a sure match: link it from its plays, one by one.",
+      "rest_other": "{{count}} films without a sure match: link them from their plays, one by one.",
+      "tmdbUnavailable": "TMDB could not be reached: matches were looked for in the library alone.",
+      "save_one": "Link {{count}} film",
+      "save_other": "Link {{count}} films",
+      "linked_one": "{{count}} film linked.",
+      "linked_other": "{{count}} films linked.",
+      "skipped_one": "{{count}} was linked meanwhile and left as it was.",
+      "skipped_other": "{{count}} were linked meanwhile and left as they were."
+    },
     "noPlays": "No play yet.",
     "pageOf": "Page {{page}} of {{pages}} · {{total}} plays",
     "previous": "Previous",
