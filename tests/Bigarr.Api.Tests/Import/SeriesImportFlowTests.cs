@@ -106,7 +106,8 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
             // 3. A better single replaces one episode.
             var e02Id = (await SeriesSetup.EpisodeAsync(client, series.Id, 1, 2)).Id;
             await GrabAndCompleteAsync(client, Crafted("Breaking.Bad.S01E02.REPACK.1080p.BluRay.x264-DEMAND", version.Id, e02Id));
-            files = await WaitForFilesAsync(client, series.Id, f => f.Single(x => x.Episodes == "S01E02").RevisionVersion == 2);
+            // Any, not Single: the upgrade removes the old file before it commits the new one, so a poll can see none.
+            files = await WaitForFilesAsync(client, series.Id, f => f.Any(x => x.Episodes == "S01E02" && x.RevisionVersion == 2));
             Assert.Equal("Season 1/Breaking Bad - S01E02 - Cat's in the Bag Bluray-1080p Proper.mkv", files.Single(f => f.Episodes == "S01E02").RelativePath);
             Assert.Equal(7, files.Count(f => f.SeasonNumber == 1));
             Assert.Equal(1, files.Single(f => f.Episodes == "S01E01").RevisionVersion);
