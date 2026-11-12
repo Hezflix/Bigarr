@@ -47,11 +47,12 @@ public sealed class ApiKeyAuthenticationHandler(
             return AuthenticateResult.Fail("Invalid API key.");
         }
 
-        if (key.LastUsedAt is null || DateTime.UtcNow - key.LastUsedAt.Value > LastUsedThrottle)
+        var now = TimeProvider.GetUtcNow().UtcDateTime;
+        if (key.LastUsedAt is null || now - key.LastUsedAt.Value > LastUsedThrottle)
         {
             await db.ApiKeys
                 .Where(k => k.Id == key.Id)
-                .ExecuteUpdateAsync(s => s.SetProperty(k => k.LastUsedAt, DateTime.UtcNow), Context.RequestAborted);
+                .ExecuteUpdateAsync(s => s.SetProperty(k => k.LastUsedAt, now), Context.RequestAborted);
         }
 
         var principal = BigarrPrincipal.ForUser(key.User, Scheme.Name, key);

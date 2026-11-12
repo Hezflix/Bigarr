@@ -28,7 +28,9 @@ public sealed class UnmappedFolder
     /// <summary>What the parser saw, or the candidates that made the match ambiguous.</summary>
     public string? Detail { get; set; }
 
-    public DateTime DiscoveredAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime DiscoveredAt { get; set; }
 
-    public DateTime LastSeenAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime LastSeenAt { get; set; }
 }

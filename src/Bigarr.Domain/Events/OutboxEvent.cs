@@ -15,7 +15,8 @@ public sealed class OutboxEvent
     /// <summary>The event record serialized as JSON: everything a consumer needs, so a deleted film still has a readable event.</summary>
     public required string Payload { get; set; }
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime CreatedAt { get; set; }
 
     public DateTime? DispatchedAt { get; set; }
 }

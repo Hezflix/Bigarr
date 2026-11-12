@@ -56,7 +56,8 @@ public sealed class DownloadClient
     /// <summary>1 is tried first when several clients are enabled.</summary>
     public int Priority { get; set; } = 1;
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime CreatedAt { get; set; }
 
     public DownloadProtocol Protocol => DownloadProtocol.Torrent;
 

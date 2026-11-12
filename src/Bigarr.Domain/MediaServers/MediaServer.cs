@@ -42,7 +42,8 @@ public sealed class MediaServer
 
     public DateTime? LastErrorAt { get; set; }
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime CreatedAt { get; set; }
 
     /// <summary>Plex's watch history has been compared with the plays up to here (the playback backstop's checkpoint).</summary>
     public DateTime? PlayHistoryCheckedUntil { get; set; }

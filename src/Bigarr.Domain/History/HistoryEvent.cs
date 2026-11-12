@@ -47,5 +47,6 @@ public sealed class HistoryEvent
     /// <summary>Free-form details: size, seeders, scores, rejection reasons…</summary>
     public Dictionary<string, string> Data { get; set; } = [];
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime CreatedAt { get; set; }
 }

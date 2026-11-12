@@ -23,7 +23,8 @@ public abstract class AcquisitionTarget
     /// <summary>Automatic searches in a row that found nothing to grab; reset by a grab or an import. The backoff doubles with it.</summary>
     public int SearchAttempts { get; set; }
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime CreatedAt { get; set; }
 
     public ICollection<GrabTarget> Grabs { get; set; } = [];
 }

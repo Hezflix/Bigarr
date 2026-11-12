@@ -173,7 +173,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             return Failure.NotFound($"TMDB movie {request.TmdbId}");
         }
 
-        var movie = Movie.FromMetadata(found, root.Id);
+        var movie = Movie.FromMetadata(found, root.Id, time.GetUtcNow().UtcDateTime);
         movie.Versions.Add(new MovieVersion
         {
             Movie = movie,
@@ -706,7 +706,7 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
         }
         else
         {
-            movie.ApplyMetadata(found);
+            movie.ApplyMetadata(found, time.GetUtcNow().UtcDateTime);
         }
 
         movie.LastMetadataRefreshAt = time.GetUtcNow().UtcDateTime;

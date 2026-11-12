@@ -31,6 +31,7 @@ public static class AuthEndpoints
         LoginRequest request,
         HttpContext http,
         BigarrDbContext db,
+        TimeProvider time,
         IPasswordHasher<User> hasher,
         ILoggerFactory loggerFactory)
     {
@@ -59,7 +60,7 @@ public static class AuthEndpoints
             user.PasswordHash = hasher.HashPassword(user, request.Password);
         }
 
-        user.LastLoginAt = DateTime.UtcNow;
+        user.LastLoginAt = time.GetUtcNow().UtcDateTime;
         await db.SaveChangesAsync(http.RequestAborted);
 
         await http.SignInAsync(

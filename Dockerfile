@@ -13,7 +13,7 @@ RUN bun run build
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 ARG TARGETARCH
 WORKDIR /repo
-COPY global.json Directory.Build.props Bigarr.slnx ./
+COPY global.json Directory.Build.props BannedSymbols.txt Bigarr.slnx ./
 COPY src/Bigarr.Domain/Bigarr.Domain.csproj src/Bigarr.Domain/
 COPY src/Bigarr.Parsing/Bigarr.Parsing.csproj src/Bigarr.Parsing/
 COPY src/Bigarr.Decision/Bigarr.Decision.csproj src/Bigarr.Decision/

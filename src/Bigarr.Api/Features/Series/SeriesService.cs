@@ -6,8 +6,8 @@ using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Infrastructure.Xem;
 using Bigarr.Domain.Acquisition;
-using Bigarr.Domain.Library;
 using Bigarr.Domain.Common;
+using Bigarr.Domain.Library;
 using Bigarr.Domain.Metadata;
 using Bigarr.Domain.Movies;
 using Bigarr.Domain.Tags;
@@ -170,7 +170,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             return Failure.Conflict("Series already in the library", $"It is series {sameShow}. Add a version instead.");
         }
 
-        var series = Series.FromMetadata(found, root.Id);
+        var series = Series.FromMetadata(found, root.Id, Now);
         series.SeriesType = request.SeriesType ?? found.SuggestedType;
         SyncCatalogue(series, found, []);
 
@@ -609,7 +609,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         var hadEpisodes = series.Episodes.Count > 0;
 
         var before = series.Episodes.Count;
-        series.ApplyMetadata(found);
+        series.ApplyMetadata(found, Now);
         series.LastMetadataRefreshAt = Now;
         var sync = SyncCatalogue(series, found, series.Episodes.ToList());
 

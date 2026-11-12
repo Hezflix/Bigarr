@@ -11,5 +11,6 @@ public sealed class MovieExclusion
 
     public int? Year { get; set; }
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime CreatedAt { get; set; }
 }

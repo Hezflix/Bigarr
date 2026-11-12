@@ -59,10 +59,12 @@ public sealed class HeldRelease
     /// <summary><c>rss</c>, <c>search:cutoffUnmet</c>…: the path that held it.</summary>
     public required string Source { get; set; }
 
-    public DateTime HeldAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime HeldAt { get; set; }
 
     /// <summary>Last time a pass saw it again.</summary>
-    public DateTime LastSeenAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime LastSeenAt { get; set; }
 
     public DateTime? DismissedAt { get; set; }
 }

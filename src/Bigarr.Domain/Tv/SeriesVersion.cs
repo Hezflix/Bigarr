@@ -50,7 +50,8 @@ public sealed class SeriesVersion
     /// <summary>Computed from the template at creation, observed on disk by the scan, then frozen.</summary>
     public required string FolderName { get; set; }
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime CreatedAt { get; set; }
 
     public ICollection<EpisodeTarget> Episodes { get; set; } = [];
 

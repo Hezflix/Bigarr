@@ -10,4 +10,10 @@
     <RepositoryUrl>https://github.com/Hezflix/Bigarr</RepositoryUrl>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
+
+  <!-- One clock: application code asks TimeProvider, never the system clock (BannedSymbols.txt). The vendored parsers and the tests are exempt. -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Bigarr.Api' Or '$(MSBuildProjectName)' == 'Bigarr.Domain' Or '$(MSBuildProjectName)' == 'Bigarr.Decision'">
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="4.14.0" PrivateAssets="all" />
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+  </ItemGroup>
 </Project>

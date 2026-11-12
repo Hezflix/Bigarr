@@ -23,7 +23,8 @@ public sealed class EpisodeFile
 
     public long Size { get; set; }
 
-    public DateTime DateAdded { get; set; } = DateTime.UtcNow;
+    [SetWhenAdded]
+    public DateTime DateAdded { get; set; }
 
     public int QualityId { get; set; }
 
