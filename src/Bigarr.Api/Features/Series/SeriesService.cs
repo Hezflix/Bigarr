@@ -241,6 +241,9 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
 
     public async Task<Result<SeriesVersion>> AddVersionAsync(int seriesId, AddSeriesVersionRequest request, CancellationToken ct)
     {
+        // One writer per show (see RefreshAsync): a refresh running meanwhile only gives the episodes it adds to the
+        // versions it loaded, so a version added during it would miss them.
+        using var turn = await Import.SeriesFileGate.EnterAsync(seriesId, ct);
         var series = await WithGraph(tracking: true).FirstOrDefaultAsync(s => s.Id == seriesId, ct);
         if (series is null)
         {
@@ -552,6 +555,10 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
 
     public async Task<Result<Series>> RefreshAsync(int seriesId, CancellationToken ct)
     {
+        // One writer per show, shared with the order switch, the rename and "add version": a refresh loads the whole
+        // show, asks the providers, then saves what it loaded. Two at once insert the same new episodes twice; one
+        // overlapping an order switch saves the order numbers it read before the switch.
+        using var turn = await Import.SeriesFileGate.EnterAsync(seriesId, ct);
         var series = await WithGraph(tracking: true).FirstOrDefaultAsync(s => s.Id == seriesId, ct);
         if (series is null)
         {
