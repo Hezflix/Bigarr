@@ -31,12 +31,12 @@ using Bigarr.Api.Infrastructure.Files;
 using Bigarr.Api.Infrastructure.Http;
 using Bigarr.Api.Infrastructure.Indexers;
 using Bigarr.Api.Infrastructure.Matching;
-using Bigarr.Api.Infrastructure.MediaServers;
-using Bigarr.Api.Infrastructure.RadarrImport;
-using Bigarr.Api.Infrastructure.SonarrImport;
 using Bigarr.Api.Infrastructure.Media;
+using Bigarr.Api.Infrastructure.MediaServers;
 using Bigarr.Api.Infrastructure.Metadata;
 using Bigarr.Api.Infrastructure.Persistence;
+using Bigarr.Api.Infrastructure.RadarrImport;
+using Bigarr.Api.Infrastructure.SonarrImport;
 using Bigarr.Api.Infrastructure.Xem;
 using Microsoft.AspNetCore.HttpOverrides;
 

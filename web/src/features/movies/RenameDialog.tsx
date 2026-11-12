@@ -24,7 +24,7 @@ export function RenameDialog({ movie, onRenamed }: { movie: Movie; onRenamed: ()
     mutationFn: () => rename.apply(movie.id, changed.map((r) => r.mediaFileId)),
     onSuccess: async (results) => {
       const done = results.filter((r) => r.renamed).length
-      results.filter((r) => r.error).forEach((r) => toast.error(r.error))
+      for (const r of results.filter((r) => r.error)) toast.error(r.error)
       if (done > 0) toast.success(t('rename.done', { count: done }))
       await queryClient.invalidateQueries({ queryKey: ['rename', movie.id] })
       onRenamed()

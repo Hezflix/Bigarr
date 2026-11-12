@@ -1,10 +1,10 @@
 using System.Globalization;
 using Bigarr.Api.Features.Downloads;
 using Bigarr.Api.Infrastructure.Decision;
+using Bigarr.Api.Infrastructure.Events;
 using Bigarr.Api.Infrastructure.Files;
 using Bigarr.Api.Infrastructure.Matching;
 using Bigarr.Api.Infrastructure.Media;
-using Bigarr.Api.Infrastructure.Events;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Infrastructure.Tv;
 using Bigarr.Decision;

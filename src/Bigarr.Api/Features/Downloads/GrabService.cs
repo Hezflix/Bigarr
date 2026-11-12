@@ -1,8 +1,8 @@
 using Bigarr.Api.Features.Shadow;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Decision;
-using Bigarr.Api.Infrastructure.Events;
 using Bigarr.Api.Infrastructure.Downloads;
+using Bigarr.Api.Infrastructure.Events;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Downloads;

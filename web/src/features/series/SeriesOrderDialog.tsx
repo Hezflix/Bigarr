@@ -44,7 +44,7 @@ const statusStyle: Record<OrderFileStatus, string> = {
   conflict: 'border-red-600/30 bg-red-500/15 text-red-700 dark:border-red-400/30 dark:text-red-300',
 }
 
-const valueOf = (request: OrderChoiceRequest) => (request.ordering === 'tmdbEpisodeGroup' ? `group:${request.episodeGroupId}` : request.ordering)
+const choiceValue = (request: OrderChoiceRequest) => (request.ordering === 'tmdbEpisodeGroup' ? `group:${request.episodeGroupId}` : request.ordering)
 const requestOf = (value: string): OrderChoiceRequest =>
   value.startsWith('group:') ? { ordering: 'tmdbEpisodeGroup', episodeGroupId: value.slice('group:'.length) } : { ordering: value as OrderChoiceRequest['ordering'] }
 
@@ -75,14 +75,14 @@ export function SeriesOrderDialog({ series: s, onClose, onDone }: { series: Seri
 
   const current = orders.data?.current
   const selected = choice ?? (current ? { ordering: current.ordering, episodeGroupId: current.episodeGroupId } : null)
-  const isCurrent = !!current && !!selected && valueOf(selected) === valueOf({ ordering: current.ordering, episodeGroupId: current.episodeGroupId })
+  const isCurrent = !!current && !!selected && choiceValue(selected) === choiceValue({ ordering: current.ordering, episodeGroupId: current.episodeGroupId })
   const data = preview.data
   const pick = (value: string) => {
     const next = requestOf(value)
     setChoice(next)
     setUnderstood(false)
     preview.reset()
-    if (!current || valueOf(next) !== valueOf({ ordering: current.ordering, episodeGroupId: current.episodeGroupId })) preview.mutate(next)
+    if (!current || choiceValue(next) !== choiceValue({ ordering: current.ordering, episodeGroupId: current.episodeGroupId })) preview.mutate(next)
   }
 
   return (
@@ -102,7 +102,7 @@ export function SeriesOrderDialog({ series: s, onClose, onDone }: { series: Seri
         ) : (
           <div className="grid gap-1.5">
             <Label htmlFor="series-order-pick">{t('seriesOrder.pick')}</Label>
-            <Select value={selected ? valueOf(selected) : undefined} onValueChange={pick}>
+            <Select value={selected ? choiceValue(selected) : undefined} onValueChange={pick}>
               <SelectTrigger id="series-order-pick" className="w-full sm:w-[28rem]" data-testid="series-order-pick">
                 <SelectValue />
               </SelectTrigger>

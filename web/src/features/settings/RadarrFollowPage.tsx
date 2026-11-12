@@ -305,6 +305,7 @@ function FollowedRadarrDialog({ radarr, onClose, onSaved }: { radarr: FollowedRa
     },
   })
   // An existing Radarr loads its mapping data once, when the dialog opens.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once, when the dialog opens
   useEffect(() => {
     if (radarr) load.mutate()
   }, [])

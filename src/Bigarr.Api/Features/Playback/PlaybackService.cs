@@ -33,7 +33,11 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
 
         var rows = await db.PlaybackSessions.AsNoTracking()
             .OrderBy(s => s.StartedAt)
-            .Select(s => new { s.LastSeenAt, Show = new ShowIds(s.Item.ShowTvdbId, s.Item.ShowTmdbId, s.Item.ShowImdbId), Response = new PlaybackSessionResponse(
+            .Select(s => new
+            {
+                s.LastSeenAt,
+                Show = new ShowIds(s.Item.ShowTvdbId, s.Item.ShowTmdbId, s.Item.ShowImdbId),
+                Response = new PlaybackSessionResponse(
                 s.Id,
                 s.MediaServerId,
                 s.SessionKey,
@@ -51,7 +55,8 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
                 null,
                 null,
                 s.ServerSessionId != null,
-                0) })
+                0)
+            })
             .ToListAsync(ct);
         var now = time.GetUtcNow().UtcDateTime;
         // Bigarr's own images: the film's for the films it manages, the series' for an episode of a series it follows.

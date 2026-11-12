@@ -263,7 +263,8 @@ public sealed class SeriesRefreshTests : IDisposable
         _provider.Show = Show(
             [1],
             Ep(101, 1, 1) with { AirDate = new DateOnly(2017, 12, 8) },
-            Ep(102, 1, 2) with { AirDate = new DateOnly(2017, 12, 8) }) with { AirTime = "08:00", OriginalCountry = "gb", NetworkCountry = "us", Runtime = 57 };
+            Ep(102, 1, 2) with { AirDate = new DateOnly(2017, 12, 8) }) with
+        { AirTime = "08:00", OriginalCountry = "gb", NetworkCountry = "us", Runtime = 57 };
         await using (var db = _database.CreateContext())
         {
             Assert.True((await Service(db).RefreshAsync(seriesId, CancellationToken.None)).IsSuccess);

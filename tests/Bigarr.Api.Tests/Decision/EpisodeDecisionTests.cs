@@ -61,9 +61,9 @@ public sealed class EpisodeDecisionTests
                 e.Runtime,
                 e.File,
                 e.Active)
-            {
-                FileEpisodeIds = fileEpisodes?.GetValueOrDefault(e.Id) ?? (e.File is null ? [] : [e.Id]),
-            })
+        {
+            FileEpisodeIds = fileEpisodes?.GetValueOrDefault(e.Id) ?? (e.File is null ? [] : [e.Id]),
+        })
             .ToList();
         return new TargetContext(slots[0].Target, Profile(), Definitions, null, 45, [], slots.Any(s => s.HasActiveGrab), true, isDefault)
         {
@@ -144,7 +144,13 @@ public sealed class EpisodeDecisionTests
         // Film sizes of 100–400 MB/min would refuse a 2 GB episode of 45 min; the series ones (Sonarr's 4–155) accept it.
         var definitions = Definitions.ToDictionary(kv => kv.Key, kv => new QualityDefinition
         {
-            Id = kv.Value.Id, Name = kv.Value.Name, Resolution = kv.Value.Resolution, MinSize = 100, MaxSize = 400, SeriesMinSize = 4, SeriesMaxSize = 155,
+            Id = kv.Value.Id,
+            Name = kv.Value.Name,
+            Resolution = kv.Value.Resolution,
+            MinSize = 100,
+            MaxSize = 400,
+            SeriesMinSize = 4,
+            SeriesMaxSize = 155,
         });
         var context = Context(Version(), [new Ep(1, 1)]) with { Definitions = definitions };
         Assert.True(Interactive.Evaluate(Candidate("Show.S01E01.1080p.BluRay.x264-GRP", 2), context).Approved);

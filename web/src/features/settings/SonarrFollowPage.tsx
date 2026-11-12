@@ -307,6 +307,7 @@ function FollowedSonarrDialog({ sonarr, onClose, onSaved }: { sonarr: FollowedSo
     },
   })
   // An existing Sonarr loads its mapping data once, when the dialog opens.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once, when the dialog opens
   useEffect(() => {
     if (sonarr) load.mutate()
   }, [])

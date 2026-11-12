@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "test": "bun test test",
     "preview": "vite preview",
-    "gen:api": "openapi-typescript http://localhost:7979/openapi/v1.json -o src/api/generated/schema.d.ts"
+    "gen:api": "openapi-typescript http://localhost:7979/openapi/v1.json -o src/api/generated/schema.d.ts",
+    "lint": "biome lint ."
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.4",
@@ -28,6 +29,7 @@
     "tailwindcss": "^4.3.4"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.7",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

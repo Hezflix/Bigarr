@@ -46,7 +46,7 @@ export function RenameSeriesDialog({ series: s, versionId, onClose, onDone }: { 
     onSuccess: (results) => {
       const done = results.filter((r) => r.renamed).length
       toast.success(t('seriesFiles.renamed', { count: done }))
-      results.filter((r) => r.error).forEach((r) => toast.error(r.error))
+      for (const r of results.filter((r) => r.error)) toast.error(r.error)
       onDone()
       onClose()
     },

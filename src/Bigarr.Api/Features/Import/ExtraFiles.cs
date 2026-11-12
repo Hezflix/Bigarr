@@ -51,7 +51,7 @@ public static partial class ExtraFiles
 
     private const string NfoExtension = ".nfo";
 
-    private static readonly StringComparer PathComparer =OperatingSystem.IsLinux() ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
+    private static readonly StringComparer PathComparer = OperatingSystem.IsLinux() ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
 
     private static readonly EnumerationOptions Recursive = new() { RecurseSubdirectories = true, IgnoreInaccessible = true };
 
