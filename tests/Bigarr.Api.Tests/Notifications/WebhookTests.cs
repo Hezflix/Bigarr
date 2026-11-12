@@ -116,6 +116,48 @@ public sealed class WebhookTests
     }
 
     [Fact]
+    public async Task An_accepted_delivery_is_not_sent_again_when_a_later_one_in_the_batch_loses_its_endpoint()
+    {
+        await using var sink = await WebhookSink.StartAsync();
+        await using var slow = await Hosting.FakeHttpServer.StartAsync();
+        using var answer = new ManualResetEventSlim();
+        slow.Responder = _ =>
+        {
+            answer.Wait(TimeSpan.FromSeconds(20));
+            return new Hosting.FakeHttpServer.Answer(200);
+        };
+        using var factory = new ConfiguredBigarrApiFactory(null, new Dictionary<string, string> { ["Bigarr:Notifications:SweepSeconds"] = "1" });
+        var client = await ClientAsync(factory);
+
+        // Created first, so its delivery is sent first in the batch.
+        var quick = await client.PostAsJsonAsync("/api/v1/notifications", new NotificationEndpointRequest("Quick", sink.Url, Events: ["movieAdded"]), Json);
+        var quickId = (await quick.Content.ReadFromJsonAsync<NotificationEndpointResponse>(Json))!.Id;
+        var held = await client.PostAsJsonAsync("/api/v1/notifications", new NotificationEndpointRequest("Held", slow.Url, Events: ["movieAdded"]), Json);
+        var heldId = (await held.Content.ReadFromJsonAsync<NotificationEndpointResponse>(Json))!.Id;
+
+        var (hd, _) = await ProfilesAsync(client);
+        var root = await AddRootAsync(client, Path.Combine(factory.ConfigDirectory, "library"));
+        await AddMovieAsync(client, 603, hd, root.Id);
+
+        // The first delivery is accepted; the second is on the wire when its endpoint is deleted.
+        await sink.WaitForAsync(r => r.EventType == "movieAdded");
+        await slow.WaitForAsync(_ => true);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/v1/notifications/{heldId}")).StatusCode);
+        answer.Set();
+
+        var delivered = await WaitUntilAsync(async () =>
+        {
+            var list = (await client.GetFromJsonAsync<List<WebhookDeliveryResponse>>($"/api/v1/notifications/{quickId}/deliveries", Json))!;
+            return list.FirstOrDefault(d => d.State == WebhookDeliveryState.Delivered);
+        }, "the accepted delivery to be recorded");
+        Assert.Equal(1, delivered.Attempts);
+
+        // A few sweeps later the receiver still got it exactly once.
+        await Task.Delay(TimeSpan.FromSeconds(3));
+        Assert.Single(sink.Requests, r => r.EventType == "movieAdded");
+    }
+
+    [Fact]
     public async Task A_failed_delivery_is_retried_after_a_restart()
     {
         await using var sink = await WebhookSink.StartAsync();
