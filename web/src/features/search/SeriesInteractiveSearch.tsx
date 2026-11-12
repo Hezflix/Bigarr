@@ -110,27 +110,29 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
           <DialogDescription>{t(`seriesSearch.hint.${scope.kind}`)}</DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={submit} className="flex flex-wrap items-center gap-2" role="search">
-          <Input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={t('seriesSearch.queryPlaceholder')}
-            aria-label={t('search.queryLabel')}
-            maxLength={200}
-            className="w-72"
-            data-testid="series-search-query"
-          />
-          <Button type="submit" disabled={query.isFetching} data-testid="series-search-run">
-            <SearchIcon className={query.isFetching ? 'animate-pulse' : undefined} />
-            {query.isFetching ? t('search.searching') : t('search.searchAgain')}
-          </Button>
-          {data && (
-            <p className="text-xs text-muted-foreground">
-              {t('search.summary', { releases: data.releases.length, indexers: data.indexersQueried })}{' '}
-              {acceptable.map(({ version, count }) => t('search.acceptableFor', { count, version: version.name })).join(' · ')}
-            </p>
-          )}
-        </form>
+        <search>
+          <form onSubmit={submit} className="flex flex-wrap items-center gap-2">
+            <Input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={t('seriesSearch.queryPlaceholder')}
+              aria-label={t('search.queryLabel')}
+              maxLength={200}
+              className="w-72"
+              data-testid="series-search-query"
+            />
+            <Button type="submit" disabled={query.isFetching} data-testid="series-search-run">
+              <SearchIcon className={query.isFetching ? 'animate-pulse' : undefined} />
+              {query.isFetching ? t('search.searching') : t('search.searchAgain')}
+            </Button>
+            {data && (
+              <p className="text-xs text-muted-foreground">
+                {t('search.summary', { releases: data.releases.length, indexers: data.indexersQueried })}{' '}
+                {acceptable.map(({ version, count }) => t('search.acceptableFor', { count, version: version.name })).join(' · ')}
+              </p>
+            )}
+          </form>
+        </search>
 
         {query.isFetching && !data && <SearchSkeleton />}
 

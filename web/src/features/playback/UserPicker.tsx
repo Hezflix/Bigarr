@@ -47,7 +47,7 @@ export function UserPicker({ users, value, onChange }: { users: PlaybackUser[]; 
             className="h-9 border-0 px-0 shadow-none focus-visible:ring-0"
           />
         </div>
-        <ul className="max-h-72 overflow-y-auto p-1" role="listbox">
+        <ul className="max-h-72 overflow-y-auto p-1">
           {!search && (
             <Option selected={value === null} onSelect={() => pick(null)}>
               {t('playback.allUsers')}
@@ -68,8 +68,8 @@ export function UserPicker({ users, value, onChange }: { users: PlaybackUser[]; 
 
 function Option({ selected, onSelect, children }: { selected: boolean; onSelect: () => void; children: React.ReactNode }) {
   return (
-    <li role="option" aria-selected={selected}>
-      <button type="button" onClick={onSelect} className={cn('flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground', selected && 'font-medium')}>
+    <li>
+      <button type="button" aria-pressed={selected} onClick={onSelect} className={cn('flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground', selected && 'font-medium')}>
         <CheckIcon className={cn('size-4 shrink-0', selected ? 'opacity-100' : 'opacity-0')} />
         {children}
       </button>

@@ -95,15 +95,17 @@ export function PathPicker({ value, onChange, id, placeholder, className, disabl
     }
   }
 
-  // The suggestions live inside the wrapper, so a click on one is not a blur out of it.
-  const onBlur = (event: FocusEvent<HTMLDivElement>) => {
-    if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false)
+  // The panel closes when focus leaves the picker. The suggestions live inside the wrapper, so a click on one is not a
+  // blur out of it. Every focusable control in the wrapper listens, rather than the wrapper itself (a plain <div>).
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const onBlur = (event: FocusEvent<HTMLElement>) => {
+    if (!wrapperRef.current?.contains(event.relatedTarget)) setOpen(false)
   }
 
   const showPanel = open && (listing.isPending || listing.error !== null || suggestions.length > 0)
 
   return (
-    <div className={cn('relative flex items-center gap-2', className)} onBlur={onBlur}>
+    <div ref={wrapperRef} className={cn('relative flex items-center gap-2', className)}>
       <div className="relative flex-1">
         <Input
           id={id}
@@ -124,6 +126,7 @@ export function PathPicker({ value, onChange, id, placeholder, className, disabl
             setOpen(true)
           }}
           onFocus={() => setOpen(true)}
+          onBlur={onBlur}
           onKeyDown={onKeyDown}
         />
         {showPanel && (
@@ -148,6 +151,7 @@ export function PathPicker({ value, onChange, id, placeholder, className, disabl
                 )}
                 onMouseEnter={() => setHighlight(index)}
                 onClick={() => accept(item)}
+                onBlur={onBlur}
               >
                 <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
                 <span className="truncate">{item.name}</span>
@@ -157,7 +161,7 @@ export function PathPicker({ value, onChange, id, placeholder, className, disabl
         )}
       </div>
 
-      <Button type="button" variant="outline" disabled={disabled} onClick={() => setBrowsing(true)} data-testid="path-browse">
+      <Button type="button" variant="outline" disabled={disabled} onClick={() => setBrowsing(true)} onBlur={onBlur} data-testid="path-browse">
         <FolderSearchIcon />
         {t('pathPicker.browse')}
       </Button>

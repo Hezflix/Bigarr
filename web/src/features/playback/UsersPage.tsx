@@ -151,7 +151,7 @@ function Access({ user }: { user: PlaybackUser }) {
 
 export function Avatar({ user, className }: { user: Pick<PlaybackUser, 'name' | 'thumbUrl'>; className?: string }) {
   const [broken, setBroken] = useState(false)
-  if (user.thumbUrl && !broken) return <img src={user.thumbUrl} alt="" className={cn('size-7 shrink-0 rounded-full object-cover', className)} onError={() => setBroken(true)} />
+  if (user.thumbUrl && !broken) return <img src={user.thumbUrl} alt="" aria-hidden="true" className={cn('size-7 shrink-0 rounded-full object-cover', className)} onError={() => setBroken(true)} />
   return (
     <span className={cn('flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground uppercase', className)} aria-hidden="true">
       {user.name.slice(0, 1)}

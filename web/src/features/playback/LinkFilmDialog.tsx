@@ -109,12 +109,13 @@ function LinkFilmForm({ item, onClose, onLinked }: { item: PlaybackItemRef; onCl
           </Button>
         </div>
         {suggesting && <Suggestions query={suggestions} movieId={movieId} onPick={pick} />}
-        <ul className={cn('h-64 overflow-y-auto rounded-md border p-1', suggesting && 'hidden')} role="listbox" aria-label={t('playback.link.films')} data-testid="link-results">
+        <ul className={cn('h-64 overflow-y-auto rounded-md border p-1', suggesting && 'hidden')} aria-label={t('playback.link.films')} data-testid="link-results">
           {library.isPending && <Skeleton className="h-full w-full" />}
           {films.map((film) => (
-            <li key={film.id} role="option" aria-selected={film.id === movieId}>
+            <li key={film.id}>
               <button
                 type="button"
+                aria-pressed={film.id === movieId}
                 onClick={() => pick(film.id)}
                 className={cn('flex w-full items-center gap-2.5 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground', film.id === movieId && 'bg-accent text-accent-foreground')}
                 data-testid="link-film-option"
@@ -185,11 +186,12 @@ function Suggestions({ query, movieId, onPick }: { query: { data?: { suggestions
       {query.isError && <p className="px-1 py-2 text-sm text-destructive">{t('playback.link.suggestFailed')}</p>}
       {query.data && query.data.suggestions.length === 0 && <p className="px-1 py-2 text-sm text-muted-foreground">{t('playback.link.noSuggestion')}</p>}
       {query.data && query.data.suggestions.length > 0 && (
-        <ul className="flex flex-col" role="listbox" aria-label={t('playback.link.suggestions')}>
+        <ul className="flex flex-col" aria-label={t('playback.link.suggestions')}>
           {query.data.suggestions.map((s) => (
-            <li key={s.movieId} role="option" aria-selected={s.movieId === movieId}>
+            <li key={s.movieId}>
               <button
                 type="button"
+                aria-pressed={s.movieId === movieId}
                 onClick={() => onPick(s.movieId)}
                 className={cn('flex w-full items-center gap-2.5 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground', s.movieId === movieId && 'bg-accent text-accent-foreground')}
                 data-testid="link-suggestion"
