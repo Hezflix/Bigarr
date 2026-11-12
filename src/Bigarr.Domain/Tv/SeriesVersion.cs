@@ -50,6 +50,13 @@ public sealed class SeriesVersion
     /// <summary>Computed from the template at creation, observed on disk by the scan, then frozen.</summary>
     public required string FolderName { get; set; }
 
+    /// <summary>
+    /// When a followed Sonarr's "search on add" ran for this version in shadow mode. Null until then, which is what
+    /// makes a pass that failed, or the per-pass bound, only postpone that search (a show whose episodes have not aired
+    /// leaves no other trace of having been searched).
+    /// </summary>
+    public DateTime? SearchedOnAddAt { get; set; }
+
     [SetWhenAdded]
     public DateTime CreatedAt { get; set; }
 

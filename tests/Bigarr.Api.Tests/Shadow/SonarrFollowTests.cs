@@ -215,6 +215,26 @@ public sealed class SonarrFollowTests(SonarrShadowApiFactory factory) : IClassFi
         var pass = await SyncAsync(client, follow.Id);
         Assert.Equal(SonarrFollower.SearchesOnAddPerPass, pass.SearchedOnAdd);
         Assert.Contains($"{SonarrFollower.SearchesOnAddPerPass + 2} series added", pass.Summary, StringComparison.Ordinal);
+
+        // The bound postpones, it does not drop: the next pass searches the two left over, and then there is nothing left.
+        Assert.Equal(2, (await SyncAsync(client, follow.Id)).SearchedOnAdd);
+        Assert.Equal(0, (await SyncAsync(client, follow.Id)).SearchedOnAdd);
+    }
+
+    [Fact]
+    public void A_failed_pass_forgets_the_series_list_but_not_when_every_series_was_last_read()
+    {
+        var memory = new SonarrFollowMemory();
+        var read = new DateTime(2026, 11, 1, 3, 0, 0, DateTimeKind.Utc);
+        memory.Remember(7, new SonarrFollowMemory.Entry(read.AddHours(20), new() { [1] = 12 }, read));
+
+        memory.ForgetList(7);
+
+        var entry = memory.Get(7)!;
+        Assert.Equal(DateTime.MinValue, entry.ListReadAt); // the next pass reads the whole list
+        Assert.Equal(read, entry.EverySeriesReadAt); // and the day's clock keeps running
+        memory.ForgetList(8); // nothing remembered: nothing to do
+        Assert.Null(memory.Get(8));
     }
 
     private async Task<int> CountAsync(Func<BigarrDbContext, Task<int>> count)

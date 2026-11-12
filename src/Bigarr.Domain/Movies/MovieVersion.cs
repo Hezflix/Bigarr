@@ -20,6 +20,12 @@ public sealed class MovieVersion : AcquisitionTarget, IAcquisitionTarget
 
     public Movie Movie { get; set; } = null!;
 
+    /// <summary>
+    /// When a followed Radarr's "search on add" ran for this version in shadow mode. Null until then, which is what
+    /// makes a pass that failed, or the per-pass bound, only postpone that search.
+    /// </summary>
+    public DateTime? SearchedOnAddAt { get; set; }
+
     /// <summary>Short slug, unique per movie: <c>1080p</c>, <c>4k</c>, <c>directors-cut</c>.</summary>
     public required string Name { get; set; }
 

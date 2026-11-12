@@ -94,6 +94,69 @@ public sealed class RadarrFollowOnAddTests(ShadowApiFactory factory) : IClassFix
     }
 
     [Fact]
+    public async Task A_film_older_than_the_history_already_read_is_still_searched_and_an_unanswered_pick_is_shown_again()
+    {
+        const int matrix = 603;
+        const int interstellar = 157336;
+        var client = await ClientAsync(factory);
+        var (hd, _) = await ProfilesAsync(client);
+        var library = Directory.CreateTempSubdirectory("bigarr-follow-late-").FullName;
+        var root = await AddRootAsync(client, library);
+        var indexer = await AddMockIndexerAsync(client, "Mock late add");
+        await using var radarr = await FakeRadarr.StartAsync();
+        radarr.Films.Add(new FakeRadarr.Film { Id = 1, Title = "The Matrix", Year = 1999, TmdbId = matrix, Added = DateTime.UtcNow.AddYears(-2) });
+
+        try
+        {
+            var follow = await FollowAsync(client, radarr, hd, root.Id);
+            await SyncAsync(client, follow.Id);
+
+            // History dated ahead of the film below is read first: the checkpoint moves past the film's added date.
+            radarr.History.Add(new FakeRadarr.Line(401, 1, "grabbed", DateTime.UtcNow.AddHours(1), "The.Matrix.1999.1080p.BluRay.x264-GRP", 7, "Bluray-1080p", "MATRIX01", new()
+            {
+                ["indexer"] = "Mock late add",
+                ["guid"] = "https://indexer.invalid/details/401",
+                ["size"] = "11702117171",
+                ["releaseSource"] = "Rss",
+                ["customFormatScore"] = "0",
+            }));
+            await SyncAsync(client, follow.Id);
+            Assert.True((await GetAsync(client, follow.Id)).HistoryCheckpoint > DateTime.UtcNow.AddMinutes(30));
+
+            // Added to Radarr after the follow started, before that checkpoint: still a search on add, not back catalogue.
+            radarr.Films.Add(new FakeRadarr.Film { Id = 2, Title = "Interstellar", Year = 2014, TmdbId = interstellar, Added = DateTime.UtcNow });
+            radarr.Parse = _ => throw new InvalidOperationException("Radarr's parser is down");
+            var pass = await SyncAsync(client, follow.Id);
+            Assert.Equal(1, pass.SearchedOnAdd);
+            Assert.Equal(0, (await SyncAsync(client, follow.Id)).SearchedOnAdd); // once
+
+            // Radarr could not be asked about the pick: the error shows, and the pick is not marked as shown.
+            using (var scope = factory.Services.CreateScope())
+            {
+                var pick = await scope.ServiceProvider.GetRequiredService<BigarrDbContext>().ShadowPicks.AsNoTracking().SingleAsync(p => p.TmdbId == interstellar);
+                Assert.NotNull(pick.RadarrView!.Error);
+                Assert.Null(pick.RadarrViewAt);
+            }
+
+            // Radarr answers again: the next pass asks again and the view replaces the error.
+            radarr.Parse = _ => (2, "Bluray-1080p", [], 0);
+            await SyncAsync(client, follow.Id);
+            using (var scope = factory.Services.CreateScope())
+            {
+                var pick = await scope.ServiceProvider.GetRequiredService<BigarrDbContext>().ShadowPicks.AsNoTracking().SingleAsync(p => p.TmdbId == interstellar);
+                Assert.Null(pick.RadarrView!.Error);
+                Assert.Equal(interstellar, pick.RadarrView.TmdbId);
+                Assert.NotNull(pick.RadarrViewAt);
+            }
+        }
+        finally
+        {
+            await client.DeleteAsync($"/api/v1/indexers/{indexer.Id}");
+            TryDelete(library);
+        }
+    }
+
+    [Fact]
     public async Task Radarrs_webhook_wakes_a_pass_and_its_test_event_only_says_hello()
     {
         var client = await ClientAsync(factory);
