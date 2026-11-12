@@ -1,4 +1,5 @@
 using Bigarr.Domain.Auth;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 
@@ -9,6 +10,7 @@ public static class AuthenticationExtensions
     public static IServiceCollection AddBigarrAuthentication(this IServiceCollection services)
     {
         services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+        services.AddSingleton<SessionStamps>();
 
         services.AddAuthentication(AuthSchemes.Session)
             .AddCookie(AuthSchemes.Session, o =>
@@ -32,6 +34,20 @@ public static class AuthenticationExtensions
                     {
                         ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
                         return Task.CompletedTask;
+                    },
+
+                    // A session opened with a password that has since changed is over (and so is one of a user that
+                    // is gone): changing the password is how a session someone else got hold of is ended.
+                    OnValidatePrincipal = async ctx =>
+                    {
+                        var stamps = ctx.HttpContext.RequestServices.GetRequiredService<SessionStamps>();
+                        var db = ctx.HttpContext.RequestServices.GetRequiredService<Persistence.BigarrDbContext>();
+                        var stamp = ctx.Principal?.FindFirst(BigarrClaims.SessionStamp)?.Value;
+                        if (ctx.Principal is null || !await stamps.IsCurrentAsync(ctx.Principal.UserId(), stamp, db, ctx.HttpContext.RequestAborted))
+                        {
+                            ctx.RejectPrincipal();
+                            await ctx.HttpContext.SignOutAsync(AuthSchemes.Session);
+                        }
                     },
                 };
             })

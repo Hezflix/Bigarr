@@ -14,6 +14,11 @@ public static class BigarrPrincipal
             new(ClaimTypes.Role, user.Role.ToString()),
         };
 
+        if (scheme == AuthSchemes.Session)
+        {
+            claims.Add(new Claim(BigarrClaims.SessionStamp, SessionStamps.Of(user)));
+        }
+
         if (apiKey is not null)
         {
             claims.Add(new Claim(BigarrClaims.ApiKeyId, apiKey.Id.ToString()));
