@@ -293,6 +293,7 @@ function QueueRow({ item, onRemove, onRetryImport, onManualImport }: { item: Que
           {failedImport && (
             <span className="flex max-w-[22rem] flex-col gap-0.5 whitespace-normal text-xs text-red-700 dark:text-red-300" data-testid="queue-import-error">
               {failedImport.messages.map((line, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: read-only lines, never reordered; the same text may repeat
                 <span key={i} className={cn(i > 0 && 'break-all text-muted-foreground')}>
                   {line}
                 </span>

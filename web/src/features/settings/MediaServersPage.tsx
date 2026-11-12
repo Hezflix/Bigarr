@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FlaskConicalIcon, PencilIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
 import type { TFunction } from 'i18next'
@@ -231,6 +231,9 @@ export function MediaServersPage() {
 function MediaServerDialog({ server, onClose, onSaved }: { server: MediaServer | null; onClose: () => void; onSaved: () => void }) {
   const { t } = useTranslation()
   const [form, setForm] = useState<MediaServerRequest>(server ? toForm(server) : emptyForm())
+  // Rows are edited and removed in place: each keeps its own React key, never its position.
+  const nextMappingKey = useRef(0)
+  const [mappingKeys, setMappingKeys] = useState<number[]>(() => form.pathMappings.map(() => nextMappingKey.current++))
   const set = <K extends keyof MediaServerRequest>(key: K, value: MediaServerRequest[K]) => setForm((f) => ({ ...f, [key]: value }))
 
   const payload = (): MediaServerRequest => ({
@@ -264,7 +267,14 @@ function MediaServerDialog({ server, onClose, onSaved }: { server: MediaServer |
 
   const setMapping = (index: number, key: 'from' | 'to', value: string) =>
     setForm((f) => ({ ...f, pathMappings: f.pathMappings.map((m, i) => (i === index ? { ...m, [key]: value } : m)) }))
-  const removeMapping = (index: number) => setForm((f) => ({ ...f, pathMappings: f.pathMappings.filter((_, i) => i !== index) }))
+  const removeMapping = (index: number) => {
+    setForm((f) => ({ ...f, pathMappings: f.pathMappings.filter((_, i) => i !== index) }))
+    setMappingKeys((keys) => keys.filter((_, i) => i !== index))
+  }
+  const addMapping = () => {
+    set('pathMappings', [...form.pathMappings, { from: '', to: '' }])
+    setMappingKeys((keys) => [...keys, nextMappingKey.current++])
+  }
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -312,7 +322,7 @@ function MediaServerDialog({ server, onClose, onSaved }: { server: MediaServer |
               <Label>{t('mediaServers.pathMappings')}</Label>
               <p className="text-xs text-muted-foreground">{t('mediaServers.pathMappingsHint')}</p>
               {form.pathMappings.map((mapping, index) => (
-                <div key={index} className="flex flex-wrap items-center gap-2">
+                <div key={mappingKeys[index]} className="flex flex-wrap items-center gap-2">
                   <Input
                     className="min-w-40 flex-1"
                     value={mapping.from}
@@ -334,7 +344,7 @@ function MediaServerDialog({ server, onClose, onSaved }: { server: MediaServer |
                 </div>
               ))}
               <div>
-                <Button type="button" variant="outline" size="sm" onClick={() => set('pathMappings', [...form.pathMappings, { from: '', to: '' }])}>
+                <Button type="button" variant="outline" size="sm" onClick={addMapping}>
                   <PlusIcon />
                   {t('mediaServers.addMapping')}
                 </Button>

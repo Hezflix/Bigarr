@@ -115,6 +115,7 @@ export function LibraryPage() {
         <PageHeader count={null} />
         <div className={skeletonGrid}>
           {Array.from({ length: 10 }, (_, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: static loading placeholders
             <div key={i} className="flex flex-col gap-2">
               <Skeleton className="aspect-[2/3] w-full rounded-xl" />
               <Skeleton className="h-4 w-3/4" />

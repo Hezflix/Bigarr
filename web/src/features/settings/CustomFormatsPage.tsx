@@ -260,6 +260,7 @@ function ConditionsSummary({ format }: { format: CustomFormat }) {
       <TooltipContent className="max-w-sm">
         <ul className="flex flex-col gap-0.5">
           {format.specifications.slice(0, 12).map((s, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: read-only summary; condition names may repeat
             <li key={i}>
               {s.negate ? '¬ ' : ''}
               {s.name}
@@ -711,6 +712,7 @@ function TestResult({ result, label }: { result: CustomFormatTest; label: (imple
       </span>
       <ul className="flex flex-col gap-0.5">
         {result.specifications.map((s, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: read-only test result, in the format's order
           <li key={i} className="flex items-center gap-2">
             {s.satisfied ? <CheckIcon className="size-3.5 text-emerald-600 dark:text-emerald-400" /> : <XIcon className="size-3.5 text-destructive" />}
             <span>{s.name}</span>
