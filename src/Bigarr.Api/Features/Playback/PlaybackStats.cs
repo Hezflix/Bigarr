@@ -18,7 +18,11 @@ public sealed record PlaysOverTimeResponse(DateOnly Date, int Movies, int Episod
 /// </summary>
 public sealed record PlaysSplitResponse(int Plays, int Movies, int Episodes, int DirectPlay, int DirectStream, int Transcode);
 
-public sealed record TopEntryResponse(string Title, int? MovieId, int? UserId, int Plays, int Users, long Seconds, DateTime LastPlayedAt);
+/// <summary>
+/// One row of a top list. <c>DirectPlay</c>, <c>DirectStream</c> and <c>Transcode</c> split its plays by their furthest
+/// decision, for the platforms (zero elsewhere).
+/// </summary>
+public sealed record TopEntryResponse(string Title, int? MovieId, int? UserId, int Plays, int Users, long Seconds, DateTime LastPlayedAt, int DirectPlay = 0, int DirectStream = 0, int Transcode = 0);
 
 /// <summary>The most streams at once in the period, and when it first happened.</summary>
 public sealed record ConcurrencyResponse(int Streams, DateTime? At);
@@ -39,6 +43,7 @@ public sealed record PlaybackStatsResponse(
     List<TopEntryResponse> TopUsers,
     List<TopEntryResponse> TopUsersByTime,
     List<TopEntryResponse> TopPlatforms,
+    List<TopEntryResponse> TopPlatformsByTime,
     DecisionCountsResponse Decisions,
     ConcurrencyResponse Concurrency,
     List<TranscodedVersionResponse> TranscodedUhd);
@@ -143,7 +148,8 @@ public sealed class PlaybackStats(BigarrDbContext db, TimeProvider time)
             Top(plays.Where(p => p.Kind == MediaItemKind.Episode), p => p.ShowTitle ?? p.Title, p => p.ShowTitle ?? p.Title, _ => null, _ => null),
             Top(plays, p => p.UserId.ToString(System.Globalization.CultureInfo.InvariantCulture), p => p.UserName, _ => null, p => p.UserId),
             Top(plays, p => p.UserId.ToString(System.Globalization.CultureInfo.InvariantCulture), p => p.UserName, _ => null, p => p.UserId, byTime: true),
-            TopPlatforms(plays, streamsByPlay),
+            TopPlatforms(plays, streamsByPlay, decisionOf),
+            TopPlatforms(plays, streamsByPlay, decisionOf, byTime: true),
             new DecisionCountsResponse(
                 decisions.Count(x => x == StreamDecision.DirectPlay),
                 decisions.Count(x => x == StreamDecision.DirectStream),
@@ -186,14 +192,24 @@ public sealed class PlaybackStats(BigarrDbContext db, TimeProvider time)
         return ordered.ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase).Take(TopCount).ToList();
     }
 
-    /// <summary>A play counts for the platform of its last stream, like the Plays page shows it.</summary>
-    private static List<TopEntryResponse> TopPlatforms(List<PlayRow> plays, ILookup<int, StreamRow> streams) =>
-        Top(
-            plays.Where(p => streams[p.Id].Any()),
-            p => streams[p.Id].MaxBy(s => s.StoppedAt)!.Platform ?? string.Empty,
-            p => streams[p.Id].MaxBy(s => s.StoppedAt)!.Platform ?? string.Empty,
-            _ => null,
-            _ => null);
+    /// <summary>
+    /// A play counts for the platform of its last stream, like the Plays page shows it, and for its furthest decision,
+    /// like the charts split them.
+    /// </summary>
+    private static List<TopEntryResponse> TopPlatforms(List<PlayRow> plays, ILookup<int, StreamRow> streams, Dictionary<int, StreamDecision?> decisionOf, bool byTime = false)
+    {
+        string Platform(PlayRow p) => streams[p.Id].MaxBy(s => s.StoppedAt)!.Platform ?? string.Empty;
+        var played = plays.Where(p => streams[p.Id].Any()).ToList();
+        var byPlatform = played.ToLookup(Platform, StringComparer.Ordinal);
+        return Top(played, Platform, Platform, _ => null, _ => null, byTime)
+            .Select(e => e with
+            {
+                DirectPlay = byPlatform[e.Title].Count(p => decisionOf[p.Id] == StreamDecision.DirectPlay),
+                DirectStream = byPlatform[e.Title].Count(p => decisionOf[p.Id] == StreamDecision.DirectStream),
+                Transcode = byPlatform[e.Title].Count(p => decisionOf[p.Id] == StreamDecision.Transcode),
+            })
+            .ToList();
+    }
 
     /// <summary>The most streams running at the same moment: starts and stops swept in time order, a stop before a start at the same second.</summary>
     private static ConcurrencyResponse Concurrency(List<StreamRow> streams)

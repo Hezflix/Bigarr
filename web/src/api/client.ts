@@ -1286,7 +1286,10 @@ export type PlaybackStats = {
   topUsers: TopEntry[]
   /** The same people ranked by watch time. */
   topUsersByTime: TopEntry[]
+  /** Each with its plays split by decision (directPlay, directStream, transcode). */
   topPlatforms: TopEntry[]
+  /** The same platforms ranked by watch time. */
+  topPlatformsByTime: TopEntry[]
   decisions: DecisionCounts
   concurrency: { streams: number; at: string | null }
   transcodedUhd: { movieId: number; title: string; year: number | null; versionName: string | null; plays: number; transcodes: number; lastPlayedAt: string }[]

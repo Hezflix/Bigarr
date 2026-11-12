@@ -9659,6 +9659,7 @@ export interface components {
             topUsers: components["schemas"]["TopEntryResponse"][];
             topUsersByTime: components["schemas"]["TopEntryResponse"][];
             topPlatforms: components["schemas"]["TopEntryResponse"][];
+            topPlatformsByTime: components["schemas"]["TopEntryResponse"][];
             decisions: components["schemas"]["DecisionCountsResponse"];
             concurrency: components["schemas"]["ConcurrencyResponse"];
             transcodedUhd: components["schemas"]["TranscodedVersionResponse"][];
@@ -11586,6 +11587,21 @@ export interface components {
             seconds: number;
             /** Format: date-time */
             lastPlayedAt: string;
+            /**
+             * Format: int32
+             * @default 0
+             */
+            directPlay: number;
+            /**
+             * Format: int32
+             * @default 0
+             */
+            directStream: number;
+            /**
+             * Format: int32
+             * @default 0
+             */
+            transcode: number;
         };
         TranscodedVersionResponse: {
             /** Format: int32 */

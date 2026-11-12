@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatDate, formatDateTime } from '@/i18n'
 import { DecisionShare } from './DecisionShare'
-import { StackedBars, type ChartRow, type SeriesKey } from './StatsCharts'
+import { StackedBars, StackedRows, type ChartRow, type SeriesKey } from './StatsCharts'
 import { UserPicker } from './UserPicker'
 
 const periods: (number | null)[] = [7, 30, 90, 365, null]
@@ -50,6 +50,7 @@ export function StatsPage() {
   const [hourSplit, setHourSplit] = useState<Split>('kind')
   const [weekdaySplit, setWeekdaySplit] = useState<Split>('kind')
   const [usersBy, setUsersBy] = useState<'time' | 'plays'>('time')
+  const [platformsBy, setPlatformsBy] = useState<'time' | 'plays' | 'decision'>('time')
   const users = useQuery({ queryKey: ['playback', 'users'], queryFn: playback.users })
   const stats = useQuery({ queryKey: ['playback', 'stats', days, userId], queryFn: () => playback.stats(days, userId), placeholderData: keepPreviousData })
   const s = stats.data
@@ -150,8 +151,31 @@ export function StatsPage() {
                 <RankList entries={s.topUsers.slice(0, 6)} link={userLink} sub={(e) => hours(e.seconds)} />
               )}
             </Section>
-            <Section title={t('playback.topPlatforms')}>
-              <RankList entries={s.topPlatforms.slice(0, 6)} />
+            <Section
+              title={t('playback.topPlatforms')}
+              action={
+                <Segmented
+                  value={platformsBy}
+                  onChange={setPlatformsBy}
+                  options={[
+                    ['time', t('playback.byTime')],
+                    ['plays', t('playback.byPlays')],
+                    ['decision', t('playback.split.decision')],
+                  ]}
+                  testId="stats-platforms-by"
+                />
+              }
+            >
+              {platformsBy === 'time' ? (
+                <RankList entries={s.topPlatformsByTime.slice(0, 6)} value={(e) => e.seconds} format={hours} sub={(e) => t('playback.playsCount', { count: e.plays })} />
+              ) : platformsBy === 'plays' ? (
+                <RankList entries={s.topPlatforms.slice(0, 6)} sub={(e) => hours(e.seconds)} />
+              ) : s.topPlatforms.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t('playback.noPlays')}</p>
+              ) : (
+                // The platforms with the most plays, each bar split like the charts' decision view.
+                <StackedRows rows={s.topPlatforms.slice(0, 6).map((e) => ({ label: e.title || t('common.none'), directPlay: e.directPlay, directStream: e.directStream, transcode: e.transcode }))} series={splitSeries.decision} labels={labels} />
+              )}
             </Section>
           </div>
         </div>
