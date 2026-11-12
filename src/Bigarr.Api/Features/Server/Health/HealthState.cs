@@ -1,6 +1,6 @@
 namespace Bigarr.Api.Features.Server.Health;
 
-/// <summary>The last health check, in memory, and the diff with the one before: what the events are about.</summary>
+/// <summary>The last health check, in memory, for the pages. What was standing before it is in the database (<c>StandingHealthIssues</c>).</summary>
 public sealed class HealthState
 {
     private readonly Lock _lock = new();
@@ -16,22 +16,22 @@ public sealed class HealthState
         }
     }
 
-    /// <summary>Replaces the issues and returns what appeared and what went away since the previous check.</summary>
-    public (List<HealthIssue> Raised, List<HealthIssue> Resolved) Update(List<HealthIssue> issues, DateTime now)
+    /// <summary>The issues of the check that just committed. The diff with the one before is made on the stored baseline, not here.</summary>
+    public void Replace(List<HealthIssue> issues, DateTime now)
     {
         ArgumentNullException.ThrowIfNull(issues);
 
         lock (_lock)
         {
-            var previous = _issues;
-            var raised = issues.Where(i => !previous.Any(p => Same(p, i))).ToList();
-            var resolved = previous.Where(p => !issues.Any(i => Same(p, i))).ToList();
             _issues = [.. issues];
             CheckedAt = now;
-            return (raised, resolved);
         }
     }
 
-    private static bool Same(HealthIssue a, HealthIssue b) =>
-        string.Equals(a.Source, b.Source, StringComparison.Ordinal) && string.Equals(a.Message, b.Message, StringComparison.Ordinal);
+    /// <summary>The same issue from one check to the next: its source and its wording.</summary>
+    public static bool Same(string source, string message, HealthIssue issue)
+    {
+        ArgumentNullException.ThrowIfNull(issue);
+        return string.Equals(source, issue.Source, StringComparison.Ordinal) && string.Equals(message, issue.Message, StringComparison.Ordinal);
+    }
 }

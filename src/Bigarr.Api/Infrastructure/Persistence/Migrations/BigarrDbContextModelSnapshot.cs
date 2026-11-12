@@ -1861,6 +1861,33 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("ScheduledJobs", (string)null);
                 });
 
+            modelBuilder.Entity("Bigarr.Domain.Scheduling.StandingHealthIssue", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("RaisedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("StandingHealthIssues", (string)null);
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Shadow.FollowedRadarr", b =>
                 {
                     b.Property<int>("Id")
