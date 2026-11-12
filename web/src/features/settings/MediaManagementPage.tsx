@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
 import { useTranslation } from 'react-i18next'
@@ -27,19 +27,10 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useDebounced } from '@/hooks/useDebounced'
 import { useSchedulerEnabled } from '@/hooks/useSchedulerEnabled'
 
 const modes: TransferMode[] = ['hardlinkOrCopy', 'copy', 'move']
-
-/** A value that follows `value` after `delay` ms of quiet: the template preview is asked once per pause, not per keystroke. */
-function useDebounced<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const handle = setTimeout(() => setDebounced(value), delay)
-    return () => clearTimeout(handle)
-  }, [value, delay])
-  return debounced
-}
 
 /** Settings → Media management: naming templates, transfer mode, extra files, recycle bin, media info. */
 export function MediaManagementPage() {
