@@ -92,14 +92,27 @@ public sealed class ImportService(
     /// <summary>The automatic path, run by <see cref="ImportRunner"/>: from <see cref="GrabState.ImportPending"/> to imported or import failed.</summary>
     public async Task ImportGrabAsync(int grabId, CancellationToken ct)
     {
-        var grab = await db.Grabs.Include(g => g.Targets).FirstOrDefaultAsync(g => g.Id == grabId, ct);
-        if (grab is null || grab.State != GrabState.ImportPending)
+        // The claim is one conditional update, taken under the poll lock: a grab the user removed, or the poll failed,
+        // between its queueing and now is not pending any more and is left alone.
+        int claimed;
+        await queue.PollLock.WaitAsync(ct);
+        try
+        {
+            claimed = await db.Grabs
+                .Where(g => g.Id == grabId && g.State == GrabState.ImportPending)
+                .ExecuteUpdateAsync(s => s.SetProperty(g => g.State, GrabState.Importing), ct);
+        }
+        finally
+        {
+            queue.PollLock.Release();
+        }
+
+        if (claimed == 0)
         {
             return;
         }
 
-        grab.TransitionTo(GrabState.Importing);
-        await db.SaveChangesAsync(ct);
+        var grab = await db.Grabs.Include(g => g.Targets).FirstAsync(g => g.Id == grabId, ct);
         queue.RequestRefresh();
 
         ImportOutcome outcome;
