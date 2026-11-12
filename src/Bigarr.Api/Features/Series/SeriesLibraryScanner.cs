@@ -430,6 +430,28 @@ public sealed class SeriesLibraryScanner(
         }
     }
 
+    /// <summary>
+    /// Paths, relative to <paramref name="folderPath"/>, of the files that belong to the show's other versions when
+    /// those share this very folder (the default for a second version), with the id of the oldest row claiming each. A version only knows its own rows, so without
+    /// this its scan would take a sibling's file for an episode it lacks: two rows for one file, the sibling's file
+    /// shown as this version's, and deleted with it.
+    /// </summary>
+    private async Task<Dictionary<string, int>> OwnedBySiblingsAsync(SeriesVersion version, string folderPath, CancellationToken ct)
+    {
+        var siblings = await db.SeriesVersions.AsNoTracking()
+            .Where(v => v.SeriesId == version.SeriesId && v.Id != version.Id)
+            .Select(v => new { v.Id, Root = v.RootFolder.Path, v.FolderName })
+            .ToListAsync(ct);
+        var sharing = siblings.Where(v => string.Equals(Path.Combine(v.Root, v.FolderName), folderPath, StringComparison.Ordinal)).Select(v => v.Id).ToList();
+        if (sharing.Count == 0)
+        {
+            return [];
+        }
+
+        var rows = await db.EpisodeFiles.AsNoTracking().Where(f => sharing.Contains(f.VersionId)).Select(f => new { f.RelativePath, f.Id }).ToListAsync(ct);
+        return rows.GroupBy(r => r.RelativePath, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Min(r => r.Id), StringComparer.Ordinal);
+    }
+
     /// <summary>Attaches the files of one version folder to their episodes; files that do not fit are listed as unmatched.</summary>
     public async Task ScanVersionAsync(int versionId, ScanProgress progress, CancellationToken ct)
     {
@@ -451,6 +473,7 @@ public sealed class SeriesLibraryScanner(
         var targetsByEpisode = targets.GroupBy(t => t.EpisodeId).ToDictionary(g => g.Key, g => g.First());
         var files = await db.EpisodeFiles.Where(f => f.VersionId == versionId).ToListAsync(ct);
         var known = files.ToDictionary(f => f.RelativePath, StringComparer.Ordinal);
+        var ownedBySibling = await OwnedBySiblingsAsync(version, folderPath, ct);
         var unmatched = await db.UnmatchedEpisodeFiles.Where(u => u.VersionId == versionId).ToListAsync(ct);
         var unmatchedByPath = unmatched.ToDictionary(u => u.RelativePath, StringComparer.Ordinal);
         var aliases = series.TvdbId is { } tvdbId
@@ -464,6 +487,26 @@ public sealed class SeriesLibraryScanner(
         {
             ct.ThrowIfCancellationRequested();
             var relativePath = Path.GetRelativePath(folderPath, file.FullName);
+            if (ownedBySibling.TryGetValue(relativePath, out var siblingRow))
+            {
+                // Another version of the show lives in this folder and has this file: one file, one row. (Not marked
+                // as seen, so an "unmatched" row an earlier scan gave it here goes away below.)
+                if (!known.TryGetValue(relativePath, out var mine))
+                {
+                    continue;
+                }
+
+                if (mine.Id > siblingRow)
+                {
+                    // Both versions claim it, from before scans knew about siblings: the older row is the one that
+                    // had the file first, the newer one is the scan's copy. The row goes; the file is not touched.
+                    logger.LogWarning("{Series}: {Path} belongs to another version sharing the folder; version {Version} no longer claims it", series.Title, relativePath, version.Name);
+                    db.EpisodeFiles.Remove(mine);
+                    known.Remove(relativePath);
+                    continue;
+                }
+            }
+
             seen.Add(relativePath);
 
             if (known.TryGetValue(relativePath, out var existing))
