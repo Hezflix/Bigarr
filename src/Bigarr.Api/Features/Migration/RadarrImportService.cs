@@ -19,6 +19,7 @@ using Bigarr.Domain.Tags;
 using Bigarr.Parsing;
 using Microsoft.EntityFrameworkCore;
 
+using static Bigarr.Api.Features.Migration.ArrImportHelpers;
 namespace Bigarr.Api.Features.Migration;
 
 /// <summary>
@@ -949,8 +950,6 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         _ => null,
     };
 
-    private static DateTime Utc(DateTime value) => value.Kind == DateTimeKind.Local ? value.ToUniversalTime() : DateTime.SpecifyKind(value, DateTimeKind.Utc);
-
     private static string? Truncate(string? value, int max) => string.IsNullOrWhiteSpace(value) ? null : value.Length <= max ? value : value[..max];
 
     private async Task ImportExclusionsAsync(Snapshot snapshot, RadarrImportProgress progress, CancellationToken ct)
@@ -1283,49 +1282,6 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         return cut <= 0 ? null : NormalizePath(path[..cut]);
     }
 
-    /// <summary>Trailing separators dropped; a Windows drive root keeps its backslash.</summary>
-    public static string NormalizePath(string path)
-    {
-        ArgumentNullException.ThrowIfNull(path);
-
-        var trimmed = path.Trim();
-        var stripped = trimmed.TrimEnd(Separators);
-        return stripped.Length == 0 ? "/" : stripped.Length == 2 && stripped[1] == ':' ? stripped + '\\' : stripped;
-    }
-
-    public static string? LastSegment(string? path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return null;
-        }
-
-        var trimmed = path.TrimEnd(Separators);
-        var cut = trimmed.LastIndexOfAny(Separators);
-        var segment = cut < 0 ? trimmed : trimmed[(cut + 1)..];
-        return segment.Length == 0 ? null : segment;
-    }
-
-    /// <summary>The part of an absolute file path below the movie folder, when Radarr gave no relative path.</summary>
-    public static string? RelativeTo(string? filePath, string? folderPath)
-    {
-        if (string.IsNullOrWhiteSpace(filePath))
-        {
-            return null;
-        }
-
-        if (!string.IsNullOrWhiteSpace(folderPath))
-        {
-            var folder = folderPath.TrimEnd(Separators);
-            if (filePath.StartsWith(folder, StringComparison.OrdinalIgnoreCase) && filePath.Length > folder.Length && Separators.Contains(filePath[folder.Length]))
-            {
-                return filePath[(folder.Length + 1)..];
-            }
-        }
-
-        return LastSegment(filePath);
-    }
-
     /// <summary>A skipped film may still be in Bigarr (a previous import, the scan): the report then links to it.</summary>
     private async Task SkipAsync(RadarrImportProgress progress, RadarrMovie item, string reason, CancellationToken ct)
     {
@@ -1350,8 +1306,6 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
             return null;
         }
     }
-
-    private static string? NullIfBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static RadarrConnection? Connection(string? url, string? apiKey) =>
         string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(apiKey) ? null : new RadarrConnection(url.Trim(), apiKey.Trim());

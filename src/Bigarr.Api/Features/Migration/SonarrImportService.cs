@@ -14,8 +14,8 @@ using Bigarr.Domain.Shadow;
 using Bigarr.Domain.Tags;
 using Bigarr.Domain.Tv;
 using Microsoft.EntityFrameworkCore;
+using static Bigarr.Api.Features.Migration.ArrImportHelpers;
 using TvSeries = Bigarr.Domain.Tv.Series;
-
 namespace Bigarr.Api.Features.Migration;
 
 /// <summary>What one pass of the follow reads from a Sonarr, handed to the import's per-series rules.</summary>
@@ -85,13 +85,13 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
             .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var rootPaths = snapshot.RootFolders.Select(r => RadarrImportService.NormalizePath(r.Path)).Concat(snapshot.Series.Select(RootPathOf).OfType<string>()).Distinct(StringComparer.Ordinal).ToList();
+        var rootPaths = snapshot.RootFolders.Select(r => NormalizePath(r.Path)).Concat(snapshot.Series.Select(RootPathOf).OfType<string>()).Distinct(StringComparer.Ordinal).ToList();
         var byRoot = snapshot.Series.GroupBy(s => RootPathOf(s) ?? string.Empty).ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
         var rootPreviews = rootPaths
             .Select(path => new SonarrRootFolderPreview(
                 path,
                 byRoot.GetValueOrDefault(path),
-                roots.FirstOrDefault(r => r.Kind == MediaKind.Series && string.Equals(RadarrImportService.NormalizePath(r.Path), path, StringComparison.Ordinal))?.Id,
+                roots.FirstOrDefault(r => r.Kind == MediaKind.Series && string.Equals(NormalizePath(r.Path), path, StringComparison.Ordinal))?.Id,
                 Directory.Exists(path)))
             .OrderBy(r => r.Path, StringComparer.Ordinal)
             .ToList();
@@ -403,7 +403,7 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
             var seasonsDiffer = (item.Seasons ?? []).Any(s => seasons.GetValueOrDefault(s.SeasonNumber) != (request.KeepMonitored && s.Monitored));
             var settingsDiffer = version.Monitored != (request.KeepMonitored && item.Monitored)
                 || (profileMap.TryGetValue(item.QualityProfileId, out var profileId) && profileId != version.QualityProfileId)
-                || (RadarrImportService.LastSegment(item.Path) is { } folder && folder != version.FolderName)
+                || (LastSegment(item.Path) is { } folder && folder != version.FolderName)
                 || version.SeasonFolder != item.SeasonFolder
                 || version.MonitorNewItems != NewItems(item.MonitorNewItems)
                 || (tags is not null && !tags.SetEquals(version.Tags))
@@ -441,7 +441,7 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
         var keep = context.Request.KeepMonitored;
         var monitored = keep && item.Monitored;
         var tags = context.Request.ImportTags ? await TagsForAsync(item.Tags, context, ct) : [];
-        var folderName = RadarrImportService.LastSegment(item.Path) ?? FolderNameBuilder.Build(item.Title, item.Year > 0 ? item.Year : null, ((await db.MediaManagement.AsNoTracking().FirstOrDefaultAsync(c => c.Id == MediaManagementConfig.SingletonId, ct)) ?? MediaManagementConfig.Default()).SeriesNameCleaning);
+        var folderName = LastSegment(item.Path) ?? FolderNameBuilder.Build(item.Title, item.Year > 0 ? item.Year : null, ((await db.MediaManagement.AsNoTracking().FirstOrDefaultAsync(c => c.Id == MediaManagementConfig.SingletonId, ct)) ?? MediaManagementConfig.Default()).SeriesNameCleaning);
 
         var series = await db.Series
             .Include(s => s.Seasons)
@@ -1391,7 +1391,7 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
         {
             if (rootRows.FirstOrDefault(r => r.Id == rootId && r.Kind == MediaKind.Series) is { } root)
             {
-                roots[RadarrImportService.NormalizePath(sonarrPath)] = root;
+                roots[NormalizePath(sonarrPath)] = root;
             }
         }
 
@@ -1492,7 +1492,7 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
 
         if (!string.IsNullOrWhiteSpace(item.RootFolderPath))
         {
-            return RadarrImportService.NormalizePath(item.RootFolderPath);
+            return NormalizePath(item.RootFolderPath);
         }
 
         if (string.IsNullOrWhiteSpace(item.Path))
@@ -1502,7 +1502,7 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
 
         var path = item.Path.TrimEnd(Separators);
         var cut = path.LastIndexOfAny(Separators);
-        return cut <= 0 ? null : RadarrImportService.NormalizePath(path[..cut]);
+        return cut <= 0 ? null : NormalizePath(path[..cut]);
     }
 
     /// <summary>Sonarr's file path below the series folder (season folder included), with this host's separators.</summary>
@@ -1511,7 +1511,7 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
         ArgumentNullException.ThrowIfNull(file);
         ArgumentNullException.ThrowIfNull(item);
 
-        var relative = NullIfBlank(file.RelativePath) ?? (string.IsNullOrWhiteSpace(file.Path) ? null : RadarrImportService.RelativeTo(file.Path, item.Path));
+        var relative = NullIfBlank(file.RelativePath) ?? (string.IsNullOrWhiteSpace(file.Path) ? null : RelativeTo(file.Path, item.Path));
         return relative?.Replace('\\', '/').TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
     }
 
@@ -1521,11 +1521,7 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
         progress.Issue(item.Title, item.TvdbId, reason, await SeriesIdAsync(item.TvdbId, ct));
     }
 
-    private static DateTime Utc(DateTime value) => value.Kind == DateTimeKind.Local ? value.ToUniversalTime() : DateTime.SpecifyKind(value, DateTimeKind.Utc);
-
     private static string? Truncate(string? value, int max) => string.IsNullOrWhiteSpace(value) ? null : value.Length <= max ? value : value[..max];
-
-    private static string? NullIfBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static SonarrConnection? Connection(string? url, string? apiKey) =>
         string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(apiKey) ? null : new SonarrConnection(url.Trim(), apiKey.Trim());
