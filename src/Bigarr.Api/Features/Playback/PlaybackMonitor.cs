@@ -239,26 +239,43 @@ public sealed class PlaybackMonitor(IServiceScopeFactory scopeFactory, PlexClien
             using var timer = new PeriodicTimer(ReconcileWhilePlaying, time);
             while (await timer.WaitForNextTickAsync(ct))
             {
-                bool playing;
-                await using (var scope = scopeFactory.CreateAsyncScope())
-                {
-                    playing = await scope.ServiceProvider.GetRequiredService<BigarrDbContext>().PlaybackSessions.AnyAsync(s => s.MediaServerId == server.Id, ct);
-                }
-
-                if (playing)
-                {
-                    await ReconcileAsync(server, gate, ct);
-                }
+                await ReconcileIfPlayingAsync(server, gate, ct);
             }
         }
         catch (OperationCanceledException)
         {
             // the event stream ended
         }
+    }
+
+    /// <summary>
+    /// One tick of the refresh while something plays. A tick that fails (a slow answer, a 5xx) is only that tick's
+    /// loss: ending the refresh on it would leave a stream whose "stopped" event was lost open until the event
+    /// connection itself drops, which a server that merely hiccuped never does.
+    /// </summary>
+    public async Task ReconcileIfPlayingAsync(MediaServer server, SemaphoreSlim gate, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(server);
+        try
+        {
+            bool playing;
+            await using (var scope = scopeFactory.CreateAsyncScope())
+            {
+                playing = await scope.ServiceProvider.GetRequiredService<BigarrDbContext>().PlaybackSessions.AnyAsync(s => s.MediaServerId == server.Id, ct);
+            }
+
+            if (playing)
+            {
+                await ReconcileAsync(server, gate, ct);
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
-            // The event loop notices a server that went away; this one only stops refreshing.
-            logger.LogDebug("Periodic reconcile of {Server} stopped: {Error}", server.Name, ex.Message);
+            logger.LogDebug("Periodic reconcile of {Server} failed, trying again at the next tick: {Error}", server.Name, ex.Message);
         }
     }
 
