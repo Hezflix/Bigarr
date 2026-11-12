@@ -27,6 +27,32 @@ public sealed class TautulliImportTests(BigarrApiFactory factory) : IClassFixtur
     private const long T0 = 1_700_000_000;
 
     [Fact]
+    public async Task While_an_upload_is_streaming_no_import_starts_and_no_second_upload_replaces_it()
+    {
+        var session = await CompatTestHelpers.SessionAsync(factory);
+        var runner = factory.Services.GetRequiredService<Bigarr.Api.Features.Migration.TautulliImportRunner>();
+
+        // An upload is streaming its body.
+        Assert.True(runner.TryBeginUpload());
+        try
+        {
+            // An import started now would read the previous file while this upload replaces it, then delete the new one.
+            Assert.Null(runner.Enqueue(new Bigarr.Api.Features.Migration.TautulliImportRequest("/nowhere/tautulli.db", 1)));
+            var second = await session.PutAsync("/api/v1/migration/tautulli/upload", new ByteArrayContent([1, 2, 3]));
+            Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        }
+        finally
+        {
+            runner.EndUpload();
+        }
+
+        // Once it is done the file can be replaced again.
+        var after = await session.PutAsync("/api/v1/migration/tautulli/upload", new ByteArrayContent([1, 2, 3]));
+        Assert.Equal(HttpStatusCode.OK, after.StatusCode);
+        File.Delete((await after.ReadJsonAsync()).GetProperty("path").GetString()!);
+    }
+
+    [Fact]
     public async Task A_tautulli_history_becomes_plays_once_and_a_rerun_adds_only_what_is_new()
     {
         var session = await CompatTestHelpers.SessionAsync(factory);
