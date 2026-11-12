@@ -4,7 +4,7 @@ namespace Bigarr.Domain.Playback;
 
 /// <summary>
 /// Someone who plays from a media server: the owner or a friend the library is shared with. Learnt from the sessions
-/// they open, never a Bigarr <c>User</c> (blueprint §3.8): no password, no email, no token.
+/// they open, never a Bigarr <c>User</c>: no password, no email, no token.
 /// </summary>
 public sealed class MediaServerUser
 {

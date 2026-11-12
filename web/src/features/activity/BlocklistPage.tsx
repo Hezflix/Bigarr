@@ -16,7 +16,7 @@ import { formatAge, formatDateTime } from '@/i18n'
 
 const pageSize = 50
 
-/** Releases refused per version (blueprint §3.5): failed downloads and user removals. Dropping an entry lets the release through again. */
+/** Releases refused per version: failed downloads and user removals. Dropping an entry lets the release through again. */
 export function BlocklistPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()

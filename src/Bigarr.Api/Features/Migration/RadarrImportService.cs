@@ -22,7 +22,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Bigarr.Api.Features.Migration;
 
 /// <summary>
-/// Moves a Radarr library into Bigarr (M8). Every Radarr movie becomes one version of the film, named after the Radarr
+/// Moves a Radarr library into Bigarr. Every Radarr movie becomes one version of the film, named after the Radarr
 /// it comes from (<c>1080p</c>, <c>4k</c>), with its monitored flag, profile, tags, availability and file; a second
 /// Radarr imported with another version name lands as a second version of the same films. Metadata comes from
 /// Radarr's own payload, so the import needs no TMDB round trip; the film is flagged for a refresh. Radarr's history of

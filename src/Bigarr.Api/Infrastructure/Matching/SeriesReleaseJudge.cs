@@ -18,7 +18,7 @@ public sealed record SeriesJudgement(
     string? UnmatchedReason,
     IReadOnlyList<CustomFormatDefinition> Formats,
     IReadOnlyList<ReleaseDecision> Decisions,
-    /// <summary>The single version it goes to when one accepts it (blueprint §3.3), as for films.</summary>
+    /// <summary>The single version it goes to when one accepts it, as for films.</summary>
     ReleaseDecision? Attributed)
 {
     public bool IsMapped => UnmatchedReason is null && Episodes.Count > 0;
@@ -28,7 +28,7 @@ public sealed record SeriesJudgement(
 
     /// <summary>
     /// A fallback hit on the series' order that nothing in the release confirms: every version rejects it so nothing
-    /// grabs it automatically; the user may grab it by hand from the interactive search (blueprint §8).
+    /// grabs it automatically; the user may grab it by hand from the interactive search.
     /// </summary>
     public string? HeldReason { get; init; }
 }

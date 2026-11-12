@@ -27,7 +27,7 @@ public sealed record SonarrFollowData(
     List<SonarrBlocklistItem> Blocklist);
 
 /// <summary>
-/// Moves a Sonarr library into Bigarr (S4), the series twin of <see cref="RadarrImportService"/>. Every Sonarr series becomes
+/// Moves a Sonarr library into Bigarr, the series twin of <see cref="RadarrImportService"/>. Every Sonarr series becomes
 /// one version of the show, named after the Sonarr it comes from (<c>1080p</c>, <c>4k</c>), with its monitoring (series,
 /// seasons, episodes), profile, tags, season folder setting and episode files; a second Sonarr imported with another version
 /// name lands as a second version of the same shows. The show is matched on its TVDB id; its metadata, seasons and

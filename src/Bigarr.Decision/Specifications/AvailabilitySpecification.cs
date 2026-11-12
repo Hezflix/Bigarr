@@ -1,6 +1,6 @@
 namespace Bigarr.Decision.Specifications;
 
-/// <summary>Automatic paths only: nothing is grabbed before the version's minimum availability (blueprint §3.3).</summary>
+/// <summary>Automatic paths only: nothing is grabbed before the version's minimum availability.</summary>
 public sealed class AvailabilitySpecification : IReleaseSpecification
 {
     public Rejection? Evaluate(ReleaseCandidate candidate, TargetContext target) =>

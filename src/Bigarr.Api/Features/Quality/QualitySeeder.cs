@@ -104,7 +104,7 @@ public sealed class QualitySeeder(BigarrDbContext db, ILogger<QualitySeeder> log
 
     /// <summary>
     /// Every quality, ordered like Radarr's defaults with the WEB-DL/WEBRip pairs grouped: the order IS the rank
-    /// (§3.6), so both profiles list everything and only the allowed flags differ. A file outside the profile keeps
+    ///, so both profiles list everything and only the allowed flags differ. A file outside the profile keeps
     /// a rank that way — which is what makes the cutoff of a scanned version computable.
     /// </summary>
     private static QualityProfile BuildProfile(IReadOnlyList<ParserDefinition> definitions, string name, int minResolution, int maxResolution, int cutoffQualityId)

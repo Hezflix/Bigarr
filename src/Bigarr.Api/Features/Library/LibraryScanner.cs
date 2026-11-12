@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Bigarr.Api.Features.Library;
 
 /// <summary>
-/// Read-only scan of an existing library (blueprint §5): one first-level folder = one film, one video file = one version
+/// Read-only scan of an existing library: one first-level folder = one film, one video file = one version
 /// on the system profile <c>Any</c>, unmonitored, folder name observed on disk. Never moves or renames anything.
 /// </summary>
 public sealed partial class LibraryScanner(BigarrDbContext db, IMetadataProvider metadata, TimeProvider time, ILogger<LibraryScanner> logger) : IRootFolderScanner

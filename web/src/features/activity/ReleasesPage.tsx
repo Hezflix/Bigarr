@@ -22,7 +22,7 @@ const attributedStyle = 'border-blue-600/30 bg-blue-500/15 text-blue-700 dark:bo
 const temporaryStyle = 'border-amber-600/30 bg-amber-500/15 text-amber-700 dark:border-amber-400/30 dark:text-amber-300'
 const permanentStyle = 'border-red-600/30 bg-red-500/10 text-red-700 dark:border-red-400/30 dark:text-red-300'
 
-/** What the RSS loop saw: every release of every feed, judged against the library (blueprint §5). */
+/** What the RSS loop saw: every release of every feed, judged against the library. */
 export function ReleasesPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()

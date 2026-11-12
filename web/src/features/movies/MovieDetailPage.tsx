@@ -271,7 +271,7 @@ function MovieComparison({ tmdbId }: { tmdbId: number }) {
   )
 }
 
-/** The journal of this film: why each file is there (blueprint §3.5). */
+/** The journal of this film: why each file is there. */
 function MovieHistory({ movieId }: { movieId: number }) {
   const { t } = useTranslation()
   const events = useQuery({ queryKey: ['history', movieId], queryFn: () => history.list({ movieId, limit: 100 }) })

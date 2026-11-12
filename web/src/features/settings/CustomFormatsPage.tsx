@@ -44,7 +44,7 @@ const textareaStyle =
   'min-h-56 w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-xs shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30'
 
 /**
- * Custom formats (blueprint §3.6): conditions built by hand or pasted as JSON, one score per profile set right here,
+ * Custom formats: conditions built by hand or pasted as JSON, one score per profile set right here,
  * everything evaluated at read time. Guide files import unchanged because the JSON shape is Radarr's.
  */
 export function CustomFormatsPage() {

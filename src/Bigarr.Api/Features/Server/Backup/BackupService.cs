@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 namespace Bigarr.Api.Features.Server.Backup;
 
 /// <summary>
-/// Backups (blueprint M7): a zip holding a consistent snapshot of the SQLite database (<c>VACUUM INTO</c>, so a backup
+/// Backups: a zip holding a consistent snapshot of the SQLite database (<c>VACUUM INTO</c>, so a backup
 /// taken under load is still a valid file) plus a manifest. Restoring stages the database next to the live one and asks
 /// for a restart; <see cref="DatabaseInitializer"/> swaps the files before touching anything, then migrates.
 /// </summary>
@@ -207,7 +207,7 @@ public sealed partial class BackupService(BigarrDbContext db, IOptions<BigarrOpt
     private static partial Regex NameRegex();
 }
 
-/// <summary>The scheduled backup (blueprint §3.7): one zip every <see cref="BackupOptions.IntervalDays"/>, older ones pruned.</summary>
+/// <summary>The scheduled backup: one zip every <see cref="BackupOptions.IntervalDays"/>, older ones pruned.</summary>
 public sealed class BackupJob(BackupService backups, IOptions<BackupOptions> options, TimeProvider time) : IScheduledJob
 {
     public const string JobName = "backup";

@@ -17,7 +17,7 @@ using ParserSource = Bigarr.Parsing.Qualities.QualitySource;
 namespace Bigarr.Api.Features.Quality;
 
 /// <summary>
-/// Custom formats (§3.6): stored in the Radarr JSON shape so exports and guide files import unchanged, evaluated at read
+/// Custom formats: stored in the Radarr JSON shape so exports and guide files import unchanged, evaluated at read
 /// time so editing one needs no recalculation. Scores live on the profile × format join table and can be set from
 /// either side.
 /// </summary>

@@ -14,7 +14,7 @@ using ParserQuality = Bigarr.Parsing.Qualities.Quality;
 namespace Bigarr.Api.Features.Search;
 
 /// <summary>
-/// Interactive search (blueprint §5): every indexer in parallel, each release parsed, matched to the film, then judged by
+/// Interactive search: every indexer in parallel, each release parsed, matched to the film, then judged by
 /// every version of the film so the user sees the reasons, not just the verdict. The search is for the film: the version
 /// a release goes to is chosen when grabbing, each release carries a suggested one.
 /// </summary>
@@ -60,7 +60,7 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
         var calculator = await scorer.CalculatorAsync(ct);
         var minimumSeeders = indexers.ToDictionary(i => i.Id, i => i.MinimumSeeders);
 
-        // Ranking (blueprint §5): quality, then custom format score, then indexer priority, then seeders.
+        // Ranking: quality, then custom format score, then indexer priority, then seeders.
         var releases = results
             .SelectMany(r => r.Releases)
             .Select(release => Evaluate(release, movie, targets, minimumSeeders.GetValueOrDefault(release.IndexerId), calculator))

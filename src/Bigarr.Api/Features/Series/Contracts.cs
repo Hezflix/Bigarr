@@ -186,7 +186,7 @@ public sealed record SeriesResponse(
     bool Monitored,
     List<SeasonResponse> Seasons,
     List<SeriesVersionResponse> Versions,
-    /// <summary>The TMDB episode group when <see cref="Ordering"/> is one (blueprint §8).</summary>
+    /// <summary>The TMDB episode group when <see cref="Ordering"/> is one.</summary>
     string? EpisodeGroupId = null,
     string? EpisodeGroupName = null,
     EpisodeGroupType? EpisodeGroupType = null,

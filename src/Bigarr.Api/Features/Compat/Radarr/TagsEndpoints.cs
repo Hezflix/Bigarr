@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Bigarr.Api.Features.Compat.Radarr;
 
-/// <summary><c>/tag</c> (§7.2, §7.3): Seerr keeps one tag per requesting user, Bazarr maps them to its own.</summary>
+/// <summary><c>/tag</c>: Seerr keeps one tag per requesting user, Bazarr maps them to its own.</summary>
 public static class TagsEndpoints
 {
     public static void MapCompatTags(this RouteGroupBuilder group)

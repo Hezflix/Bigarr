@@ -49,7 +49,7 @@ const requestOf = (value: string): OrderChoiceRequest =>
   value.startsWith('group:') ? { ordering: 'tmdbEpisodeGroup', episodeGroupId: value.slice('group:'.length) } : { ordering: value as OrderChoiceRequest['ordering'] }
 
 /**
- * The per-show order (blueprint §8, S6): pick TVDB, TMDB's default order or a TMDB episode group, preview every file's
+ * The per-show order: pick TVDB, TMDB's default order or a TMDB episode group, preview every file's
  * rename, confirm, undo. The episodes keep their identity: only numbers, season grouping and file names change.
  */
 export function SeriesOrderDialog({ series: s, onClose, onDone }: { series: Series; onClose: () => void; onDone: () => void }) {

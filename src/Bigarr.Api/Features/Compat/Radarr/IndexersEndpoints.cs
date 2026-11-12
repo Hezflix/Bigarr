@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 namespace Bigarr.Api.Features.Compat.Radarr;
 
 /// <summary>
-/// <c>/indexer</c> (§7.4): what Prowlarr calls to push its indexers into an application, as it does into Radarr.
+/// <c>/indexer</c>: what Prowlarr calls to push its indexers into an application, as it does into Radarr.
 /// It reads the schema, posts one Torznab indexer per tracker pointing at its own per-indexer endpoint, and on each sync
 /// adopts the rows whose <c>baseUrl</c> starts with its URL or whose <c>apiKey</c> is its key, its indexer id being the
 /// <c>/{id}/</c> at the end of <c>baseUrl</c>. Usenet indexers are refused: Bigarr has no usenet client.
@@ -66,7 +66,7 @@ public static partial class IndexersEndpoints
         });
 
         // Prowlarr's application test: a Newznab indexer pointing at its aggregate endpoint. Only the caps request has
-        // to succeed; the version header on the answer is what Prowlarr actually checks (§7.1).
+        // to succeed; the version header on the answer is what Prowlarr actually checks.
         group.MapPost("/indexer/test", async Task<Results<Ok, JsonHttpResult<List<RadarrValidationFailure>>>> (RadarrIndexer resource, IndexerService indexers, CancellationToken ct) =>
         {
             var request = ToRequest(resource, out var invalid, allowUsenetForTest: true);

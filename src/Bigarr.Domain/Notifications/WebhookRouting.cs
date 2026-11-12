@@ -3,7 +3,7 @@ using Bigarr.Domain.Events;
 namespace Bigarr.Domain.Notifications;
 
 /// <summary>
-/// Which deliveries one event makes for one endpoint (blueprint §3.9): its subscription, its tags, in the Radarr
+/// Which deliveries one event makes for one endpoint: its subscription, its tags, in the Radarr
 /// format its view and whether Radarr has a word for the event, in the Discord format whether a message is worth
 /// posting. Pure: the dispatcher passes the versions' tags.
 /// </summary>

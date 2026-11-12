@@ -67,7 +67,7 @@ public sealed class XemService(BigarrDbContext db, IXemClient client, XemMappedI
     /// <summary>
     /// Fetches the series' mapping and writes scene numbers onto <paramref name="episodes"/> (tracked or new; the caller
     /// saves). Returns false when nothing could be fetched. Scene numbers map onto TVDB's numbers, which every episode
-    /// keeps whatever order the series shows (blueprint §8): kept current for every series.
+    /// keeps whatever order the series shows: kept current for every series.
     /// </summary>
     /// <param name="maxAge">
     /// From a metadata refresh that brought no new episode: a mapping read more recently than this is kept (the slow

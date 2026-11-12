@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 namespace Bigarr.Api.Features.Compat.Radarr;
 
 /// <summary>
-/// <c>/queue</c> (§7.2): the tracked downloads whose version the key sees, in Radarr's paged envelope. Seerr polls it
+/// <c>/queue</c>: the tracked downloads whose version the key sees, in Radarr's paged envelope. Seerr polls it
 /// (with a Sonarr parameter we ignore) to show progress on requests; <c>movieId</c> is the version id.
 /// </summary>
 public static class QueueEndpoints

@@ -5,6 +5,6 @@ public enum TargetKind
 {
     MovieVersion = 1,
 
-    /// <summary>One episode wanted by one series version: the <c>EpisodeTarget</c> pair (blueprint §9, S1).</summary>
+    /// <summary>One episode wanted by one series version: the <c>EpisodeTarget</c> pair.</summary>
     Episode = 2,
 }

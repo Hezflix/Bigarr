@@ -19,7 +19,7 @@ public sealed class SeriesVersionConfiguration : IEntityTypeConfiguration<Series
 
         builder.HasIndex(v => new { v.SeriesId, v.Name }).IsUnique();
 
-        // Exactly one default per series: partial unique index, like the films' (blueprint §3.3).
+        // Exactly one default per series: partial unique index, like the films'.
         builder.HasIndex(v => v.SeriesId, "IX_SeriesVersions_SeriesId_IsDefault")
             .IsUnique()
             .HasFilter("\"IsDefault\" = 1");

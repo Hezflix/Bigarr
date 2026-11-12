@@ -2,7 +2,7 @@ using Bigarr.Domain.Quality;
 
 namespace Bigarr.Decision;
 
-/// <summary>Ranks exist only inside a profile: the position of the item holding a quality (blueprint §3.6).</summary>
+/// <summary>Ranks exist only inside a profile: the position of the item holding a quality.</summary>
 public static class ProfileRanking
 {
     /// <summary>Zero-based rank of the item containing <paramref name="qualityId"/>, or -1 when the profile does not list it.</summary>
@@ -26,7 +26,7 @@ public static class ProfileRanking
         return byGroup >= 0 ? byGroup : RankOf(profile, profile.Cutoff);
     }
 
-    /// <summary>Sum of the profile's scores for the custom formats matched. Formats the profile does not score count zero (§3.6).</summary>
+    /// <summary>Sum of the profile's scores for the custom formats matched. Formats the profile does not score count zero.</summary>
     public static int FormatScore(QualityProfile profile, IEnumerable<int> customFormatIds)
     {
         ArgumentNullException.ThrowIfNull(profile);

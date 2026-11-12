@@ -41,7 +41,7 @@ function useDebounced<T>(value: T, delay: number): T {
   return debounced
 }
 
-/** Settings → Media management (blueprint §3.7): naming templates, transfer mode, extra files, recycle bin, media info. */
+/** Settings → Media management: naming templates, transfer mode, extra files, recycle bin, media info. */
 export function MediaManagementPage() {
   const { t } = useTranslation()
   const query = useQuery({ queryKey: ['mediaManagement'], queryFn: mediaManagement.get })

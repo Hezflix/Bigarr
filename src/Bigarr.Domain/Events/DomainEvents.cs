@@ -5,7 +5,7 @@ using Bigarr.Domain.Movies;
 namespace Bigarr.Domain.Events;
 
 /// <summary>
-/// What happened, with enough of a snapshot that a consumer never has to query Bigarr back (blueprint §3.9). Each
+/// What happened, with enough of a snapshot that a consumer never has to query Bigarr back. Each
 /// record is stored as JSON in the outbox and sent as the <c>data</c> of a webhook or SSE event, so the shapes here
 /// are a public contract: add fields, never rename them.
 /// </summary>

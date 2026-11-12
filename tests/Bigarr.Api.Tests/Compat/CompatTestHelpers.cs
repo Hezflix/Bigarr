@@ -60,7 +60,7 @@ internal static class CompatTestHelpers
         return (profiles.Single(p => p.Name == QualitySeeder.HdProfileName).Id, profiles.Single(p => p.Name == QualitySeeder.UhdProfileName).Id, roots[0]);
     }
 
-    /// <summary>The body Seerr posts (§7.2), field for field.</summary>
+    /// <summary>The body Seerr posts, field for field.</summary>
     public static object SeerrAdd(int tmdbId, string title, int year, int profileId, string rootFolderPath, bool monitored = true, bool search = false) => new
     {
         title,

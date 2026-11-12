@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Bigarr.Api.Features.Compat.Radarr;
 
-/// <summary><c>/qualityprofile</c> (§7.2, §7.3): Seerr offers them at request time, Bazarr reads <c>language.name</c> as its audio fallback.</summary>
+/// <summary><c>/qualityprofile</c>: Seerr offers them at request time, Bazarr reads <c>language.name</c> as its audio fallback.</summary>
 public static class QualityProfilesEndpoints
 {
     public static void MapCompatQualityProfiles(this RouteGroupBuilder group)

@@ -23,7 +23,7 @@ const kindStyles: Record<WantedFilter, string> = {
   cutoffUnmet: 'border-blue-600/30 bg-blue-500/15 text-blue-700 dark:border-blue-400/30 dark:text-blue-300',
 }
 
-/** What the library still wants (blueprint §5): missing versions and files below their profile cutoff, with the search backoff. */
+/** What the library still wants: missing versions and files below their profile cutoff, with the search backoff. */
 export function WantedPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()

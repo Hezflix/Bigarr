@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Bigarr.Api.Tests.Movies;
 
-/// <summary>Changing a version's settings is a business fact (blueprint §3.9): it reaches the outbox once, and only when something changed.</summary>
+/// <summary>Changing a version's settings is a business fact: it reaches the outbox once, and only when something changed.</summary>
 public sealed class VersionUpdatedEventTests(BigarrApiFactory factory) : IClassFixture<BigarrApiFactory>
 {
     private const int DunePartTwo = 693134;

@@ -15,7 +15,7 @@ using static Bigarr.Api.Tests.Import.ImportTestHelpers;
 namespace Bigarr.Api.Tests.Migration;
 
 /// <summary>
-/// Moving in from Sonarr (S4): a standard and an anime show become series versions with every file on disk attached
+/// Moving in from Sonarr: a standard and an anime show become series versions with every file on disk attached
 /// (a multi-episode file to both its episodes, Sonarr's remux id translated, anime absolute numbers, a special), with
 /// monitoring, tags, history, blocklist and exclusions; a second run changes nothing; a second Sonarr adds <c>4k</c>
 /// versions to the same shows. Sonarr is played by <see cref="FakeSonarr"/>; the library folders are temp directories.

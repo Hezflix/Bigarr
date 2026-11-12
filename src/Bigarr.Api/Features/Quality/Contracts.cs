@@ -22,7 +22,7 @@ public sealed record FormatScoreRequest(int CustomFormatId, int Score);
 public sealed record QualityProfileResponse(
     int Id,
     string Name,
-    /// <summary>Worst first: the position is the rank (§3.6).</summary>
+    /// <summary>Worst first: the position is the rank.</summary>
     List<QualityProfileItemDto> Items,
     /// <summary>Quality id or group id of an allowed item.</summary>
     int Cutoff,

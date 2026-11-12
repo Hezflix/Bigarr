@@ -11,7 +11,7 @@ public sealed record IndexerStatus(bool Healthy, int Failures, DateTime? Disable
 
 /// <summary>
 /// The single door to every indexer: picks the protocol client, spaces requests by the indexer's rate limit and
-/// backs off on failures (blueprint §3.7). Backoff state lives in memory and is lost on restart, on purpose.
+/// backs off on failures. Backoff state lives in memory and is lost on restart, on purpose.
 /// </summary>
 public sealed class IndexerGateway(IEnumerable<IIndexerClient> clients, TimeProvider time, ILogger<IndexerGateway> logger)
 {

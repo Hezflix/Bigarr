@@ -1,7 +1,7 @@
 namespace Bigarr.Api.Features.Server.Tasks;
 
 /// <summary>
-/// A recurring job (blueprint §3.7): the scheduler runs it on its interval and on demand, records the outcome, and
+/// A recurring job: the scheduler runs it on its interval and on demand, records the outcome, and
 /// shows it in the UI. Implementations are scoped services: a fresh scope per run.
 /// </summary>
 public interface IScheduledJob

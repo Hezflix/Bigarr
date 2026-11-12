@@ -5,7 +5,7 @@ namespace Bigarr.Api.Infrastructure.Events;
 
 /// <summary>
 /// The only way a slice publishes an event: an <see cref="OutboxEvent"/> row added to the current unit of work, so it
-/// commits with the business change or not at all (blueprint §3.9). The dispatcher is woken by the save interceptor.
+/// commits with the business change or not at all. The dispatcher is woken by the save interceptor.
 /// </summary>
 public sealed class OutboxWriter(BigarrDbContext db, TimeProvider time)
 {

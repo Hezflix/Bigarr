@@ -14,12 +14,12 @@ using ParserSource = Bigarr.Parsing.Qualities.QualitySource;
 
 namespace Bigarr.Api.Infrastructure.Decision;
 
-/// <summary>What a file is worth for its version's profile, computed at read time (blueprint §3.6).</summary>
+/// <summary>What a file is worth for its version's profile, computed at read time.</summary>
 public sealed record FileAssessment(IReadOnlyList<string> CustomFormats, IReadOnlyList<int> CustomFormatIds, int CustomFormatScore, bool CutoffMet);
 
 /// <summary>
 /// Loads the custom formats once per request scope and evaluates releases and files against them. Nothing is stored:
-/// editing a format changes the next search or page (§3.6). Knows no <c>Movie</c>; slices pass year and language.
+/// editing a format changes the next search or page. Knows no <c>Movie</c>; slices pass year and language.
 /// </summary>
 public sealed class CustomFormatScorer(BigarrDbContext db, ILogger<CustomFormatScorer> logger)
 {

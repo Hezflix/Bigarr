@@ -4,7 +4,7 @@ using Bigarr.Domain.Tv;
 namespace Bigarr.Domain.Metadata;
 
 /// <summary>
-/// Provider-neutral snapshot of a show: TVDB's numbering joined with TMDB's ids and images (blueprint §8). Search
+/// Provider-neutral snapshot of a show: TVDB's numbering joined with TMDB's ids and images. Search
 /// results leave <see cref="Seasons"/> and <see cref="Episodes"/> empty.
 /// </summary>
 public sealed record SeriesMetadata
@@ -58,7 +58,7 @@ public sealed record SeriesMetadata
 
     /// <summary>
     /// The episode list is TMDB's own numbering (no TVDB answer behind it). Only right for a show TVDB does not know:
-    /// for one that has a TVDB id, TMDB's list must never replace TVDB's (S1, blueprint §8).
+    /// for one that has a TVDB id, TMDB's list must never replace TVDB's.
     /// </summary>
     public bool NumberedByTmdb => string.Equals(Source, "tmdb", StringComparison.Ordinal);
 

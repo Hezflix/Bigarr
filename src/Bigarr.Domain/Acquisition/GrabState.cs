@@ -1,6 +1,6 @@
 namespace Bigarr.Domain.Acquisition;
 
-/// <summary>Lifecycle of a tracked download (blueprint §3.5).</summary>
+/// <summary>Lifecycle of a tracked download.</summary>
 public enum GrabState
 {
     /// <summary>Sent to the download client.</summary>

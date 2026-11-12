@@ -12,7 +12,7 @@ namespace Bigarr.Api.Features.Notifications.Sonarr;
 /// <summary>
 /// Bigarr's series events as Sonarr v4's webhook sends them (<c>WebhookBase</c>), so a tool written for Sonarr's
 /// webhook reads them unchanged. Built from the event's snapshot only, like the other formats. The <c>series</c> is the
-/// compat line: its id is the series version's, as the Sonarr v3 surface will show it (§7b); episode ids are Bigarr's
+/// compat line: its id is the series version's, as the Sonarr v3 surface will show it; episode ids are Bigarr's
 /// shared episode ids.
 /// </summary>
 public static partial class SonarrWebhook

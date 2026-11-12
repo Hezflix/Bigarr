@@ -4,7 +4,7 @@ namespace Bigarr.Domain.Tv;
 
 /// <summary>
 /// A release an automatic path (RSS, a search) would have taken for a series version, had it not matched its episodes
-/// on the series' alternative order only, with nothing in the release to confirm it (blueprint §8, S6): it waits here for
+/// on the series' alternative order only, with nothing in the release to confirm it: it waits here for
 /// the user to grab it or dismiss it. One row per (version, release); a dismissed one stays so the next pass does not
 /// bring it back.
 /// </summary>

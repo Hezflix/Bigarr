@@ -19,7 +19,7 @@ using Microsoft.Extensions.Options;
 namespace Bigarr.Api.Features.Server.Health;
 
 /// <summary>
-/// The health checks (blueprint M6): what would stop the loop from running on its own, said in one sentence each.
+/// The health checks: what would stop the loop from running on its own, said in one sentence each.
 /// Cheap enough to run every few minutes; nothing here talks to an indexer or a client, it reads what they left.
 /// </summary>
 public sealed class HealthCheckService(
@@ -175,7 +175,7 @@ public sealed class HealthCheckService(
     }
 
     /// <summary>
-    /// What the series loop needs (S7): a TVDB key (the fixture catalogue knows three shows), a series refresh that goes
+    /// What the series loop needs: a TVDB key (the fixture catalogue knows three shows), a series refresh that goes
     /// through, TheXEM reachable for scene-numbered shows, indexers that search TV, a root folder for series; and the
     /// releases held for review, counted so they are not forgotten.
     /// </summary>
@@ -240,7 +240,7 @@ public sealed class HealthCheckService(
     }
 }
 
-/// <summary>Runs the checks on a schedule, keeps the result and publishes what changed (blueprint §3.9, <c>HealthIssueRaised</c>).</summary>
+/// <summary>Runs the checks on a schedule, keeps the result and publishes what changed (<c>HealthIssueRaised</c>).</summary>
 public sealed class HealthCheckJob(HealthCheckService checks, HealthState state, Infrastructure.Events.OutboxWriter outbox, BigarrDbContext db, TimeProvider time) : IScheduledJob
 {
     public const string JobName = "healthCheck";

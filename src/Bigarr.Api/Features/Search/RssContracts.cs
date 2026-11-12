@@ -51,7 +51,7 @@ public sealed record RssReleaseResponse(
     string? UnmatchedReason,
     /// <summary>One verdict per version of the matched film (automatic rules: monitoring and availability count).</summary>
     List<VersionDecisionResponse> Versions,
-    /// <summary>The single version the release would be grabbed for, when at least one accepts it (blueprint §3.3).</summary>
+    /// <summary>The single version the release would be grabbed for, when at least one accepts it.</summary>
     int? AttributedVersionId,
     string? AttributedVersionName,
     /// <summary>Set when this pass sent the release to a download client.</summary>

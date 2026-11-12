@@ -10,7 +10,7 @@ public sealed class MediaOptions
 
     public int ProbeTimeoutSeconds { get; set; } = 60;
 
-    /// <summary>Probe files that were scanned or imported without media info, in the background (blueprint §3.4).</summary>
+    /// <summary>Probe files that were scanned or imported without media info, in the background.</summary>
     public bool BackfillEnabled { get; set; } = true;
 
     public int BackfillInitialDelaySeconds { get; set; } = 90;

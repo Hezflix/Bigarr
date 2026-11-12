@@ -17,7 +17,7 @@ using ParserQuality = Bigarr.Parsing.Qualities.Quality;
 namespace Bigarr.Api.Features.Search;
 
 /// <summary>
-/// The main loop (blueprint §5): one feed request per indexer, every release of the feed parsed, matched to a film of
+/// The main loop: one feed request per indexer, every release of the feed parsed, matched to a film of
 /// the library and judged by each of its versions with the automatic rules, attributed to one version, and the best
 /// release of the pass for each version sent to a download client. This is what fills the library day to day. Like
 /// Radarr, a pass judges the whole feed again, not only what is new: a release turned down while its film was not
@@ -152,7 +152,7 @@ public sealed class RssSyncService(
                 judged.Add((entry, release, score));
             }
 
-            // One grab per version and pass: the best of what the feed brought (blueprint §5 ranking).
+            // One grab per version and pass: the best of what the feed brought.
             var winners = new Dictionary<int, (RssReleaseResponse Entry, ReleaseInfo Release)>();
             foreach (var group in judged.Where(j => j.Entry.AttributedVersionId is not null && j.Entry.Movie is not null).GroupBy(j => j.Entry.AttributedVersionId!.Value))
             {
@@ -277,7 +277,7 @@ public sealed class RssSyncService(
     }
 }
 
-/// <summary>The RSS pass as a scheduled task (blueprint §3.7): interval and grace period from <see cref="RssSyncOptions"/>.</summary>
+/// <summary>The RSS pass as a scheduled task: interval and grace period from <see cref="RssSyncOptions"/>.</summary>
 public sealed class RssSyncJob(RssSyncService rss, IOptions<RssSyncOptions> options) : IScheduledJob
 {
     public const string JobName = "rssSync";

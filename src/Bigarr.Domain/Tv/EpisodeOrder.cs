@@ -1,7 +1,7 @@
 namespace Bigarr.Domain.Tv;
 
 /// <summary>
-/// Which numbering names and displays the episodes of a series (blueprint §8). The order is a numbering layer only: an
+/// Which numbering names and displays the episodes of a series. The order is a numbering layer only: an
 /// episode's identity is its TVDB episode id (or TMDB id), its <see cref="Episode.SeasonNumber"/>/<see cref="Episode.EpisodeNumber"/>
 /// stay TVDB's whatever the order, so switching never breaks files, history, monitoring or the Sonarr follow. The
 /// alternative numbers live in <see cref="Episode.OrderSeasonNumber"/> and its siblings.
@@ -30,7 +30,7 @@ public enum EpisodeGroupType
     Tv = 7,
 }
 
-/// <summary>Which numbering a release matched its episodes on, recorded on every grab and shadow pick (blueprint §8).</summary>
+/// <summary>Which numbering a release matched its episodes on, recorded on every grab and shadow pick.</summary>
 public enum EpisodeNumbering
 {
     /// <summary>TVDB's season/episode numbers (or air date for a daily show).</summary>

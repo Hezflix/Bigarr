@@ -27,7 +27,7 @@ const modes: TransferMode[] = ['hardlinkOrCopy', 'copy', 'move']
 type Selection = { selected: boolean; movieId: number | null; versionId: number | null; qualityId: number; extras: string[] }
 
 /**
- * Manual import (blueprint §5): the files under a path or behind a queued download, each with the film, version and
+ * Manual import: the files under a path or behind a queued download, each with the film, version and
  * quality Bigarr guessed and the verdict of every version; the user corrects and imports, forced.
  */
 export function ManualImportDialog({ grabId, path: initialPath, title, onClose }: { grabId?: number; path?: string; title?: string; onClose: () => void }) {

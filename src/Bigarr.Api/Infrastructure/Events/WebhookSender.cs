@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 namespace Bigarr.Api.Infrastructure.Events;
 
 /// <summary>
-/// Sends due <see cref="WebhookDelivery"/> rows and writes the outcome back on the row (blueprint §3.9). A failure
+/// Sends due <see cref="WebhookDelivery"/> rows and writes the outcome back on the row. A failure
 /// schedules the next attempt with an escalating delay; after <see cref="NotificationsOptions.MaxAttempts"/> the
 /// delivery is given up until a manual retry. A 429 is no failure: the delivery, and every other one due for the same
 /// endpoint, waits what the receiver asked (Discord's <c>Retry-After</c>), without spending an attempt. On startup

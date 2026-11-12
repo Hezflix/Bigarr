@@ -6,7 +6,7 @@ using Bigarr.Domain.Tags;
 namespace Bigarr.Domain.Movies;
 
 /// <summary>
-/// "I want this film in this flavour." The unit of monitoring, search and upgrade (blueprint §3.3).
+/// "I want this film in this flavour." The unit of monitoring, search and upgrade.
 /// Inherits the <see cref="AcquisitionTarget"/> base table (TPT).
 /// </summary>
 public sealed class MovieVersion : AcquisitionTarget, IAcquisitionTarget

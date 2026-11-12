@@ -5,7 +5,7 @@ namespace Bigarr.Decision.Specifications;
 /// <summary>
 /// Is the release better than the file in place? Quality rank first, then proper/repack revision, then custom format
 /// score at equal rank, where the gain must reach <c>MinUpgradeFormatScore</c>. A file at the quality cutoff with a
-/// score at <c>CutoffFormatScore</c> wants nothing more, a proper or repack excepted (blueprint §3.6, §5). In shadow
+/// score at <c>CutoffFormatScore</c> wants nothing more, a proper or repack excepted. In shadow
 /// mode the "file" may be Bigarr's own pick, and the reasons say so.
 /// </summary>
 /// <remarks>

@@ -92,7 +92,7 @@ public static class SeriesSearchCriteriaBuilder
     }
 
     /// <summary>
-    /// The fallback on the series' alternative order (blueprint §8): the episode asked by its numbers in that order (no
+    /// The fallback on the series' alternative order: the episode asked by its numbers in that order (no
     /// XEM: scene numbers are TVDB's), its absolute number in the order for an anime. Empty when the order lacks it.
     /// </summary>
     public static List<SeriesSearchCriteria> ForOrderEpisode(Series series, Episode episode, IReadOnlyList<SceneAlias> sceneNames)

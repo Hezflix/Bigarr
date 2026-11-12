@@ -825,7 +825,7 @@ export type SeriesRelease = Omit<Release, 'edition' | 'parsedTitle' | 'parsedYea
   held: boolean
 }
 
-/** Which numbering a release matched its episodes on (blueprint §8). */
+/** Which numbering a release matched its episodes on. */
 export type EpisodeNumbering = 'tvdb' | 'xem' | 'order' | 'absolute'
 
 export type SeriesSearchResult = {
@@ -2816,7 +2816,7 @@ export type Episode = {
   notInOrder: boolean
 }
 
-// ---- series order (S6) -----------------------------------------------------
+// ---- series order -----------------------------------------------------
 
 export type EpisodeOrder = 'tvdb' | 'tmdbDefault' | 'tmdbEpisodeGroup'
 
@@ -3000,7 +3000,7 @@ export const series = {
   undoOrder: (id: number) => post<{ change: OrderChange; filesRestored: number; files: OrderFileResult[] }>(`/api/v1/series/${id}/orders/undo`),
 }
 
-// ---- series automation (S7) ------------------------------------------------
+// ---- series automation ------------------------------------------------
 
 export type SeriesWantedItem = {
   targetId: number

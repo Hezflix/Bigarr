@@ -29,7 +29,7 @@ public sealed record OrderNumbers(int SeasonNumber, int EpisodeNumber, int? Abso
 public sealed record OrderLink(IReadOnlyDictionary<Episode, OrderNumbers> Numbers, IReadOnlyList<Episode> NotInOrder, IReadOnlyList<OrderOnlyEpisode> OrderOnly);
 
 /// <summary>
-/// Links a series' episodes (stable TVDB identity) to an alternative order, one to one (blueprint §8, the audit's rules):
+/// Links a series' episodes (stable TVDB identity) to an alternative order, one to one (the audit's rules):
 /// the TMDB episode id first, then the same season/episode with an air date within ±2 days, then the same title within
 /// ±2 days, then the only episode of both sides aired that day. Whatever stays unlinked is reported on both sides,
 /// never guessed. Pure.

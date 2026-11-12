@@ -15,7 +15,7 @@ public enum VersionStatus
     Available = 4,
 }
 
-/// <summary>Where a film stands in its release cycle, and whether a version may be searched (blueprint §3.3, §5).</summary>
+/// <summary>Where a film stands in its release cycle, and whether a version may be searched.</summary>
 public static class Availability
 {
     /// <summary>

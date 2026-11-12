@@ -3,7 +3,7 @@ using Bigarr.Domain.Tags;
 
 namespace Bigarr.Domain.Notifications;
 
-/// <summary>An outgoing webhook (blueprint §3.7): where events go, signed with the secret when there is one.</summary>
+/// <summary>An outgoing webhook: where events go, signed with the secret when there is one.</summary>
 public sealed class NotificationEndpoint
 {
     public int Id { get; set; }
@@ -32,7 +32,7 @@ public sealed class NotificationEndpoint
 
     public WebhookFormat Format { get; set; } = WebhookFormat.Bigarr;
 
-    /// <summary>For the Radarr format: which versions are Radarr movies, exactly like an API key's view (§3.8).</summary>
+    /// <summary>For the Radarr format: which versions are Radarr movies, exactly like an API key's view.</summary>
     public CompatView View { get; set; } = CompatView.Default;
 
     /// <summary>For the Discord format: the webhook's name, avatar and the fields of each message. Null for the other formats.</summary>

@@ -21,7 +21,7 @@ public sealed record ExistingFile(int QualityId, int RevisionVersion, int Revisi
 
 /// <summary>
 /// Everything the engine may know about a target. Assembled by the slice that owns the target type; the engine itself
-/// never sees a <c>Movie</c> (blueprint §3.10).
+/// never sees a <c>Movie</c>.
 /// </summary>
 public sealed record TargetContext(
     IAcquisitionTarget Target,
@@ -34,7 +34,7 @@ public sealed record TargetContext(
     bool HasActiveGrab,
     /// <summary>Minimum availability reached. Only the automatic paths (RSS, auto search) reject on it.</summary>
     bool IsAvailable = true,
-    /// <summary>Tie-breaker for attribution after constraint specificity (blueprint §3.3).</summary>
+    /// <summary>Tie-breaker for attribution after constraint specificity.</summary>
     bool IsDefaultTarget = false)
 {
     /// <summary>Radarr's assumption when TMDB has no runtime yet.</summary>

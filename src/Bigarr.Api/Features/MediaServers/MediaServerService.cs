@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bigarr.Api.Features.MediaServers;
 
-/// <summary>The media servers Bigarr keeps informed (M8): CRUD, connection test, and a full scan on demand.</summary>
+/// <summary>The media servers Bigarr keeps informed: CRUD, connection test, and a full scan on demand.</summary>
 public sealed class MediaServerService(BigarrDbContext db, MediaServerClients clients, PlaybackMonitor playback, TimeProvider time, ILogger<MediaServerService> logger)
 {
     public const int MaxNameLength = 64;

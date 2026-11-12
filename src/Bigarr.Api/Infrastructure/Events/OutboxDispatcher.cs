@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 namespace Bigarr.Api.Infrastructure.Events;
 
 /// <summary>
-/// Drains the outbox after commit (blueprint §3.9): every undispatched row goes to the SSE stream and becomes one
+/// Drains the outbox after commit: every undispatched row goes to the SSE stream and becomes one
 /// <see cref="WebhookDelivery"/> per subscribed endpoint, then is stamped dispatched. Woken by the save interceptor,
 /// with a slow sweep as a safety net.
 /// </summary>

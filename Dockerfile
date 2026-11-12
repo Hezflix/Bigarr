@@ -26,14 +26,14 @@ RUN dotnet publish src/Bigarr.Api -a $TARGETARCH -c Release --no-restore -o /app
 # ---- runtime -----------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final
 # Full ICU: international titles, culture-aware sorting and string normalization. ffmpeg brings ffprobe, which reads
-# codecs, channels, HDR and languages from imported files (blueprint §3.4).
+# codecs, channels, HDR and languages from imported files.
 RUN apk add --no-cache icu-libs icu-data-full tzdata ffmpeg
 WORKDIR /app
 ENV ASPNETCORE_URLS=http://+:7979 \
     Bigarr__ConfigDirectory=/config \
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
     DOTNET_gcServer=0
-# One shared data mount for downloads and libraries: hardlinks need it (blueprint §2, §8).
+# One shared data mount for downloads and libraries: hardlinks need it.
 VOLUME ["/config"]
 EXPOSE 7979
 USER $APP_UID

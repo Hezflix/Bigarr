@@ -6,7 +6,7 @@ public sealed record FileSystemItem(string Name, string Path, long Size, DateTim
 /// <summary>What a folder holds, as the path pickers read it. <see cref="Path"/> is empty for the mount list.</summary>
 public sealed record FolderListing(string Path, string? Parent, bool Exists, List<FileSystemItem> Directories, List<FileSystemItem> Files);
 
-/// <summary>Reads folders for the path pickers: the web UI's (blueprint §4.1) and Radarr's <c>/filesystem</c> (§7.3).</summary>
+/// <summary>Reads folders for the path pickers: the web UI's and Radarr's <c>/filesystem</c>.</summary>
 public static class FileSystemBrowser
 {
     /// <summary>The mount points a browse starts from when no path is given.</summary>

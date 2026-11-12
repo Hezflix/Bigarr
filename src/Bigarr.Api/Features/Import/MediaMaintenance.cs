@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 
 namespace Bigarr.Api.Features.Import;
 
-/// <summary>Fills media info on files that were scanned or imported without it (blueprint §3.4) and empties the recycle bin.</summary>
+/// <summary>Fills media info on files that were scanned or imported without it and empties the recycle bin.</summary>
 public sealed class MediaMaintenance(BigarrDbContext db, MediaManagementService settings, IMediaInfoReader probe, RecycleBin recycleBin, IOptions<MediaOptions> options, IOptions<NotificationsOptions> notifications, TimeProvider time, ILogger<MediaMaintenance> logger)
 {
     public async Task<BackfillResponse> BackfillAsync(int? batchSize, CancellationToken ct)

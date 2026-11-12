@@ -2,7 +2,7 @@ using ParserQuality = Bigarr.Parsing.Qualities.Quality;
 
 namespace Bigarr.Api.Features.Search;
 
-/// <summary>Ranking (blueprint §5): quality, then custom format score, then proper/repack, then indexer priority, then seeders.</summary>
+/// <summary>Ranking: quality, then custom format score, then proper/repack, then indexer priority, then seeders.</summary>
 public static class ReleaseRanking
 {
     public static readonly IReadOnlyDictionary<int, int> QualityWeights = ParserQuality.DefaultQualityDefinitions.ToDictionary(d => d.Quality.Id, d => d.Weight);

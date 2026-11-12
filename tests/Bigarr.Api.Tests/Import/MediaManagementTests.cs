@@ -68,7 +68,7 @@ public sealed class MediaManagementTests(BigarrApiFactory factory) : IClassFixtu
         Assert.Equal(3, updated.RecycleBinRetentionDays);
         Assert.Equal("Matrix, The (1999)", updated.FolderNamePreview);
 
-        // A version created now follows the folder template; the folder name is then frozen (§3.3).
+        // A version created now follows the folder template; the folder name is then frozen.
         var (hd, _) = await ProfilesAsync(client);
         var root = await AddRootAsync(client, Path.Combine(_root, "settings"));
         var movie = await AddMovieAsync(client, 603, hd, root.Id);

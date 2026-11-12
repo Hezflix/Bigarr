@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Bigarr.Api.Features.Migration;
 
-/// <summary>Moving in from an existing Radarr (M8) or Sonarr (S4): preview the mapping, run the import in the background, follow it.</summary>
+/// <summary>Moving in from an existing Radarr or Sonarr: preview the mapping, run the import in the background, follow it.</summary>
 public static class MigrationEndpoints
 {
     public static IEndpointRouteBuilder MapMigration(this IEndpointRouteBuilder app)
@@ -34,7 +34,7 @@ public static class MigrationEndpoints
 
         app.MapTautulliImport();
 
-        // Moving in from an existing Sonarr (S4): the same three steps, for series.
+        // Moving in from an existing Sonarr: the same three steps, for series.
         var sonarr = app.MapGroup("/api/v1/migration/sonarr").WithTags("Migration").RequireAuthorization(AuthPolicies.Api);
 
         sonarr.MapPost("/preview", async Task<Results<Ok<SonarrImportPreviewResponse>, ProblemHttpResult>> (SonarrImportPreviewRequest request, SonarrImportService imports, CancellationToken ct) =>

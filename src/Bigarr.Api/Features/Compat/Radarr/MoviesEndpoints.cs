@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 namespace Bigarr.Api.Features.Compat.Radarr;
 
 /// <summary>
-/// <c>/movie</c> (§7.2, §7.3): one line per version the key sees, the line's id being the version's. Seerr's add flow
+/// <c>/movie</c>: one line per version the key sees, the line's id being the version's. Seerr's add flow
 /// (lookup → PUT when unmonitored, POST when absent) creates the version the key designates, so two Radarr entries in
 /// one Seerr, one per key, follow two versions of the same film without noticing each other.
 /// </summary>
@@ -51,7 +51,7 @@ public static class MoviesEndpoints
     }
 
     /// <summary>
-    /// Seerr's existence test (§7.2): the result carries an <c>id</c> only when the key's view sees a version of the film.
+    /// Seerr's existence test: the result carries an <c>id</c> only when the key's view sees a version of the film.
     /// A 4K key looking at a film that only has a 1080p gets <c>id: 0</c>, and POSTs.
     /// </summary>
     private static async Task<Results<JsonHttpResult<List<RadarrMovie>>, JsonHttpResult<RadarrError>>> LookupAsync(
@@ -157,7 +157,7 @@ public static class MoviesEndpoints
             : RadarrCompat.Created(await ToMovieAsync(row, movies, scorer, ct));
     }
 
-    /// <summary>Seerr re-monitors an unmonitored version this way and expects <c>monitored: true</c> back (§7.2). Radarr answers 202.</summary>
+    /// <summary>Seerr re-monitors an unmonitored version this way and expects <c>monitored: true</c> back. Radarr answers 202.</summary>
     private static async Task<Results<JsonHttpResult<RadarrMovie>, JsonHttpResult<List<RadarrValidationFailure>>, NotFound>> UpdateAsync(
         int id, RadarrMovieRequest request, ClaimsPrincipal user, CompatLibrary library, MovieService movies, CustomFormatScorer scorer, CancellationToken ct)
     {
@@ -189,7 +189,7 @@ public static class MoviesEndpoints
         return TypedResults.Json(await ToMovieAsync(fresh!, movies, scorer, ct), RadarrCompat.Json, statusCode: StatusCodes.Status202Accepted);
     }
 
-    /// <summary>Deletes the version; the last one takes the film with it; a default version hands over to the oldest managed sibling (§3.11).</summary>
+    /// <summary>Deletes the version; the last one takes the film with it; a default version hands over to the oldest managed sibling.</summary>
     private static async Task<Results<Ok, NotFound, JsonHttpResult<List<RadarrValidationFailure>>, JsonHttpResult<RadarrError>>> DeleteAsync(
         int id, ClaimsPrincipal user, CompatLibrary library, MovieService movies, CancellationToken ct, bool deleteFiles = false, bool addImportExclusion = false)
     {

@@ -15,7 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Bigarr.Api.Tests.Migration;
 
 /// <summary>
-/// Moving in from Radarr (M8): a standard Radarr becomes <c>1080p</c> versions with their files, flags, tags and
+/// Moving in from Radarr: a standard Radarr becomes <c>1080p</c> versions with their files, flags, tags and
 /// exclusions, history, blocklist, custom formats and profile scores; a 4K Radarr imported afterwards adds <c>4k</c> versions to the same films; a second pass updates instead
 /// of duplicating. Radarr is played by a fake HTTP server; the library folder is a temp directory.
 /// </summary>

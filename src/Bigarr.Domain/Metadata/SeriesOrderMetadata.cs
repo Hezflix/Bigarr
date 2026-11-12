@@ -7,7 +7,7 @@ public sealed record EpisodeGroupSummary(string Id, string Name, EpisodeGroupTyp
 
 /// <summary>
 /// One episode as an alternative order numbers it (TMDB's default order or an episode group), with what links it to a
-/// TVDB episode: its TMDB episode id, its TMDB default numbers, air date and title (blueprint §8).
+/// TVDB episode: its TMDB episode id, its TMDB default numbers, air date and title.
 /// </summary>
 public sealed record OrderEpisode
 {

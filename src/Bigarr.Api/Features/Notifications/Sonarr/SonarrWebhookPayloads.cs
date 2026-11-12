@@ -21,7 +21,7 @@ public abstract record SonarrWebhookPayload
     public string? ApplicationUrl { get; init; }
 }
 
-/// <param name="Id">The compat series id, i.e. the series version's id (one Sonarr series per version, §7b).</param>
+/// <param name="Id">The compat series id, i.e. the series version's id (one Sonarr series per version).</param>
 /// <param name="Type">Sonarr's <c>SeriesTypes</c>: <c>standard</c>, <c>daily</c>, <c>anime</c>.</param>
 /// <param name="Tags">Tag labels, as Sonarr sends them.</param>
 public sealed record SonarrWebhookSeries(

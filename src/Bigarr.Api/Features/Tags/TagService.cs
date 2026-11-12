@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bigarr.Api.Features.Tags;
 
-/// <summary>Tags (blueprint §3.7): a label, an id, and one join table per tagged entity. Seerr creates one per user.</summary>
+/// <summary>Tags: a label, an id, and one join table per tagged entity. Seerr creates one per user.</summary>
 public sealed class TagService(BigarrDbContext db)
 {
     public const int MaxLabelLength = 64;

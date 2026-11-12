@@ -1,7 +1,7 @@
 namespace Bigarr.Domain.Events;
 
 /// <summary>
-/// A business fact written in the same transaction as the change it describes (blueprint §3.9). A hosted service
+/// A business fact written in the same transaction as the change it describes. A hosted service
 /// drains the table after commit and hands each row to the consumers that leave the process: SSE, webhooks, later
 /// the compat SignalR hub. Retries survive a restart because the row does.
 /// </summary>

@@ -36,7 +36,7 @@ function formatDuration(ms: number | null): string {
   return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`
 }
 
-/** Health checks and the scheduler (blueprint §3.7, M6): what would stop the loop, and the jobs that run it. */
+/** Health checks and the scheduler: what would stop the loop, and the jobs that run it. */
 export function SystemPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -227,7 +227,7 @@ export function SystemPage() {
   )
 }
 
-/** Backups (M7): a zip of the database, weekly and on demand; restoring stages the file and restarts Bigarr. */
+/** Backups: a zip of the database, weekly and on demand; restoring stages the file and restarts Bigarr. */
 function BackupsSection({ schedulerOff }: { schedulerOff: boolean }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()

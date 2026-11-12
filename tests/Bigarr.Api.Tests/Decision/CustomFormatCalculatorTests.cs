@@ -6,7 +6,7 @@ using Bigarr.Parsing.Qualities;
 
 namespace Bigarr.Api.Tests.Decision;
 
-/// <summary>The engine against the TRaSH guide files, imported unchanged: the acceptance test of M3 (blueprint §6).</summary>
+/// <summary>The engine against the TRaSH guide files, imported unchanged: the acceptance test of M3.</summary>
 public sealed class CustomFormatCalculatorTests
 {
     [Fact]

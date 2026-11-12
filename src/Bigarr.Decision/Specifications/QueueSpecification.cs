@@ -1,7 +1,7 @@
 namespace Bigarr.Decision.Specifications;
 
 /// <summary>
-/// Never two active downloads for one target (blueprint §3.5). For a series version, every episode the release covers
+/// Never two active downloads for one target. For a series version, every episode the release covers
 /// counts: a pack waits while one of its episodes is downloading. Comparing against the queued release comes with M4.
 /// </summary>
 public sealed class QueueSpecification : IReleaseSpecification

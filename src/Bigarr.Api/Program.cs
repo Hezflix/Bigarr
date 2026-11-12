@@ -129,7 +129,7 @@ builder.Services.AddScoped<MediaMaintenance>();
 builder.Services.AddSingleton<ImportQueue>();
 builder.Services.AddHostedService<ImportRunner>();
 
-// The scheduler (blueprint §3.7): jobs are scoped, resolved per run; the table remembers the cadence across restarts.
+// The scheduler: jobs are scoped, resolved per run; the table remembers the cadence across restarts.
 builder.Services.Configure<SchedulerOptions>(builder.Configuration.GetSection(SchedulerOptions.Section));
 builder.Services.AddSingleton<SchedulerState>();
 builder.Services.AddSingleton<SchedulerSignal>();
@@ -147,13 +147,13 @@ builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(Backu
 builder.Services.AddScoped<BackupService>();
 builder.Services.AddScoped<IScheduledJob, BackupJob>();
 
-// The Radarr-compatible surface (blueprint §7): /api/v3 behind API keys, /signalr/messages, /MediaCover.
+// The Radarr-compatible surface: /api/v3 behind API keys, /signalr/messages, /MediaCover.
 builder.Services.AddRadarrCompat();
 
 // Every outgoing HttpClient accepts gzip/deflate/brotli answers.
 builder.Services.AddOutgoingDecompression();
 
-// Moving in from Radarr (M8): one background import at a time, reading Radarr's v3 API.
+// Moving in from Radarr: one background import at a time, reading Radarr's v3 API.
 builder.Services.AddHttpClient(RadarrClient.HttpClientName, http => http.Timeout = TimeSpan.FromSeconds(120));
 builder.Services.AddSingleton<RadarrClient>();
 builder.Services.AddScoped<RadarrImportService>();
@@ -174,7 +174,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<RadarrFollowWakeup
 builder.Services.AddScoped<CompareService>();
 builder.Services.AddScoped<IScheduledJob, RadarrFollowJob>();
 
-// Moving in from Sonarr (S4) and following it in shadow mode: the series twin of the two blocks above.
+// Moving in from Sonarr and following it in shadow mode: the series twin of the two blocks above.
 builder.Services.AddHttpClient(SonarrClient.HttpClientName, http => http.Timeout = TimeSpan.FromSeconds(120));
 builder.Services.AddSingleton<SonarrClient>();
 builder.Services.AddScoped<SonarrImportService>();
@@ -194,7 +194,7 @@ builder.Services.AddSingleton<SonarrFollowWakeups>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<SonarrFollowWakeups>());
 builder.Services.AddScoped<IScheduledJob, SonarrFollowJob>();
 
-// Media servers (M8): Plex, Jellyfin and Emby hear about changed folders from the outbox.
+// Media servers: Plex, Jellyfin and Emby hear about changed folders from the outbox.
 builder.Services.AddBigarrMediaServers(builder.Configuration);
 builder.Services.AddScoped<MediaServerService>();
 

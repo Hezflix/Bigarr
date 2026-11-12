@@ -156,7 +156,7 @@ public static class MoviesEndpoints
         return MovieMapper.ToVersion(version, active.Contains(versionId), movies.Today, assessments.GetValueOrDefault(versionId));
     }
 
-    /// <summary>Custom formats and cutoff of every file of the film, judged now against the version's profile (§3.6).</summary>
+    /// <summary>Custom formats and cutoff of every file of the film, judged now against the version's profile.</summary>
     private static async Task<Dictionary<int, FileAssessment>> AssessFilesAsync(Movie movie, CustomFormatScorer scorer, CancellationToken ct)
     {
         var result = new Dictionary<int, FileAssessment>();

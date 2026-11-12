@@ -18,7 +18,7 @@ public sealed class GrabTargetConfiguration : IEntityTypeConfiguration<GrabTarge
 
         builder.HasIndex(t => t.TargetId, "IX_GrabTargets_TargetId");
 
-        // Never two active downloads for the same target (blueprint §3.5).
+        // Never two active downloads for the same target.
         builder.HasIndex(t => t.TargetId, "IX_GrabTargets_TargetId_Active")
             .IsUnique()
             .HasFilter("\"Active\" = 1");

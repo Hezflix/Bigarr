@@ -7,7 +7,7 @@ using Bigarr.Parsing.Languages;
 
 namespace Bigarr.Api.Features.Compat.Radarr;
 
-/// <summary>Translates one compat line (a version and its film, §7.5) to Radarr's movie resource. Pure: everything comes in as arguments.</summary>
+/// <summary>Translates one compat line (a version and its film) to Radarr's movie resource. Pure: everything comes in as arguments.</summary>
 public static class RadarrMapper
 {
     public static RadarrMovie ToMovie(CompatRow row, DateOnly today, FileAssessment? assessment)
@@ -63,7 +63,7 @@ public static class RadarrMapper
         };
     }
 
-    /// <summary>A lookup hit that is not in the view: Radarr's shape with <c>id</c> 0, which is what tells Seerr to POST (§7.2).</summary>
+    /// <summary>A lookup hit that is not in the view: Radarr's shape with <c>id</c> 0, which is what tells Seerr to POST.</summary>
     public static RadarrMovie ToLookup(MovieLookupResult found, DateOnly today) => new()
     {
         Id = 0,
@@ -207,7 +207,7 @@ public static class RadarrMapper
 
     public static DateTime? Utc(DateOnly? date) => date is { } d ? d.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc) : null;
 
-    /// <summary>Custom formats and cutoff of every file of the film, judged now against each version's profile (§3.6).</summary>
+    /// <summary>Custom formats and cutoff of every file of the film, judged now against each version's profile.</summary>
     public static async Task<Dictionary<int, FileAssessment>> AssessAsync(IEnumerable<CompatRow> rows, CustomFormatScorer scorer, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(scorer);

@@ -329,7 +329,7 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
 
 /**
  * Season, then the episodes of that season the file holds (several for a multi-episode file). With `ordered`, seasons
- * and numbers are those the series page shows (its order, blueprint §8), TVDB's beside them.
+ * and numbers are those the series page shows (its order), TVDB's beside them.
  */
 export function EpisodePicker({ seriesId, value, proposed, onChange, ordered = false }: { seriesId: number; value: number[]; proposed?: SeriesManualImportFile; onChange: (ids: number[]) => void; ordered?: boolean }) {
   const { t } = useTranslation()

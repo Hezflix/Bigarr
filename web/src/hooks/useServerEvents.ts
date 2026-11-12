@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { eventsUrl } from '@/api/client'
 
-/** The event types the server publishes (blueprint §3.9), listened to by name. */
+/** The event types the server publishes, listened to by name. */
 const eventTypes = [
   'movieAdded',
   'versionAdded',

@@ -2,7 +2,7 @@ using Bigarr.Domain.Common;
 
 namespace Bigarr.Domain.Movies;
 
-/// <summary>Automatic version names (blueprint §3.3): resolution for scanned files, profile slug for the compat layer.</summary>
+/// <summary>Automatic version names: resolution for scanned files, profile slug for the compat layer.</summary>
 public static class VersionNaming
 {
     public const string Fallback = "default";

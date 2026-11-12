@@ -31,7 +31,7 @@ export const useSonarrLabels = (): MappingLabels => {
   return { profile: t('importSonarr.sonarrProfile'), count: t('importSonarr.series'), path: t('importSonarr.sonarrPath') }
 }
 
-/** Moving in from an existing Sonarr (S4): connect, map profiles and series root folders, follow the import. */
+/** Moving in from an existing Sonarr: connect, map profiles and series root folders, follow the import. */
 export function ImportSonarrPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()

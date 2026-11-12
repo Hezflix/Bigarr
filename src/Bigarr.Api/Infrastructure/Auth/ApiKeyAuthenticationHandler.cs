@@ -16,7 +16,7 @@ public sealed class ApiKeyAuthenticationOptions : AuthenticationSchemeOptions
     public const string AccessTokenQueryName = "access_token";
 }
 
-/// <summary>Seerr and Bazarr send the key in the query string, Prowlarr in the header, SignalR clients as <c>access_token</c>: all are accepted (§7.1).</summary>
+/// <summary>Seerr and Bazarr send the key in the query string, Prowlarr in the header, SignalR clients as <c>access_token</c>: all are accepted.</summary>
 public sealed class ApiKeyAuthenticationHandler(
     IOptionsMonitor<ApiKeyAuthenticationOptions> options,
     ILoggerFactory logger,
