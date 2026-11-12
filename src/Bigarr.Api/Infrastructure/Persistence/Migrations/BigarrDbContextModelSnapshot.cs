@@ -3305,6 +3305,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int>("RootFolderId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("SearchedOnAddAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("SeasonFolder")
                         .HasColumnType("INTEGER");
 
@@ -3437,6 +3440,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("RootFolderId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("SearchedOnAddAt")
+                        .HasColumnType("TEXT");
 
                     b.HasIndex("QualityProfileId");
 

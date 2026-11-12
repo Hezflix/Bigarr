@@ -19,4 +19,13 @@ public sealed class SonarrFollowMemory
     public void Remember(int followedSonarrId, Entry entry) => _entries[followedSonarrId] = entry;
 
     public void Forget(int followedSonarrId) => _entries.TryRemove(followedSonarrId, out _);
+
+    /// <summary>The series list is to be read whole again; when the episodes of every series were last read is kept.</summary>
+    public void ForgetList(int followedSonarrId)
+    {
+        if (_entries.TryGetValue(followedSonarrId, out var entry))
+        {
+            _entries[followedSonarrId] = entry with { ListReadAt = DateTime.MinValue };
+        }
+    }
 }

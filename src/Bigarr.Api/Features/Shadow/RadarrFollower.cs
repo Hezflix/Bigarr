@@ -63,6 +63,9 @@ public sealed class RadarrFollower(
     /// <summary>A Radarr list importing hundreds of films at once must not turn into hundreds of searches on the trackers.</summary>
     public const int SearchesOnAddPerPass = 25;
 
+    /// <summary>A pick Radarr could not be asked about is shown to it again at every pass for this long, then keeps its error.</summary>
+    public static readonly TimeSpan ViewRetryWindow = TimeSpan.FromHours(24);
+
     /// <summary>Bigarr's newest picks shown to Radarr's <c>/parse</c> per pass.</summary>
     public const int PicksShownPerPass = 50;
 
@@ -204,20 +207,25 @@ public sealed class RadarrFollower(
     }
 
     /// <summary>
-    /// TMDB ids of the films Radarr was given since the follow started (its <c>added</c> date, a few minutes of margin) that
-    /// Bigarr does not have yet as this version: those get Bigarr's search on add. Never a back catalogue.
+    /// TMDB ids of the films Radarr was given since the follow started (its <c>added</c> date against the follow's own
+    /// creation, a few minutes of margin) that Bigarr has not searched yet for this version: those get Bigarr's search on
+    /// add. Never a back catalogue. "Not searched yet" is read from the version itself, not from which pass added the
+    /// film, so a pass that failed after adding it, or the per-pass bound, only postpones the search.
     /// </summary>
     private async Task<List<int>> AddedSinceFollowingAsync(FollowedRadarr follow, List<RadarrMovie> movies, CancellationToken ct)
     {
-        var since = follow.HistoryCheckpoint - Overlap;
+        var since = follow.CreatedAt - Overlap;
         var recent = movies.Where(m => m.TmdbId > 0 && m.Monitored && m.Added is { } added && Utc(added) >= since).Select(m => m.TmdbId).Distinct().ToList();
         if (recent.Count == 0)
         {
             return [];
         }
 
-        var known = await db.MovieVersions.AsNoTracking().Where(v => v.Name == follow.VersionName && recent.Contains(v.Movie.TmdbId)).Select(v => v.Movie.TmdbId).ToListAsync(ct);
-        return recent.Except(known).ToList();
+        var settled = await db.MovieVersions.AsNoTracking()
+            .Where(v => v.Name == follow.VersionName && recent.Contains(v.Movie.TmdbId) && v.SearchedOnAddAt != null)
+            .Select(v => v.Movie.TmdbId)
+            .ToListAsync(ct);
+        return recent.Except(settled).ToList();
     }
 
     /// <summary>
@@ -241,8 +249,11 @@ public sealed class RadarrFollower(
             logger.LogWarning("Following {Name}: {Count} films added to Radarr, Bigarr searches the first {Bound}", follow.Name, versionIds.Count, SearchesOnAddPerPass);
         }
 
-        var results = await search.SearchAsync(versionIds.Take(SearchesOnAddPerPass).ToList(), SearchTrigger.Added, ct);
+        var searched = versionIds.Take(SearchesOnAddPerPass).ToList();
+        var results = await search.SearchAsync(searched, SearchTrigger.Added, ct);
         db.ChangeTracker.Clear();
+        var now = time.GetUtcNow().UtcDateTime;
+        await db.MovieVersions.Where(v => searched.Contains(v.Id)).ExecuteUpdateAsync(s => s.SetProperty(v => v.SearchedOnAddAt, now), ct);
         return results.Count;
     }
 
@@ -452,6 +463,11 @@ public sealed class RadarrFollower(
             catch (RadarrUnavailableException ex)
             {
                 pick.RadarrView = new RadarrView(null, null, [], 0, film?.Monitored, file?.Quality?.Quality?.Name, file?.CustomFormatScore, ex.Message);
+                if (now - pick.PickedAt < ViewRetryWindow)
+                {
+                    // Radarr could not be asked: the error shows meanwhile, and the next passes ask again.
+                    continue;
+                }
             }
 
             pick.RadarrViewAt = now;

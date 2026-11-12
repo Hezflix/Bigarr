@@ -73,6 +73,9 @@ public sealed class SonarrFollower(
     /// <summary>A Sonarr list importing hundreds of shows at once must not turn into hundreds of searches on the trackers.</summary>
     public const int SearchesOnAddPerPass = 25;
 
+    /// <summary>A pick Sonarr could not be asked about is shown to it again at every pass for this long, then keeps its error.</summary>
+    public static readonly TimeSpan ViewRetryWindow = TimeSpan.FromHours(24);
+
     /// <summary>Bigarr's newest series picks shown to Sonarr's <c>/parse</c> per pass.</summary>
     public const int PicksShownPerPass = 50;
 
@@ -108,8 +111,9 @@ public sealed class SonarrFollower(
             catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
                 db.ChangeTracker.Clear();
-                // A pass that failed may have missed a series: the next one reads the whole list.
-                memory.Forget(id);
+                // A pass that failed may have missed a series: the next one reads the whole list. The day's clock of the
+                // every-series read is kept, or a Sonarr that fails one pass a day would never get that read.
+                memory.ForgetList(id);
                 var now = time.GetUtcNow().UtcDateTime;
                 var message = ex is SonarrUnavailableException ? ex.Message : $"The pass failed: {ex.Message}";
                 if (ex is not SonarrUnavailableException)
@@ -232,20 +236,25 @@ public sealed class SonarrFollower(
     }
 
     /// <summary>
-    /// TVDB ids of the series Sonarr was given since the follow started (its <c>added</c> date, a few minutes of margin)
-    /// that Bigarr does not have yet as this version: those get Bigarr's search on add. Never a back catalogue.
+    /// TVDB ids of the series Sonarr was given since the follow started (its <c>added</c> date against the follow's own
+    /// creation, a few minutes of margin) that Bigarr has not searched yet for this version: those get Bigarr's search on
+    /// add. Never a back catalogue. "Not searched yet" is read from the version itself, not from which pass added the
+    /// show, so a pass that failed after adding it, or the per-pass bound, only postpones the search.
     /// </summary>
     private async Task<List<int>> AddedSinceFollowingAsync(FollowedSonarr follow, List<SonarrSeries> series, CancellationToken ct)
     {
-        var since = follow.HistoryCheckpoint - Overlap;
+        var since = follow.CreatedAt - Overlap;
         var recent = series.Where(s => s.TvdbId > 0 && s.Monitored && s.Added is { } added && Utc(added) >= since).Select(s => s.TvdbId).Distinct().ToList();
         if (recent.Count == 0)
         {
             return [];
         }
 
-        var known = await db.SeriesVersions.AsNoTracking().Where(v => v.Name == follow.VersionName && v.Series.TvdbId != null && recent.Contains(v.Series.TvdbId.Value)).Select(v => v.Series.TvdbId!.Value).ToListAsync(ct);
-        return recent.Except(known).ToList();
+        var settled = await db.SeriesVersions.AsNoTracking()
+            .Where(v => v.Name == follow.VersionName && v.Series.TvdbId != null && recent.Contains(v.Series.TvdbId.Value) && v.SearchedOnAddAt != null)
+            .Select(v => v.Series.TvdbId!.Value)
+            .ToListAsync(ct);
+        return recent.Except(settled).ToList();
     }
 
     /// <summary>
@@ -270,8 +279,11 @@ public sealed class SonarrFollower(
             logger.LogWarning("Following {Name}: {Count} series added to Sonarr, Bigarr searches the first {Bound}", follow.Name, versionIds.Count, SearchesOnAddPerPass);
         }
 
-        var results = await search.SearchAsync(versionIds.Take(SearchesOnAddPerPass).ToList(), SearchTrigger.Added, ct);
+        var searched = versionIds.Take(SearchesOnAddPerPass).ToList();
+        var results = await search.SearchAsync(searched, SearchTrigger.Added, ct);
         db.ChangeTracker.Clear();
+        var now = time.GetUtcNow().UtcDateTime;
+        await db.SeriesVersions.Where(v => searched.Contains(v.Id)).ExecuteUpdateAsync(s => s.SetProperty(v => v.SearchedOnAddAt, now), ct);
         return results.Count;
     }
 
@@ -560,6 +572,11 @@ public sealed class SonarrFollower(
             catch (SonarrUnavailableException ex)
             {
                 pick.SonarrView = new SonarrView(null, null, null, [], 0, null, null, ex.Message);
+                if (now - pick.PickedAt < ViewRetryWindow)
+                {
+                    // Sonarr could not be asked: the error shows meanwhile, and the next passes ask again.
+                    continue;
+                }
             }
 
             pick.SonarrViewAt = now;
