@@ -341,6 +341,37 @@ public sealed class PlaybackStatsTests : IAsyncLifetime, IDisposable
     }
 
     [Fact]
+    public async Task Plex_history_leaves_a_viewing_whose_stream_is_still_open_to_the_live_tracking()
+    {
+        // bob passed the watched mark seven hours ago and the stream is still open (paused on the credits).
+        await using (var db = _database.CreateContext())
+        {
+            var bob = await db.MediaServerUsers.SingleAsync(u => u.MediaServerId == _server.Id && u.ExternalId == "2");
+            var film = await db.MediaServerItems.SingleAsync(i => i.MediaServerId == _server.Id && i.RatingKey == "100");
+            db.PlaybackSessions.Add(new PlaybackSession
+            {
+                MediaServerId = _server.Id,
+                SessionKey = "77",
+                RatingKey = "100",
+                User = bob,
+                Item = film,
+                State = PlaybackState.Paused,
+                StartedAt = Now.AddHours(-9),
+                LastSeenAt = Now,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        _plex.History.Add(new FakePlex.Viewed("100", "2", Now.AddHours(-7)));
+
+        // The mark is settled and no play covers it yet, but the open stream will: nothing is added.
+        var pass = await BackstopAsync();
+        Assert.Equal(0, pass.Added);
+        await using var read = _database.CreateContext();
+        Assert.False(await read.Plays.AnyAsync(p => p.Source == PlaySource.ServerHistory && p.StoppedAt == Now.AddHours(-7)));
+    }
+
+    [Fact]
     public async Task Plex_history_waits_for_a_first_live_play_and_reports_a_server_that_fails()
     {
         await using (var db = _database.CreateContext())
