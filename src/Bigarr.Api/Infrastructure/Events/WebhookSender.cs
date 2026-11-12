@@ -108,11 +108,30 @@ public sealed class WebhookSender(IServiceScopeFactory scopeFactory, WebhookSign
         foreach (var delivery in due)
         {
             ct.ThrowIfCancellationRequested();
+            await AttemptAsync(delivery);
+
+            // Each outcome is written as soon as it is known, and whatever the shutdown says: a delivery the receiver
+            // accepted must never be sent again because a later one in the batch was interrupted or lost its endpoint.
+            try
+            {
+                await db.SaveChangesAsync(CancellationToken.None);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // The endpoint was deleted while its delivery was on the wire; the row went with it.
+                db.Entry(delivery).State = EntityState.Detached;
+            }
+        }
+
+        return due.Count;
+
+        async Task AttemptAsync(WebhookDelivery delivery)
+        {
             if (rateLimited.TryGetValue(delivery.EndpointId, out var until))
             {
                 // The endpoint asked to wait: sending the rest now would only be refused again.
                 delivery.NextAttemptAt = until;
-                continue;
+                return;
             }
 
             var attemptAt = time.GetUtcNow().UtcDateTime;
@@ -123,7 +142,7 @@ public sealed class WebhookSender(IServiceScopeFactory scopeFactory, WebhookSign
             {
                 delivery.NextAttemptAt = null;
                 delivery.LastError = "Endpoint is disabled.";
-                continue;
+                return;
             }
 
             var body = delivery.Endpoint.Format switch
@@ -143,7 +162,7 @@ public sealed class WebhookSender(IServiceScopeFactory scopeFactory, WebhookSign
                     WebhookFormat.Sonarr => "Sonarr's webhook format has nothing for this event.",
                     _ => "Radarr's webhook format has nothing for this event.",
                 };
-                continue;
+                return;
             }
 
             var result = await client.SendAsync(delivery.Endpoint, delivery.EventType, body, delivery.Id.ToString(), ct);
@@ -154,7 +173,7 @@ public sealed class WebhookSender(IServiceScopeFactory scopeFactory, WebhookSign
                 delivery.NextAttemptAt = null;
                 delivery.LastError = null;
                 logger.LogDebug("Webhook {Endpoint} accepted {EventType} #{EventId} in {Elapsed} ms", delivery.Endpoint.Name, delivery.EventType, delivery.EventId, (int)result.Elapsed.TotalMilliseconds);
-                continue;
+                return;
             }
 
             delivery.LastError = result.Error;
@@ -167,7 +186,7 @@ public sealed class WebhookSender(IServiceScopeFactory scopeFactory, WebhookSign
                 rateLimited[delivery.EndpointId] = delivery.NextAttemptAt.Value;
                 _rateLimitedUntil = _rateLimitedUntil is { } earliest && earliest < delivery.NextAttemptAt ? earliest : delivery.NextAttemptAt;
                 logger.LogInformation("Webhook {Endpoint} is rate limited on {EventType} #{EventId}: {Error}. Next try at {Next:u}", delivery.Endpoint.Name, delivery.EventType, delivery.EventId, result.Error, delivery.NextAttemptAt);
-                continue;
+                return;
             }
 
             if (delivery.Attempts >= Math.Max(1, settings.MaxAttempts))
@@ -181,12 +200,5 @@ public sealed class WebhookSender(IServiceScopeFactory scopeFactory, WebhookSign
                 logger.LogWarning("Webhook {Endpoint} failed on {EventType} #{EventId} (attempt {Attempts}): {Error}. Next try at {Next:u}", delivery.Endpoint.Name, delivery.EventType, delivery.EventId, delivery.Attempts, result.Error, delivery.NextAttemptAt);
             }
         }
-
-        if (due.Count > 0)
-        {
-            await db.SaveChangesAsync(ct);
-        }
-
-        return due.Count;
     }
 }
