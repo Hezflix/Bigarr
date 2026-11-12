@@ -76,23 +76,31 @@ public sealed class SeriesRenameService(BigarrDbContext db, MediaManagementServi
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        using var turn = await SeriesFileGate.EnterAsync(request.SeriesId, ct);
         var series = await LoadAsync(request.SeriesId, tracking: true, ct);
         if (series is null)
         {
             return Failure.NotFound("Series");
         }
 
+        // Every target is worked out before the first move: from there on nothing waits on the request any more, so a
+        // caller that went away cannot leave files renamed on disk and the old names in the database.
         var config = await settings.GetAsync(ct);
-        var results = new List<SeriesRenameResultResponse>();
-        var now = time.GetUtcNow().UtcDateTime;
+        var planned = new List<(SeriesVersion Version, EpisodeFile File, string Target)>();
         foreach (var (version, file) in Files(series, request.VersionId, request.SeasonNumber, request.EpisodeFileIds?.ToHashSet()))
         {
-            var target = await TargetPathAsync(config, series, version, file, ct);
+            planned.Add((version, file, await TargetPathAsync(config, series, version, file, ct)));
+        }
+
+        var results = new List<SeriesRenameResultResponse>();
+        var now = time.GetUtcNow().UtcDateTime;
+        foreach (var (version, file, target) in planned)
+        {
             results.Add(Move(series, version, file, target, now));
         }
 
         PublishRenamed();
-        await db.SaveChangesAsync(ct);
+        await db.SaveChangesAsync(CancellationToken.None);
         foreach (var version in series.Versions)
         {
             RemoveEmptySeasonFolders(Folder(version));

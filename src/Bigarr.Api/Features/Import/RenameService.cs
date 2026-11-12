@@ -51,11 +51,19 @@ public sealed class RenameService(BigarrDbContext db, MediaManagementService set
         var config = await settings.GetAsync(ct);
         var wanted = request.MediaFileIds?.ToHashSet();
         var results = new List<RenameResultResponse>();
-        var now = time.GetUtcNow().UtcDateTime;
+
+        // Every target is worked out before the first move: from there on nothing waits on the request any more, so a
+        // caller that went away cannot leave files renamed on disk and the old names in the database.
+        var planned = new List<(MovieVersion Version, string Target)>();
         foreach (var version in movie.Versions.Where(v => v.File is not null && (wanted is null || wanted.Contains(v.File.Id))))
         {
+            planned.Add((version, await TargetNameAsync(movie, version, config.FileNameTemplate, ct, config.FilmNameCleaning)));
+        }
+
+        var now = time.GetUtcNow().UtcDateTime;
+        foreach (var (version, target) in planned)
+        {
             var file = version.File!;
-            var target = await TargetNameAsync(movie, version, config.FileNameTemplate, ct, config.FilmNameCleaning);
             if (string.Equals(target, file.RelativePath, StringComparison.Ordinal))
             {
                 results.Add(new RenameResultResponse(file.Id, file.RelativePath, false, null));
@@ -117,7 +125,7 @@ public sealed class RenameService(BigarrDbContext db, MediaManagementService set
             logger.LogInformation("Renamed {From} → {To}", previous, target);
         }
 
-        await db.SaveChangesAsync(ct);
+        await db.SaveChangesAsync(CancellationToken.None);
         return Result<List<RenameResultResponse>>.Ok(results);
     }
 

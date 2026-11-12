@@ -86,6 +86,7 @@ public sealed class SeriesOrderService(
     public async Task<Result<OrderApplyResponse>> ApplyAsync(int seriesId, OrderChoiceRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
+        using var turn = await SeriesFileGate.EnterAsync(seriesId, ct);
         var series = await LoadAsync(seriesId, tracking: true, ct);
         if (series is null)
         {
@@ -142,7 +143,10 @@ public sealed class SeriesOrderService(
         change.UnmatchedFiles += plan.Preview.FilesUnmatched + plan.Preview.FilesConflicting;
         db.SeriesOrderChanges.Add(change);
         renamer.PublishRenamed();
-        await db.SaveChangesAsync(ct);
+
+        // The files have moved: the new paths and the journal that can undo them are written whatever the request says
+        // by now. A caller that went away must not leave the disk renamed and the database on the old names.
+        await db.SaveChangesAsync(CancellationToken.None);
         foreach (var version in series.Versions)
         {
             SeriesRenameService.RemoveEmptySeasonFolders(SeriesRenameService.Folder(version));
@@ -157,6 +161,7 @@ public sealed class SeriesOrderService(
     /// <summary>Puts back the order, the numbers and every file the latest change moved (when it is still where the change put it).</summary>
     public async Task<Result<OrderUndoResponse>> UndoAsync(int seriesId, CancellationToken ct)
     {
+        using var turn = await SeriesFileGate.EnterAsync(seriesId, ct);
         var change = await db.SeriesOrderChanges.Where(c => c.SeriesId == seriesId).OrderByDescending(c => c.Id).FirstOrDefaultAsync(ct);
         if (change is null || change.UndoneAt is not null)
         {
@@ -242,7 +247,9 @@ public sealed class SeriesOrderService(
         series.OrderOnlyEpisodes = [.. change.PreviousOrderOnly];
         change.UndoneAt = now;
         renamer.PublishRenamed();
-        await db.SaveChangesAsync(ct);
+
+        // As for the apply: the files are back, the rows follow whatever the request says by now.
+        await db.SaveChangesAsync(CancellationToken.None);
         foreach (var version in series.Versions)
         {
             SeriesRenameService.RemoveEmptySeasonFolders(SeriesRenameService.Folder(version));
