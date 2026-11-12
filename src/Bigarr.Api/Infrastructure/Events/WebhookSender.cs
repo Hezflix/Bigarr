@@ -135,6 +135,12 @@ public sealed class WebhookSender(IServiceScopeFactory scopeFactory, WebhookSign
             }
 
             var attemptAt = time.GetUtcNow().UtcDateTime;
+            if (signal.TakeRetry(delivery.Id))
+            {
+                // Retried by hand since the batch was loaded: the counter this copy holds is the one before the retry.
+                delivery.Attempts = 0;
+            }
+
             delivery.Attempts++;
             delivery.LastAttemptAt = attemptAt;
 
@@ -177,6 +183,16 @@ public sealed class WebhookSender(IServiceScopeFactory scopeFactory, WebhookSign
             }
 
             delivery.LastError = result.Error;
+            if (signal.TakeRetry(delivery.Id))
+            {
+                // Retried by hand while this attempt was on the wire: the failure just seen is the one the user is
+                // retrying past, so the delivery is due again now, counter at zero, instead of waiting or giving up.
+                delivery.Attempts = 0;
+                delivery.NextAttemptAt = attemptAt;
+                logger.LogInformation("Webhook {Endpoint} failed on {EventType} #{EventId} while a retry was asked: sending again", delivery.Endpoint.Name, delivery.EventType, delivery.EventId);
+                return;
+            }
+
             if (result.RetryAfter is { } wait)
             {
                 // Rate limited: the attempt is given back, the delay is the receiver's, never longer than the escalation's longest.

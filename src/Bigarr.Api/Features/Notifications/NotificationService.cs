@@ -191,6 +191,7 @@ public sealed class NotificationService(
 
         delivery.Attempts = 0;
         delivery.NextAttemptAt = time.GetUtcNow().UtcDateTime;
+        signal.RetryRequested(delivery.Id); // for a sender that already holds this delivery
         await db.SaveChangesAsync(ct);
         signal.Notify();
         return Result<WebhookDeliveryResponse>.Ok(ToResponse(delivery));
