@@ -131,6 +131,8 @@ builder.Services.AddScoped<SeriesRenameService>();
 builder.Services.AddScoped<MediaMaintenance>();
 builder.Services.AddSingleton<ImportQueue>();
 builder.Services.AddHostedService<ImportRunner>();
+builder.Services.AddScoped<InterruptedImports>();
+builder.Services.AddScoped<IStartupTask>(sp => sp.GetRequiredService<InterruptedImports>());
 
 // The scheduler: jobs are scoped, resolved per run; the table remembers the cadence across restarts.
 builder.Services.Configure<SchedulerOptions>(builder.Configuration.GetSection(SchedulerOptions.Section));
