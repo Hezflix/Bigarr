@@ -4,11 +4,13 @@ using Bigarr.Api.Features.Import;
 using Bigarr.Api.Features.Movies;
 using Bigarr.Api.Infrastructure.Downloads.Mock;
 using Bigarr.Api.Infrastructure.Media;
+using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Tests.Auth;
 using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.History;
 using Bigarr.Domain.Library;
 using Bigarr.Domain.Movies;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -131,6 +133,56 @@ public sealed class ImportFlowTests(BigarrApiFactory factory) : IClassFixture<Bi
 
             // A retry only makes sense for a failed import.
             Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsync($"/api/v1/queue/{grab3.GrabId}/import", null)).StatusCode);
+        }
+        finally
+        {
+            await client.DeleteAsync($"/api/v1/downloadclients/{downloadClient.Id}");
+            await client.DeleteAsync($"/api/v1/indexers/{indexer.Id}");
+            await client.DeleteAsync($"/api/v1/movies/{movie.Id}");
+        }
+    }
+
+    [Fact]
+    public async Task An_import_interrupted_by_a_shutdown_is_picked_up_again_at_startup()
+    {
+        var client = await ClientAsync(factory);
+        var (hd, _) = await ProfilesAsync(client);
+        var root = await AddRootAsync(client, Path.Combine(_root, "interrupted"));
+        await ConfigureAsync(client, _bin);
+
+        var movie = await AddMovieAsync(client, 335984, hd, root.Id); // Blade Runner 2049
+        var version = movie.Versions.Single();
+        var indexer = await AddMockIndexerAsync(client, "Mock interrupted idx");
+        var downloadClient = await AddMockClientAsync(client, "Mock interrupted qbt");
+        try
+        {
+            var release = (await SearchAsync(client, movie.Id)).Releases.First(r => r.Title.Contains("1080p.WEB-DL", StringComparison.Ordinal));
+            var grab = await GrabAsync(client, release, version.Id);
+            await RefreshAsync(client);
+            await CompleteAsync(client, grab.DownloadId!);
+
+            // The process died while the worker held the grab: the row says importing and nobody is working on it.
+            using (var scope = factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+                Assert.Equal(1, await db.Grabs.Where(g => g.Id == grab.GrabId).ExecuteUpdateAsync(s => s.SetProperty(g => g.State, GrabState.Importing)));
+            }
+
+            // Polling alone never leaves that state, and the retry action refuses it.
+            Assert.Equal(GrabState.Importing, (await RefreshAsync(client)).Items.Single(i => i.GrabId == grab.GrabId).State);
+            Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsync($"/api/v1/queue/{grab.GrabId}/import", null)).StatusCode);
+
+            // What every start does before any worker runs.
+            using (var scope = factory.Services.CreateScope())
+            {
+                await scope.ServiceProvider.GetRequiredService<InterruptedImports>().RunAsync(CancellationToken.None);
+            }
+
+            await RefreshAsync(client);
+            var imported = await WaitForFileAsync(client, movie.Id, version.Id);
+            Assert.Equal(VersionStatus.Available, imported.Status);
+            await WaitOffQueueAsync(client, grab.GrabId!.Value);
+            Assert.Single(await HistoryAsync(client, movie.Id, HistoryEventType.Imported));
         }
         finally
         {
