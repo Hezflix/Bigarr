@@ -1,31 +1,20 @@
-using System.Collections.Concurrent;
-
 namespace Bigarr.Api.Features.Shadow;
 
 /// <summary>
-/// What the follow remembers of each Sonarr between two passes, in memory only: when it last read the whole series list and
-/// how many series each profile held then, and when it last read the episodes of every series (a day's
-/// cadence; a restart starts a new day rather than read thousands of series at once). After a restart, or a pass that
-/// failed, nothing is remembered and the next pass reads the whole series list, so nothing is missed.
+/// What the follow remembers of each Sonarr between two passes (see <see cref="FollowMemory{TEntry}"/>): when it last read
+/// the whole series list and how many series each profile held then, and when it last read the episodes of every series
+/// (a day's cadence; a restart starts a new day rather than read thousands of series at once).
 /// </summary>
-public sealed class SonarrFollowMemory
+public sealed class SonarrFollowMemory : FollowMemory<SonarrFollowMemory.Entry>
 {
     public sealed record Entry(DateTime ListReadAt, Dictionary<int, int> SeriesPerProfile, DateTime EverySeriesReadAt);
-
-    private readonly ConcurrentDictionary<int, Entry> _entries = new();
-
-    public Entry? Get(int followedSonarrId) => _entries.GetValueOrDefault(followedSonarrId);
-
-    public void Remember(int followedSonarrId, Entry entry) => _entries[followedSonarrId] = entry;
-
-    public void Forget(int followedSonarrId) => _entries.TryRemove(followedSonarrId, out _);
 
     /// <summary>The series list is to be read whole again; when the episodes of every series were last read is kept.</summary>
     public void ForgetList(int followedSonarrId)
     {
-        if (_entries.TryGetValue(followedSonarrId, out var entry))
+        if (Get(followedSonarrId) is { } entry)
         {
-            _entries[followedSonarrId] = entry with { ListReadAt = DateTime.MinValue };
+            Remember(followedSonarrId, entry with { ListReadAt = DateTime.MinValue });
         }
     }
 }

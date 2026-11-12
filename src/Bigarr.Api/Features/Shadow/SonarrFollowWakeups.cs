@@ -1,60 +1,19 @@
-using System.Threading.Channels;
 using Bigarr.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bigarr.Api.Features.Shadow;
 
-/// <summary>
-/// Passes asked by Sonarr's webhook, run in the background so Sonarr gets its answer at once. Sonarr sends events in
-/// bursts (a series added, then grabbed seconds later by its search on add): one pass per Sonarr and burst, a few seconds
-/// after the first event. The event wakes the pass; Sonarr's history stays what is read, except for a series added or deleted,
-/// which history does not carry: that event asks the pass to read the whole series list. A webhook that never arrives costs
-/// nothing but time: the scheduled pass catches up.
-/// </summary>
-public sealed class SonarrFollowWakeups(IServiceScopeFactory scopes, ILogger<SonarrFollowWakeups> logger) : BackgroundService
+/// <summary>Passes asked by Sonarr's webhook (see <see cref="FollowWakeups"/>).</summary>
+public sealed class SonarrFollowWakeups(IServiceScopeFactory scopes, ILogger<SonarrFollowWakeups> logger) : FollowWakeups(scopes, logger)
 {
-    /// <summary>How long a burst of Sonarr events is gathered before the pass.</summary>
-    public static readonly TimeSpan Debounce = TimeSpan.FromSeconds(5);
+    protected override string Source => "Sonarr";
 
-    private readonly Channel<(int Id, bool FullList)> _queue = Channel.CreateUnbounded<(int, bool)>();
+    protected override Task<bool> IsEnabledAsync(BigarrDbContext db, int id, CancellationToken ct) =>
+        db.FollowedSonarrs.AnyAsync(f => f.Id == id && f.Enabled, ct);
 
-    public void Wake(int followedSonarrId, bool fullList = false) => _queue.Writer.TryWrite((followedSonarrId, fullList));
-
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override async Task<(string Name, string Summary)> PassAsync(IServiceProvider services, int id, bool fullList, CancellationToken ct)
     {
-        await foreach (var first in _queue.Reader.ReadAllAsync(stoppingToken))
-        {
-            await Task.Delay(Debounce, stoppingToken);
-
-            var ids = new SortedDictionary<int, bool> { [first.Id] = first.FullList };
-            while (_queue.Reader.TryRead(out var next))
-            {
-                ids[next.Id] = next.FullList || ids.GetValueOrDefault(next.Id);
-            }
-
-            foreach (var (id, fullList) in ids)
-            {
-                try
-                {
-                    await using var scope = scopes.CreateAsyncScope();
-                    var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
-                    if (!await db.FollowedSonarrs.AnyAsync(f => f.Id == id && f.Enabled, stoppingToken))
-                    {
-                        continue;
-                    }
-
-                    var pass = await scope.ServiceProvider.GetRequiredService<SonarrFollower>().SyncAsync(id, stoppingToken, fullList);
-                    logger.LogDebug("Webhook pass over {Name}: {Summary}", pass.Name, pass.Summary);
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "The pass asked by Sonarr's webhook for followed Sonarr {Id} failed", id);
-                }
-            }
-        }
+        var pass = await services.GetRequiredService<SonarrFollower>().SyncAsync(id, ct, fullList);
+        return (pass.Name, pass.Summary);
     }
 }
