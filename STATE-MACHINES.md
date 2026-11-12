@@ -93,8 +93,8 @@ Invariants:
 3. At most one active grab per target (unique index; `GrabService` removes the torrent again when the index refuses).
 4. `Importing` is held only while the import worker is on that grab. Guarded since [F2](#f2-a-grab-interrupted-mid-import-stayed-importing-for-ever).
 5. An `ImportPending` grab whose download is complete is queued at every poll until it leaves that state.
-6. Failed handling commits state, blocklist, history and event together; the replacement search is queued only after
-   that commit.
+6. Failed handling commits state, blocklist, history and event together; the torrent leaves its client and the
+   replacement search is queued only after that commit ([F21](#f21-failed-handling-removed-the-torrent-before-its-own-save)).
 
 A failed grab whose torrent has left the client stays `ImportFailed` or `DownloadFailed` in the table and is simply no
 longer shown (`QueuePoller.cs:173-177`). That is by design.
@@ -161,7 +161,7 @@ and `NextAttemptAt` is null, `Pending` otherwise.
 | `Pending` | `Pending`, attempts + 1, later | failure below `MaxAttempts` | `WebhookSender` |
 | `Pending` | `Pending`, attempt given back | 429; the endpoint's other due deliveries wait too | `WebhookSender` |
 | `Pending` | `GivenUp` | attempts reach `MaxAttempts`, endpoint disabled, or the endpoint's format has nothing for the event | `WebhookSender` |
-| `Pending`, `GivenUp` | `Pending`, attempts 0, due now | user retries | `NotificationService.RetryAsync` |
+| `Pending`, `GivenUp` | `Pending`, attempts 0, due now | user retries; a sender holding the delivery is told through `WebhookSignal` and applies the retry to its own copy | `NotificationService.RetryAsync` |
 | `Pending` (waiting) | `Pending` (due now) | process start | `WebhookSender.ReplayPendingAsync` |
 
 Invariants: `NextAttemptAt` is null once delivered or given up; a delivery the receiver accepted is never sent again
@@ -178,8 +178,10 @@ a deleted or disabled server drops its work. Pending retries are lost on restart
 
 ### Compat command
 
-`CompatCommandLog`, in memory: a command is recorded once as `queued` or `completed` and never changes. See
-[O12](#o12-smaller-confirmed-items).
+`CompatCommandLog`, in memory: a command is recorded `completed`, or `queued` with a probe that tells when its
+background work is over (none of the versions it queued is still waiting or being searched; the RSS task returned).
+Reading the command asks the probe, so `queued` becomes `completed` the first time it is read after that
+([F19](#f19-compat-commands-stayed-queued-for-ever)).
 
 ## Background runners
 
@@ -192,9 +194,9 @@ in the `ScheduledJobs` row (`TaskRunner`).
 |---|---|---|---|
 | idle | running | due time, or manual run | try-lock; a running job answers 409 |
 | running | idle, outcome recorded | job returned or threw | |
-| running | idle, **nothing recorded** | the caller's token was cancelled | see [O6](#o6-a-manual-task-run-is-cut-by-the-callers-disconnect) |
 
-Invariants: one run per job at a time; a failure is an outcome, not an exception.
+Invariants: one run per job at a time; a failure is an outcome, not an exception; a run started by hand belongs to
+the app, not to its request, and only a shutdown cancels it ([F12](#f12-a-manual-task-run-was-cut-by-the-callers-disconnect)).
 
 ### Health
 
@@ -223,6 +225,9 @@ Explicit, in memory: `ScanState` and `RadarrImportState`, both `Idle`, `Queued`,
 | `Running` | `Completed` | done | |
 | `Running` | `Failed` | exception or cancellation | every exit path sets a terminal state |
 
+The Tautulli runner has one more state, "uploading", taken under the same lock as the enqueue: no import starts while
+a file is being uploaded and no upload while an import is queued or running ([F11](#f11-tautulli-upload-replaced-or-deleted-by-a-running-import)).
+
 Invariants: one scan at a time; one import per kind; nothing is stuck across a restart because nothing is stored. A
 scan key can sit in the channel more than once (every request while `Queued` writes it again); the worker drops the
 extras through the state check, so the invariant is "one progress per root folder", not "one channel entry".
@@ -247,7 +252,7 @@ derived from the row.
 | import | file transferred, then row (one transaction) | file in the library without a row; the retry finds "destination already exists" |
 | rename, order switch, undo | files moved, then one save | guarded since [F5](#f5-a-rename-or-order-switch-whose-caller-went-away-left-disk-and-database-apart) |
 | delete a version with its files | checks, then file, then row | guarded since [F1](#f1-deleting-the-default-version-with-its-files-destroyed-the-file-then-refused) |
-| delete a series with its files | folders, then rows | [O9](#o9-deleting-a-series-with-its-files-is-disk-first) |
+| delete a series or a version with its files | folders, then rows, the rows whatever becomes of the request | guarded since [F15](#f15-a-series-delete-whose-caller-went-away-left-the-series-with-no-files) |
 
 Invariants the code assumes: a file row means the file exists; one physical file has one row, also when two versions
 of a show share a folder ([F8](#f8-two-versions-of-a-show-sharing-a-folder-claimed-each-others-files)); no scan ever
@@ -255,8 +260,10 @@ drops a row whose file is missing, so a broken pair does not heal on its own.
 
 ### File transfer
 
-`FileTransfer`: source, then `<destination>.bigarr-partial`, then destination. A copy is written under the partial
-name and renamed at the end; a destination is never overwritten. See [O8](#o8-a-move-across-filesystems-bypasses-the-partial-name).
+`FileTransfer`: source, then `<destination>.bigarr-partial`, then destination, for a copy and for a move alike
+([F14](#f14-a-move-across-filesystems-bypassed-the-partial-name)). The final name only ever appears by a rename on its
+own filesystem; a destination is never overwritten. A partial left by a killed transfer is overwritten by the retry to
+the same destination; nothing else sweeps it.
 
 ### Series order and its journal
 
@@ -265,7 +272,7 @@ switch, holding the previous numbers and every file move.
 
 | From | To | Trigger | Guard |
 |---|---|---|---|
-| order A | order B, change journaled, files moved | apply | B differs from A; one writer per show (`SeriesFileGate`) |
+| order A | order B, change journaled, files moved | apply | B differs from A; one writer per show (`SeriesFileGate`, shared with rename, refresh and "add version") |
 | latest change applied | undone (`UndoneAt`), order A, files back | undo | latest change of the show, not undone; a file moved since is left alone |
 
 Invariants: only the latest change can be undone, once; a journaled move is a move that happened; an apply and its
@@ -307,7 +314,8 @@ session and recording its play are one save; every open session belongs to a fol
   while something plays; retries after 2 s (a working stream dropped) or 30 s.
 - Backstop checkpoint `MediaServer.PlayHistoryCheckedUntil`: advances only after a full pass.
 
-See [O10](#o10-playback-a-failed-periodic-reconcile-ends-the-refresh-and-the-backstop-can-double-count).
+A failed tick of the 60 s reconcile is only that tick's loss, and the backstop never adds a play for a viewing whose
+stream is still open ([F16](#f16-a-failed-refresh-tick-ended-the-playback-refresh), [F17](#f17-the-history-backstop-could-count-a-viewing-twice)).
 
 ## Shadow follow
 
@@ -341,8 +349,9 @@ See [F10](#f10-shadow-follow-searches-and-views-were-lost-for-good).
 
 ## Auth and UI
 
-- Session cookie: stateless, 14 days sliding. API key: active, then revoked, checked on every request. `UserRole`
-  never changes. See [O12](#o12-smaller-confirmed-items).
+- Session cookie: stateless, 14 days sliding, carrying a fingerprint of the password it was opened with; valid, then
+  refused once the password changes ([F20](#f20-a-password-change-did-not-end-other-sessions)). API key: active, then
+  revoked, checked on every request. `UserRole` never changes.
 - The web UI holds no state machine of its own: server state lives in the query cache, invalidated by the server's
   event stream (`web/src/hooks/useServerEvents.ts`). The stream is at most once and the cache is not invalidated on
   reconnect, so an event missed while disconnected leaves a page stale until its next refetch. Not audited further.
@@ -357,7 +366,8 @@ Status of each finding:
 
 ### Fixed
 
-F1 to F6 are ordered by impact; F7 to F10 were fixed later, from the open list.
+F1 to F6 are ordered by impact; the others were fixed later, from the open list, and keep the order they were fixed
+in.
 
 #### F1. Deleting the default version with its files destroyed the file, then refused
 
@@ -471,69 +481,102 @@ Tests: `RadarrFollowOnAddTests.A_film_older_than_the_history_already_read_is_sti
 `SonarrFollowTests.Search_on_add_is_capped_per_pass`,
 `SonarrFollowTests.A_failed_pass_forgets_the_series_list_but_not_when_every_series_was_last_read`.
 
+#### F11. Tautulli upload replaced or deleted by a running import
+
+The upload checked "is an import running?" once, before streaming its body. An import started meanwhile ran on the
+previous file; the upload then replaced it under the import, whose end deleted the new upload.
+
+Fix: the runner has an "uploading" state under the lock of the enqueue.
+Test: `TautulliImportTests.While_an_upload_is_streaming_no_import_starts_and_no_second_upload_replaces_it`.
+
+#### F12. A manual task run was cut by the caller's disconnect
+
+"Run now" and the health check passed the request's token into the job: a closed tab cut the job half-way and
+recorded nothing.
+
+Fix: those runs take the app's stopping token.
+Test: `TaskRunDisconnectTests.A_task_run_by_hand_finishes_and_is_recorded_when_its_caller_goes_away`.
+
+#### F13. Webhook retry lost in flight; disabled endpoints reported as failing
+
+- A retry clicked while the delivery was on the wire was overwritten by that attempt's outcome, possibly "given up".
+  Fix: the retry is left for the sender in `WebhookSignal`; a failure seen after it makes the delivery due again.
+  Test: `WebhookTests.A_retry_asked_while_the_delivery_is_on_the_wire_is_not_lost_to_that_attempts_outcome`.
+- A delivery given up because its endpoint was disabled kept a "webhook is failing" health warning.
+  Fix: the health check only looks at enabled endpoints.
+  Test: `WebhookTests.A_disabled_endpoint_is_not_reported_as_failing_for_what_it_left_undelivered`.
+
+#### F14. A move across filesystems bypassed the partial name
+
+In move mode the runtime copied straight to the final name when source and destination were on different
+filesystems; a kill mid-copy left a truncated file there, refused by the retry and adopted by a scan.
+
+Fix: a move goes through the partial name, then a rename. Not reproducible in a test without two filesystems; the
+test covers the path and the overwrite of a stale partial.
+Test: `FileTransferTests.A_move_goes_through_the_partial_name_and_replaces_what_a_killed_transfer_left_there`.
+
+#### F15. A series delete whose caller went away left the series with no files
+
+Folders went to the recycle bin, then the rows were deleted with the request's token.
+
+Fix: everything is read before the first folder goes, and the rows follow whatever becomes of the request (series and
+version deletes).
+Test: `InterruptedSeriesDeleteTests`.
+
+#### F16. A failed refresh tick ended the playback refresh
+
+One failed tick of the 60 s reconcile ended it for the life of the event connection.
+
+Fix: a failed tick is logged and the next one runs.
+Test: `PlaybackApiTests.A_refresh_tick_that_fails_while_something_plays_does_not_end_the_refresh`.
+
+#### F17. The history backstop could count a viewing twice
+
+The backstop looked for an existing play, never an open session: a viewing past the watched mark and still open
+after six hours got a play from the backstop and a second one when its session closed.
+
+Fix: an open session of the same user and item covers the mark.
+Test: `PlaybackStatsTests.Plex_history_leaves_a_viewing_whose_stream_is_still_open_to_the_live_tracking`.
+
+#### F18. A series refresh raced the other writers of its show
+
+Two refreshes at once, or a refresh overlapping "add version", failed with a 500 or left episodes without a target;
+a refresh overlapping an order switch saved the order numbers it had read before it.
+
+Fix: refresh and "add version" take the show's turn (`SeriesFileGate`) like the order switch and the rename.
+Test: `ConcurrentSeriesWritersTests`.
+
+#### F19. Compat commands stayed queued for ever
+
+Fix: a queued command carries a probe and reads `completed` once its work is over; "refresh downloads" is complete
+once asked.
+Test: in `RadarrCompatTests`, the search command is polled to completion.
+
+#### F20. A password change did not end other sessions
+
+Fix: the session cookie carries a fingerprint of the password hash, checked on every request (kept in memory, no
+query); the session that changed the password is re-issued. Sessions opened before this change carry no fingerprint
+and have to log in once.
+Test: `AuthEndpointsTests.Changing_the_password_ends_every_other_session_and_keeps_the_one_that_changed_it`.
+
+#### F21. Failed handling removed the torrent before its own save
+
+A save that failed after the removal left a downloading grab with no torrent, later counted "removed" without its
+blocklist entry.
+
+Fix: the torrent leaves the client after the commit; a client that refuses is noted on the grab and its journal line.
+Test: `FailedHandlingTests.A_failed_torrent_only_leaves_its_client_once_the_failure_is_recorded`.
+
 ### Open
 
-Ordered by impact. Each is a candidate issue; related items are grouped. Numbers are kept when an item is fixed, so
-the list has gaps (O1, O3, O4 and O5 became F7 to F10).
+What is known and not fixed:
 
-#### O2. Tautulli upload replaced or deleted by a running import
-
-Open, confirmed for the first step, reported for the rest. `PUT /migration/tautulli/upload` checks `runner.IsBusy`
-once, before the body is streamed (`MigrationEndpoints.cs:70-73`). An import started while the body streams runs on
-the previous file; the upload then overwrites it under the import, and the import's end deletes the upload path,
-which is now the new file. Needs two overlapping requests.
-
-Suggested fix: mark an upload in progress in the runner under the same lock as the enqueue.
-
-#### O6. A manual task run is cut by the caller's disconnect
-
-Open, confirmed. `POST /system/tasks/{name}/run` passes the request token into the job; a disconnect rethrows past
-all bookkeeping (`TaskRunner.cs:112-115`): the job is cut mid-way and the last outcome still shows the previous run.
-The compat path already runs with `CancellationToken.None`.
-
-#### O7. Webhook retry and disabled endpoints
-
-Open, confirmed, low impact.
-
-- A manual retry of a delivery that is on the wire can be overwritten by the sender's outcome
-  (`NotificationService.RetryAsync` against `WebhookSender`). F4 narrowed the window from the whole batch to one send.
-- A delivery given up because its endpoint was disabled counts toward "webhook is failing" in the health check until
-  it is purged (`HealthCheckService.cs:163-164` has no enabled filter).
-
-#### O8. A move across filesystems bypasses the partial name
-
-Open, confirmed. In move mode `FileTransfer.MoveAsync` lets the runtime copy straight to the final name when source
-and destination are on different filesystems. A kill mid-copy leaves a truncated file under the real name; the retry
-refuses it as "destination already exists" and a library scan adopts it. Separately, a `.bigarr-partial` left by a
-killed copy is never cleaned up, only overwritten by a retry to the same destination.
-
-#### O9. Deleting a series with its files is disk first
-
-Open, reported. Folders go to the recycle bin before the transaction starts (`SeriesService`); a timeout in between
-leaves the series listed with its files gone. Retrying works, since a missing path is a no-op.
-
-#### O10. Playback: a failed periodic reconcile ends the refresh, and the backstop can double count
-
-Open, confirmed.
-
-- One failed tick of `PlaybackMonitor.ReconcileWhilePlayingAsync` ends the 60 s refresh for the life of the event
-  connection. A stream whose `stopped` event was lost then stays open until some other event arrives.
-- `PlexHistoryBackstop` looks for an existing play, never an open session. A viewing that passed Plex's watched mark
-  and stays open for more than six hours gets a play from the backstop and a second one when the session closes.
-
-#### O11. Series refresh racing other writers
-
-Open, reported, timing unverified: two refreshes of a TMDB-only show can insert duplicate episodes (the season and
-number index is not unique); a refresh overlapping "add version" leaves pairs without a target; a refresh loaded
-before an order switch and saved after it rewrites the order numbers until the next refresh.
-
-#### O12. Smaller confirmed items
-
-- Compat commands recorded as `queued` (search, RSS, refresh downloads) never become `completed`
-  (`CommandEndpoints.cs`); no current client polls them. Documented in the code.
-- A password change does not end other sessions: the cookie is stateless and carries no security stamp. Reported.
-- Failed handling removes the torrent from the client before its own save; a save that then fails leaves a
-  `Downloading` grab that later becomes `Removed`, without the blocklist entry.
+- A retry and a manual import of the same failed grab at the same moment are not serialised (see the grab's ownership
+  rules).
+- A `.bigarr-partial` left by a killed transfer is only removed by a retry to the same destination.
+- The in-memory event stream is at most once: a subscriber that falls 256 events behind drops the oldest, and the UI
+  does not refetch on reconnect. Suspected only; whether a bulk operation can outrun a subscriber was not measured.
+- Two follows may share a version name; the pick view is selected by version name only. Reported, not re-read.
 
 ### Checked and sound
 
