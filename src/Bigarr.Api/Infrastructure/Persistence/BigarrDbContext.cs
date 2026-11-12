@@ -73,6 +73,8 @@ public sealed class BigarrDbContext : DbContext
 
     public DbSet<SeriesOrderChange> SeriesOrderChanges => Set<SeriesOrderChange>();
 
+    public DbSet<SeriesMovieLink> SeriesMovieLinks => Set<SeriesMovieLink>();
+
     public DbSet<SceneName> SceneNames => Set<SceneName>();
 
     public DbSet<Grab> Grabs => Set<Grab>();

@@ -2652,5 +2652,122 @@
       "confirmFilms_one": "Delete {{count}} series",
       "confirmFilms_other": "Delete {{count}} series"
     }
+  },
+  "seriesFilms": {
+    "title_one": "Films in this series ({{count}})",
+    "title_other": "Films in this series ({{count}})",
+    "hint": "Specials that are films. Added as a film, a special is searched, grabbed and upgraded by the film engine with a film profile, and appears here as a hardlink of the film's file (one copy on disk).",
+    "autoAdd": "Add new films on their own",
+    "columns": {
+      "special": "Special",
+      "title": "Title",
+      "placement": "Placement",
+      "runtime": "Runtime",
+      "film": "Film"
+    },
+    "confidence": {
+      "flagged": "TVDB film",
+      "likely": "Likely film"
+    },
+    "placementSource": {
+      "none": "",
+      "tvdb": "From TVDB",
+      "airDate": "From the air dates"
+    },
+    "minutes_one": "{{count}} min",
+    "minutes_other": "{{count}} min",
+    "add": "Add as film",
+    "addTitle": "Add {{label}} as a film",
+    "addHint": "{{title}} becomes a film of the library. The film engine searches, grabs and upgrades it; the special follows as a hardlink of its file.",
+    "addExisting": "{{title}} is already a film of the library: the special is linked to it as it is.",
+    "added": "{{title}} added as a film",
+    "rootFolder": "Film root folder",
+    "noFilmRoot": "No film root folder",
+    "profile": "Quality profile",
+    "searchOnAdd": "Search for the film now",
+    "unlink": "Unlink",
+    "unlinkHint": "The film stays a film; the special becomes an episode of the series again and keeps its file.",
+    "unlinked": "{{label}} unlinked",
+    "inLibrary": "Already in the films",
+    "notAdded": "Not added",
+    "noTmdb": "No TMDB film found",
+    "autoAdded": "auto",
+    "waitingForFilm": "Waiting for the film's file",
+    "linkedIn": "Hardlinked in {{version}}",
+    "pendingIn": "Not linked yet in {{version}}",
+    "linkFailed": "Hardlink failed (not copied): see Health",
+    "film": "Film",
+    "ownedBy": "Owned by the film {{title}}: searched and upgraded as a film",
+    "hardlinkOf": "Hardlink of the film's file {{path}}",
+    "alsoSpecial": "Also special {{label}} of",
+    "filmPick": "Film's pick: {{film}}",
+    "reviewAll": "Review all specials as films"
+  },
+  "specialsFilms": {
+    "title": "Specials as films",
+    "button": "Specials as films",
+    "buttonHint_one": "{{count}} special detected as a film waits for a decision",
+    "buttonHint_other": "{{count}} specials detected as films wait for a decision",
+    "counts": "{{suggested}} suggested · {{linked}} linked · {{dismissed}} dismissed",
+    "hint": "Every special detected as a film, in every show. Each row says what linking it would do on disk, worked out from the files as they are now. Nothing happens until you link.",
+    "shadow": "Shadow mode: linking records the film and the link. No file is touched, on either side.",
+    "empty": "No special has been detected as a film yet. Detection runs when a show is added or refreshed.",
+    "noneShown": "No row matches these filters.",
+    "shown": "{{count}} of {{total}} shown",
+    "selectAll": "Select every row shown",
+    "select": "Select {{series}} {{label}}",
+    "linkSelected_one": "Link {{count}} selected",
+    "linkSelected_other": "Link {{count}} selected",
+    "link": "Link",
+    "dismiss": "Dismiss",
+    "dismissHint": "Not a film to link: it leaves the suggestions. You can still link it later.",
+    "restore": "Restore",
+    "restoreHint": "Back to the suggestions",
+    "tmdbOnly": "TMDB film {{id}}",
+    "confirmTitle_one": "Link {{count}} special to its film?",
+    "confirmTitle_other": "Link {{count}} specials to their films?",
+    "confirmHint": "These are the file operations linking does. The film engine then owns the special: it searches, grabs and upgrades the film, and the special follows as a hardlink.",
+    "confirm_one": "Link {{count}} special",
+    "confirm_other": "Link {{count}} specials",
+    "linked_one": "{{count}} special linked",
+    "linked_other": "{{count}} specials linked",
+    "linkFailed": "{{label}} not linked: {{error}}",
+    "filters": {
+      "state": "State",
+      "evidence": "Evidence",
+      "files": "Files"
+    },
+    "state": {
+      "all": "All",
+      "suggested": "Suggested",
+      "linked": "Linked",
+      "dismissed": "Dismissed"
+    },
+    "files": {
+      "all": "All",
+      "specialHasFile": "Special has a file",
+      "filmHasFile": "Film has a file",
+      "filmInLibrary": "Film already in library"
+    },
+    "columns": {
+      "special": "Special",
+      "film": "Film",
+      "state": "State",
+      "onDisk": "What linking does on disk"
+    },
+    "step": {
+      "shadowNoFiles": "Shadow mode: no file will be touched.",
+      "addFilm": "Add the film to the library, in:",
+      "reuseFilm": "Film already in the library: reused as it is.",
+      "searchFilm": "Nothing on disk yet: the film engine searches the film.",
+      "nothingOnDisk": "Nothing on disk yet: the film waits for its own search.",
+      "adoptSpecialFile": "Adopt the special's file ({{version}}) as the film's file: moved, never copied.",
+      "hardlinkIntoSpecials": "Hardlink the film's file into the show ({{version}}).",
+      "filmFileWins": "The film's file wins: the special's own file ({{version}}) goes to the recycle bin.",
+      "alreadyHardlinked": "Nothing to do: already the hardlink of the film's file ({{version}}).",
+      "sharedFileLeft": "The special's file holds other episodes too ({{version}}): left as is, not linked.",
+      "removeHardlink": "Remove the hardlink ({{version}}): the film has no file for it.",
+      "linkError": "Last attempt failed, nothing copied: {{note}}"
+    }
   }
 }

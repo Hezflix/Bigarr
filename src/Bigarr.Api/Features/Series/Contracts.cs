@@ -221,7 +221,12 @@ public sealed record EpisodeResponse(
     int DisplayEpisodeNumber = 0,
     int? DisplayAbsoluteNumber = null,
     /// <summary>The series shows another order and this episode has no counterpart there (its file stays as named).</summary>
-    bool NotInOrder = false);
+    bool NotInOrder = false,
+    /// <summary>The special is a film of the library (S8): the film engine owns it ("owned by film X").</summary>
+    EpisodeFilmOwner? OwnedByFilm = null);
+
+/// <summary>The film that owns a special: searched, grabbed and upgraded as a film; the special is its hardlink.</summary>
+public sealed record EpisodeFilmOwner(int MovieId, string Title, int? Year);
 
 /// <summary>A file of one version, with the episodes it holds (several for a multi-episode file).</summary>
 public sealed record EpisodeFileResponse(
@@ -242,7 +247,9 @@ public sealed record EpisodeFileResponse(
     MediaInfo? MediaInfo,
     List<int> EpisodeIds,
     /// <summary>"S01E01", "S01E02-E03": the episodes in TVDB numbering.</summary>
-    string Episodes);
+    string Episodes,
+    /// <summary>A hardlink of a linked film's file (S8): the film engine owns it.</summary>
+    string? LinkedFromPath = null);
 
 public sealed record UnmatchedEpisodeFileResponse(
     int Id,

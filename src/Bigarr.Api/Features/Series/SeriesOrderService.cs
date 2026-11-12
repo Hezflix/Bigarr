@@ -434,7 +434,7 @@ public sealed class SeriesOrderService(
         {
             var folder = SeriesRenameService.Folder(version);
             var candidates = new List<(EpisodeFile File, string To, List<string> Labels)>();
-            foreach (var file in version.Files.Where(f => f.Episodes.Count > 0).OrderBy(f => f.SeasonNumber).ThenBy(f => f.Episodes.Min(t => t.Episode.EpisodeNumber)))
+            foreach (var file in version.Files.Where(f => f.Episodes.Count > 0 && !f.IsFilmLink).OrderBy(f => f.SeasonNumber).ThenBy(f => f.Episodes.Min(t => t.Episode.EpisodeNumber)))
             {
                 var held = file.Episodes.Select(t => t.Episode).OrderBy(e => e.SeasonNumber).ThenBy(e => e.EpisodeNumber).ToList();
                 var labels = held.Select(e => Numbers(e, choice.Ordering)).ToList();

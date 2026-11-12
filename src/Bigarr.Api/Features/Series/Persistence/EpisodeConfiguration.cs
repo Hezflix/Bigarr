@@ -14,6 +14,8 @@ public sealed class EpisodeConfiguration : IEntityTypeConfiguration<Episode>
         builder.Property(e => e.ImageUrl).HasMaxLength(1024);
         builder.Ignore(e => e.IsSpecial);
         builder.Ignore(e => e.InOrder);
+        builder.Property(e => e.MovieImdbId).HasMaxLength(20);
+        builder.Property(e => e.MovieTitle).HasMaxLength(500);
 
         // TVDB episode ids are global and stable: the identity across refreshes (and, later, across orders).
         builder.HasIndex(e => e.TvdbId).IsUnique().HasFilter("\"TvdbId\" IS NOT NULL");

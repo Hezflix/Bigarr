@@ -96,7 +96,8 @@ public static class SeriesScanEndpoints
                     f.OriginalReleaseTitle,
                     f.MediaInfo,
                     episodes.Select(e => e.EpisodeId).ToList(),
-                    Label(episodes.Select(e => (e.SeasonNumber, e.EpisodeNumber)).ToList()));
+                    Label(episodes.Select(e => (e.SeasonNumber, e.EpisodeNumber)).ToList()),
+                    f.LinkedFromPath);
             })
             .OrderBy(f => f.SeasonNumber).ThenBy(f => f.Episodes, StringComparer.Ordinal).ThenBy(f => f.RelativePath, StringComparer.Ordinal)
             .ToList();

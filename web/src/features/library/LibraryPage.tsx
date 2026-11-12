@@ -31,6 +31,7 @@ import {
 } from './libraryView'
 import { MovieTable, type Lookups } from './MovieTable'
 import { PosterGrid } from './PosterGrid'
+import { SpecialsFilmsButton } from '../series/SpecialsFilmsButton'
 import { useSelection } from './selection'
 
 const skeletonGrid = 'grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6'
@@ -267,6 +268,7 @@ function PageHeader({ count, shown = null, selecting = false, onSelect }: { coun
         </span>
       )}
       <div className="ml-auto flex items-center gap-2">
+        <SpecialsFilmsButton files="filmInLibrary" />
         {onSelect && (
           <Button type="button" variant={selecting ? 'secondary' : 'outline'} onClick={onSelect} aria-pressed={selecting} data-testid="library-select-toggle">
             <CheckSquareIcon />

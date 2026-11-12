@@ -45,6 +45,22 @@ public sealed class EpisodeFile
     /// <summary>Filled by ffprobe after the scan or import, nullable like a film's.</summary>
     public MediaInfo? MediaInfo { get; set; }
 
+    /// <summary>
+    /// Set on a file that is a hardlink of a linked film's file (S8): the film engine owns it. The series side never
+    /// imports, upgrades or renames it on its own; the link keeper re-creates it when the film's file changes.
+    /// </summary>
+    public int? SeriesMovieLinkId { get; set; }
+
+    public SeriesMovieLink? SeriesMovieLink { get; set; }
+
+    /// <summary>Absolute path of the film file this one is a hardlink of. Null for an ordinary episode file.</summary>
+    public string? LinkedFromPath { get; set; }
+
+    /// <summary>The film's <c>MediaFile</c> it was linked from: a new id means the film was upgraded.</summary>
+    public int? LinkedMediaFileId { get; set; }
+
+    public bool IsFilmLink => LinkedFromPath is not null;
+
     public ICollection<EpisodeTarget> Episodes { get; set; } = [];
 
     /// <summary>Subtitles and other side files imported with it.</summary>

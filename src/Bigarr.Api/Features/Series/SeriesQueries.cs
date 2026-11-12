@@ -228,6 +228,7 @@ public sealed class SeriesQueries(BigarrDbContext db, TimeProvider time)
             {
                 Episode = e,
                 Targets = e.Targets.OrderBy(t => t.VersionId).Select(t => new EpisodeVersionState(t.VersionId, t.Id, t.Monitored, t.EpisodeFileId != null, t.EpisodeFileId)).ToList(),
+                Film = e.MovieLink == null ? null : new EpisodeFilmOwner(e.MovieLink.MovieId, e.MovieLink.Movie.Title, e.MovieLink.Movie.Year),
             })
             .ToListAsync(ct);
 
@@ -253,7 +254,8 @@ public sealed class SeriesQueries(BigarrDbContext db, TimeProvider time)
             r.Episode.DisplaySeasonNumber(order),
             r.Episode.DisplayEpisodeNumber(order),
             r.Episode.DisplayAbsoluteNumber(order),
-            order != EpisodeOrder.Tvdb && !r.Episode.InOrder)).ToList();
+            order != EpisodeOrder.Tvdb && !r.Episode.InOrder,
+            r.Film)).ToList();
     }
 
     public static SeriesVersionResponse ToVersion(SeriesVersion version, EpisodeStatistics statistics) => new(

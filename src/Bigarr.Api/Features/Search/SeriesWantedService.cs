@@ -102,6 +102,7 @@ public sealed class SeriesWantedService(BigarrDbContext db, CustomFormatScorer s
         var now = time.GetUtcNow().UtcDateTime;
         var targets = db.EpisodeTargets.AsNoTracking()
             .Where(t => t.Monitored && t.Version.Monitored && t.Version.Mode == VersionMode.Managed)
+            .Where(t => t.Episode.MovieLink == null)
             .Where(t => t.Episode.AirDateUtc != null && t.Episode.AirDateUtc <= now)
             .Where(t => !db.GrabTargets.Any(g => g.Active && g.TargetId == t.Id))
             .Where(t => t.EpisodeFileId == null || t.Version.QualityProfile.UpgradeAllowed);

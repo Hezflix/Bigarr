@@ -281,6 +281,11 @@ public sealed class SeriesManualImportService(
             return Fail("Some episodes are not episodes of this series.");
         }
 
+        if (await FilmOwnedAsync(item.EpisodeIds, ct) is { } owned)
+        {
+            return Fail(owned);
+        }
+
         Grab? grab = null;
         if (item.GrabId is not null)
         {
@@ -359,6 +364,11 @@ public sealed class SeriesManualImportService(
         if (episodes.Count != ids.Count)
         {
             return Failure.Invalid("Unknown episodes", "Some episodes are not episodes of this series.");
+        }
+
+        if (await FilmOwnedAsync(ids, ct) is { } ownedByFilm)
+        {
+            return Failure.Conflict("Owned by a film", ownedByFilm);
         }
 
         var now = time.GetUtcNow().UtcDateTime;
@@ -529,6 +539,15 @@ public sealed class SeriesManualImportService(
     }
 
     /// <summary>The file (and its extras) to the recycle bin; its episodes are missing again. Journaled per episode.</summary>
+    /// <summary>Specials linked to a film (S8) take no file from the series side: the film engine imports them.</summary>
+    private async Task<string?> FilmOwnedAsync(IEnumerable<int> episodeIds, CancellationToken ct)
+    {
+        var ids = episodeIds.Distinct().ToList();
+        var owned = await db.SeriesMovieLinks.AsNoTracking().Where(l => ids.Contains(l.EpisodeId))
+            .Select(l => new { l.Episode.SeasonNumber, l.Episode.EpisodeNumber, l.Movie.Title }).FirstOrDefaultAsync(ct);
+        return owned is null ? null : $"S{owned.SeasonNumber:00}E{owned.EpisodeNumber:00} is the film {owned.Title}: import it as the film; the special follows as a hardlink.";
+    }
+
     public async Task<Result<bool>> DeleteEpisodeFileAsync(int seriesId, int fileId, CancellationToken ct)
     {
         var file = await db.EpisodeFiles
@@ -542,6 +561,11 @@ public sealed class SeriesManualImportService(
         if (file is null)
         {
             return Failure.NotFound("Episode file");
+        }
+
+        if (file.IsFilmLink)
+        {
+            return Failure.Conflict("Owned by a film", "This special is a hardlink of a film's file: delete the film's file, or unlink the film, instead.");
         }
 
         var config = await settings.GetAsync(ct);

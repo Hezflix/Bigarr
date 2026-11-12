@@ -64,6 +64,15 @@ const seriesLibraryRoute = createRoute({
   }),
   component: lazyRouteComponent(() => import('./features/series/SeriesLibraryPage'), 'SeriesLibraryPage'),
 })
+const specialsFilmsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/library/specials-films',
+  // `?files=filmInLibrary` (from the films) or `specialHasFile` (from the series): the filter to open on.
+  validateSearch: (search: Record<string, unknown>): { files?: 'all' | 'specialHasFile' | 'filmHasFile' | 'filmInLibrary' } => ({
+    files: search.files === 'specialHasFile' || search.files === 'filmHasFile' || search.files === 'filmInLibrary' ? search.files : undefined,
+  }),
+  component: lazyRouteComponent(() => import('./features/series/SpecialsFilmsPage'), 'SpecialsFilmsPage'),
+})
 const addSeriesRoute = createRoute({ getParentRoute: () => appRoute, path: '/series/add', component: lazyRouteComponent(() => import('./features/series/AddSeriesPage'), 'AddSeriesPage') })
 const seriesRoute = createRoute({ getParentRoute: () => appRoute, path: '/series/$seriesId', component: lazyRouteComponent(() => import('./features/series/SeriesDetailPage'), 'SeriesDetailPage') })
 const queueRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/queue', component: lazyRouteComponent(() => import('./features/activity/QueuePage'), 'QueuePage') })
@@ -118,6 +127,7 @@ const router = createRouter({
       playbackUserRoute,
       movieRoute,
       seriesLibraryRoute,
+      specialsFilmsRoute,
       addSeriesRoute,
       seriesWantedRoute,
       calendarRoute,
