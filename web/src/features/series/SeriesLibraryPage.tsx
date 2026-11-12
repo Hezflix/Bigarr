@@ -14,6 +14,7 @@ import { versionNames, viewMode } from '@/features/library/core'
 import { SavedViewsBar } from '@/features/library/LibraryControls'
 import { useSelection } from '@/features/library/selection'
 import { SeriesBulkToolbar } from './SeriesBulkToolbar'
+import { SpecialsFilmsButton } from './SpecialsFilmsButton'
 import { SeriesLibraryControls, SeriesPosterGrid, SeriesTable, type SeriesLookups } from './SeriesLibraryViews'
 import {
   sameSeriesFilter,
@@ -273,6 +274,7 @@ function PageHeader({ count, shown = null, selecting = false, onSelect }: { coun
         </span>
       )}
       <div className="ml-auto flex items-center gap-2">
+        <SpecialsFilmsButton files="specialHasFile" />
         <RescanAllButton />
         {onSelect && (
           <Button type="button" variant={selecting ? 'secondary' : 'outline'} onClick={onSelect} aria-pressed={selecting} data-testid="library-select-toggle">

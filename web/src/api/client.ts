@@ -1518,6 +1518,13 @@ export type SeriesFilms = Schemas['SeriesFilmsResponse']
 export type AddSeriesFilmRequest = Partial<Schemas['AddSeriesFilmRequest']> & { episodeId: number }
 export type MovieSeriesLink = Schemas['MovieSeriesLinkResponse']
 export type EpisodeFilmOwner = Schemas['EpisodeFilmOwner']
+export type SeriesFilmState = Schemas['SeriesFilmState']
+export type FilmFileStepKind = Schemas['FilmFileStepKind']
+export type FilmFileStep = Schemas['FilmFileStep']
+export type SeriesFilmReviewRow = Schemas['SeriesFilmReviewRow']
+export type SeriesFilmReview = Schemas['SeriesFilmReviewResponse']
+export type SeriesFilmSummary = Schemas['SeriesFilmSummaryResponse']
+export type LinkSeriesFilmResult = Schemas['LinkSeriesFilmResult']
 
 export const seriesFilms = {
   list: (seriesId: number) => api<SeriesFilms>(`/api/v1/series/${seriesId}/films`),
@@ -1526,6 +1533,12 @@ export const seriesFilms = {
   remove: (seriesId: number, episodeId: number) => del(`/api/v1/series/${seriesId}/films/${episodeId}`),
   setAutoAdd: (autoAdd: boolean) => put<void>('/api/v1/settings/series-films', { autoAdd }),
   forMovie: (movieId: number) => api<MovieSeriesLink[]>(`/api/v1/movies/${movieId}/series-links`),
+  /** Every candidate of every show, with what linking it would do on disk (a dry run: nothing is written). */
+  review: () => api<SeriesFilmReview>('/api/v1/series-films/review'),
+  summary: () => api<SeriesFilmSummary>('/api/v1/series-films/summary'),
+  linkMany: (episodeIds: number[]) => post<LinkSeriesFilmResult[]>('/api/v1/series-films/link', { episodeIds }),
+  dismiss: (seriesId: number, episodeId: number) => post<void>(`/api/v1/series/${seriesId}/films/${episodeId}/dismiss`),
+  restore: (seriesId: number, episodeId: number) => del(`/api/v1/series/${seriesId}/films/${episodeId}/dismiss`),
 }
 
 // ---- series automation ------------------------------------------------

@@ -1935,6 +1935,171 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/series-films/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SeriesFilmReviewResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/series-films/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SeriesFilmSummaryResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/series-films/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LinkSeriesFilmsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LinkSeriesFilmResult"][];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/series/{id}/films/{episodeId}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                    episodeId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                    episodeId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/series/rescan": {
         parameters: {
             query?: never;
@@ -8980,6 +9145,15 @@ export interface components {
         };
         /** @enum {unknown} */
         FilmConfidence: "flagged" | "likely" | null;
+        FilmFileStep: {
+            kind: components["schemas"]["FilmFileStepKind"];
+            version: null | string;
+            from: null | string;
+            to: null | string;
+            note: null | string;
+        };
+        /** @enum {unknown} */
+        FilmFileStepKind: "shadowNoFiles" | "addFilm" | "reuseFilm" | "searchFilm" | "nothingOnDisk" | "adoptSpecialFile" | "hardlinkIntoSpecials" | "filmFileWins" | "alreadyHardlinked" | "sharedFileLeft" | "removeHardlink" | "linkError";
         /** @enum {unknown} */
         FilmPlacementSource: "none" | "tvdb" | "airDate";
         FolderListing: {
@@ -9402,6 +9576,15 @@ export interface components {
             keptAsFiles: number;
             /** Format: int32 */
             failed: number;
+        };
+        LinkSeriesFilmResult: {
+            /** Format: int32 */
+            episodeId: number;
+            linked: boolean;
+            error: null | string;
+        };
+        LinkSeriesFilmsRequest: {
+            episodeIds: number[];
         };
         LinkSuggestion: {
             /** Format: int32 */
@@ -11110,12 +11293,54 @@ export interface components {
             existingMovieId: null | number;
             link: null | components["schemas"]["SeriesFilmLinkResponse"];
         };
+        SeriesFilmReviewResponse: {
+            shadowEnabled: boolean;
+            autoAdd: boolean;
+            rows: components["schemas"]["SeriesFilmReviewRow"][];
+        };
+        SeriesFilmReviewRow: {
+            /** Format: int32 */
+            seriesId: number;
+            seriesTitle: string;
+            /** Format: int32 */
+            episodeId: number;
+            label: string;
+            title: string;
+            /** Format: int32 */
+            runtime: null | number;
+            confidence: null | components["schemas"]["FilmConfidence"];
+            evidence: string[];
+            placementLabel: null | string;
+            /** Format: int32 */
+            tmdbId: null | number;
+            filmTitle: null | string;
+            /** Format: int32 */
+            filmYear: null | number;
+            /** Format: int32 */
+            movieId: null | number;
+            filmInLibrary: boolean;
+            state: components["schemas"]["SeriesFilmState"];
+            specialHasFile: boolean;
+            filmHasFile: boolean;
+            linkError: null | string;
+            plan: components["schemas"]["FilmFileStep"][];
+        };
         SeriesFilmSettingsRequest: {
             autoAdd: boolean;
         };
         SeriesFilmsResponse: {
             autoAdd: boolean;
             films: components["schemas"]["SeriesFilmResponse"][];
+        };
+        /** @enum {unknown} */
+        SeriesFilmState: "suggested" | "linked" | "dismissed";
+        SeriesFilmSummaryResponse: {
+            /** Format: int32 */
+            suggested: number;
+            /** Format: int32 */
+            linked: number;
+            /** Format: int32 */
+            dismissed: number;
         };
         SeriesFilmVersionLinkResponse: {
             /** Format: int32 */

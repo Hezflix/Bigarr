@@ -45,7 +45,12 @@ export function SeriesFilmsSection({ seriesId, onChanged }: { seriesId: number; 
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div className="flex flex-col gap-1">
           <h2 className="text-lg font-semibold tracking-tight">{t('seriesFilms.title', { count: list.data.films.length })}</h2>
-          <p className="max-w-3xl text-xs text-muted-foreground">{t('seriesFilms.hint')}</p>
+          <p className="max-w-3xl text-xs text-muted-foreground">
+            {t('seriesFilms.hint')}{' '}
+            <Link to="/library/specials-films" search={{}} className="underline underline-offset-4 hover:text-foreground">
+              {t('seriesFilms.reviewAll')}
+            </Link>
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Checkbox id="series-films-auto" checked={list.data.autoAdd} onCheckedChange={(checked) => autoAdd.mutate(checked === true)} disabled={autoAdd.isPending} />
