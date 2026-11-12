@@ -83,9 +83,9 @@ export function LibraryTable<T extends LibraryItem, C extends string>({
 }: Props<T, C>) {
   const { t } = useTranslation()
   const versions = versionNames.length > 1
-  const containerRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLTableSectionElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
-  const contentRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLTableElement>(null)
   const offset = useDocumentOffset(containerRef)
   const overflows = useOverflows(frameRef, contentRef)
   const height = rowHeight(density, posterSize)
@@ -102,7 +102,7 @@ export function LibraryTable<T extends LibraryItem, C extends string>({
     const active = sort === current
     const Arrow = !active ? ArrowUpDownIcon : direction === 'asc' ? ArrowUpIcon : ArrowDownIcon
     return (
-      <span key={column.id} role="columnheader" aria-sort={!active ? 'none' : direction === 'asc' ? 'ascending' : 'descending'} className="flex min-w-0 items-center gap-0.5">
+      <th key={column.id} scope="col" aria-sort={!active ? 'none' : direction === 'asc' ? 'ascending' : 'descending'} className="flex min-w-0 items-center gap-0.5 text-left font-medium">
         <button
           type="button"
           className={cn(
@@ -140,7 +140,7 @@ export function LibraryTable<T extends LibraryItem, C extends string>({
             </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
-      </span>
+      </th>
     )
   }
 
@@ -149,16 +149,16 @@ export function LibraryTable<T extends LibraryItem, C extends string>({
     const sortKey = column.sortKey
     if (!sortKey) {
       return (
-        <span key={column.id} role="columnheader" className="truncate">
+        <th key={column.id} scope="col" className="truncate text-left font-medium">
           {column.label}
-        </span>
+        </th>
       )
     }
     const active = sort === sortKey
     // The sorted column shows its direction; the others show a faint hint on hover that they sort too.
     const Arrow = !active ? ArrowUpDownIcon : direction === 'asc' ? ArrowUpIcon : ArrowDownIcon
     return (
-      <span key={column.id} role="columnheader" aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'} className="min-w-0">
+      <th key={column.id} scope="col" aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'} className="min-w-0 text-left font-medium">
         <button
           type="button"
           className={cn(
@@ -171,27 +171,31 @@ export function LibraryTable<T extends LibraryItem, C extends string>({
           <span className="truncate">{column.label}</span>
           <Arrow className={cn('size-3 shrink-0', !active && 'opacity-0 group-hover/sort:opacity-50 group-focus-visible/sort:opacity-50')} aria-hidden="true" />
         </button>
-      </span>
+      </th>
     )
   }
 
+  // A real table laid out as a grid: the header row and every row share one column template, and the virtualized rows
+  // are positioned in the body. Table elements keep their roles with any display.
   return (
-    <div ref={frameRef} className={cn('rounded-xl border', overflows && 'overflow-x-auto')} data-testid="library-table" role="table">
-      <div ref={contentRef} className="min-w-fit">
-        <div
-          role="row"
-          className={cn(
-            'grid items-center gap-3 border-b bg-muted px-3 text-xs font-medium text-muted-foreground',
-            density === 'compact' ? 'py-0.5' : 'py-1',
-            !overflows && 'sticky top-0 z-10 rounded-t-xl',
-          )}
-          style={{ gridTemplateColumns: template }}
-        >
-          {selection.selecting && <span />}
-          {header({ id: 'title', label: t('library.columns.title'), sortKey: 'title' })}
-          {columns.map((c) => header(c))}
-        </div>
-        <div ref={containerRef} className="relative" style={{ height: virtualizer.getTotalSize() }}>
+    <div ref={frameRef} className={cn('rounded-xl border', overflows && 'overflow-x-auto')} data-testid="library-table">
+      <table ref={contentRef} className="block min-w-fit">
+        {/* Sticky on the head, not the row: a sticky box cannot leave its parent, and the row's parent is the head. */}
+        <thead className={cn('block', !overflows && 'sticky top-0 z-10')}>
+          <tr
+            className={cn(
+              'grid items-center gap-3 border-b bg-muted px-3 text-xs font-medium text-muted-foreground',
+              density === 'compact' ? 'py-0.5' : 'py-1',
+              !overflows && 'rounded-t-xl',
+            )}
+            style={{ gridTemplateColumns: template }}
+          >
+            {selection.selecting && <td />}
+            {header({ id: 'title', label: t('library.columns.title'), sortKey: 'title' })}
+            {columns.map((c) => header(c))}
+          </tr>
+        </thead>
+        <tbody ref={containerRef} className="relative block" style={{ height: virtualizer.getTotalSize() }}>
           {virtualizer.getVirtualItems().map((row) => {
             const item = items[row.index]
             return (
@@ -210,8 +214,8 @@ export function LibraryTable<T extends LibraryItem, C extends string>({
               />
             )
           })}
-        </div>
-      </div>
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -242,12 +246,9 @@ function TableRowView<T extends LibraryItem, C extends string>({
 }) {
   const isSelected = selected.has(item.id)
   return (
-    <div
-      role="row"
+    <tr
       data-testid={`${testId}-row`}
       {...{ [`data-${testId}-id`]: item.id }}
-      aria-selected={selecting ? isSelected : undefined}
-      onClick={selecting ? (event) => onToggle(item.id, event.shiftKey) : undefined}
       className={cn(
         'group/row absolute top-0 left-0 grid w-full items-center gap-3 border-b px-3 text-sm last:border-b-0 hover:bg-accent/40',
         // Compact: the version and tag chips lose their vertical padding to fit the shorter row.
@@ -257,29 +258,61 @@ function TableRowView<T extends LibraryItem, C extends string>({
       )}
       style={{ ...style, gridTemplateColumns: template }}
     >
-      {selecting && <SelectionMark checked={isSelected} />}
-      <TitleCell item={item} image={density === 'comfortable' ? thumbnails[posterSize].image : null} selecting={selecting} link={link} />
+      {selecting && (
+        <td>
+          <SelectionMark checked={isSelected} />
+        </td>
+      )}
+      <TitleCell
+        item={item}
+        image={density === 'comfortable' ? thumbnails[posterSize].image : null}
+        selecting={selecting}
+        selected={isSelected}
+        onToggle={(shiftKey) => onToggle(item.id, shiftKey)}
+        link={link}
+      />
       {columns.map((column) => (
-        <div key={column.id} role="cell" className="min-w-0 truncate">
+        <td key={column.id} className="min-w-0 truncate">
           {renderCell(item, column.id)}
-        </div>
+        </td>
       ))}
-    </div>
+    </tr>
   )
 }
 
+const overlay = 'absolute inset-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset'
+
 /**
- * Poster thumbnail (comfortable density, sized by the poster size) and title. Outside selection mode an empty link is
- * laid over the whole row (the row is its positioned ancestor): a click anywhere opens the item, and ctrl/cmd/middle
- * click or "open in new tab" work like on any link, with no link or button nested in another. The link sits next to the
- * content rather than around it, so the thumbnail stays mounted, and painted, when selection mode toggles.
+ * Poster thumbnail (comfortable density, sized by the poster size) and title. An empty control is laid over the whole
+ * row (the row is its positioned ancestor). Outside selection mode it is a link: a click anywhere opens the item, and
+ * ctrl/cmd/middle click or "open in new tab" work like on any link, with no link or button nested in another. In
+ * selection mode it is a toggle button, so the row selects from the keyboard too. The control sits next to the content
+ * rather than around it, so the thumbnail stays mounted, and painted, when selection mode toggles.
  */
-function TitleCell<T extends LibraryItem>({ item, image, selecting, link }: { item: T; image: PosterImage | null; selecting: boolean; link: ItemLink<T> }) {
+function TitleCell<T extends LibraryItem>({
+  item,
+  image,
+  selecting,
+  selected,
+  onToggle,
+  link,
+}: {
+  item: T
+  image: PosterImage | null
+  selecting: boolean
+  selected: boolean
+  onToggle: (shiftKey: boolean) => void
+  link: ItemLink<T>
+}) {
   return (
-    <div role="cell" className="flex min-w-0 items-center gap-2.5">
+    <td className="flex min-w-0 items-center gap-2.5">
       {image && <Poster url={item.posterUrl} title={item.title} size={image} className="rounded-sm" />}
       <span className={cn('truncate font-medium', !selecting && 'underline-offset-4 group-hover/row:underline')}>{item.title}</span>
-      {!selecting && link(item, { 'aria-label': item.title, className: 'absolute inset-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset' })}
-    </div>
+      {selecting ? (
+        <button type="button" aria-label={item.title} aria-pressed={selected} className={cn(overlay, 'cursor-pointer')} onClick={(event) => onToggle(event.shiftKey)} />
+      ) : (
+        link(item, { 'aria-label': item.title, className: overlay })
+      )}
+    </td>
   )
 }
