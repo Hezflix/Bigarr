@@ -129,6 +129,20 @@ public sealed class RadarrCompatTests(BigarrApiFactory factory) : IClassFixture<
         Assert.Equal("MoviesSearch", command.GetProperty("name").GetString());
         Assert.Equal("queued", command.GetProperty("status").GetString());
         Assert.Contains("1 version", command.GetProperty("message").GetString());
+
+        // A client that polls the command until it is done gets there once the search has run.
+        var commandId = command.GetProperty("id").GetInt32();
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        var polled = await (await seerr4k.GetAsync($"/api/v3/command/{commandId}")).ReadJsonAsync();
+        while (polled.GetProperty("status").GetString() != "completed" && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(100);
+            polled = await (await seerr4k.GetAsync($"/api/v3/command/{commandId}")).ReadJsonAsync();
+        }
+
+        Assert.Equal("completed", polled.GetProperty("status").GetString());
+        Assert.Equal("successful", polled.GetProperty("result").GetString());
+        Assert.NotEqual(JsonValueKind.Null, polled.GetProperty("ended").ValueKind);
         var searchOther = await (await seerrHd.PostAsJsonAsync("/api/v3/command", new { name = "MoviesSearch", movieIds = new[] { fourKId } })).ReadJsonAsync();
         Assert.Contains("0 version", searchOther.GetProperty("message").GetString());
         Assert.Equal(HttpStatusCode.Created, (await seerr4k.PostAsJsonAsync("/api/v3/command", new { name = "RefreshMonitoredDownloads" })).StatusCode);
