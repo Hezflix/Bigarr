@@ -2790,5 +2790,27 @@
       "removeHardlink": "Remove the hardlink ({{version}}): the film has no file for it.",
       "linkError": "Last attempt failed, nothing copied: {{note}}"
     }
+  },
+  "episodeDetail": {
+    "open": "Details of “{{title}}”",
+    "search": "Interactive search",
+    "noFile": "No file for this version.",
+    "noHistory": "Nothing happened to this episode yet: no grab, import, failure, deletion or rename.",
+    "noPlays": "Never played on a media server.",
+    "downloaded": "Downloaded",
+    "fileOf": "The file of the version on screen ({{version}}).",
+    "autoSearch": "Automatic search",
+    "autoSearchHint": "Search the indexers now and grab the best release, for every version of the series",
+    "autoGrabbed": "{{version}}: grabbed the best release.",
+    "autoPicked": "{{version}}: the best release was recorded as Bigarr’s pick (shadow mode).",
+    "autoNothing": "{{version}}: nothing grabbed. {{detail}}",
+    "tabsLabel": "Episode details",
+    "tabs": {
+      "file": "File",
+      "history": "History",
+      "historyCount": "History ({{count}})",
+      "plays": "Plays",
+      "playsCount": "Plays ({{count}})"
+    }
   }
 }

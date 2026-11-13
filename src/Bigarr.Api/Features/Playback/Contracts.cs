@@ -115,7 +115,14 @@ public sealed record PlayFilter(
     DateTime? To = null,
     StreamDecision? Decision = null,
     string? Search = null,
-    bool Unmatched = false);
+    bool Unmatched = false,
+    EpisodeMatch? Episode = null);
+
+/// <summary>
+/// The plays of one episode of the library: the server's episode item with its TVDB id, or, without one, the show's ids
+/// with the season and episode numbers (TVDB numbering, what the server's agents use by default).
+/// </summary>
+public sealed record EpisodeMatch(int? TvdbId, int? ShowTvdbId, int? ShowTmdbId, string? ShowImdbId, int SeasonNumber, int EpisodeNumber);
 
 /// <summary>
 /// <c>Name</c> is the one Bigarr shows (the display name when set), <c>ServerName</c> the account's on the server.

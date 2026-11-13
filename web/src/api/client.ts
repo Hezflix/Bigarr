@@ -731,9 +731,11 @@ export type HistoryEventType = Schemas['HistoryEventType']
 export type HistoryEvent = Schemas['HistoryEventResponse']
 
 export const history = {
-  list: (options: { movieId?: number; versionId?: number; eventType?: HistoryEventType; limit?: number } = {}) => {
+  /** `episodeId`: every line about the episode, whatever the version. */
+  list: (options: { movieId?: number; episodeId?: number; versionId?: number; eventType?: HistoryEventType; limit?: number } = {}) => {
     const params = new URLSearchParams()
     if (options.movieId) params.set('movieId', String(options.movieId))
+    if (options.episodeId) params.set('episodeId', String(options.episodeId))
     if (options.versionId) params.set('versionId', String(options.versionId))
     if (options.eventType) params.set('eventType', options.eventType)
     if (options.limit) params.set('limit', String(options.limit))
@@ -1251,6 +1253,8 @@ export type PlaysQuery = {
   pageSize?: number
   userId?: number
   movieId?: number
+  /** A library episode: its plays found by the episode's TVDB id, or the show's ids and its numbers. */
+  episodeId?: number
   versionId?: number
   /** A version name (`4k`), across films. */
   version?: string
@@ -1471,10 +1475,15 @@ export type SeriesBulkDeleteRequest = Schemas['SeriesBulkDeleteRequest']
 
 export type SeriesBulkDeleteResponse = Schemas['SeriesBulkDeleteResponse']
 
+/** One series version's outcome of an automatic search. */
+export type SeriesAutomaticSearchResult = Schemas['SeriesAutomaticSearchResult']
+
 export const series = {
   list: () => api<SeriesSummary[]>('/api/v1/series'),
   get: (id: number) => api<Series>(`/api/v1/series/${id}`),
   episodes: (id: number) => api<Episode[]>(`/api/v1/series/${id}/episodes`),
+  /** Automatic search for one episode, now, by every version of the series: the best approved release is grabbed (picked in shadow mode). */
+  searchEpisode: (id: number, episodeId: number) => post<SeriesAutomaticSearchResult[]>(`/api/v1/series/${id}/episodes/${episodeId}/search`),
   lookup: (term: string) => api<SeriesLookupResult[]>(`/api/v1/series/lookup?term=${encodeURIComponent(term)}`),
   add: (body: AddSeriesRequest) => post<Series>('/api/v1/series', body),
   update: (id: number, body: { seriesType?: SeriesType }) => put<Series>(`/api/v1/series/${id}`, body),

@@ -46,6 +46,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatBytes, formatDate } from '@/i18n'
+import { EpisodeDetailDialog } from './EpisodeDetailDialog'
 import { EpisodeProgress } from './EpisodeProgress'
 import { audioLabel, type EpisodeColumn, episodeColumns, type EpisodeStatus, episodeStatus, fileFlags, fileLanguages } from './episodeColumns'
 import { defaultEpisodeSort, type EpisodeSort, type EpisodeSortKey, nextEpisodeSort, sortEpisodes, sortStillShown } from './episodeSort'
@@ -947,10 +948,12 @@ function EpisodeTable({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [fixing, setFixing] = useState<EpisodeFile | null>(null)
+  const [detail, setDetail] = useState<Episode | null>(null)
   // Another order shows its numbers; TVDB's stay visible beside them (releases, Sonarr and history use them).
   const alt = s.ordering !== 'tvdb'
   const tvdbCode = (e: Episode) => `S${String(e.seasonNumber).padStart(2, '0')}E${String(e.episodeNumber).padStart(2, '0')}`
   const shownCode = (e: Episode) => `S${String(e.displaySeasonNumber).padStart(2, '0')}E${String(e.displayEpisodeNumber).padStart(2, '0')}`
+  const searchEpisode = (e: Episode) => onSearch({ kind: 'episode', episodeId: e.id, label: alt && !e.notInOrder ? `${shownCode(e)} (TVDB ${tvdbCode(e)})` : tvdbCode(e) })
   const toggle = useMutation({
     mutationFn: ({ episode, monitored }: { episode: Episode; monitored: boolean }) => seriesApi.setEpisodes(s.id, version.id, [episode.id], monitored),
     // The flag flips at once; the counts follow with the refetch.
@@ -992,14 +995,18 @@ function EpisodeTable({
         {sorted.map((episode) => {
           const { file, monitored } = contextOf(episode)
           return (
-            <TableRow key={episode.id} data-testid="episode" className={cn(!episode.hasAired && 'text-muted-foreground')}>
+            // A click anywhere on the row opens the episode: an empty button laid over the row (its positioned ancestor),
+            // the row's own controls stacked above it.
+            <TableRow key={episode.id} data-testid="episode" className={cn('relative cursor-pointer', !episode.hasAired && 'text-muted-foreground')}>
               <TableCell className="py-1.5 pl-4">
-                <MonitorToggle
-                  monitored={monitored}
-                  label={t('seriesDetail.toggleEpisode', { version: version.name })}
-                  onToggle={() => toggle.mutate({ episode, monitored: !monitored })}
-                  size="sm"
-                />
+                <span className="relative z-10 inline-flex">
+                  <MonitorToggle
+                    monitored={monitored}
+                    label={t('seriesDetail.toggleEpisode', { version: version.name })}
+                    onToggle={() => toggle.mutate({ episode, monitored: !monitored })}
+                    size="sm"
+                  />
+                </span>
               </TableCell>
               <TableCell className="tabular-nums">{alt && episode.notInOrder ? '—' : episode.displayEpisodeNumber}</TableCell>
               {shown.includes('absolute') && <TableCell className="text-muted-foreground tabular-nums">{episode.displayAbsoluteNumber ?? ''}</TableCell>}
@@ -1009,15 +1016,20 @@ function EpisodeTable({
                 </TableCell>
               )}
               <TableCell className="max-w-0">
+                <button
+                  type="button"
+                  className="absolute inset-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+                  aria-label={t('episodeDetail.open', { title: episode.title })}
+                  onClick={() => setDetail(episode)}
+                  data-testid="episode-open"
+                />
                 <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate" title={episode.overview ?? episode.title}>
-                    {episode.title}
-                  </span>
+                  <span className="truncate">{episode.title}</span>
                   {episode.ownedByFilm && (
                     <Link
                       to="/movies/$movieId"
                       params={{ movieId: String(episode.ownedByFilm.movieId) }}
-                      className="shrink-0"
+                      className="relative z-10 shrink-0"
                       title={t('seriesFilms.ownedBy', { title: episode.ownedByFilm.title })}
                       data-testid="episode-owned-by-film"
                     >
@@ -1035,6 +1047,7 @@ function EpisodeTable({
                   <EpisodeColumnCell key={c} column={c} episode={episode} file={file} monitored={monitored} />
                 ))}
               <TableCell className="py-1 pr-4 whitespace-nowrap text-right">
+                <span className="relative z-10 inline-flex items-center">
                 {episode.notInOrder && file && (
                   <Button
                     type="button"
@@ -1055,19 +1068,31 @@ function EpisodeTable({
                   size="icon"
                   variant="ghost"
                   className="size-7"
-                  onClick={() => onSearch({ kind: 'episode', episodeId: episode.id, label: alt && !episode.notInOrder ? `${shownCode(episode)} (TVDB ${tvdbCode(episode)})` : tvdbCode(episode) })}
+                  onClick={() => searchEpisode(episode)}
                   aria-label={t('seriesSearch.searchEpisode', { title: episode.title })}
                   title={t('seriesSearch.searchEpisode', { title: episode.title })}
                   data-testid="episode-search"
                 >
                   <SearchIcon />
                 </Button>}
+                </span>
               </TableCell>
             </TableRow>
           )
         })}
       </TableBody>
       {fixing && <ReassignFileDialog series={s} file={fixing} onClose={() => setFixing(null)} onDone={onChanged} />}
+      {detail && (
+        <EpisodeDetailDialog
+          series={s}
+          version={version}
+          episode={episodes.find((e) => e.id === detail.id) ?? detail}
+          file={files.get(detail.id)}
+          onClose={() => setDetail(null)}
+          onInteractiveSearch={detail.ownedByFilm ? undefined : () => searchEpisode(detail)}
+          onChanged={onChanged}
+        />
+      )}
     </Table>
   )
 }
