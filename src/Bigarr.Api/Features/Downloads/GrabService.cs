@@ -203,6 +203,15 @@ public sealed class GrabService(
             return Failure.Invalid("Unknown episodes", $"Episode(s) {string.Join(", ", missing)} are not episodes of {version.Series.Title} [{version.Name}].");
         }
 
+        // The episodes come from the caller (the interactive search lets the user pick them, matched or not): a special a
+        // film owns is the film engine's to grab, as the series decisions already leave it out.
+        var owned = await db.SeriesMovieLinks.AsNoTracking().Where(l => episodeIds.Contains(l.EpisodeId))
+            .Select(l => new { l.Episode.SeasonNumber, l.Episode.EpisodeNumber, l.Movie.Title }).FirstOrDefaultAsync(ct);
+        if (owned is not null)
+        {
+            return Failure.Invalid("Film special", $"S{owned.SeasonNumber:00}E{owned.EpisodeNumber:00} is the film {owned.Title}: grab it from the film.");
+        }
+
         var targetIds = targets.Select(t => t.Id).ToList();
         if (await db.GrabTargets.AnyAsync(t => targetIds.Contains(t.TargetId) && t.Active, ct))
         {
@@ -425,6 +434,12 @@ public sealed class GrabService(
         if (request.Protocol != DownloadProtocol.Torrent)
         {
             return Failure.Invalid("Unsupported protocol", "Only torrents can be grabbed for now.");
+        }
+
+        // An empty list is a series grab with nothing picked, not a film grab: the version id is a series version.
+        if (request.EpisodeIds is { Count: 0 })
+        {
+            return Failure.Invalid("No episode", "Pick at least one episode for the release.");
         }
 
         return null;

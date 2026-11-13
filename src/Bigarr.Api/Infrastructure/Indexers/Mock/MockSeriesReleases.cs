@@ -66,6 +66,8 @@ public static partial class MockSeriesReleases
             names.Add(($"{dotted}.{s}.2160p.WEB-DL.DDP5.1.HDR.H.265-FLUX", 52.0, 60, 120));
             names.Add(($"{dotted}.{s}.720p.WEB-DL.DD5.1.H.264-NTb", 3.1, 20, 210));
             names.Add(($"{dotted}.S01-S03.1080p.BluRay.x264-GRP", 61.0, 35, 300));
+            // A collection named without season or episode numbers: the parser maps it to nothing, a user may still want it.
+            names.Add(($"{dotted}.The.Complete.Collection.1080p.BluRay.x264-GRP", 180.0, 12, 500));
         }
 
         if (criteria.IsSeasonSearch || criteria.IsSeriesSearch)

@@ -906,7 +906,16 @@
     "autoNoIndexer": "{{label}}: no indexer has automatic search enabled.",
     "autoSkipped": "{{label}}: skipped. {{detail}}",
     "autoFailed": "{{label}}: the grab failed. {{detail}}",
-    "autoPicked": "{{label}}: “{{title}}” recorded as Bigarr's pick (shadow mode)."
+    "autoPicked": "{{label}}: “{{title}}” recorded as Bigarr's pick (shadow mode).",
+    "quality": "Quality",
+    "languages": "Languages",
+    "formats": "Custom formats",
+    "scoreSort": "Custom format score for the version the grab goes to",
+    "scoreFor": "Score for {{version}}",
+    "noVerdict": "No verdict: the title could not be read as a release",
+    "confirmTitle": "Grab for {{version}} anyway?",
+    "confirmReasons": "The search would not pick this release for this version:",
+    "confirmGrab": "Grab anyway"
   },
   "rss": {
     "title": "Releases",
@@ -2403,8 +2412,8 @@
     "textResults": "Results for the text “{{query}}”: the show's ids and titles were not used.",
     "episodes": "Episodes",
     "pack": "Season pack",
-    "grabFor": "Grab {{episodes}} for {{version}}",
-    "grabUnmapped": "This release maps to no episode of the series: nothing to grab",
+    "grabFor": "Grab {{episodes}} for {{version}}: pick the episodes first",
+    "grabUnmapped": "Maps to no episode: grab it for {{version}}, after picking its episodes",
     "orderFallback": "TVDB numbering found no acceptable release: the series' order was asked too. A release found on the order's numbers that nothing confirms is held for your choice.",
     "numbering": {
       "tvdb": "TVDB",
@@ -2418,7 +2427,26 @@
       "order": "Matched on the series' order, after TVDB found nothing acceptable.",
       "absolute": "Matched on the absolute number (anime), the same in every order."
     },
-    "held": "Held: confirm by hand"
+    "held": "Held: confirm by hand",
+    "grabbedFor": "Grabbed for {{version}}",
+    "pickedFor": "Picked for {{version}} (shadow mode)",
+    "pickTitle": "Grab for {{version}}",
+    "pickMatched": "Bigarr matched it to {{episodes}}. Change the episodes if the match is wrong.",
+    "pickScope": "It maps to no episode: the episodes of this search are ticked. Change them to what it holds.",
+    "pickNone": "It maps to no episode: tick the episodes it holds.",
+    "pickSelected_one": "{{count}} episode ticked",
+    "pickSelected_other": "{{count}} episodes ticked",
+    "pickReset": "Back to the start",
+    "pickClear": "Untick all",
+    "pickSeason": "Season {{season}}",
+    "pickSpecials": "Specials",
+    "pickSeasonCount": "{{selected}}/{{count}}",
+    "pickToggleSeason": "Show or hide the episodes of {{season}}",
+    "pickEmpty": "This version has no episode to grab for.",
+    "pickGrab_one": "Grab {{count}} episode",
+    "pickGrab_other": "Grab {{count}} episodes",
+    "pickGrabAnyway_one": "Grab {{count}} episode anyway",
+    "pickGrabAnyway_other": "Grab {{count}} episodes anyway"
   },
   "sonarrFollow": {
     "title": "Followed Sonarrs",
