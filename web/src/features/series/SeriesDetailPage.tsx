@@ -48,6 +48,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { formatBytes, formatDate } from '@/i18n'
 import { EpisodeDetailDialog } from './EpisodeDetailDialog'
 import { EpisodeProgress } from './EpisodeProgress'
+import { orderSeason } from './orderSeason'
 import { audioLabel, type EpisodeColumn, episodeColumns, type EpisodeStatus, episodeStatus, fileFlags, fileLanguages } from './episodeColumns'
 import { defaultEpisodeSort, type EpisodeSort, type EpisodeSortKey, nextEpisodeSort, sortEpisodes, sortStillShown } from './episodeSort'
 import { useSeasonTablePrefs } from './seasonTablePrefs'
@@ -701,34 +702,6 @@ function seasonOrder(a: Season, b: Season) {
   return b.seasonNumber - a.seasonNumber
 }
 
-/** A season of the order on screen, built from its episodes (the TVDB seasons carry the stored flags). */
-function orderSeason(s: Series, number: number, episodes: Episode[]): Season {
-  const stats = (versionId: number) => {
-    const states = episodes.map((e) => ({ e, v: e.versions.find((x) => x.versionId === versionId) }))
-    const monitored = states.filter((x) => x.v?.monitored).length
-    const files = states.filter((x) => x.v?.hasFile).length
-    return {
-      monitored: episodes.length > 0 && monitored === episodes.length,
-      statistics: {
-        episodeCount: states.filter((x) => x.v?.hasFile || (x.v?.monitored && x.e.hasAired)).length,
-        episodeFileCount: files,
-        monitoredEpisodeCount: monitored,
-        totalEpisodeCount: episodes.length,
-        sizeOnDisk: 0,
-      },
-    }
-  }
-  return {
-    seasonNumber: number,
-    title: null,
-    overview: null,
-    posterUrl: null,
-    episodeCount: episodes.length,
-    airedEpisodeCount: episodes.filter((e) => e.hasAired).length,
-    versions: s.versions.map((v) => ({ versionId: v.id, ...stats(v.id) })),
-  }
-}
-
 /** The block of the episodes the series' order has no counterpart for. */
 const NOT_IN_ORDER = -1
 
@@ -772,11 +745,11 @@ function SeasonList({
     }
 
     const list = [...byOrder.entries()]
-      .map(([number, list]) => ({ season: orderSeason(s, number, list), episodes: list.sort((a, b) => a.displayEpisodeNumber - b.displayEpisodeNumber), synthetic: true }))
+      .map(([number, list]) => ({ season: orderSeason(s, number, list, files ?? []), episodes: list.sort((a, b) => a.displayEpisodeNumber - b.displayEpisodeNumber), synthetic: true }))
       .sort((a, b) => seasonOrder(a.season, b.season))
-    if (outside.length > 0) list.push({ season: orderSeason(s, NOT_IN_ORDER, outside), episodes: outside, synthetic: true })
+    if (outside.length > 0) list.push({ season: orderSeason(s, NOT_IN_ORDER, outside, files ?? []), episodes: outside, synthetic: true })
     return list
-  }, [alt, episodes, s])
+  }, [alt, episodes, files, s])
   // Open on the latest season that has episodes (TVDB lists announced seasons before their episodes).
   const latest = (blocks.find((b) => b.season.seasonNumber > 0 && b.season.episodeCount > 0) ?? blocks.find((b) => b.season.seasonNumber > 0))?.season.seasonNumber
   const [open, setOpen] = useState<Set<number> | null>(null)
@@ -876,7 +849,13 @@ function SeasonBlock({ series: s, season, version, episodes, files, loading, sho
           <span className="font-medium">{name}</span>
           <span className="text-xs text-muted-foreground tabular-nums">{t('seriesDetail.episodeCount', { aired: season.airedEpisodeCount, count: season.episodeCount })}</span>
         </button>
-        {state && <span className="text-xs text-muted-foreground tabular-nums">{t('seriesDetail.monitoredEpisodes', { count: state.statistics.monitoredEpisodeCount })}</span>}
+        {state && (
+          // Stacked on a phone so the size takes no width from the season's name, side by side from sm up.
+          <div className="flex flex-col items-end text-xs whitespace-nowrap text-muted-foreground tabular-nums sm:flex-row sm:items-center sm:gap-3">
+            <span>{t('seriesDetail.monitoredEpisodes', { count: state.statistics.monitoredEpisodeCount })}</span>
+            {state.statistics.sizeOnDisk > 0 && <span data-testid="season-size">{formatBytes(state.statistics.sizeOnDisk)}</span>}
+          </div>
+        )}
         {state && <EpisodeProgress statistics={state.statistics} monitored={monitored} className="hidden w-36 sm:flex" />}
         {outside && <span className="hidden text-xs text-muted-foreground md:inline">{t('seriesOrder.notInOrderHint')}</span>}
         <Button
