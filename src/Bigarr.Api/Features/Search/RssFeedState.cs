@@ -23,17 +23,54 @@ public sealed class RssFeedState
 
     public DateTime? LastRunAt { get; private set; }
 
-    /// <summary>Only one pass at a time, scheduled or manual.</summary>
+    /// <summary>The quick recheck the last pass asked for, if any; lost on restart like the rest.</summary>
+    public RssRecheckPlan? PendingRecheck
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _recheck;
+            }
+        }
+    }
+
+    private RssRecheckPlan? _recheck;
+
+    /// <summary>Only one pass at a time, scheduled or manual, whole or a quick recheck.</summary>
     public bool TryBeginRun() => _run.Wait(0);
 
-    public void EndRun(DateTime now)
+    /// <param name="full">A quick recheck reads only a few feeds: it does not count as the last pass.</param>
+    public void EndRun(DateTime now, bool full = true)
     {
-        lock (_lock)
+        if (full)
         {
-            LastRunAt = now;
+            lock (_lock)
+            {
+                LastRunAt = now;
+            }
         }
 
         _run.Release();
+    }
+
+    public void PlanRecheck(RssRecheckPlan? plan)
+    {
+        lock (_lock)
+        {
+            _recheck = plan;
+        }
+    }
+
+    /// <summary>Hands the pending recheck over to the run that does it, so it is done once.</summary>
+    public RssRecheckPlan? TakeRecheck()
+    {
+        lock (_lock)
+        {
+            var plan = _recheck;
+            _recheck = null;
+            return plan;
+        }
     }
 
     /// <summary>True the first time a (indexer, guid) pair shows up.</summary>

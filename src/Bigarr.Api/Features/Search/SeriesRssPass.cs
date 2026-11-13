@@ -5,6 +5,7 @@ using Bigarr.Api.Infrastructure.Matching;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Infrastructure.Tv;
 using Bigarr.Decision;
+using Bigarr.Decision.Specifications;
 using Bigarr.Domain.Indexers;
 using Bigarr.Domain.Movies;
 using Bigarr.Domain.Tv;
@@ -13,7 +14,8 @@ using ParserQuality = Bigarr.Parsing.Qualities.Quality;
 
 namespace Bigarr.Api.Features.Search;
 
-public sealed record SeriesRssOutcome(int Matched, int Attributed, int Grabbed, int Picked);
+/// <param name="WaitingForSeeders">The indexer of each release a version would take but for its seeders, on episodes no release of the pass took for it.</param>
+public sealed record SeriesRssOutcome(int Matched, int Attributed, int Grabbed, int Picked, IReadOnlyList<int> WaitingForSeeders);
 
 /// <summary>
 /// The series half of the RSS pass: each release of the TV feed is parsed with Sonarr's parser, matched to a series of
@@ -155,6 +157,13 @@ public sealed class SeriesRssPass(
             }
         }
 
+        // A release only its seeders kept out, for episodes still to take: worth a quick look again (RSS quick recheck).
+        var waiting = judged
+            .Where(j => j.Judgement is { IsMapped: true } judgement && judgement.Decisions.Any(d =>
+                MinimumSeedersSpecification.WaitsOnlyForSeeders(d) && (d.Target.Episodes?.Slots.Any(s => !taken.Contains(s.Target.Id)) ?? true)))
+            .Select(j => j.Entry.IndexerId)
+            .ToList();
+
         foreach (var (entry, _, _, _) in judged)
         {
             if (entry.Series is null && matchedAsFilm.Contains(Key(entry)))
@@ -192,7 +201,8 @@ public sealed class SeriesRssPass(
             judged.Count(j => j.Entry.Series is not null),
             judged.Count(j => j.Entry.AttributedVersionId is not null),
             grabbed,
-            picked);
+            picked,
+            waiting);
     }
 
     private static string Key(RssReleaseResponse entry) => $"{entry.IndexerId}:{entry.Guid}";

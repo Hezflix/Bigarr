@@ -38,7 +38,7 @@ public sealed class TaskRunner(IServiceScopeFactory scopeFactory, SchedulerState
             // Resume the cadence: not before the grace period, not later than one interval after the last run.
             var earliest = now + job.InitialDelay;
             var cadence = runtime.LastRunAt is { } last ? last + job.Interval : earliest;
-            runtime.NextRunAt = job.Enabled ? (cadence > earliest ? cadence : earliest) : null;
+            runtime.NextRunAt = job.Enabled && !job.OneShot ? (cadence > earliest ? cadence : earliest) : null;
             if (job.RunsWhenSchedulerDisabled)
             {
                 _alwaysOn.Add(job.Name);
@@ -136,7 +136,10 @@ public sealed class TaskRunner(IServiceScopeFactory scopeFactory, SchedulerState
             runtime.LastSucceeded = error is null;
             runtime.LastSummary = summary;
             runtime.LastError = error;
-            runtime.NextRunAt = job.Enabled ? finishedAt + job.Interval : null;
+            // A one-off job is done until planned again; a plan made while it ran (a later time) stands.
+            runtime.NextRunAt = !job.Enabled ? null
+                : !job.OneShot ? finishedAt + job.Interval
+                : runtime.NextRunAt > startedAt ? runtime.NextRunAt : null;
 
             await PersistAsync(scope.ServiceProvider, job.Name, runtime, ct);
             signal.Notify();
