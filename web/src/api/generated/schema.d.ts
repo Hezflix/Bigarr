@@ -11821,6 +11821,8 @@ export interface components {
             rejections: string[];
             /** Format: int32 */
             customFormatScore: number;
+            /** @default false */
+            transient: boolean;
         };
         SonarrFollowPass: {
             /** Format: int32 */

@@ -77,7 +77,7 @@ public sealed class ReleaseSightings(BigarrDbContext db, IOptions<ShadowOptions>
         {
             var rows = await db.ReleaseSightings.AsNoTracking()
                 .Where(s => chunk.Contains(s.Guid))
-                .Select(s => new ExistingRow(s.Id, s.IndexerName, s.Guid, s.TmdbId, s.TvdbId))
+                .Select(s => new ExistingRow(s.Id, s.IndexerName, s.Guid, s.TmdbId, s.TvdbId, s.Verdicts))
                 .ToListAsync(ct);
             foreach (var row in rows)
             {
@@ -86,6 +86,7 @@ public sealed class ReleaseSightings(BigarrDbContext db, IOptions<ShadowOptions>
         }
 
         var toComplete = new Dictionary<long, ReleaseSighting>();
+        var toRejudge = new Dictionary<long, ReleaseSighting>();
         foreach (var (key, sighting) in candidates)
         {
             if (!existing.TryGetValue(key, out var row))
@@ -96,15 +97,24 @@ public sealed class ReleaseSightings(BigarrDbContext db, IOptions<ShadowOptions>
             {
                 toComplete[row.Id] = sighting;
             }
+            else if (Rejudges(sighting, row))
+            {
+                toRejudge[row.Id] = sighting;
+            }
         }
 
-        if (toComplete.Count > 0)
+        foreach (var chunk in toComplete.Keys.Concat(toRejudge.Keys).Chunk(LookupChunk))
         {
-            foreach (var chunk in toComplete.Keys.Chunk(LookupChunk))
+            foreach (var tracked in await db.ReleaseSightings.Where(s => chunk.Contains(s.Id)).ToListAsync(ct))
             {
-                foreach (var tracked in await db.ReleaseSightings.Where(s => chunk.Contains(s.Id)).ToListAsync(ct))
+                if (toComplete.TryGetValue(tracked.Id, out var completing))
                 {
-                    Absorb(tracked, toComplete[tracked.Id]);
+                    Absorb(tracked, completing);
+                }
+                else
+                {
+                    tracked.Verdicts = toRejudge[tracked.Id].Verdicts;
+                    tracked.AttributedVersion = toRejudge[tracked.Id].AttributedVersion;
                 }
             }
         }
@@ -134,18 +144,43 @@ public sealed class ReleaseSightings(BigarrDbContext db, IOptions<ShadowOptions>
         Episodes = Truncate(entry.Episodes, 128),
         UnmatchedReason = Truncate(entry.UnmatchedReason, 512),
         AttributedVersion = entry.AttributedVersionName,
-        Verdicts = entry.Versions.Select(v => new SightingVerdict(v.VersionName, v.Approved, v.Rejections.Select(r => r.Reason).ToList(), v.CustomFormatScore)).ToList(),
+        Verdicts = entry.Versions.Select(v => new SightingVerdict(v.VersionName, v.Approved, v.Rejections.Select(r => r.Reason).ToList(), v.CustomFormatScore, !v.Approved && v.Rejections.Count > 0 && v.Rejections.All(r => r.Temporary))).ToList(),
     };
 
     private static bool IsMatched(int? tmdbId, int? tvdbId) => tmdbId is not null || tvdbId is not null;
 
     /// <summary>
-    /// A row is written down once, with the verdict of the first pass that saw it, and only completed after that: a
-    /// later listing that matches a film or a series the row did not know (the TV feed carries a release the film feed
+    /// A row is written down once, with the verdict of the first pass that saw it, and only completed after that (or
+    /// judged again, see <see cref="Rejudges"/>): a later listing that matches a film or a series the row did not know (the TV feed carries a release the film feed
     /// left unmatched) adds that match. A listing that matches nothing never takes a match away.
     /// </summary>
     private static bool Teaches(ReleaseSighting seen, int? knownTmdbId, int? knownTvdbId) =>
         (seen.TmdbId is not null && knownTmdbId is null) || (seen.TvdbId is not null && knownTvdbId is null);
+
+    /// <summary>
+    /// A row turned down by every version, and by at least one only for a reason that passes (no seeders yet: a fresh
+    /// torrent), takes the verdicts of a later pass that sees the release again with the same match, as Sonarr and Radarr
+    /// judge each feed item on every sync. The pass judged it anyway; nothing is asked of the indexer. The new verdicts
+    /// are kept when a version now accepts the release, or when the only reasons are still passing ones; not when a
+    /// reason tied to the release or the library appears instead (the episode got its file meanwhile): the row keeps
+    /// what stood in the way while the release was new. A row turned down for good (quality, score, not an upgrade) is
+    /// never written again.
+    /// </summary>
+    private static bool Rejudges(ReleaseSighting seen, ExistingRow row)
+    {
+        if (seen.TmdbId != row.TmdbId || seen.TvdbId != row.TvdbId || row.Verdicts.Count == 0
+            || row.Verdicts.Any(v => v.Approved) || !row.Verdicts.Any(v => v.Transient) || Same(seen.Verdicts, row.Verdicts))
+        {
+            return false;
+        }
+
+        return seen.Verdicts.Any(v => v.Approved)
+            || seen.Verdicts.All(v => v.Transient || row.Verdicts.Any(r => r.VersionName == v.VersionName && !r.Transient));
+    }
+
+    private static bool Same(List<SightingVerdict> a, List<SightingVerdict> b) =>
+        a.Count == b.Count && a.Zip(b).All(p => p.First.VersionName == p.Second.VersionName && p.First.Approved == p.Second.Approved
+            && p.First.CustomFormatScore == p.Second.CustomFormatScore && p.First.Rejections.SequenceEqual(p.Second.Rejections, StringComparer.Ordinal));
 
     private static void Absorb(ReleaseSighting target, ReleaseSighting seen)
     {
@@ -176,5 +211,5 @@ public sealed class ReleaseSightings(BigarrDbContext db, IOptions<ShadowOptions>
 
     private static string? Truncate(string? value, int max) => value is null ? null : value.Length <= max ? value : value[..max];
 
-    private sealed record ExistingRow(long Id, string IndexerName, string Guid, int? TmdbId, int? TvdbId);
+    private sealed record ExistingRow(long Id, string IndexerName, string Guid, int? TmdbId, int? TvdbId, List<SightingVerdict> Verdicts);
 }
