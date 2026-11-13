@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react'
-import { SearchIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { WantedFilter } from '@/api/client'
 import { Poster } from '@/components/Poster'
@@ -8,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { AutomaticSearchIcon } from '@/features/search/SearchButtons'
 import { formatAge, formatDateTime } from '@/i18n'
 
 /** What the film and series Wanted pages share: the frame around the table, and the columns about the version and its searches. */
@@ -94,7 +94,7 @@ export function WantedFrame({
             ))}
           </div>
           <Button type="button" size="sm" onClick={onSearchAll} disabled={searchingAll || !total} data-testid={`${testId}-search-all`}>
-            <SearchIcon />
+            <AutomaticSearchIcon aria-hidden="true" />
             {t('wanted.searchAll')}
           </Button>
         </div>

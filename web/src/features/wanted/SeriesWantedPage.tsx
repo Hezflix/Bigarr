@@ -2,12 +2,11 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { cn } from 'cn'
-import { SearchIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, seriesWanted, type SeriesWantedItem } from '@/api/client'
-import { Button } from '@/components/ui/button'
 import { TableCell, TableHead, TableRow } from '@/components/ui/table'
+import { AutomaticSearchButton } from '@/features/search/SearchButtons'
 import { WantedFrame, wantedPageSize, WantedTitle, WantedVersionCells, WantedVersionHeads, type WantedFilterChoice } from '@/features/wanted/wantedTable'
 import { useSchedulerEnabled } from '@/hooks/useSchedulerEnabled'
 import { formatDate, formatDateTime } from '@/i18n'
@@ -81,18 +80,13 @@ export function SeriesWantedPage() {
           )}
           <TableCell className="align-top">
             <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
+              <AutomaticSearchButton
+                iconOnly
+                target={`${item.seriesTitle} ${code(item)}`}
                 onClick={() => searchOne.mutate(item)}
-                disabled={searchOne.isPending}
-                aria-label={t('seriesWanted.searchEpisode', { episode: code(item) })}
-                title={t('seriesWanted.searchEpisode', { episode: code(item) })}
+                pending={searchOne.isPending && searchOne.variables?.targetId === item.targetId}
                 data-testid={`series-wanted-search-${item.targetId}`}
-              >
-                <SearchIcon />
-              </Button>
+              />
             </div>
           </TableCell>
         </TableRow>

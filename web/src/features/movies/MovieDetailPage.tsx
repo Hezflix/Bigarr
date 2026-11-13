@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { EyeIcon, EyeOffIcon, FileXIcon, PlusIcon, RefreshCwIcon, SearchIcon, StarIcon, Trash2Icon, TvIcon } from 'lucide-react'
+import { EyeIcon, EyeOffIcon, FileXIcon, PlusIcon, RefreshCwIcon, StarIcon, Trash2Icon, TvIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, customFormats, history, movies, seriesFilms, quality, rootFolders, rootsOfKind, search, shadow, type MediaInfo, type MinimumAvailability, type Movie, type Version, type VersionMode, profilesFor} from '@/api/client'
@@ -13,6 +13,7 @@ import { MoviePlays } from '@/features/playback/MoviePlays'
 import { extraSummary } from '@/features/import/extraFiles'
 import { RenameDialog } from '@/features/movies/RenameDialog'
 import { InteractiveSearch } from '@/features/search/InteractiveSearch'
+import { AutomaticSearchButton, InteractiveSearchButton } from '@/features/search/SearchButtons'
 import { toastSearchError, toastSearchResults } from '@/features/search/searchOutcome'
 import {
   AlertDialog,
@@ -59,6 +60,8 @@ export function MovieDetailPage() {
     wasDownloading.current = downloading
   }, [movie.data, id, queryClient])
   const [deleteOpen, setDeleteOpen] = useState(false)
+  // Bumped by the header's Interactive search button: the section below runs the film's search and scrolls into view.
+  const [interactiveRun, setInteractiveRun] = useState(0)
   const [exclude, setExclude] = useState(false)
   const [deleteFiles, setDeleteFiles] = useState(false)
 
@@ -175,10 +178,15 @@ export function MovieDetailPage() {
           </div>
 
           <div className="mt-1 flex flex-wrap gap-2">
-            <Button type="button" onClick={() => searchAll.mutate()} disabled={searchAll.isPending || m.versions.length === 0} data-testid="search-all-versions">
-              <SearchIcon className={searchAll.isPending ? 'animate-pulse' : undefined} />
-              {searchAll.isPending ? t('search.searching') : t('movie.searchAll')}
-            </Button>
+            <AutomaticSearchButton
+              variant="default"
+              onClick={() => searchAll.mutate()}
+              pending={searchAll.isPending}
+              disabled={m.versions.length === 0}
+              hint={<>{t('searchButtons.automaticHint')} {t('movie.searchAllHint')}</>}
+              data-testid="search-all-versions"
+            />
+            <InteractiveSearchButton onClick={() => setInteractiveRun((n) => n + 1)} disabled={m.versions.length === 0} data-testid="open-interactive-search" />
             <Button type="button" variant="outline" onClick={() => refresh.mutate()} disabled={refresh.isPending}>
               <RefreshCwIcon className={refresh.isPending ? 'animate-spin' : undefined} />
               {t('movie.refresh')}
@@ -237,7 +245,7 @@ export function MovieDetailPage() {
         <AddVersionDialog movie={m} onAdded={invalidate} />
       </div>
       <VersionsTable movie={m} onChanged={invalidate} onSearched={afterSearch} />
-      <InteractiveSearch movie={m} />
+      <InteractiveSearch movie={m} runRequest={interactiveRun} />
       <MovieComparison tmdbId={m.tmdbId} />
       <MoviePlays movieId={m.id} />
       <MovieHistory movieId={m.id} />
@@ -446,22 +454,15 @@ function VersionsTable({ movie, onChanged, onSearched }: { movie: Movie; onChang
                 </TableCell>
                 <TableCell className="align-top">
                   <div className="flex items-center justify-end gap-1">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => searchOne.mutate(v)}
-                          disabled={searchOne.isPending || v.status === 'downloading'}
-                          aria-label={t('search.autoSearch')}
-                          data-testid={`search-version-${v.id}`}
-                        >
-                          <SearchIcon className={searchOne.isPending && searchOne.variables?.id === v.id ? 'animate-pulse' : undefined} />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>{v.status === 'downloading' ? t('search.grabBlocked') : t('search.autoSearchHint')}</TooltipContent>
-                    </Tooltip>
+                    <AutomaticSearchButton
+                      iconOnly
+                      target={v.name}
+                      onClick={() => searchOne.mutate(v)}
+                      pending={searchOne.isPending && searchOne.variables?.id === v.id}
+                      disabled={v.status === 'downloading' || (searchOne.isPending && searchOne.variables?.id !== v.id)}
+                      hint={v.status === 'downloading' ? t('search.grabBlocked') : undefined}
+                      data-testid={`search-version-${v.id}`}
+                    />
 
                     <Tooltip>
                       <TooltipTrigger asChild>

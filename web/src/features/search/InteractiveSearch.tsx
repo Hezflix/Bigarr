@@ -1,7 +1,7 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
-import { CopyPlusIcon, SearchIcon } from 'lucide-react'
+import { CopyPlusIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, queue, search, type Movie, type Release, type Version } from '@/api/client'
@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { OneShotGrabDialog } from '@/features/search/OneShotGrabDialog'
 import { grabObjections } from '@/features/search/grabRules'
+import { InteractiveSearchIcon } from '@/features/search/SearchButtons'
 import { AdvancedToggle, SearchQueriesPanel, useAdvancedSearch } from '@/features/search/SearchQueriesPanel'
 import {
   commonComparators,
@@ -59,7 +60,7 @@ function cachedSearchText(queryClient: ReturnType<typeof useQueryClient>, movieI
  * version is chosen when grabbing; each release suggests the one it fits. A typed text replaces the film's ids and
  * titles for films listed under another name; the releases are still judged against this film's versions.
  */
-export function InteractiveSearch({ movie }: { movie: Movie }) {
+export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /** Bumped from the page's header button: search now and scroll here. */ runRequest?: number }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   // null: nothing searched yet. '' is the film's own search (ids and titles), anything else the user's text.
@@ -86,6 +87,23 @@ export function InteractiveSearch({ movie }: { movie: Movie }) {
     queryClient.removeQueries({ queryKey: ['search', movie.id, next], exact: true })
     setSubmitted(next)
   }
+  const section = useRef<HTMLElement>(null)
+  const lastRun = useRef(runRequest)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only a new request from the header runs it, with the text as it is then
+  useEffect(() => {
+    if (runRequest === lastRun.current) return
+    lastRun.current = runRequest
+    section.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    scrollOnResults.current = true
+    run(text.trim())
+  }, [runRequest])
+  // The page is often too short to bring the section to the top before the results arrive: scroll again once they do.
+  const scrollOnResults = useRef(false)
+  useEffect(() => {
+    if (query.isFetching || !scrollOnResults.current) return
+    scrollOnResults.current = false
+    section.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [query.isFetching])
   const submit = (e: FormEvent) => {
     e.preventDefault()
     run(text.trim())
@@ -127,7 +145,7 @@ export function InteractiveSearch({ movie }: { movie: Movie }) {
   }))
 
   return (
-    <section className="flex flex-col gap-3" data-testid="interactive-search">
+    <section ref={section} className="flex scroll-mt-4 flex-col gap-3" data-testid="interactive-search">
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-xl font-semibold tracking-tight">{t('search.title')}</h2>
         <search className="ml-auto">
@@ -142,7 +160,7 @@ export function InteractiveSearch({ movie }: { movie: Movie }) {
               data-testid="search-query"
             />
             <Button type="submit" disabled={query.isFetching || movie.versions.length === 0} data-testid="search-run">
-              <SearchIcon className={query.isFetching ? 'animate-pulse' : undefined} />
+              <InteractiveSearchIcon className={query.isFetching ? 'animate-pulse' : undefined} aria-hidden="true" />
               {query.isFetching ? t('search.searching') : submitted !== null && submitted === text.trim() ? t('search.searchAgain') : t('search.search')}
             </Button>
           </form>

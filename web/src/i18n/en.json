@@ -654,7 +654,7 @@
     "deleteFilesHint": "The movie folder goes to the recycle bin when one is configured in Settings → Media management, otherwise it is deleted for good.",
     "history": "History",
     "renameFiles": "Rename files",
-    "searchAll": "Search all versions"
+    "searchAllHint": "Every version of the film is searched."
   },
   "versions": {
     "title": "Versions",
@@ -847,6 +847,13 @@
     "testTv": "Series: tv-search by {{ids}}.",
     "testNoTv": "No tv-search: series are searched by text."
   },
+  "searchButtons": {
+    "automatic": "Automatic search",
+    "automaticHint": "Searches the indexers and grabs the best release your profile accepts (quality first, then custom format score).",
+    "interactive": "Interactive search",
+    "interactiveHint": "Lists every release the indexers return, with how each version judges it, so you pick the one to grab.",
+    "withTarget": "{{action}}: {{target}}"
+  },
   "search": {
     "title": "Interactive search",
     "search": "Search",
@@ -899,8 +906,6 @@
     "picked": "Shadow mode: “{{title}}” recorded as Bigarr's pick for {{version}}; nothing was sent to a download client.",
     "grabFailed": "The grab failed.",
     "grabOneShot": "New one-shot version…",
-    "autoSearch": "Search automatically",
-    "autoSearchHint": "Search the indexers and grab the best release for this version",
     "autoGrabbed": "{{label}}: grabbed “{{title}}”.",
     "autoNothing": "{{label}}: nothing to grab. {{detail}}",
     "autoNoIndexer": "{{label}}: no indexer has automatic search enabled.",
@@ -2398,10 +2403,6 @@
     "streamsColumn": "Streams"
   },
   "seriesSearch": {
-    "search": "Search",
-    "searchSeries": "Search series",
-    "searchSeason": "Search {{season}}",
-    "searchEpisode": "Search “{{title}}”",
     "title": "Search {{what}} · {{series}}",
     "hint": {
       "episode": "Single episodes of this episode, judged by every version. Packs and other episodes are listed with the reason they do not fit.",
@@ -2635,8 +2636,7 @@
     "count_other": "{{count}} episodes wanted",
     "series": "Series",
     "episode": "Episode",
-    "aired": "Aired",
-    "searchEpisode": "Search {{episode}}"
+    "aired": "Aired"
   },
   "held": {
     "title": "Held for review",
@@ -2821,14 +2821,11 @@
   },
   "episodeDetail": {
     "open": "Details of “{{title}}”",
-    "search": "Interactive search",
     "noFile": "No file for this version.",
     "noHistory": "Nothing happened to this episode yet: no grab, import, failure, deletion or rename.",
     "noPlays": "Never played on a media server.",
     "downloaded": "Downloaded",
     "fileOf": "The file of the version on screen ({{version}}).",
-    "autoSearch": "Automatic search",
-    "autoSearchHint": "Search the indexers now and grab the best release, for every version of the series",
     "autoGrabbed": "{{version}}: grabbed the best release.",
     "autoPicked": "{{version}}: the best release was recorded as Bigarr’s pick (shadow mode).",
     "autoNothing": "{{version}}: nothing grabbed. {{detail}}",

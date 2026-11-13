@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { cn } from 'cn'
-import { BookmarkIcon, ChevronRightIcon, ClapperboardIcon, Columns3Icon, Link2Icon, FilePenLineIcon, FilterIcon, FolderInputIcon, FolderSearchIcon, ListChecksIcon, ListOrderedIcon, PlusIcon, RefreshCwIcon, SearchIcon, StarIcon, Trash2Icon, WrenchIcon } from 'lucide-react'
+import { BookmarkIcon, ChevronRightIcon, ClapperboardIcon, Columns3Icon, Link2Icon, FilePenLineIcon, FilterIcon, FolderInputIcon, FolderSearchIcon, ListChecksIcon, ListOrderedIcon, PlusIcon, RefreshCwIcon, StarIcon, Trash2Icon, WrenchIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { SeriesCompareSection } from '@/features/activity/SeriesCompare'
 import { toast } from 'sonner'
@@ -54,7 +54,9 @@ import { defaultEpisodeSort, type EpisodeSort, type EpisodeSortKey, nextEpisodeS
 import { useSeasonTablePrefs } from './seasonTablePrefs'
 import { ariaSort, SortButton } from '@/features/library/SortButton'
 import { SeriesFilmsSection } from './SeriesFilmsSection'
+import { AutomaticSearchButton, InteractiveSearchButton } from '@/features/search/SearchButtons'
 import { SeriesSearchDialog, type SeriesSearchScope } from '@/features/search/SeriesInteractiveSearch'
+import { useEpisodeAutomaticSearch } from '@/features/series/useEpisodeAutomaticSearch'
 import { Checkbox } from '@/components/ui/checkbox'
 import { SeriesManualImportDialog } from '@/features/import/SeriesManualImportDialog'
 import { HeldReleasesSection } from '@/features/activity/HeldPage'
@@ -199,10 +201,7 @@ export function SeriesDetailPage() {
           </div>
 
           <div className="mt-1 flex flex-wrap gap-2">
-            <Button type="button" variant="outline" onClick={() => setSearchScope({ kind: 'series', label: s.title })} data-testid="series-search-all">
-              <SearchIcon />
-              {t('seriesSearch.searchSeries')}
-            </Button>
+            <InteractiveSearchButton onClick={() => setSearchScope({ kind: 'series', label: s.title })} data-testid="series-search-all" />
             <Button type="button" variant="outline" onClick={() => refresh.mutate()} disabled={refresh.isPending}>
               <RefreshCwIcon className={refresh.isPending ? 'animate-spin' : undefined} />
               {t('seriesDetail.refresh')}
@@ -858,19 +857,11 @@ function SeasonBlock({ series: s, season, version, episodes, files, loading, sho
         )}
         {state && <EpisodeProgress statistics={state.statistics} monitored={monitored} className="hidden w-36 sm:flex" />}
         {outside && <span className="hidden text-xs text-muted-foreground md:inline">{t('seriesOrder.notInOrderHint')}</span>}
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className={cn('size-7', outside && 'invisible')}
-          disabled={outside}
-          onClick={() => onSearch({ kind: 'season', season: season.seasonNumber, label: name, orderSeason: synthetic })}
-          aria-label={t('seriesSearch.searchSeason', { season: name })}
-          title={t('seriesSearch.searchSeason', { season: name })}
-          data-testid="season-search"
-        >
-          <SearchIcon />
-        </Button>
+        {!outside ? (
+          <InteractiveSearchButton iconOnly target={name} onClick={() => onSearch({ kind: 'season', season: season.seasonNumber, label: name, orderSeason: synthetic })} data-testid="season-search" />
+        ) : (
+          <span className="size-7" aria-hidden="true" />
+        )}
       </div>
       {open && (
         <div className="border-t">
@@ -932,6 +923,7 @@ function EpisodeTable({
   const alt = s.ordering !== 'tvdb'
   const tvdbCode = (e: Episode) => `S${String(e.seasonNumber).padStart(2, '0')}E${String(e.episodeNumber).padStart(2, '0')}`
   const shownCode = (e: Episode) => `S${String(e.displaySeasonNumber).padStart(2, '0')}E${String(e.displayEpisodeNumber).padStart(2, '0')}`
+  const automatic = useEpisodeAutomaticSearch(s.id, onChanged)
   const searchEpisode = (e: Episode) => onSearch({ kind: 'episode', episodeId: e.id, label: alt && !e.notInOrder ? `${shownCode(e)} (TVDB ${tvdbCode(e)})` : tvdbCode(e) })
   const toggle = useMutation({
     mutationFn: ({ episode, monitored }: { episode: Episode; monitored: boolean }) => seriesApi.setEpisodes(s.id, version.id, [episode.id], monitored),
@@ -967,7 +959,7 @@ function EpisodeTable({
           {alt && <TableHead className="w-20" title={t('seriesOrder.tvdbNumbers')}>{t('seriesOrder.tvdbColumn')}</TableHead>}
           {head('title', t('seriesDetail.columns.title'), 'min-w-48')}
           {shown.filter((c) => c !== 'absolute').map((c) => head(c, t(`seriesDetail.columns.${c}`), columnWidths[c]))}
-          <TableHead className="w-28 pr-4" aria-label={t('seriesSearch.search')} />
+          <TableHead className="w-28 pr-4" aria-label={t('versions.actions')} />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -1042,18 +1034,18 @@ function EpisodeTable({
                   </Button>
                 )}
                 {file && !file.linkedFromPath && <EpisodeFileActions seriesId={s.id} file={file} onChanged={onChanged} />}
-                {!episode.ownedByFilm && <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="size-7"
-                  onClick={() => searchEpisode(episode)}
-                  aria-label={t('seriesSearch.searchEpisode', { title: episode.title })}
-                  title={t('seriesSearch.searchEpisode', { title: episode.title })}
-                  data-testid="episode-search"
-                >
-                  <SearchIcon />
-                </Button>}
+                {!episode.ownedByFilm && (
+                  <>
+                    <AutomaticSearchButton
+                      iconOnly
+                      target={`${tvdbCode(episode)} · ${episode.title}`}
+                      onClick={() => automatic.mutate(episode.id)}
+                      pending={automatic.isPending && automatic.variables === episode.id}
+                      data-testid="episode-auto-search"
+                    />
+                    <InteractiveSearchButton iconOnly target={`${tvdbCode(episode)} · ${episode.title}`} onClick={() => searchEpisode(episode)} data-testid="episode-search" />
+                  </>
+                )}
                 </span>
               </TableCell>
             </TableRow>
