@@ -1,7 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { CheckSquareIcon, PlusIcon } from 'lucide-react'
 import { Trans, useTranslation } from 'react-i18next'
 import { auth, movies, quality, rootFolders, tags, profilesFor} from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -11,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { BulkResultsDialog, toastBulk, type BulkReport } from './BulkResults'
 import { BulkToolbar } from './BulkToolbar'
 import { LibraryControls, SavedViewsBar } from './LibraryControls'
+import { LibraryHeader } from './LibraryHeader'
 import {
   activeFilterCount,
   firstDirection,
@@ -260,28 +260,16 @@ export function LibraryPage() {
 function PageHeader({ count, shown = null, selecting = false, onSelect }: { count: number | null; shown?: number | null; selecting?: boolean; onSelect?: () => void }) {
   const { t } = useTranslation()
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <h1 className="text-2xl font-semibold tracking-tight">{t('library.title')}</h1>
-      {count !== null && (
-        <span className="text-sm text-muted-foreground tabular-nums" data-testid="library-count">
-          {shown === null ? t('library.count', { count }) : t('library.countShown', { count, shown })}
-        </span>
-      )}
-      <div className="ml-auto flex items-center gap-2">
-        <SpecialsFilmsButton files="filmInLibrary" />
-        {onSelect && (
-          <Button type="button" variant={selecting ? 'secondary' : 'outline'} onClick={onSelect} aria-pressed={selecting} data-testid="library-select-toggle">
-            <CheckSquareIcon />
-            {selecting ? t('bulk.done') : t('library.select')}
-          </Button>
-        )}
-        <Button asChild>
-          <Link to="/add">
-            <PlusIcon />
-            {t('library.addMovie')}
-          </Link>
-        </Button>
-      </div>
-    </div>
+    <LibraryHeader
+      title={t('library.title')}
+      count={count === null ? null : shown === null ? t('library.count', { count }) : t('library.countShown', { count, shown })}
+      countTestId="library-count"
+      addTo="/add"
+      addLabel={t('library.addMovie')}
+      selecting={selecting}
+      onSelect={onSelect}
+    >
+      <SpecialsFilmsButton files="filmInLibrary" />
+    </LibraryHeader>
   )
 }
