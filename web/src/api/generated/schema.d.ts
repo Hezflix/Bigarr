@@ -9150,12 +9150,6 @@ export interface components {
             /** @default false */
             notInOrder: boolean;
             ownedByFilm: null | components["schemas"]["EpisodeFilmOwner"];
-            /** Format: int32 */
-            sceneSeasonNumber: null | number;
-            /** Format: int32 */
-            sceneEpisodeNumber: null | number;
-            /** Format: int32 */
-            sceneAbsoluteNumber: null | number;
         };
         EpisodeStatistics: {
             /** Format: int32 */

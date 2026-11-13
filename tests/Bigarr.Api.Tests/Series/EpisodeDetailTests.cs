@@ -15,7 +15,7 @@ using static Bigarr.Api.Tests.Import.ImportTestHelpers;
 
 namespace Bigarr.Api.Tests.Series;
 
-/// <summary>What the episode panel reads: the episode's history whatever the version, its plays on the media servers, its scene numbers.</summary>
+/// <summary>What the episode panel reads: the episode's history whatever the version, and its plays on the media servers.</summary>
 public sealed class EpisodeDetailTests(SeriesApiFactory factory) : IClassFixture<SeriesApiFactory>
 {
     [Fact]
