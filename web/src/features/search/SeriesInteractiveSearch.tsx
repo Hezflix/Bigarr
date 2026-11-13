@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
 import { CheckIcon, SearchIcon } from 'lucide-react'
@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { grabObjections, languagesComparator, qualityComparator } from '@/features/search/grabRules'
+import { FitCell, FitExpandedRow, FitSidePanel, ReasonsVariantPicker, useReasonsVariant } from '@/features/search/ReasonsDisplay'
 import { AdvancedToggle, SearchQueriesPanel, useAdvancedSearch } from '@/features/search/SearchQueriesPanel'
 import {
   commonComparators,
@@ -22,7 +23,6 @@ import {
   IndexerErrors,
   IndexerSizePeersCells,
   isGrabbable,
-  permanentStyle,
   QualityLanguagesFormatsCells,
   ReleaseTitleCell,
   SearchSkeleton,
@@ -31,8 +31,8 @@ import {
   temporaryStyle,
   useReleaseSort,
   VerdictIcon,
-  VersionVerdicts,
 } from '@/features/search/releaseTable'
+import { type ReasonsVariant, versionFits } from '@/features/search/rejectionReasons'
 import { formatAge } from '@/i18n'
 
 import { type PendingSeriesGrab, SeriesGrabDialog } from './SeriesGrabDialog'
@@ -44,7 +44,7 @@ type SortKey = keyof typeof commonComparators | 'episodes' | 'quality' | 'langua
 
 const SortableHead = (props: Omit<Parameters<typeof SharedSortableHead<SortKey>>[0], 'testIdPrefix'>) => <SharedSortableHead testIdPrefix="series-sort" {...props} />
 
-const fits = (release: SeriesRelease) => release.matchesSeries && release.episodes.length > 0 && release.versions.some((v) => v.approved)
+const fitsAny = (release: SeriesRelease) => release.matchesSeries && release.episodes.length > 0 && release.versions.some((v) => v.approved)
 
 /**
  * Interactive search for a series (Sonarr's manual search): an episode, a season (packs and single episodes together)
@@ -63,6 +63,9 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
   const [grabbed, setGrabbed] = useState<Map<string, { version: string; shadow: boolean }>>(new Map())
   const episodes = useQuery({ queryKey: ['seriesEpisodes', series.id], queryFn: () => seriesApi.episodes(series.id) })
   const [advanced, setAdvanced] = useAdvancedSearch()
+  const reasonsVariant = useReasonsVariant()
+  const [panelKey, setPanelKey] = useState<string | null>(null)
+  const panelId = useId()
   const scopeKey = scope.kind === 'episode' ? `e${scope.episodeId}` : scope.kind === 'season' ? `s${scope.season}${scope.orderSeason ? 'o' : ''}` : 'all'
   const query = useQuery({
     queryKey: ['seriesSearch', series.id, scopeKey, submitted],
@@ -135,6 +138,8 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
 
   const data = query.data
   const releases = data ? sortReleases(data.releases, sort, comparators) : []
+  const fitsOf = (release: SeriesRelease) => versionFits(release.versions, release.rejections.map((r) => r.reason), t('search.reasons.release'))
+  const panelRelease = releases.find((r) => releaseKey(r) === panelKey)
   const acceptable = series.versions.map((v) => ({
     version: v,
     count: data?.releases.filter((r) => r.matchesSeries && r.episodes.length > 0 && r.versions.some((d) => d.versionId === v.id && d.approved)).length ?? 0,
@@ -180,6 +185,8 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
             <AlertDescription>{query.error instanceof ApiError ? query.error.message : t('search.failed')}</AlertDescription>
           </Alert>
         )}
+
+        {data && <ReasonsVariantPicker />}
 
         {data && <IndexerErrors errors={data.indexerErrors} />}
 
@@ -236,8 +243,13 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
                 <TableBody>
                   {releases.map((release) => (
                     <ReleaseRow
-                      key={`${release.indexerId}:${release.guid}`}
+                      key={releaseKey(release)}
                       release={release}
+                      reasonsVariant={reasonsVariant}
+                      fits={fitsOf(release)}
+                      inPanel={panelKey === releaseKey(release)}
+                      onPanel={() => setPanelKey((current) => (current === releaseKey(release) ? null : releaseKey(release)))}
+                      panelId={panelId}
                       versions={series.versions}
                       target={targetOf(release)}
                       grabbing={grab.isPending && grab.variables?.release.guid === release.guid && grab.variables.release.indexerId === release.indexerId}
@@ -250,6 +262,9 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
               </Table>
             </div>
           ))}
+        {data && reasonsVariant === 6 && releases.length > 0 && (
+          <FitSidePanel id={panelId} title={panelRelease?.title} fits={panelRelease ? fitsOf(panelRelease) : undefined} onClose={() => setPanelKey(null)} />
+        )}
         <SeriesGrabDialog pending={pending} onClose={() => setPending(null)} />
       </DialogContent>
     </Dialog>
@@ -258,6 +273,11 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
 
 function ReleaseRow({
   release,
+  reasonsVariant,
+  fits,
+  inPanel,
+  onPanel,
+  panelId,
   versions,
   target,
   grabbing,
@@ -266,6 +286,13 @@ function ReleaseRow({
   onGrab,
 }: {
   release: SeriesRelease
+  /** TEMPORARY: which rejection-reason display is compared. */
+  reasonsVariant: ReasonsVariant
+  fits: ReturnType<typeof versionFits>
+  /** 6: this row's verdicts are the ones the panel under the table shows. */
+  inPanel: boolean
+  onPanel: () => void
+  panelId: string
   versions: SeriesVersion[]
   target: SeriesVersion | undefined
   grabbing: boolean
@@ -276,7 +303,9 @@ function ReleaseRow({
   onGrab: (versionId: number) => void
 }) {
   const { t } = useTranslation()
-  const good = fits(release)
+  const [expanded, setExpanded] = useState(false)
+  const expandedId = useId()
+  const good = fitsAny(release)
   const mapped = release.episodes.length > 0
   const grabbable = episodesLoaded && isGrabbable(release) && !grabbed
   const details = [release.releaseGroup, release.isRepack ? t('search.repack') : null].filter((d): d is string => !!d)
@@ -294,80 +323,80 @@ function ReleaseRow({
           : t('search.grabAnyway', { version: target?.name ?? '' })
 
   return (
-    <TableRow className={cn(!good && !grabbed && 'text-muted-foreground', grabbed && 'bg-emerald-500/5')} data-fits={good} data-grabbed={!!grabbed} data-testid="series-release">
-      <TableCell className="align-top whitespace-nowrap">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span>{formatAge(release.publishDate)}</span>
-          </TooltipTrigger>
-          <TooltipContent>{new Date(release.publishDate).toLocaleString()}</TooltipContent>
-        </Tooltip>
-      </TableCell>
-      <ReleaseTitleCell release={release} good={good} details={details} className="min-w-[17rem]" badges={false} />
-      <TableCell className="align-top whitespace-nowrap" data-testid="release-episodes">
-        {grabbed && (
-          <Badge variant="outline" className="mb-1 border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300" data-testid="release-grabbed">
-            <CheckIcon />
-            {t(grabbed.shadow ? 'seriesSearch.pickedFor' : 'seriesSearch.grabbedFor', { version: grabbed.version })}
-          </Badge>
-        )}
-        {mapped ? (
-          <span className="flex flex-col items-start gap-1">
-            {release.fullSeason && <Badge variant="outline">{t('seriesSearch.pack')}</Badge>}
-            <span className="text-xs tabular-nums">{release.episodesLabel}</span>
-            {release.numbering && release.numbering !== 'tvdb' && (
-              <Badge variant="outline" title={t(`seriesSearch.numberingHint.${release.numbering}`)} data-testid="release-numbering">
-                {t(`seriesSearch.numbering.${release.numbering}`)}
-              </Badge>
-            )}
-            {release.held && (
-              <Badge variant="outline" className={temporaryStyle} data-testid="release-held">
-                {t('seriesSearch.held')}
-              </Badge>
-            )}
-          </span>
-        ) : (
-          <span className="text-xs">—</span>
-        )}
-      </TableCell>
-      <IndexerSizePeersCells release={release} />
-      <QualityLanguagesFormatsCells release={release} score={targetDecision?.customFormatScore} scoreVersion={target?.name} />
-      <TableCell className="min-w-[13rem] align-top whitespace-normal" data-testid="series-release-fit">
-        {release.rejections.length > 0 && (
-          <span className="mb-1 flex flex-wrap gap-1">
-            {release.rejections.map((r) => (
-              <Badge key={r.reason} variant="outline" className={cn('h-auto rounded-md whitespace-normal text-left', permanentStyle)}>
-                {r.reason}
-              </Badge>
+    <>
+      <TableRow className={cn(!good && !grabbed && 'text-muted-foreground', grabbed && 'bg-emerald-500/5', inPanel && 'bg-muted/50')} data-fits={good} data-grabbed={!!grabbed} data-testid="series-release">
+        <TableCell className="align-top whitespace-nowrap">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>{formatAge(release.publishDate)}</span>
+            </TooltipTrigger>
+            <TooltipContent>{new Date(release.publishDate).toLocaleString()}</TooltipContent>
+          </Tooltip>
+        </TableCell>
+        <ReleaseTitleCell release={release} good={good} details={details} className="min-w-[17rem]" badges={false} />
+        <TableCell className="align-top whitespace-nowrap" data-testid="release-episodes">
+          {grabbed && (
+            <Badge variant="outline" className="mb-1 border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300" data-testid="release-grabbed">
+              <CheckIcon />
+              {t(grabbed.shadow ? 'seriesSearch.pickedFor' : 'seriesSearch.grabbedFor', { version: grabbed.version })}
+            </Badge>
+          )}
+          {mapped ? (
+            <span className="flex flex-col items-start gap-1">
+              {release.fullSeason && <Badge variant="outline">{t('seriesSearch.pack')}</Badge>}
+              <span className="text-xs tabular-nums">{release.episodesLabel}</span>
+              {release.numbering && release.numbering !== 'tvdb' && (
+                <Badge variant="outline" title={t(`seriesSearch.numberingHint.${release.numbering}`)} data-testid="release-numbering">
+                  {t(`seriesSearch.numbering.${release.numbering}`)}
+                </Badge>
+              )}
+              {release.held && (
+                <Badge variant="outline" className={temporaryStyle} data-testid="release-held">
+                  {t('seriesSearch.held')}
+                </Badge>
+              )}
+            </span>
+          ) : (
+            <span className="text-xs">—</span>
+          )}
+        </TableCell>
+        <IndexerSizePeersCells release={release} />
+        <QualityLanguagesFormatsCells release={release} score={targetDecision?.customFormatScore} scoreVersion={target?.name} />
+        <FitCell
+          variant={reasonsVariant}
+          fits={fits}
+          matches={release.matchesSeries}
+          expanded={reasonsVariant === 5 ? expanded : inPanel}
+          onToggle={reasonsVariant === 5 ? () => setExpanded((e) => !e) : onPanel}
+          detailsId={reasonsVariant === 5 ? expandedId : panelId}
+          testId="series-release-fit"
+        />
+        <TableCell className="align-top">
+          <GrabSplitButton
+            accepted={accepted}
+            tip={grabTip}
+            targetName={target?.name}
+            grabbing={grabbing}
+            disabled={grabbing || !grabbable || !target}
+            menuDisabled={grabbing || !grabbable}
+            onGrab={() => target && onGrab(target.id)}
+            testId="series-grab"
+            menuClassName="min-w-56"
+          >
+            {versions.map((v) => (
+              <DropdownMenuItem key={v.id} onSelect={() => onGrab(v.id)}>
+                <VerdictIcon decision={decisionFor(v.id)} />
+                <span className={cn(v.id === target?.id && 'font-medium')}>{v.name}</span>
+                <span className="ml-auto pl-4 text-xs text-muted-foreground">
+                  {[v.isDefault ? t('search.defaultVersion') : null, v.id === target?.id ? t('search.suggested') : null].filter(Boolean).join(' · ')}
+                </span>
+              </DropdownMenuItem>
             ))}
-          </span>
-        )}
-        <VersionVerdicts decisions={release.versions} matches={release.matchesSeries} />
-      </TableCell>
-      <TableCell className="align-top">
-        <GrabSplitButton
-          accepted={accepted}
-          tip={grabTip}
-          targetName={target?.name}
-          grabbing={grabbing}
-          disabled={grabbing || !grabbable || !target}
-          menuDisabled={grabbing || !grabbable}
-          onGrab={() => target && onGrab(target.id)}
-          testId="series-grab"
-          menuClassName="min-w-56"
-        >
-          {versions.map((v) => (
-            <DropdownMenuItem key={v.id} onSelect={() => onGrab(v.id)}>
-              <VerdictIcon decision={decisionFor(v.id)} />
-              <span className={cn(v.id === target?.id && 'font-medium')}>{v.name}</span>
-              <span className="ml-auto pl-4 text-xs text-muted-foreground">
-                {[v.isDefault ? t('search.defaultVersion') : null, v.id === target?.id ? t('search.suggested') : null].filter(Boolean).join(' · ')}
-              </span>
-            </DropdownMenuItem>
-          ))}
-        </GrabSplitButton>
-      </TableCell>
-    </TableRow>
+          </GrabSplitButton>
+        </TableCell>
+      </TableRow>
+      {reasonsVariant === 5 && expanded && <FitExpandedRow id={expandedId} fits={fits} colSpan={11} />}
+    </>
   )
 }
 
