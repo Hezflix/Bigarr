@@ -1,7 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { CheckSquareIcon, FolderSearchIcon, PlusIcon } from 'lucide-react'
+import { FolderSearchIcon } from 'lucide-react'
 import { Trans, useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, auth, profilesFor, quality, rootFolders, rootsOfKind, series as seriesApi, tags } from '@/api/client'
@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { BulkResultsDialog, toastBulk, type BulkReport } from '@/features/library/BulkResults'
 import { versionNames, viewMode } from '@/features/library/core'
 import { SavedViewsBar } from '@/features/library/LibraryControls'
+import { LibraryHeader } from '@/features/library/LibraryHeader'
 import { useSelection } from '@/features/library/selection'
 import { SeriesBulkToolbar } from './SeriesBulkToolbar'
 import { SpecialsFilmsButton } from './SpecialsFilmsButton'
@@ -266,30 +267,18 @@ export function SeriesLibraryPage() {
 function PageHeader({ count, shown = null, selecting = false, onSelect }: { count: number | null; shown?: number | null; selecting?: boolean; onSelect?: () => void }) {
   const { t } = useTranslation()
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <h1 className="text-2xl font-semibold tracking-tight">{t('seriesLibrary.title')}</h1>
-      {count !== null && (
-        <span className="text-sm text-muted-foreground tabular-nums" data-testid="series-count">
-          {shown === null ? t('seriesLibrary.count', { count }) : t('seriesLibrary.countShown', { count, shown })}
-        </span>
-      )}
-      <div className="ml-auto flex items-center gap-2">
-        <SpecialsFilmsButton files="specialHasFile" />
-        <RescanAllButton />
-        {onSelect && (
-          <Button type="button" variant={selecting ? 'secondary' : 'outline'} onClick={onSelect} aria-pressed={selecting} data-testid="library-select-toggle">
-            <CheckSquareIcon />
-            {selecting ? t('bulk.done') : t('library.select')}
-          </Button>
-        )}
-        <Button asChild>
-          <Link to="/series/add">
-            <PlusIcon />
-            {t('seriesLibrary.add')}
-          </Link>
-        </Button>
-      </div>
-    </div>
+    <LibraryHeader
+      title={t('seriesLibrary.title')}
+      count={count === null ? null : shown === null ? t('seriesLibrary.count', { count }) : t('seriesLibrary.countShown', { count, shown })}
+      countTestId="series-count"
+      addTo="/series/add"
+      addLabel={t('seriesLibrary.add')}
+      selecting={selecting}
+      onSelect={onSelect}
+    >
+      <SpecialsFilmsButton files="specialHasFile" />
+      <RescanAllButton />
+    </LibraryHeader>
   )
 }
 
