@@ -2,13 +2,12 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { cn } from 'cn'
-import { SearchIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, search, wanted, type WantedItem } from '@/api/client'
-import { Button } from '@/components/ui/button'
 import { TableCell, TableHead, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { AutomaticSearchButton } from '@/features/search/SearchButtons'
 import { toastSearchError, toastSearchResults } from '@/features/search/searchOutcome'
 import { WantedFrame, wantedPageSize, WantedTitle, WantedVersionCells, WantedVersionHeads, type WantedFilterChoice } from '@/features/wanted/wantedTable'
 import { useSchedulerEnabled } from '@/hooks/useSchedulerEnabled'
@@ -95,22 +94,13 @@ export function WantedPage() {
           )}
           <TableCell className="align-top">
             <div className="flex justify-end">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => searchOne.mutate(item)}
-                    disabled={searchOne.isPending}
-                    aria-label={t('search.autoSearch')}
-                    data-testid={`wanted-search-${item.versionId}`}
-                  >
-                    <SearchIcon className={searchOne.isPending && searchOne.variables?.versionId === item.versionId ? 'animate-pulse' : undefined} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t('search.autoSearchHint')}</TooltipContent>
-              </Tooltip>
+              <AutomaticSearchButton
+                iconOnly
+                target={`${item.movieTitle} · ${item.versionName}`}
+                onClick={() => searchOne.mutate(item)}
+                pending={searchOne.isPending && searchOne.variables?.versionId === item.versionId}
+                data-testid={`wanted-search-${item.versionId}`}
+              />
             </div>
           </TableCell>
         </TableRow>

@@ -1,19 +1,19 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { cn } from 'cn'
-import { BookmarkIcon, SearchIcon, ZapIcon } from 'lucide-react'
+import { BookmarkIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
-import { ApiError, history, playback, series as seriesApi, type Episode, type EpisodeFile, type Play, type Series, type SeriesVersion } from '@/api/client'
+import { history, playback, type Episode, type EpisodeFile, type Play, type Series, type SeriesVersion } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { HistoryTable } from '@/features/activity/HistoryTable'
 import { PlayDetailDialog } from '@/features/playback/PlayDetailDialog'
 import { PlaysTable } from '@/features/playback/PlaysTable'
 import { formatDate } from '@/i18n'
+import { AutomaticSearchButton, InteractiveSearchButton } from '@/features/search/SearchButtons'
 import { EpisodeFileDetails } from './SeriesFiles'
+import { useEpisodeAutomaticSearch } from './useEpisodeAutomaticSearch'
 
 const code = (season: number, episode: number) => `S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}`
 
@@ -44,25 +44,11 @@ export function EpisodeDetailDialog({
   onChanged: () => void
 }) {
   const { t } = useTranslation()
-  const queryClient = useQueryClient()
   const [tab, setTab] = useState<Tab>('file')
   const events = useQuery({ queryKey: ['history', 'episode', episode.id], queryFn: () => history.list({ episodeId: episode.id, limit: 100 }) })
   const plays = useQuery({ queryKey: ['playback', 'plays', 'episode', episode.id], queryFn: () => playback.plays({ episodeId: episode.id, pageSize: 50 }) })
   const [play, setPlay] = useState<Play | null>(null)
-  const automatic = useMutation({
-    mutationFn: () => seriesApi.searchEpisode(s.id, episode.id),
-    onSuccess: (results) => {
-      for (const r of results) {
-        if (r.grabbed > 0) toast.success(t('episodeDetail.autoGrabbed', { version: r.versionName }))
-        else if (r.picked > 0) toast.success(t('episodeDetail.autoPicked', { version: r.versionName }))
-        else toast.info(t('episodeDetail.autoNothing', { version: r.versionName, detail: r.detail ?? '' }))
-      }
-      void queryClient.invalidateQueries({ queryKey: ['history', 'episode', episode.id] })
-      void queryClient.invalidateQueries({ queryKey: ['queue'] })
-      onChanged()
-    },
-    onError: (e) => toast.error(e instanceof ApiError ? e.message : t('search.failed')),
-  })
+  const automatic = useEpisodeAutomaticSearch(s.id, onChanged)
 
   const shown = s.ordering !== 'tvdb' && !episode.notInOrder ? code(episode.displaySeasonNumber, episode.displayEpisodeNumber) : code(episode.seasonNumber, episode.episodeNumber)
   const aired = episode.airDate ? formatDate(episode.airDate) : episode.airDateUtc ? formatDate(episode.airDateUtc) : t('seriesDetail.tba')
@@ -117,15 +103,9 @@ export function EpisodeDetailDialog({
             ))}
           </div>
           {onInteractiveSearch && (
-            <span className="ml-auto flex gap-2 pb-1.5">
-              <Button type="button" size="sm" variant="outline" onClick={() => automatic.mutate()} disabled={automatic.isPending} title={t('episodeDetail.autoSearchHint')} data-testid="episode-detail-auto-search">
-                <ZapIcon className={automatic.isPending ? 'animate-pulse' : undefined} />
-                {automatic.isPending ? t('search.searching') : t('episodeDetail.autoSearch')}
-              </Button>
-              <Button type="button" size="sm" variant="outline" onClick={onInteractiveSearch} data-testid="episode-detail-search">
-                <SearchIcon />
-                {t('episodeDetail.search')}
-              </Button>
+            <span className="ml-auto flex flex-wrap gap-2 pb-1.5">
+              <AutomaticSearchButton size="sm" onClick={() => automatic.mutate(episode.id)} pending={automatic.isPending} data-testid="episode-detail-auto-search" />
+              <InteractiveSearchButton size="sm" onClick={onInteractiveSearch} data-testid="episode-detail-search" />
             </span>
           )}
         </div>
