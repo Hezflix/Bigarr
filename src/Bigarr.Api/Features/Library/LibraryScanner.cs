@@ -110,7 +110,8 @@ public sealed partial class LibraryScanner(BigarrDbContext db, IMetadataProvider
 
     private async Task ScanFolderAsync(RootFolder root, DirectoryInfo folder, ScanProfiles profiles, ScanProgress progress, CancellationToken ct)
     {
-        var files = EnumerateVideoFiles(folder).ToList();
+        // Filesystem order is not stable, and the first file seen becomes the default version: walk the files by path.
+        var files = EnumerateVideoFiles(folder).OrderBy(f => Path.GetRelativePath(folder.FullName, f.FullName), StringComparer.Ordinal).ToList();
         if (files.Count == 0)
         {
             await UpsertUnmappedAsync(root, folder.Name, 0, UnmappedReason.NoVideoFiles, null, ct);

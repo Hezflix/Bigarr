@@ -31,8 +31,9 @@ public sealed class LibraryScanTests(BigarrApiFactory factory) : IClassFixture<B
     [Fact]
     public async Task Scanning_an_existing_library_creates_one_version_per_file_and_lists_unmapped_folders()
     {
-        Video(_root, "The Matrix (1999)", "The.Matrix.1999.1080p.BluRay.x264-GRP.mkv");
+        // The 2160p file is written first: the scan walks files by path, not in the order the filesystem lists them.
         Video(_root, "The Matrix (1999)", "The.Matrix.1999.2160p.UHD.BluRay.x265-GRP.mkv");
+        Video(_root, "The Matrix (1999)", "The.Matrix.1999.1080p.BluRay.x264-GRP.mkv");
         Video(_root, "The Matrix (1999)", "The.Matrix.1999.1080p.BluRay.x264-GRP-sample.mkv");
         Video(_root, "The Matrix (1999)/Extras", "Making.Of.The.Matrix.mkv");
         Text(_root, "The Matrix (1999)", "The.Matrix.1999.1080p.BluRay.x264-GRP.nfo");
