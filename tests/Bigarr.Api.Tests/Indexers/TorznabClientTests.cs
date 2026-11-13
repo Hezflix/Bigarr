@@ -103,7 +103,7 @@ public sealed class TorznabClientTests
         var noKey = TorznabClient.BuildUrl(Indexer(apiKey: null), new Dictionary<string, string> { ["t"] = "caps" }, includeCategories: false);
         Assert.DoesNotContain("apikey", noKey);
 
-        Assert.Equal("http://x/api?t=movie&apikey=***&cat=2000", TorznabClient.Redact("http://x/api?t=movie&apikey=k3y&cat=2000"));
+        Assert.Equal("http://x/api?t=movie&apikey=•••&cat=2000", TorznabClient.Redact("http://x/api?t=movie&apikey=k3y&cat=2000"));
     }
 
     [Theory]

@@ -23,6 +23,10 @@ public static class SeriesSearchCriteriaBuilder
         var season = scene ? episode.SceneSeasonNumber!.Value : episode.SeasonNumber;
         var number = scene ? episode.SceneEpisodeNumber ?? episode.EpisodeNumber : episode.EpisodeNumber;
         var baseCriteria = Base(series, sceneNames, season);
+        if (scene && (season != episode.SeasonNumber || number != episode.EpisodeNumber))
+        {
+            baseCriteria = baseCriteria with { Step = $"Scene numbering (XEM) S{season:00}E{number:00}" };
+        }
 
         if (series.SeriesType == SeriesType.Daily && episode.AirDate is { } airDate && episode.SeasonNumber > 0)
         {
@@ -51,7 +55,7 @@ public static class SeriesSearchCriteriaBuilder
             // An XEM name standing for this scene season numbers its episodes from 1: "Sousou no Frieren S2 - 05".
             foreach (var name in SeasonNames(series, sceneNames, season))
             {
-                criteria.Add(new SeriesSearchCriteria(name, null, null, null, SeriesType.Anime, []) { AbsoluteEpisodeNumber = number });
+                criteria.Add(new SeriesSearchCriteria(name, null, null, null, SeriesType.Anime, []) { AbsoluteEpisodeNumber = number, Step = "XEM season name" });
             }
 
             return criteria;
@@ -72,7 +76,9 @@ public static class SeriesSearchCriteriaBuilder
             seasons.Add(seasonNumber);
         }
 
-        var criteria = seasons.Select(s => Base(series, sceneNames, s) with { SeasonNumber = s }).ToList();
+        var criteria = seasons
+            .Select(s => Base(series, sceneNames, s) with { SeasonNumber = s, Step = s == seasonNumber ? null : $"Scene numbering (XEM) season {s}" })
+            .ToList();
         if (seasonNumber == 0)
         {
             // Specials: Sonarr searches each one by title as well.
@@ -84,7 +90,7 @@ public static class SeriesSearchCriteriaBuilder
         {
             foreach (var name in seasons.SelectMany(s => SeasonNames(series, sceneNames, s)).Distinct(StringComparer.OrdinalIgnoreCase))
             {
-                criteria.Add(new SeriesSearchCriteria(name, null, null, null, SeriesType.Anime, []));
+                criteria.Add(new SeriesSearchCriteria(name, null, null, null, SeriesType.Anime, []) { Step = "XEM season name" });
             }
         }
 

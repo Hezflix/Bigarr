@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { OneShotGrabDialog } from '@/features/search/OneShotGrabDialog'
 import { grabObjections } from '@/features/search/grabRules'
+import { AdvancedToggle, SearchQueriesPanel, useAdvancedSearch } from '@/features/search/SearchQueriesPanel'
 import {
   commonComparators,
   GrabConfirmDialog,
@@ -67,9 +68,10 @@ export function InteractiveSearch({ movie }: { movie: Movie }) {
   const [sort, onSort] = useReleaseSort<SortKey>()
   const [oneShot, setOneShot] = useState<{ release: Release; profileId: number } | null>(null)
   const [pending, setPending] = useState<PendingGrab | null>(null)
+  const [advanced, setAdvanced] = useAdvancedSearch()
   const query = useQuery({
     queryKey: ['search', movie.id, submitted ?? ''],
-    queryFn: () => search.movie(movie.id, { query: submitted || undefined }),
+    queryFn: () => search.movie(movie.id, { query: submitted || undefined, includeQueries: advanced }),
     enabled: submitted !== null,
     staleTime: Number.POSITIVE_INFINITY,
     retry: false,
@@ -145,6 +147,7 @@ export function InteractiveSearch({ movie }: { movie: Movie }) {
             </Button>
           </form>
         </search>
+        <AdvancedToggle checked={advanced} onChange={setAdvanced} testId="search-advanced" />
       </div>
 
       {submitted === null && <p className="text-sm text-muted-foreground">{t('search.hint')}</p>}
@@ -182,6 +185,8 @@ export function InteractiveSearch({ movie }: { movie: Movie }) {
           </p>
 
           <IndexerErrors errors={data.indexerErrors} />
+
+          {advanced && <SearchQueriesPanel queries={data.queries} />}
 
           {releases.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('search.noResults')}</p>

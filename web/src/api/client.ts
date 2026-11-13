@@ -404,6 +404,12 @@ export type Release = Schemas['ReleaseResponse']
 
 export type SearchResult = Schemas['SearchResponse']
 
+/** One request sent to an indexer during an interactive search (advanced view), its URL redacted by the server. */
+export type IndexerQueryRequest = Schemas['IndexerRequestResponse']
+
+/** What one indexer was asked during an interactive search, and how many of its releases parsed, matched and were accepted. */
+export type IndexerQueryReport = Schemas['IndexerQueryReport']
+
 /** `picked`: shadow mode recorded the best approved release instead of grabbing it. */
 export type AutomaticSearchOutcome = Schemas['AutomaticSearchOutcome']
 
@@ -412,20 +418,22 @@ export type AutomaticSearchResult = Schemas['AutomaticSearchResult']
 
 export const search = {
   /** Interactive search for the film, judged by every version (or one); `query` replaces its ids and titles with a text. */
-  movie: (movieId: number, options: { versionId?: number; query?: string } = {}) => {
+  movie: (movieId: number, options: { versionId?: number; query?: string; includeQueries?: boolean } = {}) => {
     const params = new URLSearchParams({ movieId: String(movieId) })
     if (options.versionId) params.set('versionId', String(options.versionId))
     if (options.query?.trim()) params.set('query', options.query.trim())
+    if (options.includeQueries) params.set('includeQueries', 'true')
     return api<SearchResult>(`/api/v1/search?${params}`)
   },
   /** Interactive search for a series: an episode, a season (packs and singles together) or the whole series. */
-  series: (seriesId: number, scope: { episodeId?: number; season?: number; orderSeason?: boolean }, options: { versionId?: number; query?: string } = {}) => {
+  series: (seriesId: number, scope: { episodeId?: number; season?: number; orderSeason?: boolean }, options: { versionId?: number; query?: string; includeQueries?: boolean } = {}) => {
     const params = new URLSearchParams()
     if (scope.episodeId) params.set('episodeId', String(scope.episodeId))
     if (scope.season !== undefined) params.set('season', String(scope.season))
     if (scope.orderSeason) params.set('orderSeason', 'true')
     if (options.versionId) params.set('versionId', String(options.versionId))
     if (options.query?.trim()) params.set('query', options.query.trim())
+    if (options.includeQueries) params.set('includeQueries', 'true')
     return api<SeriesSearchResult>(`/api/v1/series/${seriesId}/search?${params}`)
   },
   /** Automatic search on demand: every version of the film (or one), the best approved release grabbed. */

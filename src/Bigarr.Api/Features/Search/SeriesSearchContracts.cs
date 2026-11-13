@@ -66,4 +66,6 @@ public sealed record SeriesSearchResponse(
     /// <summary>A whole-series search: the seasons the request by ids left uncovered, then searched one by one.</summary>
     List<int>? FallbackSeasons = null,
     /// <summary>TVDB numbering found no acceptable release: the series' order was asked too.</summary>
-    bool OrderFallback = false);
+    bool OrderFallback = false,
+    /// <summary>What each indexer was asked (<c>includeQueries=true</c> only), URLs redacted.</summary>
+    List<IndexerQueryReport>? Queries = null);

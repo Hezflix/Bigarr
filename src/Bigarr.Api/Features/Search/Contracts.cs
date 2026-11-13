@@ -57,4 +57,6 @@ public sealed record SearchResponse(
     List<ReleaseResponse> Releases,
     List<IndexerErrorResponse> IndexerErrors,
     /// <summary>The text the indexers were asked, when the user typed one; null when the film was searched by its ids and titles.</summary>
-    string? Query = null);
+    string? Query = null,
+    /// <summary>What each indexer was asked (<c>includeQueries=true</c> only), URLs redacted.</summary>
+    List<IndexerQueryReport>? Queries = null);

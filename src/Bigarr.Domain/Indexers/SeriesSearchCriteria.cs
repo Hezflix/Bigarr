@@ -32,6 +32,9 @@ public sealed record SeriesSearchCriteria(
     /// </summary>
     public IReadOnlyList<string> SpecialQueries { get; init; } = [];
 
+    /// <summary>What these criteria stand for when it is not the plain request (XEM scene numbers, an XEM season name): shown in the search's trace.</summary>
+    public string? Step { get; init; }
+
     public bool IsSeasonSearch => SeasonNumber is not null && EpisodeNumber is null && AirDate is null && AbsoluteEpisodeNumber is null;
 
     public bool IsSeriesSearch => SpecialQueries.Count == 0 && SeasonNumber is null && EpisodeNumber is null && AirDate is null && AbsoluteEpisodeNumber is null;

@@ -19,6 +19,7 @@ export interface paths {
                     versionId?: number;
                     query?: string;
                     orderSeason?: boolean;
+                    includeQueries?: boolean;
                 };
                 header?: never;
                 path: {
@@ -3923,6 +3924,7 @@ export interface paths {
                     movieId?: number;
                     versionId?: number;
                     query?: string;
+                    includeQueries?: boolean;
                 };
                 header?: never;
                 path?: never;
@@ -9504,6 +9506,20 @@ export interface components {
         IndexerFlags: string;
         /** @enum {unknown} */
         IndexerImplementation: "torznab" | "mock";
+        IndexerQueryReport: {
+            /** Format: int32 */
+            indexerId: number;
+            indexer: string;
+            requests: components["schemas"]["IndexerRequestResponse"][];
+            /** Format: int32 */
+            releases: number;
+            /** Format: int32 */
+            parsed: number;
+            /** Format: int32 */
+            matched: number;
+            /** Format: int32 */
+            accepted: number;
+        };
         IndexerRequest: {
             name: string;
             implementation: components["schemas"]["IndexerImplementation"];
@@ -9537,6 +9553,25 @@ export interface components {
             prowlarrId?: null | number;
             tvCategories?: null | number[];
             animeCategories?: null | number[];
+        };
+        IndexerRequestResponse: {
+            step: string;
+            function: string;
+            parameters: {
+                [key: string]: string;
+            };
+            url: null | string;
+            /** Format: int32 */
+            statusCode: null | number;
+            /** Format: int64 */
+            durationMs: number;
+            /** Format: int64 */
+            waitedMs: number;
+            /** Format: int32 */
+            results: null | number;
+            errorKind: null | components["schemas"]["IndexerFailureKind"];
+            error: null | string;
+            skipped: boolean;
         };
         IndexerResponse: {
             /** Format: int32 */
@@ -11111,6 +11146,7 @@ export interface components {
             releases: components["schemas"]["ReleaseResponse"][];
             indexerErrors: components["schemas"]["IndexerErrorResponse"][];
             query: null | string;
+            queries: null | components["schemas"]["IndexerQueryReport"][];
         };
         SeasonMonitoringRequest: {
             monitored: boolean;
@@ -11736,6 +11772,7 @@ export interface components {
             fallbackSeasons: null | number[];
             /** @default false */
             orderFallback: boolean;
+            queries: null | components["schemas"]["IndexerQueryReport"][];
         };
         /** @enum {unknown} */
         SeriesStatus: "upcoming" | "continuing" | "ended" | "deleted";

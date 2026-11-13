@@ -25,7 +25,8 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
     private readonly ReleaseEvaluator _evaluator = ReleaseEvaluator.Interactive();
 
     /// <param name="orderSeason"><paramref name="seasonNumber"/> is a season of the series' alternative order (its page shows that order).</param>
-    public async Task<Result<SeriesSearchResponse>> SearchAsync(int seriesId, int? episodeId, int? seasonNumber, int? versionId, string? query, CancellationToken ct, bool orderSeason = false)
+    /// <param name="includeQueries">Report what each indexer was asked (the advanced view).</param>
+    public async Task<Result<SeriesSearchResponse>> SearchAsync(int seriesId, int? episodeId, int? seasonNumber, int? versionId, string? query, CancellationToken ct, bool orderSeason = false, bool includeQueries = false)
     {
         var targets = await targetsFactory.LoadAsync(seriesId, ct);
         if (targets is null)
@@ -110,6 +111,7 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
             return Failure.Invalid("No indexer available", "No indexer has interactive search enabled. Add one in Settings → Indexers.");
         }
 
+        var trace = IndexerRequestTrace.Start(includeQueries);
         var stopwatch = Stopwatch.StartNew();
         var (found, results) = await WholeSeriesSearch.QueryAsync(indexers, criteria, gateway, ct);
         var calculator = await scorer.CalculatorAsync(ct);
@@ -133,6 +135,7 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
             foreach (var season in fallbackSeasons)
             {
                 var seasonEpisodes = targets.Episodes.Where(e => e.SeasonNumber == season).ToList();
+                using var step = IndexerRequestTrace.Step($"Season {season} (series fallback)");
                 var (more, moreResults) = await WholeSeriesSearch.QueryAsync(indexers, SeriesSearchCriteriaBuilder.ForSeason(series, season, seasonEpisodes, targets.SceneNames), gateway, ct);
                 results.AddRange(moreResults.Where(r => r.Error is not null && results.All(e => e.Indexer.Id != r.Indexer.Id || e.Error is null)));
                 releases.AddRange(more.Where(r => seen.Add((r.IndexerId, r.Guid))).Select(release => Evaluate(release, targets, index, searchScope, versionId, minimumSeeders.GetValueOrDefault(release.IndexerId), calculator)));
@@ -155,6 +158,7 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
             if (orderCriteria.Count > 0)
             {
                 var seen = found.Select(r => (r.IndexerId, r.Guid)).ToHashSet();
+                using var step = IndexerRequestTrace.Step($"Order fallback ({series.Ordering})");
                 var (more, moreResults) = await WholeSeriesSearch.QueryAsync(indexers, orderCriteria, gateway, ct);
                 results.AddRange(moreResults.Where(r => r.Error is not null && results.All(e => e.Indexer.Id != r.Indexer.Id || e.Error is null)));
                 all.AddRange(more.Where(r => seen.Add((r.IndexerId, r.Guid))));
@@ -188,7 +192,11 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
             .Select(r => new IndexerErrorResponse(r.Indexer.Id, r.Indexer.Name, r.Error!.Kind, r.Error.Message))
             .ToList();
 
-        return Result<SeriesSearchResponse>.Ok(new SeriesSearchResponse(series.Id, scope, seasonNumber, episodeId, label, time.GetUtcNow().UtcDateTime, indexers.Count, ordered, errors, query, fallbackSeasons, orderFallback));
+        var queries = trace is null
+            ? null
+            : SearchQueryReports.Build(trace, indexers, ordered.Select(r => (r.IndexerId, r.ParsedSeriesTitle is not null || r.Episodes.Count > 0, r.MatchesSeries, r.MatchesSeries && r.Versions.Any(v => v.Approved))));
+
+        return Result<SeriesSearchResponse>.Ok(new SeriesSearchResponse(series.Id, scope, seasonNumber, episodeId, label, time.GetUtcNow().UtcDateTime, indexers.Count, ordered, errors, query, fallbackSeasons, orderFallback, queries));
     }
 
     private static (SeriesReleaseResponse Response, int Order) Evaluate(
