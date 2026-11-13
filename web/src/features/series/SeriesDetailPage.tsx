@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { cn } from 'cn'
-import { BookmarkIcon, ChevronRightIcon, ClapperboardIcon, Link2Icon, FilePenLineIcon, FilterIcon, FolderInputIcon, FolderSearchIcon, ListChecksIcon, ListOrderedIcon, PlusIcon, RefreshCwIcon, SearchIcon, StarIcon, Trash2Icon, WrenchIcon } from 'lucide-react'
+import { BookmarkIcon, ChevronRightIcon, ClapperboardIcon, Columns3Icon, Link2Icon, FilePenLineIcon, FilterIcon, FolderInputIcon, FolderSearchIcon, ListChecksIcon, ListOrderedIcon, PlusIcon, RefreshCwIcon, SearchIcon, StarIcon, Trash2Icon, WrenchIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { SeriesCompareSection } from '@/features/activity/SeriesCompare'
 import { toast } from 'sonner'
@@ -38,6 +38,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -46,7 +47,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatBytes, formatDate } from '@/i18n'
 import { EpisodeProgress } from './EpisodeProgress'
-import { type EpisodeSort, type EpisodeSortKey, nextEpisodeSort, sortEpisodes } from './episodeSort'
+import { audioLabel, type EpisodeColumn, episodeColumns, type EpisodeStatus, episodeStatus, fileFlags, fileLanguages } from './episodeColumns'
+import { defaultEpisodeSort, type EpisodeSort, type EpisodeSortKey, nextEpisodeSort, sortEpisodes, sortStillShown } from './episodeSort'
 import { useSeasonTablePrefs } from './seasonTablePrefs'
 import { ariaSort, SortButton } from '@/features/library/SortButton'
 import { SeriesFilmsSection } from './SeriesFilmsSection'
@@ -780,13 +782,20 @@ function SeasonList({
   const opened = open ?? new Set(latest === undefined ? [] : [latest])
   // TVDB numbers every show absolutely; like Sonarr, only anime shows the column.
   const showAbsolute = s.seriesType === 'anime'
-  // One sort for every season of every show, kept like the library's view options.
+  // One sort and one set of columns for every season of every show, kept like the library's view options.
   const me = useQuery({ queryKey: ['me'], queryFn: auth.me })
   const [prefs, updatePrefs] = useSeasonTablePrefs(me.data?.id)
   const onSort = (key: EpisodeSortKey) => updatePrefs((current) => ({ sort: nextEpisodeSort(current.sort, key) }))
 
   return (
     <div className="flex flex-col gap-3" data-testid="series-seasons">
+      <div className="flex justify-end">
+        <SeasonColumnsMenu
+          columns={prefs.columns}
+          // Hiding the column the tables are sorted on goes back to the season order: no sort on what cannot be seen.
+          onChange={(columns) => updatePrefs((current) => ({ columns, sort: sortStillShown(current.sort, columns) ? current.sort : defaultEpisodeSort }))}
+        />
+      </div>
       {blocks.map(({ season, episodes: list, synthetic }) => (
         <SeasonBlock
           key={season.seasonNumber}
@@ -799,6 +808,7 @@ function SeasonList({
           showAbsolute={showAbsolute}
           sort={prefs.sort}
           onSort={onSort}
+          columns={prefs.columns}
           synthetic={synthetic}
           open={opened.has(season.seasonNumber)}
           onToggleOpen={() =>
@@ -827,6 +837,7 @@ type SeasonBlockProps = {
   showAbsolute: boolean
   sort: EpisodeSort
   onSort: (key: EpisodeSortKey) => void
+  columns: EpisodeColumn[]
   /** A season of the series' order (or the episodes it lacks): flags and search go through its episodes. */
   synthetic: boolean
   open: boolean
@@ -835,7 +846,7 @@ type SeasonBlockProps = {
   onSearch: (scope: SeriesSearchScope) => void
 }
 
-function SeasonBlock({ series: s, season, version, episodes, files, loading, showAbsolute, sort, onSort, synthetic, open, onToggleOpen, onChanged, onSearch }: SeasonBlockProps) {
+function SeasonBlock({ series: s, season, version, episodes, files, loading, showAbsolute, sort, onSort, columns, synthetic, open, onToggleOpen, onChanged, onSearch }: SeasonBlockProps) {
   const { t } = useTranslation()
   const state = season.versions.find((v) => v.versionId === version.id)
   const monitored = state?.monitored ?? false
@@ -897,6 +908,7 @@ function SeasonBlock({ series: s, season, version, episodes, files, loading, sho
               episodes={episodes}
               files={files}
               showAbsolute={showAbsolute}
+              columns={columns}
               sort={sort}
               onSort={onSort}
               onChanged={onChanged}
@@ -915,6 +927,7 @@ function EpisodeTable({
   episodes,
   files,
   showAbsolute,
+  columns,
   sort,
   onSort,
   onChanged,
@@ -925,6 +938,7 @@ function EpisodeTable({
   episodes: Episode[]
   files: Map<number, EpisodeFile>
   showAbsolute: boolean
+  columns: EpisodeColumn[]
   sort: EpisodeSort
   onSort: (key: EpisodeSortKey) => void
   onChanged: () => void
@@ -949,10 +963,13 @@ function EpisodeTable({
     onError: (error) => toast.error(errorMessage(error, t('common.unexpectedError'))),
   })
 
-  const sorted = sortEpisodes(episodes, sort, (e) => files.get(e.id))
-  const head = (key: EpisodeSortKey, label: string, className: string, title?: string) => (
-    <TableHead className={className} aria-sort={ariaSort(sort.key === key, sort.direction)}>
-      <SortButton active={sort.key === key} direction={sort.direction} onClick={() => onSort(key)} testId={`episode-sort-${key}`} title={title}>
+  const contextOf = (e: Episode) => ({ file: files.get(e.id), monitored: e.versions.find((v) => v.versionId === version.id)?.monitored ?? false })
+  const sorted = sortEpisodes(episodes, sort, contextOf)
+  // Like Sonarr, the absolute number is an anime column.
+  const shown = columns.filter((c) => c !== 'absolute' || showAbsolute)
+  const head = (key: EpisodeSortKey, label: string, className: string) => (
+    <TableHead key={key} className={className} aria-sort={ariaSort(sort.key === key, sort.direction)}>
+      <SortButton active={sort.key === key} direction={sort.direction} onClick={() => onSort(key)} testId={`episode-sort-${key}`}>
         {label}
       </SortButton>
     </TableHead>
@@ -964,19 +981,16 @@ function EpisodeTable({
         <TableRow>
           <TableHead className="w-10 pl-4" aria-label={t('seriesDetail.columns.monitored')} />
           {head('number', t('seriesDetail.columns.number'), 'w-14')}
-          {showAbsolute && head('absolute', t('seriesDetail.columns.absolute'), 'w-16')}
+          {shown.includes('absolute') && head('absolute', t('seriesDetail.columns.absolute'), columnWidths.absolute)}
           {alt && <TableHead className="w-20" title={t('seriesOrder.tvdbNumbers')}>{t('seriesOrder.tvdbColumn')}</TableHead>}
-          {head('title', t('seriesDetail.columns.title'), '')}
-          {head('airDate', t('seriesDetail.columns.airDate'), 'w-32')}
-          {head('size', t('seriesDetail.columns.file'), 'w-56', t('seriesDetail.sortBySize'))}
+          {head('title', t('seriesDetail.columns.title'), 'min-w-48')}
+          {shown.filter((c) => c !== 'absolute').map((c) => head(c, t(`seriesDetail.columns.${c}`), columnWidths[c]))}
           <TableHead className="w-28 pr-4" aria-label={t('seriesSearch.search')} />
         </TableRow>
       </TableHeader>
       <TableBody>
         {sorted.map((episode) => {
-          const state = episode.versions.find((v) => v.versionId === version.id)
-          const monitored = state?.monitored ?? false
-          const file = files.get(episode.id)
+          const { file, monitored } = contextOf(episode)
           return (
             <TableRow key={episode.id} data-testid="episode" className={cn(!episode.hasAired && 'text-muted-foreground')}>
               <TableCell className="py-1.5 pl-4">
@@ -988,7 +1002,7 @@ function EpisodeTable({
                 />
               </TableCell>
               <TableCell className="tabular-nums">{alt && episode.notInOrder ? '—' : episode.displayEpisodeNumber}</TableCell>
-              {showAbsolute && <TableCell className="text-muted-foreground tabular-nums">{episode.displayAbsoluteNumber ?? ''}</TableCell>}
+              {shown.includes('absolute') && <TableCell className="text-muted-foreground tabular-nums">{episode.displayAbsoluteNumber ?? ''}</TableCell>}
               {alt && (
                 <TableCell className="text-xs text-muted-foreground tabular-nums" title={t('seriesOrder.tvdbNumbers')} data-testid="episode-tvdb">
                   {tvdbCode(episode)}
@@ -1015,12 +1029,11 @@ function EpisodeTable({
                   )}
                 </span>
               </TableCell>
-              <TableCell className="tabular-nums" title={episode.hasAired ? undefined : t('seriesDetail.unaired')}>
-                {episode.airDate ? formatDate(episode.airDate) : t('seriesDetail.tba')}
-              </TableCell>
-              <TableCell>
-                <EpisodeFileCell file={files.get(episode.id)} episode={episode} />
-              </TableCell>
+              {shown
+                .filter((c) => c !== 'absolute')
+                .map((c) => (
+                  <EpisodeColumnCell key={c} column={c} episode={episode} file={file} monitored={monitored} />
+                ))}
               <TableCell className="py-1 pr-4 whitespace-nowrap text-right">
                 {episode.notInOrder && file && (
                   <Button
@@ -1059,8 +1072,96 @@ function EpisodeTable({
   )
 }
 
-/** The version's file for an episode: quality, size and group, the path on hover; "missing" once aired without one. */
-function EpisodeFileCell({ file, episode }: { file: EpisodeFile | undefined; episode: Episode }) {
+const columnWidths: Record<EpisodeColumn, string> = {
+  absolute: 'w-16',
+  airDate: 'w-32',
+  runtime: 'w-20',
+  status: 'w-32',
+  quality: 'w-40',
+  size: 'w-24',
+  languages: 'w-28',
+  audio: 'w-28',
+  video: 'w-24',
+  dynamicRange: 'w-24',
+  subtitles: 'w-32',
+  releaseGroup: 'w-28',
+  formats: 'w-40',
+  score: 'w-20',
+  flags: 'w-28',
+  relativePath: 'w-72',
+}
+
+const statusStyle: Record<EpisodeStatus, string> = {
+  downloaded: 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300',
+  missing: 'border-red-600/30 bg-red-500/10 text-red-700 dark:border-red-400/30 dark:text-red-300',
+  unmonitored: 'text-muted-foreground',
+  unaired: 'text-muted-foreground',
+}
+
+/** One optional column of a season table, for the version on screen; empty when the file (or the probe) has nothing. */
+function EpisodeColumnCell({ column, episode, file, monitored }: { column: EpisodeColumn; episode: Episode; file: EpisodeFile | undefined; monitored: boolean }) {
+  const { t } = useTranslation()
+  const muted = (value: string | null | undefined, className = '') => <TableCell className={cn('text-xs text-muted-foreground', className)}>{value || ''}</TableCell>
+  switch (column) {
+    case 'absolute':
+      return null
+    case 'airDate':
+      return (
+        <TableCell className="tabular-nums" title={episode.hasAired ? undefined : t('seriesDetail.unaired')}>
+          {episode.airDate ? formatDate(episode.airDate) : t('seriesDetail.tba')}
+        </TableCell>
+      )
+    case 'runtime':
+      return muted(episode.runtime ? t('common.minutes', { count: episode.runtime }) : null, 'tabular-nums')
+    case 'status': {
+      const status = episodeStatus(episode, monitored, file)
+      return (
+        <TableCell data-testid="episode-status">
+          <Badge variant="outline" className={statusStyle[status]}>
+            {t(`seriesDetail.status.${status}`)}
+          </Badge>
+        </TableCell>
+      )
+    }
+    case 'quality':
+      return (
+        <TableCell>
+          <EpisodeQualityCell file={file} episode={episode} />
+        </TableCell>
+      )
+    case 'size':
+      return muted(file ? formatBytes(file.size) : null, 'whitespace-nowrap tabular-nums')
+    case 'languages':
+      return muted(fileLanguages(file).join(', '))
+    case 'audio':
+      return muted(audioLabel(file), 'whitespace-nowrap')
+    case 'video':
+      return muted(file?.mediaInfo?.videoCodec, 'whitespace-nowrap')
+    case 'dynamicRange':
+      return muted(file?.mediaInfo?.videoDynamicRangeType, 'whitespace-nowrap')
+    case 'subtitles':
+      return muted(file?.mediaInfo?.subtitles.join(', '))
+    case 'releaseGroup':
+      return muted(file?.releaseGroup, 'max-w-0 truncate')
+    case 'formats':
+      return muted(file?.customFormats?.join(', '))
+    case 'score':
+      return muted(file && (file.customFormats?.length || file.customFormatScore) ? (file.customFormatScore > 0 ? `+${file.customFormatScore}` : String(file.customFormatScore)) : null, 'tabular-nums')
+    case 'flags':
+      return muted(fileFlags(file).map((flag) => t(`search.flags.${flag}`, { defaultValue: flag })).join(', '))
+    case 'relativePath':
+      return (
+        <TableCell className="max-w-0">
+          <span className="block truncate font-mono text-xs text-muted-foreground" title={file?.path}>
+            {file?.relativePath}
+          </span>
+        </TableCell>
+      )
+  }
+}
+
+/** The version's file for an episode: its quality (with the order and film-link marks), the path on hover; "missing" once aired without one. */
+function EpisodeQualityCell({ file, episode }: { file: EpisodeFile | undefined; episode: Episode }) {
   const { t } = useTranslation()
   if (!file) {
     return episode.hasAired ? <span className="text-xs text-muted-foreground">{t('seriesDetail.missing')}</span> : null
@@ -1082,14 +1183,42 @@ function EpisodeFileCell({ file, episode }: { file: EpisodeFile | undefined; epi
       <Badge variant="outline" className="border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300">
         {file.quality}
       </Badge>
-      <span className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">{formatBytes(file.size)}</span>
-      {file.releaseGroup && <span className="truncate text-xs text-muted-foreground">{file.releaseGroup}</span>}
       {shared && (
         <Badge variant="secondary" className="shrink-0" title={t('seriesDetail.multiEpisodeHint')}>
           {file.episodes}
         </Badge>
       )}
     </span>
+  )
+}
+
+/** Which optional columns the season tables show: one setting for every season of every show. */
+function SeasonColumnsMenu({ columns, onChange }: { columns: EpisodeColumn[]; onChange: (columns: EpisodeColumn[]) => void }) {
+  const { t } = useTranslation()
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" size="sm" variant="outline" data-testid="season-columns">
+          <Columns3Icon />
+          {t('seriesDetail.columnsMenu')}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">{t('seriesDetail.columnsHint')}</DropdownMenuLabel>
+        {episodeColumns.map((column) => (
+          <DropdownMenuCheckboxItem
+            key={column}
+            checked={columns.includes(column)}
+            // Keep the declared order whatever the order of the clicks.
+            onCheckedChange={() => onChange(episodeColumns.filter((c) => (c === column ? !columns.includes(c) : columns.includes(c))))}
+            onSelect={(e) => e.preventDefault()}
+            data-testid={`season-column-${column}`}
+          >
+            {t(`seriesDetail.columns.${column}`)}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

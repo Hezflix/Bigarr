@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { Episode, EpisodeFile } from '../src/api/client'
-import { defaultEpisodeSort, nextEpisodeSort, sortEpisodes } from '../src/features/series/episodeSort'
+import { defaultEpisodeSort, nextEpisodeSort, sortEpisodes, sortStillShown } from '../src/features/series/episodeSort'
 import { readSeasonTablePrefs } from '../src/features/series/seasonTablePrefs'
 
 const episode = (id: number, title: string, airDate: string | null, absolute: number | null = null) =>
@@ -8,7 +8,7 @@ const episode = (id: number, title: string, airDate: string | null, absolute: nu
 
 const season = [episode(1, 'Pilot', '2008-01-20', 1), episode(2, "Cat's in the Bag", '2008-01-27', 2), episode(3, 'And the Bag', null, 3), episode(4, 'Breakage', '2008-01-25', null)]
 const sizes: Record<number, number> = { 1: 900, 2: 1500, 4: 1200 }
-const fileOf = (e: Episode) => (sizes[e.id] ? ({ size: sizes[e.id] } as EpisodeFile) : undefined)
+const fileOf = (e: Episode) => ({ file: sizes[e.id] ? ({ size: sizes[e.id] } as EpisodeFile) : undefined, monitored: true })
 const ids = (list: Episode[]) => list.map((e) => e.id)
 
 describe('sortEpisodes', () => {
@@ -40,6 +40,7 @@ describe('nextEpisodeSort', () => {
     expect(nextEpisodeSort(defaultEpisodeSort, 'number')).toEqual({ key: 'number', direction: 'desc' })
     expect(nextEpisodeSort(defaultEpisodeSort, 'size')).toEqual({ key: 'size', direction: 'desc' })
     expect(nextEpisodeSort(defaultEpisodeSort, 'title')).toEqual({ key: 'title', direction: 'asc' })
+    expect(nextEpisodeSort(defaultEpisodeSort, 'score')).toEqual({ key: 'score', direction: 'desc' })
   })
 })
 
@@ -49,5 +50,20 @@ describe('readSeasonTablePrefs', () => {
     expect(readSeasonTablePrefs({ sort: { key: 'gone', direction: 'desc' } }).sort).toEqual(defaultEpisodeSort)
     expect(readSeasonTablePrefs({ sort: { key: 'title', direction: 'sideways' } }).sort).toEqual(defaultEpisodeSort)
     expect(readSeasonTablePrefs(null).sort).toEqual(defaultEpisodeSort)
+  })
+
+  test('the columns are read back in their declared order, the sort works on any of them', () => {
+    const prefs = readSeasonTablePrefs({ sort: { key: 'score', direction: 'desc' }, columns: ['score', 'gone', 'status'] })
+    expect(prefs.columns).toEqual(['status', 'score'])
+    expect(prefs.sort).toEqual({ key: 'score', direction: 'desc' })
+    expect(readSeasonTablePrefs({}).columns).toEqual(['absolute', 'airDate', 'quality', 'size', 'releaseGroup'])
+  })
+})
+
+describe('sortStillShown', () => {
+  test('number and title always show; a column only while picked', () => {
+    expect(sortStillShown({ key: 'title', direction: 'asc' }, [])).toBe(true)
+    expect(sortStillShown({ key: 'score', direction: 'desc' }, ['score'])).toBe(true)
+    expect(sortStillShown({ key: 'score', direction: 'desc' }, ['size'])).toBe(false)
   })
 })

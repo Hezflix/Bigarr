@@ -249,7 +249,13 @@ public sealed record EpisodeFileResponse(
     /// <summary>"S01E01", "S01E02-E03": the episodes in TVDB numbering.</summary>
     string Episodes,
     /// <summary>A hardlink of a linked film's file (S8): the film engine owns it.</summary>
-    string? LinkedFromPath = null);
+    string? LinkedFromPath = null,
+    /// <summary>The quality's resolution (0 when unknown), what the season tables sort the quality on.</summary>
+    int QualityResolution = 0,
+    Bigarr.Domain.Acquisition.IndexerFlags IndexerFlags = Bigarr.Domain.Acquisition.IndexerFlags.None,
+    /// <summary>The custom formats the file matches, and the score its version's profile gives them.</summary>
+    List<string>? CustomFormats = null,
+    int CustomFormatScore = 0);
 
 public sealed record UnmatchedEpisodeFileResponse(
     int Id,

@@ -1,8 +1,11 @@
 namespace Bigarr.Api.Features.Series;
 
 using Bigarr.Api.Features.Library;
+using Bigarr.Api.Features.Search;
 using Bigarr.Api.Infrastructure.Auth;
+using Bigarr.Api.Infrastructure.Decision;
 using Bigarr.Api.Infrastructure.Persistence;
+using Bigarr.Decision;
 using Bigarr.Domain.Library;
 using Bigarr.Domain.Tv;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -47,14 +50,16 @@ public static class SeriesScanEndpoints
     private static async Task<Results<Ok<ScanStatusResponse>, NotFound>> RescanStatusAsync(int id, BigarrDbContext db, LibraryScanRunner scans, CancellationToken ct) =>
         await db.Series.AnyAsync(s => s.Id == id, ct) ? TypedResults.Ok(scans.SeriesStatus(id)) : TypedResults.NotFound();
 
-    private static async Task<Results<Ok<SeriesFilesResponse>, NotFound>> FilesAsync(int id, BigarrDbContext db, CancellationToken ct, int? versionId = null)
+    private static async Task<Results<Ok<SeriesFilesResponse>, NotFound>> FilesAsync(
+        int id, BigarrDbContext db, CustomFormatScorer scorer, EpisodeFileFormatMatches matches, CancellationToken ct, int? versionId = null)
     {
         if (!await db.Series.AnyAsync(s => s.Id == id, ct))
         {
             return TypedResults.NotFound();
         }
 
-        var versions = await db.SeriesVersions.AsNoTracking().Include(v => v.RootFolder)
+        var versions = await db.SeriesVersions.AsNoTracking().Include(v => v.RootFolder).Include(v => v.Series)
+            .Include(v => v.QualityProfile).ThenInclude(p => p.FormatScores)
             .Where(v => v.SeriesId == id && (versionId == null || v.Id == versionId))
             .ToDictionaryAsync(v => v.Id, ct);
         var ids = versions.Keys.ToList();
@@ -75,10 +80,23 @@ public static class SeriesScanEndpoints
 
         string FolderOf(int vid) => Path.Combine(versions[vid].RootFolder.Path, versions[vid].FolderName);
 
+        // Custom formats as the cutoff and the Wanted list see them: matched on the file, scored by its version's profile.
+        var (calculator, signature, names) = files.Count == 0
+            ? default
+            : (await scorer.CalculatorAsync(ct), await scorer.SignatureAsync(ct), await scorer.NamesAsync(ct));
+        (List<string> Names, int Score) FormatsOf(EpisodeFile f)
+        {
+            var version = versions[f.VersionId];
+            var row = new EpisodeFileRow(f.Id, f.QualityId, f.OriginalReleaseTitle, f.RelativePath, f.Size, f.IndexerFlags, f.Languages, f.ReleaseGroup, version.Series.Year, version.Series.OriginalLanguage);
+            var ids = matches.Match(row, f.Quality, calculator!, signature!);
+            return (ids.Select(i => names!.GetValueOrDefault(i)).OfType<string>().ToList(), ProfileRanking.FormatScore(version.QualityProfile, ids));
+        }
+
         var fileResponses = files
             .Select(f =>
             {
                 var episodes = byFile[f.Id].OrderBy(e => e.SeasonNumber).ThenBy(e => e.EpisodeNumber).ToList();
+                var (formats, score) = FormatsOf(f);
                 return new EpisodeFileResponse(
                     f.Id,
                     f.VersionId,
@@ -97,7 +115,11 @@ public static class SeriesScanEndpoints
                     f.MediaInfo,
                     episodes.Select(e => e.EpisodeId).ToList(),
                     Label(episodes.Select(e => (e.SeasonNumber, e.EpisodeNumber)).ToList()),
-                    f.LinkedFromPath);
+                    f.LinkedFromPath,
+                    f.Quality.Resolution,
+                    f.IndexerFlags,
+                    formats,
+                    score);
             })
             .OrderBy(f => f.SeasonNumber).ThenBy(f => f.Episodes, StringComparer.Ordinal).ThenBy(f => f.RelativePath, StringComparer.Ordinal)
             .ToList();
