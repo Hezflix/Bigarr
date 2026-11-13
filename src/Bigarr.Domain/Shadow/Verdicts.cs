@@ -40,7 +40,12 @@ public sealed record RadarrView(
     string? Error = null);
 
 /// <summary>One version's verdict on a release the RSS pass saw.</summary>
-public sealed record SightingVerdict(string VersionName, bool Approved, List<string> Rejections, int CustomFormatScore);
+/// <param name="Transient">
+/// Turned down only for reasons that pass with time or with the state of the queue, never for the release itself (not
+/// enough seeders yet, minimum availability not reached, a download already active): a later pass that sees the release
+/// again may judge it otherwise. False on rows written before this was kept.
+/// </param>
+public sealed record SightingVerdict(string VersionName, bool Approved, List<string> Rejections, int CustomFormatScore, bool Transient = false);
 
 /// <summary>
 /// What a Sonarr made of a release Bigarr picked for a series: its own parse (<c>GET /api/v3/parse</c>: the series and

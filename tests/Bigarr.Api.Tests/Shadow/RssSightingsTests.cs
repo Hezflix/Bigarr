@@ -40,8 +40,19 @@ public sealed class ScriptedFeedClient : IIndexerClient
     public Task<IReadOnlyList<ReleaseInfo>> FetchRecentSeriesAsync(Indexer indexer, CancellationToken cancellationToken) => Task.FromResult(Series(indexer));
 }
 
-public sealed class RssSightingsApiFactory() : BigarrApiFactory(null, new Dictionary<string, string> { ["Bigarr:Shadow:Enabled"] = "true" }, deleteOnDispose: true, time: new FixedTimeProvider(SeriesEndpointsTests.Now))
+public sealed class RssSightingsApiFactory : BigarrApiFactory
 {
+    public RssSightingsApiFactory()
+        : this(new MutableTimeProvider(SeriesEndpointsTests.Now))
+    {
+    }
+
+    private RssSightingsApiFactory(MutableTimeProvider clock)
+        : base(null, new Dictionary<string, string> { ["Bigarr:Shadow:Enabled"] = "true" }, deleteOnDispose: true, time: clock) => Clock = clock;
+
+    /// <summary>The test's clock: a pass sees a pick only once time has moved past it, as in a real run.</summary>
+    public MutableTimeProvider Clock { get; }
+
     public ScriptedFeedClient Feeds { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -171,6 +182,145 @@ public sealed class RssSightingsTests(RssSightingsApiFactory factory) : IClassFi
         Assert.Contains(pass.IndexerErrors, e => e.IndexerId == bad.Id);
     }
 
+    [Fact]
+    public async Task A_film_release_turned_down_for_seeders_is_judged_again_and_picked_once_it_has_some()
+    {
+        var client = await FreshAsync();
+        var (hd, _) = await ProfilesAsync(client);
+        var root = await AddRootAsync(client, Directory.CreateTempSubdirectory("bigarr-rss-rejudge-").FullName);
+        await AddMovieAsync(client, 603, hd, root.Id);
+        var indexer = await AddMockIndexerAsync(client, "Scripted seeders film");
+        var title = "The.Matrix.1999.1080p.BluRay.x264-GRP";
+
+        factory.Feeds.Films = _ => [Release(indexer, "seeders-film/1", title, tvdbId: null, seeders: 0)];
+        factory.Feeds.Series = _ => [];
+        var first = await RunAsync(client);
+        Assert.Equal(0, first.Picked);
+        var rejected = await SingleAsync("seeders-film/1");
+        var verdict = Assert.Single(rejected.Verdicts);
+        Assert.False(verdict.Approved);
+        Assert.Equal(["Not enough seeders: 0 (minimum 1)"], verdict.Rejections);
+
+        factory.Feeds.Films = _ => [Release(indexer, "seeders-film/1", title, tvdbId: null, seeders: 5)];
+        var second = await RunAsync(client);
+        Assert.Equal(1, second.Picked);
+        var approved = await SingleAsync("seeders-film/1");
+        Assert.Equal(rejected.Id, approved.Id);
+        Assert.True(Assert.Single(approved.Verdicts).Approved);
+        Assert.NotNull(approved.AttributedVersion);
+        Assert.True(await PickedAsync(title));
+    }
+
+    [Fact]
+    public async Task An_episode_release_turned_down_for_seeders_is_judged_again_and_picked_once_it_has_some()
+    {
+        var client = await FreshAsync();
+        await SeriesSetup.AddAsync(client, 81189);
+        var indexer = await AddMockIndexerAsync(client, "Scripted seeders series");
+        var title = "Breaking.Bad.S05E02.1080p.WEB-DL.DD5.1.H.264-BS";
+
+        factory.Feeds.Films = _ => [];
+        factory.Feeds.Series = _ => [Release(indexer, "seeders-series/1", title, tvdbId: 81189, seeders: 0)];
+        var first = await RunAsync(client);
+        Assert.Equal(0, first.Picked);
+        var rejected = await SingleAsync("seeders-series/1");
+        Assert.All(rejected.Verdicts, v => Assert.Equal(["Not enough seeders: 0 (minimum 1)"], v.Rejections));
+
+        factory.Feeds.Series = _ => [Release(indexer, "seeders-series/1", title, tvdbId: 81189, seeders: 5)];
+        var second = await RunAsync(client);
+        Assert.Equal(1, second.Picked);
+        var approved = await SingleAsync("seeders-series/1");
+        Assert.Equal(rejected.Id, approved.Id);
+        Assert.Contains(approved.Verdicts, v => v.Approved);
+        Assert.NotNull(approved.AttributedVersion);
+        Assert.True(await SeriesPickedAsync(title));
+    }
+
+    [Fact]
+    public async Task A_release_turned_down_for_good_keeps_its_first_verdict()
+    {
+        var client = await FreshAsync();
+        await SeriesSetup.AddAsync(client, 81189);
+        var indexer = await AddMockIndexerAsync(client, "Scripted permanent");
+        // 2160p is not in the HD profile, whatever the seeders say.
+        var title = "Breaking.Bad.S05E03.2160p.WEB-DL.DD5.1.H.264-BS";
+
+        factory.Feeds.Films = _ => [];
+        factory.Feeds.Series = _ => [Release(indexer, "permanent/1", title, tvdbId: 81189, seeders: 5)];
+        await RunAsync(client);
+        var first = await SingleAsync("permanent/1");
+        Assert.All(first.Verdicts, v => Assert.False(v.Approved));
+
+        factory.Feeds.Series = _ => [Release(indexer, "permanent/1", title, tvdbId: 81189, seeders: 50)];
+        await RunAsync(client);
+        var second = await SingleAsync("permanent/1");
+        Assert.Equal(Describe(first), Describe(second));
+    }
+
+    [Fact]
+    public async Task A_release_turned_down_for_seeders_and_for_good_keeps_its_first_verdict()
+    {
+        var client = await FreshAsync();
+        await SeriesSetup.AddAsync(client, 81189);
+        var indexer = await AddMockIndexerAsync(client, "Scripted mixed");
+        var title = "Breaking.Bad.S05E04.2160p.WEB-DL.DD5.1.H.264-BS";
+
+        factory.Feeds.Films = _ => [];
+        factory.Feeds.Series = _ => [Release(indexer, "mixed/1", title, tvdbId: 81189, seeders: 0)];
+        await RunAsync(client);
+        var first = await SingleAsync("mixed/1");
+        Assert.All(first.Verdicts, v => Assert.Contains(v.Rejections, r => r.StartsWith("Not enough seeders", StringComparison.Ordinal)));
+        Assert.All(first.Verdicts, v => Assert.True(v.Rejections.Count > 1));
+
+        factory.Feeds.Series = _ => [Release(indexer, "mixed/1", title, tvdbId: 81189, seeders: 5)];
+        await RunAsync(client);
+        var second = await SingleAsync("mixed/1");
+        Assert.Equal(Describe(first), Describe(second));
+    }
+
+    [Fact]
+    public async Task A_release_turned_down_for_seeders_keeps_that_reason_when_the_episode_was_taken_by_another_meanwhile()
+    {
+        var client = await FreshAsync();
+        await SeriesSetup.AddAsync(client, 81189);
+        var indexer = await AddMockIndexerAsync(client, "Scripted taken meanwhile");
+        var late = "Breaking.Bad.S05E05.1080p.WEB-DL.DD5.1.H.264-BS";
+        var other = "Breaking.Bad.S05E05.1080p.WEB-DL.DD5.1.H.264-OTHER";
+
+        factory.Feeds.Films = _ => [];
+        factory.Feeds.Series = _ => [Release(indexer, "taken/late", late, tvdbId: 81189, seeders: 0)];
+        await RunAsync(client);
+        var first = await SingleAsync("taken/late");
+
+        // Another release of the episode is picked first: the same quality is no upgrade on it any more.
+        factory.Feeds.Series = _ => [Release(indexer, "taken/other", other, tvdbId: 81189)];
+        Assert.Equal(1, (await RunAsync(client)).Picked);
+        factory.Clock.Advance(TimeSpan.FromMinutes(15));
+
+        factory.Feeds.Series = _ => [Release(indexer, "taken/late", late, tvdbId: 81189, seeders: 5)];
+        Assert.Equal(0, (await RunAsync(client)).Picked);
+        var third = await SingleAsync("taken/late");
+        Assert.Equal(Describe(first), Describe(third));
+        Assert.All(third.Verdicts, v => Assert.Equal(["Not enough seeders: 0 (minimum 1)"], v.Rejections));
+    }
+
+    private static string Describe(Bigarr.Domain.Shadow.ReleaseSighting sighting) =>
+        string.Join(" | ", sighting.Verdicts.Select(v => $"{v.VersionName} {v.Approved} {string.Join(", ", v.Rejections)}")) + $" -> {sighting.AttributedVersion}";
+
+    private async Task<bool> PickedAsync(string title)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+        return await db.ShadowPicks.AnyAsync(p => p.ReleaseTitle == title);
+    }
+
+    private async Task<bool> SeriesPickedAsync(string title)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+        return await db.SeriesShadowPicks.AnyAsync(p => p.ReleaseTitle == title);
+    }
+
     /// <summary>One app serves the whole class: every test starts without indexers, so only its own feeds are read.</summary>
     private async Task<HttpClient> FreshAsync()
     {
@@ -183,11 +333,11 @@ public sealed class RssSightingsTests(RssSightingsApiFactory factory) : IClassFi
         return client;
     }
 
-    private static ReleaseInfo Release(IndexerResponse indexer, string guid, string title, int? tvdbId) => Release(indexer.Id, indexer.Name, indexer.Priority, guid, title, tvdbId);
+    private static ReleaseInfo Release(IndexerResponse indexer, string guid, string title, int? tvdbId, int seeders = 10) => Release(indexer.Id, indexer.Name, indexer.Priority, guid, title, tvdbId, seeders);
 
     private static ReleaseInfo Release(Indexer indexer, string guid, string title, int? tvdbId) => Release(indexer.Id, indexer.Name, indexer.Priority, guid, title, tvdbId);
 
-    private static ReleaseInfo Release(int indexerId, string indexerName, int priority, string guid, string title, int? tvdbId) => new()
+    private static ReleaseInfo Release(int indexerId, string indexerName, int priority, string guid, string title, int? tvdbId, int seeders = 10) => new()
     {
         Guid = guid,
         Title = title,
@@ -197,7 +347,7 @@ public sealed class RssSightingsTests(RssSightingsApiFactory factory) : IClassFi
         Protocol = DownloadProtocol.Torrent,
         Size = 2L * 1024 * 1024 * 1024,
         DownloadUrl = $"https://mock.invalid/download/{Math.Abs(guid.GetHashCode(StringComparison.Ordinal)).ToString(CultureInfo.InvariantCulture)}.torrent",
-        Seeders = 10,
+        Seeders = seeders,
         PublishDate = SeriesEndpointsTests.Now.AddHours(-1),
         TvdbId = tvdbId,
     };
