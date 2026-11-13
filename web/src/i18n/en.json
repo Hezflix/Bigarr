@@ -610,7 +610,8 @@
     "requiredCount_one": "{{count}} required format",
     "requiredCount_other": "{{count}} required formats",
     "forbiddenCount_one": "{{count}} forbidden format",
-    "forbiddenCount_other": "{{count}} forbidden formats"
+    "forbiddenCount_other": "{{count}} forbidden formats",
+    "sortBySize": "Sort by file size"
   },
   "status": {
     "pending": "Pending",

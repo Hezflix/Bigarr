@@ -9,6 +9,7 @@ import type { Density, LibraryItem, PosterSize, SortDirection } from './core'
 import { useDocumentOffset, useOverflows } from './layout'
 import type { Selection } from './selection'
 import { SelectionMark } from './SelectionMark'
+import { ariaSort, SortButton } from './SortButton'
 
 /** The thumbnail of comfortable rows at each poster size, and its width in px. */
 export const thumbnails: Record<PosterSize, { image: PosterImage; width: number }> = {
@@ -155,22 +156,11 @@ export function LibraryTable<T extends LibraryItem, C extends string>({
       )
     }
     const active = sort === sortKey
-    // The sorted column shows its direction; the others show a faint hint on hover that they sort too.
-    const Arrow = !active ? ArrowUpDownIcon : direction === 'asc' ? ArrowUpIcon : ArrowDownIcon
     return (
-      <th key={column.id} scope="col" aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'} className="min-w-0 text-left font-medium">
-        <button
-          type="button"
-          className={cn(
-            'group/sort -mx-1.5 flex max-w-[calc(100%+0.75rem)] items-center gap-1 rounded-md px-1.5 py-1 text-left outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/50',
-            active && 'text-foreground',
-          )}
-          onClick={() => onSort(sortKey)}
-          data-testid={`sort-${sortKey}`}
-        >
-          <span className="truncate">{column.label}</span>
-          <Arrow className={cn('size-3 shrink-0', !active && 'opacity-0 group-hover/sort:opacity-50 group-focus-visible/sort:opacity-50')} aria-hidden="true" />
-        </button>
+      <th key={column.id} scope="col" aria-sort={ariaSort(active, direction)} className="min-w-0 text-left font-medium">
+        <SortButton active={active} direction={direction} onClick={() => onSort(sortKey)} testId={`sort-${sortKey}`}>
+          {column.label}
+        </SortButton>
       </th>
     )
   }

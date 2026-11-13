@@ -8,6 +8,7 @@ import { SeriesCompareSection } from '@/features/activity/SeriesCompare'
 import { toast } from 'sonner'
 import {
   ApiError,
+  auth,
   customFormats,
   monitoringOptions,
   quality,
@@ -45,6 +46,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatBytes, formatDate } from '@/i18n'
 import { EpisodeProgress } from './EpisodeProgress'
+import { type EpisodeSort, type EpisodeSortKey, nextEpisodeSort, sortEpisodes } from './episodeSort'
+import { useSeasonTablePrefs } from './seasonTablePrefs'
+import { ariaSort, SortButton } from '@/features/library/SortButton'
 import { SeriesFilmsSection } from './SeriesFilmsSection'
 import { SeriesSearchDialog, type SeriesSearchScope } from '@/features/search/SeriesInteractiveSearch'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -776,6 +780,10 @@ function SeasonList({
   const opened = open ?? new Set(latest === undefined ? [] : [latest])
   // TVDB numbers every show absolutely; like Sonarr, only anime shows the column.
   const showAbsolute = s.seriesType === 'anime'
+  // One sort for every season of every show, kept like the library's view options.
+  const me = useQuery({ queryKey: ['me'], queryFn: auth.me })
+  const [prefs, updatePrefs] = useSeasonTablePrefs(me.data?.id)
+  const onSort = (key: EpisodeSortKey) => updatePrefs((current) => ({ sort: nextEpisodeSort(current.sort, key) }))
 
   return (
     <div className="flex flex-col gap-3" data-testid="series-seasons">
@@ -789,6 +797,8 @@ function SeasonList({
           files={fileByEpisode}
           loading={loading}
           showAbsolute={showAbsolute}
+          sort={prefs.sort}
+          onSort={onSort}
           synthetic={synthetic}
           open={opened.has(season.seasonNumber)}
           onToggleOpen={() =>
@@ -815,6 +825,8 @@ type SeasonBlockProps = {
   files: Map<number, EpisodeFile>
   loading: boolean
   showAbsolute: boolean
+  sort: EpisodeSort
+  onSort: (key: EpisodeSortKey) => void
   /** A season of the series' order (or the episodes it lacks): flags and search go through its episodes. */
   synthetic: boolean
   open: boolean
@@ -823,7 +835,7 @@ type SeasonBlockProps = {
   onSearch: (scope: SeriesSearchScope) => void
 }
 
-function SeasonBlock({ series: s, season, version, episodes, files, loading, showAbsolute, synthetic, open, onToggleOpen, onChanged, onSearch }: SeasonBlockProps) {
+function SeasonBlock({ series: s, season, version, episodes, files, loading, showAbsolute, sort, onSort, synthetic, open, onToggleOpen, onChanged, onSearch }: SeasonBlockProps) {
   const { t } = useTranslation()
   const state = season.versions.find((v) => v.versionId === version.id)
   const monitored = state?.monitored ?? false
@@ -879,7 +891,17 @@ function SeasonBlock({ series: s, season, version, episodes, files, loading, sho
           ) : episodes.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">{t('seriesDetail.noEpisodes')}</p>
           ) : (
-            <EpisodeTable series={s} version={version} episodes={episodes} files={files} showAbsolute={showAbsolute} onChanged={onChanged} onSearch={onSearch} />
+            <EpisodeTable
+              series={s}
+              version={version}
+              episodes={episodes}
+              files={files}
+              showAbsolute={showAbsolute}
+              sort={sort}
+              onSort={onSort}
+              onChanged={onChanged}
+              onSearch={onSearch}
+            />
           )}
         </div>
       )}
@@ -893,6 +915,8 @@ function EpisodeTable({
   episodes,
   files,
   showAbsolute,
+  sort,
+  onSort,
   onChanged,
   onSearch,
 }: {
@@ -901,6 +925,8 @@ function EpisodeTable({
   episodes: Episode[]
   files: Map<number, EpisodeFile>
   showAbsolute: boolean
+  sort: EpisodeSort
+  onSort: (key: EpisodeSortKey) => void
   onChanged: () => void
   onSearch: (scope: SeriesSearchScope) => void
 }) {
@@ -923,22 +949,31 @@ function EpisodeTable({
     onError: (error) => toast.error(errorMessage(error, t('common.unexpectedError'))),
   })
 
+  const sorted = sortEpisodes(episodes, sort, (e) => files.get(e.id))
+  const head = (key: EpisodeSortKey, label: string, className: string, title?: string) => (
+    <TableHead className={className} aria-sort={ariaSort(sort.key === key, sort.direction)}>
+      <SortButton active={sort.key === key} direction={sort.direction} onClick={() => onSort(key)} testId={`episode-sort-${key}`} title={title}>
+        {label}
+      </SortButton>
+    </TableHead>
+  )
+
   return (
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead className="w-10 pl-4" aria-label={t('seriesDetail.columns.monitored')} />
-          <TableHead className="w-12 text-right">{t('seriesDetail.columns.number')}</TableHead>
-          {showAbsolute && <TableHead className="w-14 text-right">{t('seriesDetail.columns.absolute')}</TableHead>}
+          {head('number', t('seriesDetail.columns.number'), 'w-14')}
+          {showAbsolute && head('absolute', t('seriesDetail.columns.absolute'), 'w-16')}
           {alt && <TableHead className="w-20" title={t('seriesOrder.tvdbNumbers')}>{t('seriesOrder.tvdbColumn')}</TableHead>}
-          <TableHead>{t('seriesDetail.columns.title')}</TableHead>
-          <TableHead className="w-32">{t('seriesDetail.columns.airDate')}</TableHead>
-          <TableHead className="w-56">{t('seriesDetail.columns.file')}</TableHead>
+          {head('title', t('seriesDetail.columns.title'), '')}
+          {head('airDate', t('seriesDetail.columns.airDate'), 'w-32')}
+          {head('size', t('seriesDetail.columns.file'), 'w-56', t('seriesDetail.sortBySize'))}
           <TableHead className="w-28 pr-4" aria-label={t('seriesSearch.search')} />
         </TableRow>
       </TableHeader>
       <TableBody>
-        {episodes.map((episode) => {
+        {sorted.map((episode) => {
           const state = episode.versions.find((v) => v.versionId === version.id)
           const monitored = state?.monitored ?? false
           const file = files.get(episode.id)
@@ -952,8 +987,8 @@ function EpisodeTable({
                   size="sm"
                 />
               </TableCell>
-              <TableCell className="text-right tabular-nums">{alt && episode.notInOrder ? '—' : episode.displayEpisodeNumber}</TableCell>
-              {showAbsolute && <TableCell className="text-right text-muted-foreground tabular-nums">{episode.displayAbsoluteNumber ?? ''}</TableCell>}
+              <TableCell className="tabular-nums">{alt && episode.notInOrder ? '—' : episode.displayEpisodeNumber}</TableCell>
+              {showAbsolute && <TableCell className="text-muted-foreground tabular-nums">{episode.displayAbsoluteNumber ?? ''}</TableCell>}
               {alt && (
                 <TableCell className="text-xs text-muted-foreground tabular-nums" title={t('seriesOrder.tvdbNumbers')} data-testid="episode-tvdb">
                   {tvdbCode(episode)}
