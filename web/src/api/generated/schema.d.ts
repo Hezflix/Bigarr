@@ -9018,6 +9018,18 @@ export interface components {
             episodeIds: number[];
             episodes: string;
             linkedFromPath: null | string;
+            /**
+             * Format: int32
+             * @default 0
+             */
+            qualityResolution: number;
+            indexerFlags: components["schemas"]["IndexerFlags"];
+            customFormats: null | string[];
+            /**
+             * Format: int32
+             * @default 0
+             */
+            customFormatScore: number;
         };
         EpisodeFilmOwner: {
             /** Format: int32 */

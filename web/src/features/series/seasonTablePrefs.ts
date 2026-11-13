@@ -1,10 +1,11 @@
 import { usePersistedPrefs } from '@/features/library/core'
+import { defaultEpisodeColumns, type EpisodeColumn, knownColumns } from './episodeColumns'
 import { defaultEpisodeSort, type EpisodeSort, episodeSortKeys } from './episodeSort'
 
 /** How the season tables show episodes: one setting for every season of every show. */
-export type SeasonTablePrefs = { sort: EpisodeSort }
+export type SeasonTablePrefs = { sort: EpisodeSort; columns: EpisodeColumn[] }
 
-export const defaultSeasonTablePrefs: SeasonTablePrefs = { sort: defaultEpisodeSort }
+export const defaultSeasonTablePrefs: SeasonTablePrefs = { sort: defaultEpisodeSort, columns: defaultEpisodeColumns }
 
 /** Per user and per browser, like the library's view options. */
 const storageKey = (userId: number | undefined) => `bigarr.seasonTable.${userId ?? 'anonymous'}`
@@ -14,7 +15,7 @@ export function readSeasonTablePrefs(stored: unknown): SeasonTablePrefs {
   const value = (stored ?? {}) as Partial<SeasonTablePrefs>
   const sort = value.sort
   const known = !!sort && (episodeSortKeys as readonly string[]).includes(sort.key) && (sort.direction === 'asc' || sort.direction === 'desc')
-  return { ...defaultSeasonTablePrefs, ...value, sort: known ? sort : defaultEpisodeSort }
+  return { ...defaultSeasonTablePrefs, ...value, sort: known ? sort : defaultEpisodeSort, columns: value.columns === undefined ? defaultEpisodeColumns : knownColumns(value.columns) }
 }
 
 function readPrefs(key: string): SeasonTablePrefs {

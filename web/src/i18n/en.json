@@ -572,7 +572,20 @@
       "title": "Title",
       "airDate": "Air date",
       "monitored": "Monitored",
-      "file": "File"
+      "runtime": "Runtime",
+      "status": "Status",
+      "quality": "Quality",
+      "size": "Size",
+      "languages": "Languages",
+      "audio": "Audio",
+      "video": "Video codec",
+      "dynamicRange": "Dynamic range",
+      "subtitles": "Subtitles",
+      "releaseGroup": "Release group",
+      "formats": "Custom formats",
+      "score": "Score",
+      "flags": "Indexer flags",
+      "relativePath": "Path"
     },
     "ids": {
       "tvdb": "TVDB {{id}}",
@@ -611,7 +624,14 @@
     "requiredCount_other": "{{count}} required formats",
     "forbiddenCount_one": "{{count}} forbidden format",
     "forbiddenCount_other": "{{count}} forbidden formats",
-    "sortBySize": "Sort by file size"
+    "status": {
+      "downloaded": "Downloaded",
+      "missing": "Missing",
+      "unmonitored": "Unmonitored",
+      "unaired": "Unaired"
+    },
+    "columnsMenu": "Columns",
+    "columnsHint": "Shown in every season of every show"
   },
   "status": {
     "pending": "Pending",
