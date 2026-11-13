@@ -70,6 +70,18 @@ public sealed class SeriesLibraryBulkTests(SeriesApiFactory factory) : IClassFix
             Assert.Equal(detail.Versions.Select(v => (v.Id, v.Statistics)), row.Versions.Select(v => (v.Id, v.Statistics)));
         }
 
+        // Each season carries its own size on disk per version: 1080p has every regular episode and one special, 4k
+        // its single file in the first season.
+        var bbDetail = await GetAsync(client, bb.Id);
+        long SeasonSize(int versionId, int seasonNumber) =>
+            bbDetail.Seasons.Single(s => s.SeasonNumber == seasonNumber).Versions.Single(v => v.VersionId == versionId).Statistics.SizeOnDisk;
+        var regularSeasons = bbDetail.Seasons.Where(s => s.SeasonNumber > 0).ToList();
+        Assert.All(regularSeasons, s => Assert.Equal(s.EpisodeCount * FileSize, SeasonSize(bbHd, s.SeasonNumber)));
+        Assert.Equal(FileSize, SeasonSize(bbHd, 0));
+        var first = regularSeasons.Min(s => s.SeasonNumber);
+        Assert.Equal([(first, FileSize)], bbDetail.Seasons.Select(s => (s.SeasonNumber, SeasonSize(bb4k, s.SeasonNumber))).Where(x => x.Item2 > 0));
+        Assert.Equal(hdRow.Statistics.SizeOnDisk, bbDetail.Seasons.Sum(s => SeasonSize(bbHd, s.SeasonNumber)));
+
         // Nothing aired and monitored yet, no file: pending, like a film before its release.
         await using (var scope = factory.Services.CreateAsyncScope())
         {
