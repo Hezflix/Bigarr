@@ -18,8 +18,9 @@ type Props = {
 }
 
 /**
- * Title, count and actions of the film and series libraries. The actions wrap onto more lines on narrow screens,
- * so the row never pushes the page wider than the viewport.
+ * Title, count and actions of the film and series libraries. On phones the actions go on their own line under the
+ * title, left-aligned, and wrap, so the row never pushes the page wider than the viewport. From `sm` up they sit
+ * on the title's line, on the right.
  */
 export function LibraryHeader({ title, count, countTestId, addTo, addLabel, selecting = false, onSelect, children }: Props) {
   const { t } = useTranslation()
@@ -31,7 +32,7 @@ export function LibraryHeader({ title, count, countTestId, addTo, addLabel, sele
           {count}
         </span>
       )}
-      <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
+      <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
         {children}
         {onSelect && (
           <Button type="button" variant={selecting ? 'secondary' : 'outline'} onClick={onSelect} aria-pressed={selecting} data-testid="library-select-toggle">
