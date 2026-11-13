@@ -62,8 +62,10 @@ public sealed record GrabRequest(
     /// <summary>When the indexer published it; shadow mode keeps it with the pick.</summary>
     DateTimeOffset? PublishDate = null,
     /// <summary>
-    /// A series grab: the shared ids of the episodes the release covers, and <see cref="VersionId"/> is then the series
-    /// version. One <c>GrabTarget</c> per (version, episode) pair.
+    /// A series grab: the shared ids of the episodes the release goes to, and <see cref="VersionId"/> is then the series
+    /// version. One <c>GrabTarget</c> per (version, episode) pair. The automatic paths send the episodes Bigarr matched;
+    /// the interactive search sends what the user picked, matched or not. Each must be an episode of the version (a
+    /// special a film owns is refused), and an empty list is refused rather than read as a film grab.
     /// </summary>
     List<int>? EpisodeIds = null,
     /// <summary>A series grab: which numbering the release matched its episodes on (the search returns it).</summary>

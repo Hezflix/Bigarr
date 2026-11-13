@@ -259,6 +259,77 @@ public sealed class SeriesShadowTests(SeriesShadowApiFactory factory) : IClassFi
         Assert.True(await db.SeriesShadowPicks.AnyAsync(p => p.ReleaseTitle == packEntry.Title && p.Trigger == "rss"));
     }
 
+    [Fact]
+    public async Task An_interactive_grab_goes_to_the_episodes_picked_whatever_the_release_matched()
+    {
+        var client = await ClientAsync(factory);
+        var series = await SeriesSetup.AddAsync(client, SeriesSearchTests.BreakingBad);
+        await SeriesSetup.MockIndexerAsync(client);
+        var versionId = series.Versions.Single().Id;
+        var s03e02 = await SeriesSetup.EpisodeAsync(client, series.Id, 3, 2);
+        var s03e03 = await SeriesSetup.EpisodeAsync(client, series.Id, 3, 3);
+        var s03e04 = await SeriesSetup.EpisodeAsync(client, series.Id, 3, 4);
+
+        var result = await SeriesSearchTests.SearchAsync(client, series.Id, "season=3");
+        var single = result.Releases.Single(r => r.Title == "Breaking.Bad.S03E01.1080p.WEB-DL.DDP5.1.H.264-NTb");
+        Assert.Equal("S03E01", single.EpisodesLabel);
+
+        // Matched to S03E01, sent by the user to S03E02 and S03E03: the pick holds what was picked, not the match.
+        var picked = await PickAsync(client, SeriesSetup.Grab(single) with { EpisodeIds = [s03e03.Id, s03e02.Id] });
+        Assert.Equal([2, 3], picked.Episodes.Where(e => e.SeasonNumber == 3).Select(e => e.EpisodeNumber).Order());
+        Assert.Equal(2, picked.Episodes.Count);
+
+        // Mapped to nothing: grabbed for the episodes picked, at any search level.
+        var collection = result.Releases.Single(r => r.Title.Contains("The.Complete.Collection", StringComparison.Ordinal));
+        Assert.Empty(collection.Episodes);
+        var unmapped = await PickAsync(client, SeriesSetup.Grab(single) with { Guid = collection.Guid, Title = collection.Title, InfoHash = collection.InfoHash, DownloadUrl = collection.DownloadUrl, MagnetUrl = collection.MagnetUrl, VersionId = versionId, EpisodeIds = [s03e04.Id] });
+        Assert.Equal((3, 4), (unmapped.Episodes.Single().SeasonNumber, unmapped.Episodes.Single().EpisodeNumber));
+
+        // Refused: an episode of another show, nothing picked, a special a film owns.
+        var other = await SeriesSetup.AddAsync(client, SeriesSearchTests.Frieren);
+        var otherEpisode = await SeriesSetup.EpisodeAsync(client, other.Id, 1, 1);
+        await AssertRefusedAsync(client, SeriesSetup.Grab(single) with { EpisodeIds = [s03e02.Id, otherEpisode.Id] }, "not episodes of");
+        await AssertRefusedAsync(client, SeriesSetup.Grab(single) with { EpisodeIds = [] }, "at least one episode");
+
+        var special = (await client.GetFromJsonAsync<List<EpisodeResponse>>($"/api/v1/series/{series.Id}/episodes", Json))!.First(e => e.SeasonNumber == 0);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+            var movie = new Bigarr.Domain.Movies.Movie
+            {
+                TmdbId = 990_001,
+                Title = "A Film Special",
+                SortTitle = Bigarr.Domain.Movies.SortTitle.Build("A Film Special"),
+                Year = 2019,
+                TmdbStatus = Bigarr.Domain.Movies.MovieStatus.Released,
+                DefaultRootFolderId = await db.RootFolders.Select(r => r.Id).FirstAsync(),
+            };
+            db.Movies.Add(movie);
+            await db.SaveChangesAsync();
+            db.SeriesMovieLinks.Add(new Bigarr.Domain.Tv.SeriesMovieLink { SeriesId = series.Id, EpisodeId = special.Id, MovieId = movie.Id });
+            await db.SaveChangesAsync();
+        }
+
+        await AssertRefusedAsync(client, SeriesSetup.Grab(single) with { EpisodeIds = [special.Id] }, "A Film Special");
+    }
+
+    private async Task<Bigarr.Domain.Shadow.SeriesShadowPick> PickAsync(HttpClient client, GrabRequest request)
+    {
+        var grab = await client.PostAsJsonAsync("/api/v1/grab", request, Json);
+        Assert.Equal(HttpStatusCode.OK, grab.StatusCode);
+        var response = (await grab.Content.ReadFromJsonAsync<GrabResponse>(Json))!;
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+        return await db.SeriesShadowPicks.AsNoTracking().Include(p => p.Episodes).SingleAsync(p => p.Id == response.ShadowPickId);
+    }
+
+    private static async Task AssertRefusedAsync(HttpClient client, GrabRequest request, string why)
+    {
+        var response = await client.PostAsJsonAsync("/api/v1/grab", request, Json);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains(why, await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
     private static Task<SeriesSearchResponse> SeriesSeriesSearchAgain(HttpClient client, int seriesId) => SeriesSearchTests.SearchAsync(client, seriesId, "season=1");
 }
 

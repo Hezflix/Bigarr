@@ -16,8 +16,6 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TableCell, TableHead } from '@/components/ui/table'
@@ -352,76 +350,53 @@ export function QualityLanguagesFormatsCells({ release, score, scoreVersion }: {
   )
 }
 
-/** What an unmapped release can be grabbed for: the episodes of one choice. */
-export type GrabTargetChoice = { value: string; label: string }
+/** A rejected release grabbed on purpose: the reasons, asked once before it goes. */
+export type PendingGrab = { title: string; version: string; reasons: string[]; go: () => void }
 
-/**
- * A rejected release grabbed on purpose: the reasons, asked once before it goes. A release Bigarr could not map to
- * episodes also says what it will be grabbed for (`choices`, the first one by default; a picker when there are several).
- */
-export type PendingGrab = { title: string; version: string; reasons: string[]; go: (choice: string | undefined) => void; choices?: GrabTargetChoice[] }
-
-export function GrabConfirmDialog({ pending, onClose }: { pending: PendingGrab | null; onClose: () => void }) {
+/** Why the search would not pick a release, as the confirmations list them. */
+export function GrabReasons({ reasons }: { reasons: string[] }) {
+  const { t } = useTranslation()
   return (
-    <AlertDialog open={pending !== null} onOpenChange={(open) => !open && onClose()}>
-      {/* Keyed so the choice starts over with each release. */}
-      {pending && <GrabConfirmContent key={pending.title} pending={pending} onClose={onClose} />}
-    </AlertDialog>
+    <div className="flex flex-col gap-2 text-sm" data-testid="grab-reasons">
+      <p>{t('search.confirmReasons')}</p>
+      <ul className="flex flex-wrap gap-1">
+        {reasons.map((reason) => (
+          <li key={reason}>
+            <Badge variant="outline" className={cn('h-auto rounded-md whitespace-normal text-left', permanentStyle)}>
+              {reason}
+            </Badge>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 
-function GrabConfirmContent({ pending, onClose }: { pending: PendingGrab; onClose: () => void }) {
+export function GrabConfirmDialog({ pending, onClose }: { pending: PendingGrab | null; onClose: () => void }) {
   const { t } = useTranslation()
-  const [choice, setChoice] = useState(pending.choices?.[0]?.value)
-  const choices = pending.choices ?? []
   return (
-    <AlertDialogContent data-testid="grab-confirm">
-      <AlertDialogHeader>
-        <AlertDialogTitle>{t('search.confirmTitle', { version: pending.version })}</AlertDialogTitle>
-        <AlertDialogDescription className="break-all">{pending.title}</AlertDialogDescription>
-      </AlertDialogHeader>
-      <div className="flex flex-col gap-2 text-sm">
-        <p>{t('search.confirmReasons')}</p>
-        <ul className="flex flex-wrap gap-1">
-          {pending.reasons.map((reason) => (
-            <li key={reason}>
-              <Badge variant="outline" className={cn('h-auto rounded-md whitespace-normal text-left', permanentStyle)}>
-                {reason}
-              </Badge>
-            </li>
-          ))}
-        </ul>
-        {choices.length === 1 && <p data-testid="grab-confirm-target">{t('search.confirmTarget', { target: choices[0].label })}</p>}
-        {choices.length > 1 && (
-          <div className="mt-1 flex flex-col gap-1.5">
-            <Label htmlFor="grab-confirm-choice">{t('search.confirmPick')}</Label>
-            <Select value={choice} onValueChange={setChoice}>
-              <SelectTrigger id="grab-confirm-choice" className="w-full" data-testid="grab-confirm-choice">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {choices.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </div>
-      <AlertDialogFooter>
-        <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
-        <AlertDialogAction
-          onClick={() => {
-            pending.go(choice)
-            onClose()
-          }}
-          data-testid="grab-confirm-go"
-        >
-          {t('search.confirmGrab')}
-        </AlertDialogAction>
-      </AlertDialogFooter>
-    </AlertDialogContent>
+    <AlertDialog open={pending !== null} onOpenChange={(open) => !open && onClose()}>
+      {pending && (
+        <AlertDialogContent data-testid="grab-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('search.confirmTitle', { version: pending.version })}</AlertDialogTitle>
+            <AlertDialogDescription className="break-all">{pending.title}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <GrabReasons reasons={pending.reasons} />
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                pending.go()
+                onClose()
+              }}
+              data-testid="grab-confirm-go"
+            >
+              {t('search.confirmGrab')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      )}
+    </AlertDialog>
   )
 }

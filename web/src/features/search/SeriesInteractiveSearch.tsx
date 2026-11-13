@@ -16,13 +16,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { grabObjections, languagesComparator, qualityComparator } from '@/features/search/grabRules'
 import {
   commonComparators,
-  GrabConfirmDialog,
   grabRequest,
   GrabSplitButton,
   IndexerErrors,
   IndexerSizePeersCells,
   isGrabbable,
-  type PendingGrab,
   permanentStyle,
   QualityLanguagesFormatsCells,
   ReleaseTitleCell,
@@ -36,7 +34,8 @@ import {
 } from '@/features/search/releaseTable'
 import { formatAge } from '@/i18n'
 
-import { scopeChoices, type SeriesSearchScope } from './seriesGrabScope'
+import { type PendingSeriesGrab, SeriesGrabDialog } from './SeriesGrabDialog'
+import { pickableEpisodes, prefillEpisodeIds, type SeriesSearchScope } from './seriesGrabScope'
 
 export type { SeriesSearchScope }
 
@@ -48,8 +47,9 @@ const fits = (release: SeriesRelease) => release.matchesSeries && release.episod
 
 /**
  * Interactive search for a series (Sonarr's manual search): an episode, a season (packs and single episodes together)
- * or the whole series, every release mapped to episodes and judged by every version, rejections spelled out. The grab
- * sends the release with the episodes it covers; in shadow mode it is recorded as a pick.
+ * or the whole series, every release mapped to episodes and judged by every version, rejections spelled out. Every grab
+ * asks for its episodes, started from Bigarr's match (or the search scope when there is none): the scope decides what is
+ * listed, never what a release goes to. In shadow mode the grab is recorded as a pick.
  */
 export function SeriesSearchDialog({ series, scope, onClose }: { series: Series; scope: SeriesSearchScope; onClose: () => void }) {
   const { t } = useTranslation()
@@ -57,7 +57,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
   const [submitted, setSubmitted] = useState('')
   const [text, setText] = useState('')
   const [sort, onSort] = useReleaseSort<SortKey>()
-  const [pending, setPending] = useState<PendingGrab | null>(null)
+  const [pending, setPending] = useState<PendingSeriesGrab | null>(null)
   // The dialog stays open after a grab: each grabbed row says so, the others can be grabbed too.
   const [grabbed, setGrabbed] = useState<Map<string, { version: string; shadow: boolean }>>(new Map())
   const episodes = useQuery({ queryKey: ['seriesEpisodes', series.id], queryFn: () => seriesApi.episodes(series.id) })
@@ -99,19 +99,22 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
     onError: (e) => toast.error(e instanceof ApiError ? e.message : t('search.grabFailed')),
   })
 
-  // A release the version rejects (or that names another show) is grabbed only after the reasons are confirmed.
-  // One that maps to no episode is grabbed for the scope it was searched from (Bigarr's mapping can be the one wrong).
+  // Every grab asks which episodes it is for, at every search level: prefilled with Bigarr's match, else with the
+  // scope's episodes (none for the whole series). The grab sends exactly the episodes ticked. A release the version
+  // rejects (or that names another show) lists the reasons in the same dialog.
   const requestGrab = (release: SeriesRelease, versionId: number) => {
     const mapped = release.episodes.length > 0
-    const choices = mapped ? [] : scopeChoices(scope, episodes.data ?? [], t)
-    const go = (choice: string | undefined) => {
-      const episodeIds = mapped ? release.episodes.map((e) => e.id) : (choices.find((c) => c.value === choice) ?? choices[0])?.episodeIds
-      if (episodeIds && episodeIds.length > 0) grab.mutate({ release, versionId, episodeIds })
-    }
+    const pickable = pickableEpisodes(episodes.data ?? [], versionId)
     const decision = release.versions.find((v) => v.versionId === versionId)
-    const reasons = grabObjections(release.matchesSeries && mapped, release.rejections, decision, t('search.noVerdict'))
-    if (reasons.length === 0) go(undefined)
-    else setPending({ title: release.title, version: versionById.get(versionId)?.name ?? '', reasons, go, choices })
+    setPending({
+      title: release.title,
+      version: versionById.get(versionId)?.name ?? '',
+      reasons: grabObjections(release.matchesSeries && mapped, release.rejections, decision, t('search.noVerdict')),
+      episodes: pickable,
+      prefill: prefillEpisodeIds(release, scope, pickable),
+      matched: mapped ? (release.episodesLabel ?? null) : null,
+      go: (episodeIds) => grab.mutate({ release, versionId, episodeIds }),
+    })
   }
 
   const run = (next: string) => {
@@ -234,7 +237,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
                       target={targetOf(release)}
                       grabbing={grab.isPending && grab.variables?.release.guid === release.guid && grab.variables.release.indexerId === release.indexerId}
                       grabbed={grabbed.get(releaseKey(release))}
-                      canAttribute={release.episodes.length > 0 || scopeChoices(scope, episodes.data ?? [], t).length > 0}
+                      episodesLoaded={episodes.isSuccess}
                       onGrab={(versionId) => requestGrab(release, versionId)}
                     />
                   ))}
@@ -242,7 +245,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
               </Table>
             </div>
           ))}
-        <GrabConfirmDialog pending={pending} onClose={() => setPending(null)} />
+        <SeriesGrabDialog pending={pending} onClose={() => setPending(null)} />
       </DialogContent>
     </Dialog>
   )
@@ -254,7 +257,7 @@ function ReleaseRow({
   target,
   grabbing,
   grabbed,
-  canAttribute,
+  episodesLoaded,
   onGrab,
 }: {
   release: SeriesRelease
@@ -263,31 +266,27 @@ function ReleaseRow({
   grabbing: boolean
   /** Grabbed (or picked, in shadow mode) from this dialog. */
   grabbed: { version: string; shadow: boolean } | undefined
-  /** Mapped to episodes, or the scope gives something to grab it for. */
-  canAttribute: boolean
+  /** The series' episodes are there to pick from. */
+  episodesLoaded: boolean
   onGrab: (versionId: number) => void
 }) {
   const { t } = useTranslation()
   const good = fits(release)
   const mapped = release.episodes.length > 0
-  const grabbable = canAttribute && isGrabbable(release) && !grabbed
+  const grabbable = episodesLoaded && isGrabbable(release) && !grabbed
   const details = [release.releaseGroup, release.isRepack ? t('search.repack') : null].filter((d): d is string => !!d)
   const decisionFor = (versionId: number) => release.versions.find((v) => v.versionId === versionId)
   const targetDecision = target ? decisionFor(target.id) : undefined
   const accepted = release.matchesSeries && !!targetDecision?.approved
   const grabTip = grabbed
     ? t(grabbed.shadow ? 'seriesSearch.pickedFor' : 'seriesSearch.grabbedFor', { version: grabbed.version })
-    : !canAttribute
-    ? t('seriesSearch.grabUnmapped')
     : !isGrabbable(release)
       ? t('search.grabNoLink')
       : !mapped
-        ? t('seriesSearch.grabUnmappedScope', { version: target?.name ?? '' })
-        : !grabbable
-      ? t('search.grabNoLink')
-      : accepted
-        ? t('seriesSearch.grabFor', { version: target?.name ?? '', episodes: release.episodesLabel ?? '' })
-        : t('search.grabAnyway', { version: target?.name ?? '' })
+        ? t('seriesSearch.grabUnmapped', { version: target?.name ?? '' })
+        : accepted
+          ? t('seriesSearch.grabFor', { version: target?.name ?? '', episodes: release.episodesLabel ?? '' })
+          : t('search.grabAnyway', { version: target?.name ?? '' })
 
   return (
     <TableRow className={cn(!good && !grabbed && 'text-muted-foreground', grabbed && 'bg-emerald-500/5')} data-fits={good} data-grabbed={!!grabbed} data-testid="series-release">

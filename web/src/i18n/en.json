@@ -915,9 +915,7 @@
     "noVerdict": "No verdict: the title could not be read as a release",
     "confirmTitle": "Grab for {{version}} anyway?",
     "confirmReasons": "The search would not pick this release for this version:",
-    "confirmGrab": "Grab anyway",
-    "confirmTarget": "It maps to no episode: it will be grabbed for {{target}}.",
-    "confirmPick": "It maps to no episode. Grab it for:"
+    "confirmGrab": "Grab anyway"
   },
   "rss": {
     "title": "Releases",
@@ -2414,8 +2412,8 @@
     "textResults": "Results for the text “{{query}}”: the show's ids and titles were not used.",
     "episodes": "Episodes",
     "pack": "Season pack",
-    "grabFor": "Grab {{episodes}} for {{version}}",
-    "grabUnmapped": "This release maps to no episode, and the search scope gives nothing to grab it for",
+    "grabFor": "Grab {{episodes}} for {{version}}: pick the episodes first",
+    "grabUnmapped": "Maps to no episode: grab it for {{version}}, after picking its episodes",
     "orderFallback": "TVDB numbering found no acceptable release: the series' order was asked too. A release found on the order's numbers that nothing confirms is held for your choice.",
     "numbering": {
       "tvdb": "TVDB",
@@ -2430,13 +2428,25 @@
       "absolute": "Matched on the absolute number (anime), the same in every order."
     },
     "held": "Held: confirm by hand",
-    "grabUnmappedScope": "Maps to no episode: grab it for {{version}} anyway, for the episodes of this search",
     "grabbedFor": "Grabbed for {{version}}",
     "pickedFor": "Picked for {{version}} (shadow mode)",
-    "targetSeason": "{{season}} ({{count}} episodes)",
-    "targetSeasonNumber": "Season {{season}} ({{count}} episodes)",
-    "targetSpecials": "Specials ({{count}} episodes)",
-    "targetAll": "Every episode of the series ({{count}})"
+    "pickTitle": "Grab for {{version}}",
+    "pickMatched": "Bigarr matched it to {{episodes}}. Change the episodes if the match is wrong.",
+    "pickScope": "It maps to no episode: the episodes of this search are ticked. Change them to what it holds.",
+    "pickNone": "It maps to no episode: tick the episodes it holds.",
+    "pickSelected_one": "{{count}} episode ticked",
+    "pickSelected_other": "{{count}} episodes ticked",
+    "pickReset": "Back to the start",
+    "pickClear": "Untick all",
+    "pickSeason": "Season {{season}}",
+    "pickSpecials": "Specials",
+    "pickSeasonCount": "{{selected}}/{{count}}",
+    "pickToggleSeason": "Show or hide the episodes of {{season}}",
+    "pickEmpty": "This version has no episode to grab for.",
+    "pickGrab_one": "Grab {{count}} episode",
+    "pickGrab_other": "Grab {{count}} episodes",
+    "pickGrabAnyway_one": "Grab {{count}} episode anyway",
+    "pickGrabAnyway_other": "Grab {{count}} episodes anyway"
   },
   "sonarrFollow": {
     "title": "Followed Sonarrs",
