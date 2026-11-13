@@ -17,7 +17,24 @@ public sealed class RssSyncOptions
     public bool Enabled { get; set; } = true;
 
     public TimeSpan Interval => TimeSpan.FromMinutes(Math.Max(MinimumIntervalMinutes, IntervalMinutes));
+
+    /// <summary>
+    /// Minutes after a pass to read again the feeds that held a release some version only turned down for its seeders
+    /// (a fresh torrent has none yet). 0 turns the quick recheck off; so does a delay that reaches the next pass.
+    /// </summary>
+    public int QuickRecheckMinutes { get; set; } = 5;
+
+    /// <summary>The quick recheck's delay, or null when it is off.</summary>
+    public TimeSpan? QuickRecheck => Enabled && QuickRecheckMinutes > 0 && TimeSpan.FromMinutes(QuickRecheckMinutes) < Interval
+        ? TimeSpan.FromMinutes(QuickRecheckMinutes)
+        : null;
 }
+
+/// <summary>Which feeds of one indexer a quick recheck reads again: one request per feed that held a waiting release.</summary>
+public sealed record RssRecheckFeeds(bool Films, bool Series);
+
+/// <summary>The quick recheck a pass left behind: the indexers to read again, how many releases wait, and when.</summary>
+public sealed record RssRecheckPlan(IReadOnlyDictionary<int, RssRecheckFeeds> Indexers, int Waiting, DateTime DueAt);
 
 public sealed record RssMovieRef(int Id, string Title, int? Year, string? PosterUrl);
 

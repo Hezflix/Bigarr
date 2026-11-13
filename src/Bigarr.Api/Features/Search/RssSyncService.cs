@@ -8,6 +8,7 @@ using Bigarr.Api.Infrastructure.Matching;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Decision;
 using Bigarr.Decision.CustomFormats;
+using Bigarr.Decision.Specifications;
 using Bigarr.Domain.Indexers;
 using Bigarr.Domain.Movies;
 using Microsoft.EntityFrameworkCore;
@@ -61,7 +62,13 @@ public sealed class RssSyncService(
 
         try
         {
-            return Result<RssSyncResponse>.Ok(await RunCoreAsync(ct));
+            // A whole pass reads every feed a pending recheck would: it replaces it, and plans its own if needed.
+            CancelRecheck();
+            var (response, waiting) = await RunCoreAsync(null, ct);
+            logger.LogInformation("RSS sync: {Indexers} indexer(s), {Fetched} release(s), {New} new, {Matched} matched, {WouldGrab} attributed, {Grabbed} grabbed, {Picked} picked in shadow mode, {Errors} error(s)",
+                response.Indexers, response.Fetched, response.New, response.Matched, response.WouldGrab, response.Grabbed, response.Picked, response.IndexerErrors.Count);
+            PlanRecheck(waiting);
+            return Result<RssSyncResponse>.Ok(response);
         }
         finally
         {
@@ -69,24 +76,96 @@ public sealed class RssSyncService(
         }
     }
 
-    private async Task<RssSyncResponse> RunCoreAsync(CancellationToken ct)
+    /// <summary>
+    /// The quick recheck a pass planned: only the feeds that held a release waiting for seeders, judged like any pass
+    /// (sightings, grabs or picks), and never a recheck of its own. Null when there was nothing to recheck: no plan,
+    /// or a whole pass running, which reads these feeds anyway.
+    /// </summary>
+    public async Task<RssRecheckOutcome?> RecheckAsync(CancellationToken ct)
+    {
+        if (state.PendingRecheck is null || !state.TryBeginRun())
+        {
+            return null;
+        }
+
+        try
+        {
+            var plan = state.TakeRecheck();
+            if (plan is null)
+            {
+                return null; // a whole pass took it in between
+            }
+
+            scheduler.For(RssRecheckJob.JobName).NextRunAt = null; // done now, even when run by hand ahead of time
+
+            var (response, _) = await RunCoreAsync(plan, ct);
+            var ids = plan.Indexers.Keys.ToList();
+            var names = await db.Indexers.AsNoTracking().Where(i => ids.Contains(i.Id)).OrderBy(i => i.Name).Select(i => i.Name).ToListAsync(ct);
+            logger.LogInformation("RSS quick recheck: {Waiting} release(s) waiting for seeders on {Names}: {Fetched} release(s) read, {Matched} matched, {Grabbed} grabbed, {Picked} picked in shadow mode, {Errors} error(s)",
+                plan.Waiting, string.Join(", ", names), response.Fetched, response.Matched, response.Grabbed, response.Picked, response.IndexerErrors.Count);
+            return new RssRecheckOutcome(plan.Waiting, names, response);
+        }
+        finally
+        {
+            state.EndRun(time.GetUtcNow().UtcDateTime, full: false);
+        }
+    }
+
+    private void CancelRecheck()
+    {
+        state.PlanRecheck(null);
+        scheduler.For(RssRecheckJob.JobName).NextRunAt = null;
+    }
+
+    /// <summary>One quick recheck of the feeds that held a release waiting for seeders, when the setting allows it.</summary>
+    private void PlanRecheck(List<(int IndexerId, bool Series)> waiting)
+    {
+        if (waiting.Count == 0 || options.Value.QuickRecheck is not { } delay)
+        {
+            return;
+        }
+
+        var dueAt = time.GetUtcNow().UtcDateTime + delay;
+        var indexers = waiting.GroupBy(w => w.IndexerId).ToDictionary(g => g.Key, g => new RssRecheckFeeds(g.Any(w => !w.Series), g.Any(w => w.Series)));
+        state.PlanRecheck(new RssRecheckPlan(indexers, waiting.Count, dueAt));
+        scheduler.For(RssRecheckJob.JobName).NextRunAt = dueAt;
+        logger.LogDebug("RSS: {Waiting} release(s) waiting for seeders, quick recheck of {Indexers} indexer(s) at {DueAt:u}", waiting.Count, indexers.Count, dueAt);
+    }
+
+    /// <param name="recheck">Null for a whole pass; otherwise only the planned feeds of the planned indexers.</param>
+    private async Task<(RssSyncResponse Response, List<(int IndexerId, bool Series)> Waiting)> RunCoreAsync(RssRecheckPlan? recheck, CancellationToken ct)
     {
         var now = time.GetUtcNow().UtcDateTime;
         state.Prune(now);
 
-        var indexers = await db.Indexers.AsNoTracking().Where(i => i.EnableRss).OrderBy(i => i.Priority).ToListAsync(ct);
+        var query = db.Indexers.AsNoTracking().Where(i => i.EnableRss);
+        if (recheck is not null)
+        {
+            var ids = recheck.Indexers.Keys.ToList();
+            query = query.Where(i => ids.Contains(i.Id));
+        }
+
+        var indexers = await query.OrderBy(i => i.Priority).ToListAsync(ct);
+        var waiting = new List<(int IndexerId, bool Series)>();
         if (indexers.Count == 0)
         {
             logger.LogDebug("RSS sync: no indexer has RSS enabled");
-            return new RssSyncResponse(0, 0, 0, 0, 0, []);
+            return (new RssSyncResponse(0, 0, 0, 0, 0, []), waiting);
         }
 
-        var results = await IndexerQueries.RunAsync(indexers, (indexer, token) => gateway.FetchRecentAsync(indexer, token), ct);
+        var filmIndexers = recheck is null ? indexers : indexers.Where(i => recheck.Indexers[i.Id].Films).ToList();
+        var results = filmIndexers.Count > 0
+            ? await IndexerQueries.RunAsync(filmIndexers, (indexer, token) => gateway.FetchRecentAsync(indexer, token), ct)
+            : [];
 
         // Series come from the indexer's TV and anime categories: a second feed request per indexer, only once the
-        // library holds a series, so a films-only library asks exactly what it asked before.
-        var seriesResults = await db.Series.AnyAsync(ct)
-            ? await IndexerQueries.RunAsync(indexers, (indexer, token) => gateway.FetchRecentSeriesAsync(indexer, token), ct)
+        // library holds a series, so a films-only library asks exactly what it asked before. A quick recheck reads
+        // only the feeds that held a waiting release.
+        var seriesIndexers = recheck is not null ? indexers.Where(i => recheck.Indexers[i.Id].Series).ToList()
+            : await db.Series.AnyAsync(ct) ? indexers
+            : [];
+        var seriesResults = seriesIndexers.Count > 0
+            ? await IndexerQueries.RunAsync(seriesIndexers, (indexer, token) => gateway.FetchRecentSeriesAsync(indexer, token), ct)
             : [];
 
         // Every release of the feed is judged; "new" only says what this pass brought for the first time.
@@ -97,19 +176,20 @@ public sealed class RssSyncService(
         var seenFilms = new HashSet<string>(StringComparer.Ordinal);
         var seenSeries = new HashSet<string>(StringComparer.Ordinal);
         var fresh = 0;
-        foreach (var result in results)
+        foreach (var indexer in indexers)
         {
-            var seriesResult = seriesResults.FirstOrDefault(r => r.Indexer.Id == result.Indexer.Id);
+            var result = results.FirstOrDefault(r => r.Indexer.Id == indexer.Id);
+            var seriesResult = seriesResults.FirstOrDefault(r => r.Indexer.Id == indexer.Id);
             var newCount = 0;
-            foreach (var (release, isSeries) in result.Releases.Select(r => (r, false)).Concat((seriesResult?.Releases ?? []).Select(r => (r, true))))
+            foreach (var (release, isSeries) in (result?.Releases ?? []).Select(r => (r, false)).Concat((seriesResult?.Releases ?? []).Select(r => (r, true))))
             {
-                if (!(isSeries ? seenSeries : seenFilms).Add($"{result.Indexer.Id}:{release.Guid}"))
+                if (!(isSeries ? seenSeries : seenFilms).Add($"{indexer.Id}:{release.Guid}"))
                 {
                     continue; // a feed that lists a release twice
                 }
 
-                (isSeries ? seriesFeed : feed).Add((result.Indexer, release));
-                if (state.MarkSeen(result.Indexer.Id, release.Guid, now))
+                (isSeries ? seriesFeed : feed).Add((indexer, release));
+                if (state.MarkSeen(indexer.Id, release.Guid, now))
                 {
                     newCount++; // counted once, whatever number of feeds list it
                 }
@@ -117,8 +197,8 @@ public sealed class RssSyncService(
 
             fresh += newCount;
 
-            var error = result.Error?.Message ?? seriesResult?.Error?.Message;
-            state.RecordIndexer(new RssIndexerStatusResponse(result.Indexer.Id, result.Indexer.Name, now, error, result.Releases.Count + (seriesResult?.Releases.Count ?? 0), newCount));
+            var error = result?.Error?.Message ?? seriesResult?.Error?.Message;
+            state.RecordIndexer(new RssIndexerStatusResponse(indexer.Id, indexer.Name, now, error, (result?.Releases.Count ?? 0) + (seriesResult?.Releases.Count ?? 0), newCount));
         }
 
         var matched = 0;
@@ -134,10 +214,10 @@ public sealed class RssSyncService(
             var calculator = await scorer.CalculatorAsync(ct);
 
             // Oldest first so the newest ends up on top of the list.
-            var judged = new List<(RssReleaseResponse Entry, ReleaseInfo Release, int Score)>();
+            var judged = new List<(RssReleaseResponse Entry, ReleaseInfo Release, int Score, List<ReleaseDecision> Decisions)>();
             foreach (var (indexer, release) in feed.OrderBy(f => f.Release.PublishDate))
             {
-                var (entry, score) = Judge(indexer, release, library, targets, calculator, now);
+                var (entry, score, decisions) = Judge(indexer, release, library, targets, calculator, now);
                 if (entry.Movie is not null)
                 {
                     matched++;
@@ -149,7 +229,7 @@ public sealed class RssSyncService(
                     wouldGrab++;
                 }
 
-                judged.Add((entry, release, score));
+                judged.Add((entry, release, score, decisions));
             }
 
             // One grab per version and pass: the best of what the feed brought.
@@ -182,7 +262,12 @@ public sealed class RssSyncService(
                 }
             }
 
-            foreach (var (entry, _, _) in judged)
+            // A release only its seeders kept out, for a version this pass took nothing for: worth a quick look again.
+            waiting.AddRange(judged
+                .Where(j => j.Decisions.Any(d => MinimumSeedersSpecification.WaitsOnlyForSeeders(d) && !winners.ContainsKey(((MovieVersion)d.Target.Target).Id)))
+                .Select(j => (j.Entry.IndexerId, false)));
+
+            foreach (var (entry, _, _, _) in judged)
             {
                 var stored = entry;
                 if (entry.AttributedVersionId is not null)
@@ -209,32 +294,31 @@ public sealed class RssSyncService(
             wouldGrab += pass.Attributed;
             grabbed += pass.Grabbed;
             picked += pass.Picked;
+            waiting.AddRange(pass.WaitingForSeeders.Select(id => (id, true)));
         }
 
         var errors = results.Concat(seriesResults).Where(r => r.Error is not null)
             .Select(r => new IndexerErrorResponse(r.Indexer.Id, r.Indexer.Name, r.Error!.Kind, r.Error.Message))
             .ToList();
 
-        logger.LogInformation("RSS sync: {Indexers} indexer(s), {Fetched} release(s), {New} new, {Matched} matched, {WouldGrab} attributed, {Grabbed} grabbed, {Picked} picked in shadow mode, {Errors} error(s)",
-            indexers.Count, results.Sum(r => r.Releases.Count) + seriesResults.Sum(r => r.Releases.Count), fresh, matched, wouldGrab, grabbed, picked, errors.Count);
-
-        return new RssSyncResponse(indexers.Count, results.Sum(r => r.Releases.Count) + seriesResults.Sum(r => r.Releases.Count), fresh, matched, wouldGrab, errors, grabbed, picked);
+        return (new RssSyncResponse(indexers.Count, results.Sum(r => r.Releases.Count) + seriesResults.Sum(r => r.Releases.Count), fresh, matched, wouldGrab, errors, grabbed, picked), waiting);
     }
 
     private static string Key(RssReleaseResponse entry) => $"{entry.IndexerId}:{entry.Guid}";
 
-    private (RssReleaseResponse Entry, int Score) Judge(Indexer indexer, ReleaseInfo release, LibraryIndex library, Dictionary<int, List<TargetContext>> targets, CustomFormatCalculator calculator, DateTime now)
+    private (RssReleaseResponse Entry, int Score, List<ReleaseDecision> Decisions) Judge(Indexer indexer, ReleaseInfo release, LibraryIndex library, Dictionary<int, List<TargetContext>> targets, CustomFormatCalculator calculator, DateTime now)
     {
         var parsed = ReleaseMatcher.TryParse(release.Title);
         var (movie, reason) = ReleaseMatcher.FindMovie(parsed, release, library);
         var formats = parsed is null ? [] : calculator.Match(CustomFormatScorer.ReleaseInput(parsed, release, movie?.Year, movie?.OriginalLanguage));
 
         var versions = new List<VersionDecisionResponse>();
+        var decisions = new List<ReleaseDecision>();
         ReleaseDecision? attributed = null;
         if (movie is not null && parsed is not null)
         {
             var candidate = new ReleaseCandidate(release, parsed, indexer.MinimumSeeders) { CustomFormatIds = formats.Select(f => f.Id).ToList() };
-            var decisions = targets[movie.Id].Select(context => _evaluator.Evaluate(candidate, context)).ToList();
+            decisions = targets[movie.Id].Select(context => _evaluator.Evaluate(candidate, context)).ToList();
             attributed = VersionAttribution.Choose(decisions);
             versions = decisions.Select(d =>
             {
@@ -273,7 +357,7 @@ public sealed class RssSyncService(
             reason,
             versions,
             attributedVersion?.Id,
-            attributedVersion?.Name), attributed?.CustomFormatScore ?? 0);
+            attributedVersion?.Name), attributed?.CustomFormatScore ?? 0, decisions);
     }
 }
 
@@ -306,5 +390,43 @@ public sealed class RssSyncJob(RssSyncService rss, IOptions<RssSyncOptions> opti
             : $"{pass.Fetched} release(s) from {pass.Indexers} indexer(s), {pass.New} new, {pass.Matched} matched, {pass.Grabbed} grabbed"
               + (pass.Picked > 0 ? $", {pass.Picked} picked in shadow mode" : string.Empty)
               + (pass.IndexerErrors.Count > 0 ? $", {pass.IndexerErrors.Count} indexer error(s)" : string.Empty);
+    }
+}
+
+/// <summary>What a quick recheck did: why it ran, which indexers it read, and the pass over their feeds.</summary>
+public sealed record RssRecheckOutcome(int Waiting, IReadOnlyList<string> Indexers, RssSyncResponse Pass);
+
+/// <summary>
+/// The RSS quick recheck: a one-off task a pass plans a few minutes ahead when a release was turned down only for its
+/// seeders. It shows in System → Tasks beside the pass, shares its lock, and never plans another recheck.
+/// </summary>
+public sealed class RssRecheckJob(RssSyncService rss, IOptions<RssSyncOptions> options) : IScheduledJob
+{
+    public const string JobName = "rssRecheck";
+
+    public string Name => JobName;
+
+    public string DisplayName => "RSS quick recheck";
+
+    public TimeSpan Interval => options.Value.QuickRecheck ?? TimeSpan.Zero;
+
+    public bool Enabled => options.Value.QuickRecheck is not null;
+
+    public TimeSpan InitialDelay => TimeSpan.Zero;
+
+    public bool OneShot => true;
+
+    public async Task<string?> RunAsync(CancellationToken ct)
+    {
+        var outcome = await rss.RecheckAsync(ct);
+        if (outcome is null)
+        {
+            return "Nothing to recheck";
+        }
+
+        var pass = outcome.Pass;
+        return $"{outcome.Waiting} release(s) waiting for seeders; {pass.Fetched} release(s) read from {string.Join(", ", outcome.Indexers)}, {pass.Matched} matched, {pass.Grabbed} grabbed"
+               + (pass.Picked > 0 ? $", {pass.Picked} picked in shadow mode" : string.Empty)
+               + (pass.IndexerErrors.Count > 0 ? $", {pass.IndexerErrors.Count} indexer error(s)" : string.Empty);
     }
 }

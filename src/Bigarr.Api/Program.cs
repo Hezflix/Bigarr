@@ -147,6 +147,7 @@ builder.Services.AddSingleton<SchedulerSignal>();
 builder.Services.AddSingleton<TaskRunner>();
 builder.Services.AddHostedService<SchedulerRunner>();
 builder.Services.AddScoped<IScheduledJob, RssSyncJob>();
+builder.Services.AddScoped<IScheduledJob, RssRecheckJob>();
 builder.Services.AddScoped<IScheduledJob, CutoffUnmetSearchJob>();
 builder.Services.AddScoped<IScheduledJob, HealthCheckJob>();
 builder.Services.AddScoped<IScheduledJob, MediaMaintenanceJob>();

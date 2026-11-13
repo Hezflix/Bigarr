@@ -235,10 +235,13 @@ extras through the state check, so the invariant is "one progress per root folde
 ### Search queues and the RSS pass
 
 In memory: `SearchQueue` and `SeriesSearchQueue` hold a pending set next to a channel; the RSS pass is a try-lock
-(`RssFeedState`).
+(`RssFeedState`). The RSS quick recheck is a plan in `RssFeedState` plus the `rssRecheck` task's next run: a whole
+pass clears both when it starts and may set them when it ends; the recheck takes the plan under the same try-lock and
+clears the next run; `TaskRunner` drops a one-off task's next run once it has run, unless a newer plan moved it later.
 
 Invariants: an id is removed from the pending set on every exit path; a search is queued only after the change that
-asks for it has committed (the search reads grab state on its own connection).
+asks for it has committed (the search reads grab state on its own connection); a whole pass and a recheck never run at
+once, and a recheck never plans another.
 
 ## Files on disk
 

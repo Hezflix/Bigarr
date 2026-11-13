@@ -31,6 +31,12 @@ public interface IScheduledJob
     /// </summary>
     bool LongRunning => false;
 
+    /// <summary>
+    /// Runs only when something plans it (sets its next run), once, and does not come back on its own: the RSS quick
+    /// recheck. <see cref="Interval"/> is then the delay its planner uses.
+    /// </summary>
+    bool OneShot => false;
+
     /// <summary>Does the work and returns one line about it ("15 releases, 2 grabbed"), or null.</summary>
     Task<string?> RunAsync(CancellationToken ct);
 }
