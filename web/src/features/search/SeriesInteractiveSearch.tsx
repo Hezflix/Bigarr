@@ -13,14 +13,18 @@ import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { grabObjections, languagesComparator, qualityComparator } from '@/features/search/grabRules'
 import {
   commonComparators,
+  GrabConfirmDialog,
   grabRequest,
   GrabSplitButton,
   IndexerErrors,
   IndexerSizePeersCells,
   isGrabbable,
+  type PendingGrab,
   permanentStyle,
+  QualityLanguagesFormatsCells,
   ReleaseTitleCell,
   SearchSkeleton,
   SortableHead as SharedSortableHead,
@@ -35,12 +39,7 @@ import { formatAge } from '@/i18n'
 /** What is searched: an episode, a season, or the whole series. */
 export type SeriesSearchScope = { kind: 'episode'; episodeId: number; label: string } | { kind: 'season'; season: number; label: string; orderSeason?: boolean } | { kind: 'series'; label: string }
 
-const comparators = {
-  ...commonComparators,
-  episodes: (a: SeriesRelease, b: SeriesRelease) => a.episodes.length - b.episodes.length,
-}
-
-type SortKey = keyof typeof comparators
+type SortKey = keyof typeof commonComparators | 'episodes' | 'quality' | 'languages' | 'score'
 
 const SortableHead = (props: Omit<Parameters<typeof SharedSortableHead<SortKey>>[0], 'testIdPrefix'>) => <SharedSortableHead testIdPrefix="series-sort" {...props} />
 
@@ -57,6 +56,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
   const [submitted, setSubmitted] = useState('')
   const [text, setText] = useState('')
   const [sort, onSort] = useReleaseSort<SortKey>()
+  const [pending, setPending] = useState<PendingGrab | null>(null)
   const scopeKey = scope.kind === 'episode' ? `e${scope.episodeId}` : scope.kind === 'season' ? `s${scope.season}${scope.orderSeason ? 'o' : ''}` : 'all'
   const query = useQuery({
     queryKey: ['seriesSearch', series.id, scopeKey, submitted],
@@ -68,6 +68,16 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
 
   const versionById = new Map(series.versions.map((v) => [v.id, v]))
   const defaultVersion = series.versions.find((v) => v.isDefault) ?? series.versions[0]
+  // Where the grab button sends a release, and so the score shown and sorted on: the suggested version, else the default.
+  const targetOf = (release: SeriesRelease) => versionById.get(release.suggestedVersionId ?? -1) ?? defaultVersion
+  const scoreOf = (release: SeriesRelease) => release.versions.find((v) => v.versionId === targetOf(release)?.id)?.customFormatScore ?? 0
+  const comparators: Record<SortKey, (a: SeriesRelease, b: SeriesRelease) => number> = {
+    ...commonComparators,
+    episodes: (a, b) => a.episodes.length - b.episodes.length,
+    quality: qualityComparator,
+    languages: languagesComparator,
+    score: (a, b) => scoreOf(a) - scoreOf(b),
+  }
 
   const grab = useMutation({
     mutationFn: ({ release, versionId }: { release: SeriesRelease; versionId: number }) =>
@@ -76,10 +86,22 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
       const version = versionById.get(versionId)?.name ?? ''
       if (result.shadow) toast.success(t('search.picked', { title: release.title, version }))
       else toast.success(t('search.grabbed', { title: release.title, version, client: result.downloadClient ?? '' }))
+      await queryClient.invalidateQueries({ queryKey: ['seriesEpisodes', series.id] })
+      await queryClient.invalidateQueries({ queryKey: ['seriesDetail', series.id] })
+      await queryClient.invalidateQueries({ queryKey: ['queue'] })
       await query.refetch()
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : t('search.grabFailed')),
   })
+
+  // A release the version rejects (or that names another show) is grabbed only after the reasons are confirmed.
+  const requestGrab = (release: SeriesRelease, versionId: number) => {
+    const go = () => grab.mutate({ release, versionId })
+    const decision = release.versions.find((v) => v.versionId === versionId)
+    const reasons = grabObjections(release.matchesSeries, release.rejections, decision, t('search.noVerdict'))
+    if (reasons.length === 0) go()
+    else setPending({ title: release.title, version: versionById.get(versionId)?.name ?? '', reasons, go })
+  }
 
   const run = (next: string) => {
     if (next === submitted) {
@@ -104,7 +126,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-[min(96vw,90rem)]" data-testid="series-search">
+      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-[min(98vw,112rem)]" data-testid="series-search">
         <DialogHeader>
           <DialogTitle>{t('seriesSearch.title', { what: scope.label, series: series.title })}</DialogTitle>
           <DialogDescription>{t(`seriesSearch.hint.${scope.kind}`)}</DialogDescription>
@@ -177,6 +199,15 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
                     <SortableHead column="peers" sort={sort} onSort={onSort}>
                       {t('search.peers')}
                     </SortableHead>
+                    <SortableHead column="quality" sort={sort} onSort={onSort}>
+                      {t('search.quality')}
+                    </SortableHead>
+                    <SortableHead column="languages" sort={sort} onSort={onSort}>
+                      {t('search.languages')}
+                    </SortableHead>
+                    <SortableHead column="score" sort={sort} onSort={onSort} title={t('search.scoreSort')}>
+                      {t('search.formats')}
+                    </SortableHead>
                     <SortableHead column="fit" sort={sort} onSort={onSort} title={t('search.fitSort')}>
                       {t('search.fit')}
                     </SortableHead>
@@ -189,15 +220,16 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
                       key={`${release.indexerId}:${release.guid}`}
                       release={release}
                       versions={series.versions}
-                      target={versionById.get(release.suggestedVersionId ?? -1) ?? defaultVersion}
+                      target={targetOf(release)}
                       grabbing={grab.isPending && grab.variables?.release.guid === release.guid && grab.variables.release.indexerId === release.indexerId}
-                      onGrab={(versionId) => grab.mutate({ release, versionId })}
+                      onGrab={(versionId) => requestGrab(release, versionId)}
                     />
                   ))}
                 </TableBody>
               </Table>
             </div>
           ))}
+        <GrabConfirmDialog pending={pending} onClose={() => setPending(null)} />
       </DialogContent>
     </Dialog>
   )
@@ -220,11 +252,10 @@ function ReleaseRow({
   const good = fits(release)
   const mapped = release.episodes.length > 0
   const grabbable = mapped && isGrabbable(release)
-  const details = [release.releaseGroup, release.languages.length > 0 ? release.languages.join(', ') : null, release.isRepack ? t('search.repack') : null].filter(
-    (d): d is string => !!d,
-  )
+  const details = [release.releaseGroup, release.isRepack ? t('search.repack') : null].filter((d): d is string => !!d)
   const decisionFor = (versionId: number) => release.versions.find((v) => v.versionId === versionId)
-  const accepted = release.matchesSeries && !!(target && decisionFor(target.id)?.approved)
+  const targetDecision = target ? decisionFor(target.id) : undefined
+  const accepted = release.matchesSeries && !!targetDecision?.approved
   const grabTip = !mapped
     ? t('seriesSearch.grabUnmapped')
     : !grabbable
@@ -243,7 +274,7 @@ function ReleaseRow({
           <TooltipContent>{new Date(release.publishDate).toLocaleString()}</TooltipContent>
         </Tooltip>
       </TableCell>
-      <ReleaseTitleCell release={release} good={good} details={details} className="min-w-[22rem]" />
+      <ReleaseTitleCell release={release} good={good} details={details} className="min-w-[17rem]" badges={false} />
       <TableCell className="align-top whitespace-nowrap" data-testid="release-episodes">
         {mapped ? (
           <span className="flex flex-col items-start gap-1">
@@ -265,11 +296,12 @@ function ReleaseRow({
         )}
       </TableCell>
       <IndexerSizePeersCells release={release} />
-      <TableCell className="min-w-[18rem] align-top whitespace-normal" data-testid="series-release-fit">
+      <QualityLanguagesFormatsCells release={release} score={targetDecision?.customFormatScore} scoreVersion={target?.name} />
+      <TableCell className="min-w-[13rem] align-top whitespace-normal" data-testid="series-release-fit">
         {release.rejections.length > 0 && (
           <span className="mb-1 flex flex-wrap gap-1">
             {release.rejections.map((r) => (
-              <Badge key={r.reason} variant="outline" className={cn('whitespace-normal text-left', permanentStyle)}>
+              <Badge key={r.reason} variant="outline" className={cn('h-auto rounded-md whitespace-normal text-left', permanentStyle)}>
                 {r.reason}
               </Badge>
             ))}

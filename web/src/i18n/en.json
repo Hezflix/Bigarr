@@ -906,7 +906,16 @@
     "autoNoIndexer": "{{label}}: no indexer has automatic search enabled.",
     "autoSkipped": "{{label}}: skipped. {{detail}}",
     "autoFailed": "{{label}}: the grab failed. {{detail}}",
-    "autoPicked": "{{label}}: “{{title}}” recorded as Bigarr's pick (shadow mode)."
+    "autoPicked": "{{label}}: “{{title}}” recorded as Bigarr's pick (shadow mode).",
+    "quality": "Quality",
+    "languages": "Languages",
+    "formats": "Custom formats",
+    "scoreSort": "Custom format score for the version the grab goes to",
+    "scoreFor": "Score for {{version}}",
+    "noVerdict": "No verdict: the title could not be read as a release",
+    "confirmTitle": "Grab for {{version}} anyway?",
+    "confirmReasons": "The search would not pick this release for this version:",
+    "confirmGrab": "Grab anyway"
   },
   "rss": {
     "title": "Releases",

@@ -13,13 +13,16 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { OneShotGrabDialog } from '@/features/search/OneShotGrabDialog'
+import { grabObjections } from '@/features/search/grabRules'
 import {
   commonComparators,
+  GrabConfirmDialog,
   grabRequest,
   GrabSplitButton,
   IndexerErrors,
   IndexerSizePeersCells,
   isGrabbable,
+  type PendingGrab,
   permanentStyle,
   ReleaseTitleCell,
   SearchSkeleton,
@@ -63,6 +66,7 @@ export function InteractiveSearch({ movie }: { movie: Movie }) {
   const [text, setText] = useState(submitted ?? '')
   const [sort, onSort] = useReleaseSort<SortKey>()
   const [oneShot, setOneShot] = useState<{ release: Release; profileId: number } | null>(null)
+  const [pending, setPending] = useState<PendingGrab | null>(null)
   const query = useQuery({
     queryKey: ['search', movie.id, submitted ?? ''],
     queryFn: () => search.movie(movie.id, { query: submitted || undefined }),
@@ -103,6 +107,15 @@ export function InteractiveSearch({ movie }: { movie: Movie }) {
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : t('search.grabFailed')),
   })
+
+  // A release the version rejects (or that is not this film) is grabbed only after the reasons are confirmed.
+  const requestGrab = (release: Release, versionId: number) => {
+    const go = () => grab.mutate({ release, versionId })
+    const decision = release.versions.find((v) => v.versionId === versionId)
+    const reasons = grabObjections(release.matchesMovie, release.rejections, decision, t('search.noVerdict'))
+    if (reasons.length === 0) go()
+    else setPending({ title: release.title, version: versionById.get(versionId)?.name ?? '', reasons, go })
+  }
 
   const data = query.data
   const releases = data ? sortReleases(data.releases, sort, commonComparators) : []
@@ -208,7 +221,7 @@ export function InteractiveSearch({ movie }: { movie: Movie }) {
                         versions={movie.versions}
                         target={target}
                         grabbing={grab.isPending && grab.variables?.release.guid === release.guid && grab.variables.release.indexerId === release.indexerId}
-                        onGrab={(versionId) => grab.mutate({ release, versionId })}
+                        onGrab={(versionId) => requestGrab(release, versionId)}
                         onGrabOneShot={() => setOneShot({ release, profileId: target?.qualityProfileId ?? defaultVersion?.qualityProfileId ?? 0 })}
                       />
                     )
@@ -222,6 +235,7 @@ export function InteractiveSearch({ movie }: { movie: Movie }) {
         </>
       )}
 
+      <GrabConfirmDialog pending={pending} onClose={() => setPending(null)} />
       {oneShot && <OneShotGrabDialog movie={movie} release={oneShot.release} defaultProfileId={oneShot.profileId} onClose={() => setOneShot(null)} />}
     </section>
   )
@@ -284,7 +298,7 @@ function ReleaseRow({
         {!release.matchesMovie && (
           <span className="mb-1 flex flex-wrap gap-1">
             {release.rejections.map((r) => (
-              <Badge key={r.reason} variant="outline" className={cn('whitespace-normal text-left', permanentStyle)}>
+              <Badge key={r.reason} variant="outline" className={cn('h-auto rounded-md whitespace-normal text-left', permanentStyle)}>
                 {t('search.notThisFilm', { reason: r.reason })}
               </Badge>
             ))}
