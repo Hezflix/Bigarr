@@ -2840,5 +2840,25 @@
       "plays": "Plays",
       "playsCount": "Plays ({{count}})"
     }
+  },
+  "searchQueries": {
+    "toggle": "Advanced",
+    "toggleHint": "Also show what Bigarr asked each indexer: the requests, their URLs (keys hidden) and the outcome",
+    "title": "Queries sent",
+    "summary": "{{indexers}} indexer(s), {{requests}} request(s)",
+    "searchAgain": "Search again to see what each indexer was asked.",
+    "none": "Nothing was sent to this indexer.",
+    "indexerTotals": "{{sent}} sent · {{results}} results",
+    "failed": "{{count}} failed",
+    "skipped": "{{count}} skipped",
+    "outcome": "{{releases}} kept · {{parsed}} parsed · {{matched}} matched · {{accepted}} accepted",
+    "outcomeHint": "Releases of this indexer in the results (duplicates removed), whose title parses, that are this title, and that a version accepts",
+    "status": "HTTP {{status}}",
+    "results": "{{count}} results",
+    "duration": "{{ms}} ms",
+    "waited": "waited {{ms}} ms (rate limit)",
+    "skippedRequest": "Not sent",
+    "copyUrl": "Copy the URL (key hidden)",
+    "copied": "URL copied, with the key hidden."
   }
 }
