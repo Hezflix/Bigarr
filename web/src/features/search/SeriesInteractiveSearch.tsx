@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
-import { SearchIcon } from 'lucide-react'
+import { CheckIcon, SearchIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, queue, search, type Series, type SeriesRelease, type SeriesVersion } from '@/api/client'
+import { ApiError, queue, search, series as seriesApi, type Series, type SeriesRelease, type SeriesVersion } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -36,8 +36,9 @@ import {
 } from '@/features/search/releaseTable'
 import { formatAge } from '@/i18n'
 
-/** What is searched: an episode, a season, or the whole series. */
-export type SeriesSearchScope = { kind: 'episode'; episodeId: number; label: string } | { kind: 'season'; season: number; label: string; orderSeason?: boolean } | { kind: 'series'; label: string }
+import { scopeChoices, type SeriesSearchScope } from './seriesGrabScope'
+
+export type { SeriesSearchScope }
 
 type SortKey = keyof typeof commonComparators | 'episodes' | 'quality' | 'languages' | 'score'
 
@@ -57,6 +58,9 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
   const [text, setText] = useState('')
   const [sort, onSort] = useReleaseSort<SortKey>()
   const [pending, setPending] = useState<PendingGrab | null>(null)
+  // The dialog stays open after a grab: each grabbed row says so, the others can be grabbed too.
+  const [grabbed, setGrabbed] = useState<Map<string, { version: string; shadow: boolean }>>(new Map())
+  const episodes = useQuery({ queryKey: ['seriesEpisodes', series.id], queryFn: () => seriesApi.episodes(series.id) })
   const scopeKey = scope.kind === 'episode' ? `e${scope.episodeId}` : scope.kind === 'season' ? `s${scope.season}${scope.orderSeason ? 'o' : ''}` : 'all'
   const query = useQuery({
     queryKey: ['seriesSearch', series.id, scopeKey, submitted],
@@ -80,10 +84,11 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
   }
 
   const grab = useMutation({
-    mutationFn: ({ release, versionId }: { release: SeriesRelease; versionId: number }) =>
-      queue.grab({ ...grabRequest(release, versionId), episodeIds: release.episodes.map((e) => e.id), numbering: release.numbering }),
+    mutationFn: ({ release, versionId, episodeIds }: { release: SeriesRelease; versionId: number; episodeIds: number[] }) =>
+      queue.grab({ ...grabRequest(release, versionId), episodeIds, numbering: release.numbering }),
     onSuccess: async (result, { release, versionId }) => {
       const version = versionById.get(versionId)?.name ?? ''
+      setGrabbed((current) => new Map(current).set(releaseKey(release), { version, shadow: result.shadow }))
       if (result.shadow) toast.success(t('search.picked', { title: release.title, version }))
       else toast.success(t('search.grabbed', { title: release.title, version, client: result.downloadClient ?? '' }))
       await queryClient.invalidateQueries({ queryKey: ['seriesEpisodes', series.id] })
@@ -95,12 +100,18 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
   })
 
   // A release the version rejects (or that names another show) is grabbed only after the reasons are confirmed.
+  // One that maps to no episode is grabbed for the scope it was searched from (Bigarr's mapping can be the one wrong).
   const requestGrab = (release: SeriesRelease, versionId: number) => {
-    const go = () => grab.mutate({ release, versionId })
+    const mapped = release.episodes.length > 0
+    const choices = mapped ? [] : scopeChoices(scope, episodes.data ?? [], t)
+    const go = (choice: string | undefined) => {
+      const episodeIds = mapped ? release.episodes.map((e) => e.id) : (choices.find((c) => c.value === choice) ?? choices[0])?.episodeIds
+      if (episodeIds && episodeIds.length > 0) grab.mutate({ release, versionId, episodeIds })
+    }
     const decision = release.versions.find((v) => v.versionId === versionId)
-    const reasons = grabObjections(release.matchesSeries, release.rejections, decision, t('search.noVerdict'))
-    if (reasons.length === 0) go()
-    else setPending({ title: release.title, version: versionById.get(versionId)?.name ?? '', reasons, go })
+    const reasons = grabObjections(release.matchesSeries && mapped, release.rejections, decision, t('search.noVerdict'))
+    if (reasons.length === 0) go(undefined)
+    else setPending({ title: release.title, version: versionById.get(versionId)?.name ?? '', reasons, go, choices })
   }
 
   const run = (next: string) => {
@@ -222,6 +233,8 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
                       versions={series.versions}
                       target={targetOf(release)}
                       grabbing={grab.isPending && grab.variables?.release.guid === release.guid && grab.variables.release.indexerId === release.indexerId}
+                      grabbed={grabbed.get(releaseKey(release))}
+                      canAttribute={release.episodes.length > 0 || scopeChoices(scope, episodes.data ?? [], t).length > 0}
                       onGrab={(versionId) => requestGrab(release, versionId)}
                     />
                   ))}
@@ -240,32 +253,44 @@ function ReleaseRow({
   versions,
   target,
   grabbing,
+  grabbed,
+  canAttribute,
   onGrab,
 }: {
   release: SeriesRelease
   versions: SeriesVersion[]
   target: SeriesVersion | undefined
   grabbing: boolean
+  /** Grabbed (or picked, in shadow mode) from this dialog. */
+  grabbed: { version: string; shadow: boolean } | undefined
+  /** Mapped to episodes, or the scope gives something to grab it for. */
+  canAttribute: boolean
   onGrab: (versionId: number) => void
 }) {
   const { t } = useTranslation()
   const good = fits(release)
   const mapped = release.episodes.length > 0
-  const grabbable = mapped && isGrabbable(release)
+  const grabbable = canAttribute && isGrabbable(release) && !grabbed
   const details = [release.releaseGroup, release.isRepack ? t('search.repack') : null].filter((d): d is string => !!d)
   const decisionFor = (versionId: number) => release.versions.find((v) => v.versionId === versionId)
   const targetDecision = target ? decisionFor(target.id) : undefined
   const accepted = release.matchesSeries && !!targetDecision?.approved
-  const grabTip = !mapped
+  const grabTip = grabbed
+    ? t(grabbed.shadow ? 'seriesSearch.pickedFor' : 'seriesSearch.grabbedFor', { version: grabbed.version })
+    : !canAttribute
     ? t('seriesSearch.grabUnmapped')
-    : !grabbable
+    : !isGrabbable(release)
+      ? t('search.grabNoLink')
+      : !mapped
+        ? t('seriesSearch.grabUnmappedScope', { version: target?.name ?? '' })
+        : !grabbable
       ? t('search.grabNoLink')
       : accepted
         ? t('seriesSearch.grabFor', { version: target?.name ?? '', episodes: release.episodesLabel ?? '' })
         : t('search.grabAnyway', { version: target?.name ?? '' })
 
   return (
-    <TableRow className={cn(!good && 'text-muted-foreground')} data-fits={good} data-testid="series-release">
+    <TableRow className={cn(!good && !grabbed && 'text-muted-foreground', grabbed && 'bg-emerald-500/5')} data-fits={good} data-grabbed={!!grabbed} data-testid="series-release">
       <TableCell className="align-top whitespace-nowrap">
         <Tooltip>
           <TooltipTrigger asChild>
@@ -276,6 +301,12 @@ function ReleaseRow({
       </TableCell>
       <ReleaseTitleCell release={release} good={good} details={details} className="min-w-[17rem]" badges={false} />
       <TableCell className="align-top whitespace-nowrap" data-testid="release-episodes">
+        {grabbed && (
+          <Badge variant="outline" className="mb-1 border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300" data-testid="release-grabbed">
+            <CheckIcon />
+            {t(grabbed.shadow ? 'seriesSearch.pickedFor' : 'seriesSearch.grabbedFor', { version: grabbed.version })}
+          </Badge>
+        )}
         {mapped ? (
           <span className="flex flex-col items-start gap-1">
             {release.fullSeason && <Badge variant="outline">{t('seriesSearch.pack')}</Badge>}
@@ -335,3 +366,5 @@ function ReleaseRow({
     </TableRow>
   )
 }
+
+const releaseKey = (release: SeriesRelease) => `${release.indexerId}:${release.guid}`

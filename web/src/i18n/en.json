@@ -915,7 +915,9 @@
     "noVerdict": "No verdict: the title could not be read as a release",
     "confirmTitle": "Grab for {{version}} anyway?",
     "confirmReasons": "The search would not pick this release for this version:",
-    "confirmGrab": "Grab anyway"
+    "confirmGrab": "Grab anyway",
+    "confirmTarget": "It maps to no episode: it will be grabbed for {{target}}.",
+    "confirmPick": "It maps to no episode. Grab it for:"
   },
   "rss": {
     "title": "Releases",
@@ -2413,7 +2415,7 @@
     "episodes": "Episodes",
     "pack": "Season pack",
     "grabFor": "Grab {{episodes}} for {{version}}",
-    "grabUnmapped": "This release maps to no episode of the series: nothing to grab",
+    "grabUnmapped": "This release maps to no episode, and the search scope gives nothing to grab it for",
     "orderFallback": "TVDB numbering found no acceptable release: the series' order was asked too. A release found on the order's numbers that nothing confirms is held for your choice.",
     "numbering": {
       "tvdb": "TVDB",
@@ -2427,7 +2429,14 @@
       "order": "Matched on the series' order, after TVDB found nothing acceptable.",
       "absolute": "Matched on the absolute number (anime), the same in every order."
     },
-    "held": "Held: confirm by hand"
+    "held": "Held: confirm by hand",
+    "grabUnmappedScope": "Maps to no episode: grab it for {{version}} anyway, for the episodes of this search",
+    "grabbedFor": "Grabbed for {{version}}",
+    "pickedFor": "Picked for {{version}} (shadow mode)",
+    "targetSeason": "{{season}} ({{count}} episodes)",
+    "targetSeasonNumber": "Season {{season}} ({{count}} episodes)",
+    "targetSpecials": "Specials ({{count}} episodes)",
+    "targetAll": "Every episode of the series ({{count}})"
   },
   "sonarrFollow": {
     "title": "Followed Sonarrs",
