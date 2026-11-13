@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { Episode, EpisodeFile } from '../src/api/client'
 import { defaultEpisodeSort, nextEpisodeSort, sortEpisodes } from '../src/features/series/episodeSort'
+import { readSeasonTablePrefs } from '../src/features/series/seasonTablePrefs'
 
 const episode = (id: number, title: string, airDate: string | null, absolute: number | null = null) =>
   ({ id, title, airDate, airDateUtc: airDate ? `${airDate}T01:00:00Z` : null, displayAbsoluteNumber: absolute }) as unknown as Episode
@@ -39,5 +40,14 @@ describe('nextEpisodeSort', () => {
     expect(nextEpisodeSort(defaultEpisodeSort, 'number')).toEqual({ key: 'number', direction: 'desc' })
     expect(nextEpisodeSort(defaultEpisodeSort, 'size')).toEqual({ key: 'size', direction: 'desc' })
     expect(nextEpisodeSort(defaultEpisodeSort, 'title')).toEqual({ key: 'title', direction: 'asc' })
+  })
+})
+
+describe('readSeasonTablePrefs', () => {
+  test('keeps a known sort, drops an unknown one', () => {
+    expect(readSeasonTablePrefs({ sort: { key: 'airDate', direction: 'desc' } }).sort).toEqual({ key: 'airDate', direction: 'desc' })
+    expect(readSeasonTablePrefs({ sort: { key: 'gone', direction: 'desc' } }).sort).toEqual(defaultEpisodeSort)
+    expect(readSeasonTablePrefs({ sort: { key: 'title', direction: 'sideways' } }).sort).toEqual(defaultEpisodeSort)
+    expect(readSeasonTablePrefs(null).sort).toEqual(defaultEpisodeSort)
   })
 })

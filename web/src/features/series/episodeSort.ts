@@ -2,7 +2,9 @@ import type { Episode, EpisodeFile } from '@/api/client'
 import type { SortDirection } from '@/features/library/core'
 
 /** What a season table sorts by. `number` is the season's own order (the series' order when it has one, TVDB's otherwise). */
-export type EpisodeSortKey = 'number' | 'absolute' | 'title' | 'airDate' | 'size'
+export const episodeSortKeys = ['number', 'absolute', 'title', 'airDate', 'size'] as const
+
+export type EpisodeSortKey = (typeof episodeSortKeys)[number]
 
 export type EpisodeSort = { key: EpisodeSortKey; direction: SortDirection }
 

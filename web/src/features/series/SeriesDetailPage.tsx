@@ -8,6 +8,7 @@ import { SeriesCompareSection } from '@/features/activity/SeriesCompare'
 import { toast } from 'sonner'
 import {
   ApiError,
+  auth,
   customFormats,
   monitoringOptions,
   quality,
@@ -45,7 +46,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatBytes, formatDate } from '@/i18n'
 import { EpisodeProgress } from './EpisodeProgress'
-import { defaultEpisodeSort, type EpisodeSort, type EpisodeSortKey, nextEpisodeSort, sortEpisodes } from './episodeSort'
+import { type EpisodeSort, type EpisodeSortKey, nextEpisodeSort, sortEpisodes } from './episodeSort'
+import { useSeasonTablePrefs } from './seasonTablePrefs'
 import { ariaSort, SortButton } from '@/features/library/SortButton'
 import { SeriesFilmsSection } from './SeriesFilmsSection'
 import { SeriesSearchDialog, type SeriesSearchScope } from '@/features/search/SeriesInteractiveSearch'
@@ -778,6 +780,10 @@ function SeasonList({
   const opened = open ?? new Set(latest === undefined ? [] : [latest])
   // TVDB numbers every show absolutely; like Sonarr, only anime shows the column.
   const showAbsolute = s.seriesType === 'anime'
+  // One sort for every season of every show, kept like the library's view options.
+  const me = useQuery({ queryKey: ['me'], queryFn: auth.me })
+  const [prefs, updatePrefs] = useSeasonTablePrefs(me.data?.id)
+  const onSort = (key: EpisodeSortKey) => updatePrefs((current) => ({ sort: nextEpisodeSort(current.sort, key) }))
 
   return (
     <div className="flex flex-col gap-3" data-testid="series-seasons">
@@ -791,6 +797,8 @@ function SeasonList({
           files={fileByEpisode}
           loading={loading}
           showAbsolute={showAbsolute}
+          sort={prefs.sort}
+          onSort={onSort}
           synthetic={synthetic}
           open={opened.has(season.seasonNumber)}
           onToggleOpen={() =>
@@ -817,6 +825,8 @@ type SeasonBlockProps = {
   files: Map<number, EpisodeFile>
   loading: boolean
   showAbsolute: boolean
+  sort: EpisodeSort
+  onSort: (key: EpisodeSortKey) => void
   /** A season of the series' order (or the episodes it lacks): flags and search go through its episodes. */
   synthetic: boolean
   open: boolean
@@ -825,12 +835,10 @@ type SeasonBlockProps = {
   onSearch: (scope: SeriesSearchScope) => void
 }
 
-function SeasonBlock({ series: s, season, version, episodes, files, loading, showAbsolute, synthetic, open, onToggleOpen, onChanged, onSearch }: SeasonBlockProps) {
+function SeasonBlock({ series: s, season, version, episodes, files, loading, showAbsolute, sort, onSort, synthetic, open, onToggleOpen, onChanged, onSearch }: SeasonBlockProps) {
   const { t } = useTranslation()
   const state = season.versions.find((v) => v.versionId === version.id)
   const monitored = state?.monitored ?? false
-  // Each season sorts on its own; collapsing it keeps the order.
-  const [sort, setSort] = useState<EpisodeSort>(defaultEpisodeSort)
   const outside = season.seasonNumber === NOT_IN_ORDER
   const name = outside ? t('seriesOrder.notInOrderTitle') : season.seasonNumber === 0 ? t('seriesDetail.specials') : t('seriesDetail.season', { number: season.seasonNumber })
   const toggle = useMutation({
@@ -890,7 +898,7 @@ function SeasonBlock({ series: s, season, version, episodes, files, loading, sho
               files={files}
               showAbsolute={showAbsolute}
               sort={sort}
-              onSort={(key) => setSort((current) => nextEpisodeSort(current, key))}
+              onSort={onSort}
               onChanged={onChanged}
               onSearch={onSearch}
             />
