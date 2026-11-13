@@ -731,9 +731,11 @@ export type HistoryEventType = Schemas['HistoryEventType']
 export type HistoryEvent = Schemas['HistoryEventResponse']
 
 export const history = {
-  list: (options: { movieId?: number; versionId?: number; eventType?: HistoryEventType; limit?: number } = {}) => {
+  /** `episodeId`: every line about the episode, whatever the version. */
+  list: (options: { movieId?: number; episodeId?: number; versionId?: number; eventType?: HistoryEventType; limit?: number } = {}) => {
     const params = new URLSearchParams()
     if (options.movieId) params.set('movieId', String(options.movieId))
+    if (options.episodeId) params.set('episodeId', String(options.episodeId))
     if (options.versionId) params.set('versionId', String(options.versionId))
     if (options.eventType) params.set('eventType', options.eventType)
     if (options.limit) params.set('limit', String(options.limit))
@@ -1251,6 +1253,8 @@ export type PlaysQuery = {
   pageSize?: number
   userId?: number
   movieId?: number
+  /** A library episode: its plays found by the episode's TVDB id, or the show's ids and its numbers. */
+  episodeId?: number
   versionId?: number
   /** A version name (`4k`), across films. */
   version?: string

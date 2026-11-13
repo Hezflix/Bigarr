@@ -223,7 +223,11 @@ public sealed record EpisodeResponse(
     /// <summary>The series shows another order and this episode has no counterpart there (its file stays as named).</summary>
     bool NotInOrder = false,
     /// <summary>The special is a film of the library (S8): the film engine owns it ("owned by film X").</summary>
-    EpisodeFilmOwner? OwnedByFilm = null);
+    EpisodeFilmOwner? OwnedByFilm = null,
+    /// <summary>The scene numbering TheXEM maps this episode to, when it differs from TVDB's (null otherwise).</summary>
+    int? SceneSeasonNumber = null,
+    int? SceneEpisodeNumber = null,
+    int? SceneAbsoluteNumber = null);
 
 /// <summary>The film that owns a special: searched, grabbed and upgraded as a film; the special is its hardlink.</summary>
 public sealed record EpisodeFilmOwner(int MovieId, string Title, int? Year);

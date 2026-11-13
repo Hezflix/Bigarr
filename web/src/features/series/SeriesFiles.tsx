@@ -180,6 +180,24 @@ function EpisodeFileInfoDialog({ seriesId, fileId, onClose }: { seriesId: number
   const { t } = useTranslation()
   const detail = useQuery({ queryKey: ['episodeFile', seriesId, fileId], queryFn: () => seriesFiles.file(seriesId, fileId) })
   const f = detail.data
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-2xl" data-testid="episode-file-dialog">
+        <DialogHeader>
+          <DialogTitle>{f ? f.episodes.map((e) => `S${String(e.seasonNumber).padStart(2, '0')}E${String(e.episodeNumber).padStart(2, '0')} ${e.title}`).join(' + ') : t('seriesFiles.info')}</DialogTitle>
+        </DialogHeader>
+        <EpisodeFileDetails seriesId={seriesId} fileId={fileId} />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** Everything known of an episode file: path, quality, size, group, languages, release, custom formats, media info, extras. */
+export function EpisodeFileDetails({ seriesId, fileId }: { seriesId: number; fileId: number }) {
+  const { t } = useTranslation()
+  const detail = useQuery({ queryKey: ['episodeFile', seriesId, fileId], queryFn: () => seriesFiles.file(seriesId, fileId) })
+  const f = detail.data
   const media = f?.mediaInfo
   const rows: [string, string | null | undefined][] = f
     ? [
@@ -199,43 +217,38 @@ function EpisodeFileInfoDialog({ seriesId, fileId, onClose }: { seriesId: number
     : []
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-2xl" data-testid="episode-file-dialog">
-        <DialogHeader>
-          <DialogTitle>{f ? f.episodes.map((e) => `S${String(e.seasonNumber).padStart(2, '0')}E${String(e.episodeNumber).padStart(2, '0')} ${e.title}`).join(' + ') : t('seriesFiles.info')}</DialogTitle>
-        </DialogHeader>
-        {detail.isPending && <Skeleton className="h-40 w-full" />}
-        {detail.error && (
-          <Alert variant="destructive">
-            <AlertDescription>{errorMessage(detail.error, t('common.unexpectedError'))}</AlertDescription>
-          </Alert>
-        )}
-        {f && (
-          <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-1.5 text-sm">
-            {rows
-              .filter(([, value]) => value)
-              .map(([label, value]) => (
-                <div key={label} className="contents">
-                  <dt className="text-muted-foreground">{label}</dt>
-                  <dd className="break-all">{value}</dd>
-                </div>
-              ))}
-            {f.extras.length > 0 && (
-              <div className="contents">
-                <dt className="text-muted-foreground">{t('seriesFiles.extras')}</dt>
-                <dd className="flex flex-col gap-0.5">
-                  {f.extras.map((e) => (
-                    <span key={e.id} className="break-all font-mono text-xs">
-                      {e.relativePath}
-                    </span>
-                  ))}
-                </dd>
+    <>
+      {detail.isPending && <Skeleton className="h-40 w-full" />}
+      {detail.error && (
+        <Alert variant="destructive">
+          <AlertDescription>{errorMessage(detail.error, t('common.unexpectedError'))}</AlertDescription>
+        </Alert>
+      )}
+      {f && (
+        <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-1.5 text-sm">
+          {rows
+            .filter(([, value]) => value)
+            .map(([label, value]) => (
+              <div key={label} className="contents">
+                <dt className="text-muted-foreground">{label}</dt>
+                <dd className="break-all">{value}</dd>
               </div>
-            )}
-          </dl>
-        )}
-      </DialogContent>
-    </Dialog>
+            ))}
+          {f.extras.length > 0 && (
+            <div className="contents">
+              <dt className="text-muted-foreground">{t('seriesFiles.extras')}</dt>
+              <dd className="flex flex-col gap-0.5">
+                {f.extras.map((e) => (
+                  <span key={e.id} className="break-all font-mono text-xs">
+                    {e.relativePath}
+                  </span>
+                ))}
+              </dd>
+            </div>
+          )}
+        </dl>
+      )}
+    </>
   )
 }
 

@@ -251,6 +251,16 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
             query = query.Where(p => with.Contains(p.Id) && !further.Contains(p.Id));
         }
 
+        if (filter.Episode is { } e)
+        {
+            query = query.Where(p => p.Item.Kind == MediaItemKind.Episode
+                && ((e.TvdbId != null && p.Item.TvdbId == e.TvdbId)
+                    || (p.Item.SeasonNumber == e.SeasonNumber && p.Item.EpisodeNumber == e.EpisodeNumber
+                        && ((e.ShowTvdbId != null && p.Item.ShowTvdbId == e.ShowTvdbId)
+                            || (e.ShowTmdbId != null && p.Item.ShowTmdbId == e.ShowTmdbId)
+                            || (e.ShowImdbId != null && p.Item.ShowImdbId == e.ShowImdbId)))));
+        }
+
         // Film plays linked to no Bigarr film: an import that could not match them, or a film Bigarr does not manage.
         if (filter.Unmatched)
         {
@@ -266,6 +276,12 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
 
         return query;
     }
+
+    /// <summary>What finds the plays of a library episode on the media servers; null when there is no such episode.</summary>
+    public async Task<EpisodeMatch?> EpisodeMatchAsync(int episodeId, CancellationToken ct) =>
+        await db.Episodes.AsNoTracking().Where(e => e.Id == episodeId)
+            .Select(e => new EpisodeMatch(e.TvdbId, e.Series.TvdbId, e.Series.TmdbId, e.Series.ImdbId, e.SeasonNumber, e.EpisodeNumber))
+            .FirstOrDefaultAsync(ct);
 
     /// <summary>The version names plays were recorded under, for the Plays page's version filter.</summary>
     public async Task<List<string>> VersionNamesAsync(CancellationToken ct) =>

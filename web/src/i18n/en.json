@@ -2790,5 +2790,25 @@
       "removeHardlink": "Remove the hardlink ({{version}}): the film has no file for it.",
       "linkError": "Last attempt failed, nothing copied: {{note}}"
     }
+  },
+  "episodeDetail": {
+    "open": "Details of “{{title}}”",
+    "search": "Interactive search",
+    "airDate": "Air date",
+    "runtime": "Runtime",
+    "tvdbNumber": "TVDB",
+    "orderNumber": "{{order}}",
+    "notInOrder": "Not in this order",
+    "sceneNumber": "Scene (TheXEM)",
+    "absoluteShort": "abs. {{number}}",
+    "ids": "Links",
+    "file": "File · {{version}}",
+    "noFile": "No file for this version.",
+    "history": "History",
+    "noHistory": "Nothing happened to this episode yet: no grab, import, failure, deletion or rename.",
+    "plays_one": "{{count}} play",
+    "plays_other": "{{count}} plays",
+    "noPlays": "Never played on a media server.",
+    "downloaded": "Downloaded"
   }
 }

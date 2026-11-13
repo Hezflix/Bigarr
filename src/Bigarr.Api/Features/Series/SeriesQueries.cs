@@ -255,7 +255,10 @@ public sealed class SeriesQueries(BigarrDbContext db, TimeProvider time)
             r.Episode.DisplayEpisodeNumber(order),
             r.Episode.DisplayAbsoluteNumber(order),
             order != EpisodeOrder.Tvdb && !r.Episode.InOrder,
-            r.Film)).ToList();
+            r.Film,
+            r.Episode.SceneSeasonNumber,
+            r.Episode.SceneEpisodeNumber,
+            r.Episode.SceneAbsoluteEpisodeNumber)).ToList();
     }
 
     public static SeriesVersionResponse ToVersion(SeriesVersion version, EpisodeStatistics statistics) => new(

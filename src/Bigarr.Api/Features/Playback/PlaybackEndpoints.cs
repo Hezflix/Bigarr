@@ -23,7 +23,7 @@ public static class PlaybackEndpoints
 
         // sort is matched by name, case-insensitive (startedAt, user, title, version, played); newest first by default.
         // from/to bound the start (UTC, to excluded); version is a version name; decision the play's furthest one; q a title.
-        group.MapGet("/plays", async Task<Results<Ok<PlaysPageResponse>, ProblemHttpResult>> (int? page, int? pageSize, int? userId, int? movieId, int? versionId, string? version, string? kind, bool? unmatched, DateTime? from, DateTime? to, string? decision, string? q, string? sort, string? direction, PlaybackService playback, CancellationToken ct) =>
+        group.MapGet("/plays", async Task<Results<Ok<PlaysPageResponse>, ProblemHttpResult>> (int? page, int? pageSize, int? userId, int? movieId, int? versionId, string? version, string? kind, bool? unmatched, DateTime? from, DateTime? to, string? decision, string? q, string? sort, string? direction, PlaybackService playback, CancellationToken ct, int? episodeId = null) =>
         {
             var key = PlaySort.StartedAt;
             if (sort is not null && (!Enum.TryParse(sort, ignoreCase: true, out key) || !Enum.IsDefined(key)))
@@ -43,7 +43,13 @@ public static class PlaybackEndpoints
             }
 
             var ascending = string.Equals(direction, "asc", StringComparison.OrdinalIgnoreCase);
-            var filter = new PlayFilter(userId, movieId, versionId, version, itemKind, Utc(from), Utc(to), streamDecision, q, unmatched == true);
+            EpisodeMatch? episode = null;
+            if (episodeId is { } id && (episode = await playback.EpisodeMatchAsync(id, ct)) is null)
+            {
+                return TypedResults.Problem(title: "Unknown episode", detail: $"No episode {id} in the library.", statusCode: StatusCodes.Status404NotFound);
+            }
+
+            var filter = new PlayFilter(userId, movieId, versionId, version, itemKind, Utc(from), Utc(to), streamDecision, q, unmatched == true, episode);
             return TypedResults.Ok(await playback.PlaysAsync(page ?? 1, pageSize ?? 50, filter, key, ascending, ct));
         });
 

@@ -4752,6 +4752,7 @@ export interface paths {
                     versionId?: number;
                     eventType?: string;
                     limit?: number;
+                    episodeId?: number;
                 };
                 header?: never;
                 path?: never;
@@ -6994,6 +6995,7 @@ export interface paths {
                     q?: string;
                     sort?: string;
                     direction?: string;
+                    episodeId?: number;
                 };
                 header?: never;
                 path?: never;
@@ -9103,6 +9105,12 @@ export interface components {
             /** @default false */
             notInOrder: boolean;
             ownedByFilm: null | components["schemas"]["EpisodeFilmOwner"];
+            /** Format: int32 */
+            sceneSeasonNumber: null | number;
+            /** Format: int32 */
+            sceneEpisodeNumber: null | number;
+            /** Format: int32 */
+            sceneAbsoluteNumber: null | number;
         };
         EpisodeStatistics: {
             /** Format: int32 */
