@@ -1475,10 +1475,15 @@ export type SeriesBulkDeleteRequest = Schemas['SeriesBulkDeleteRequest']
 
 export type SeriesBulkDeleteResponse = Schemas['SeriesBulkDeleteResponse']
 
+/** One series version's outcome of an automatic search. */
+export type SeriesAutomaticSearchResult = Schemas['SeriesAutomaticSearchResult']
+
 export const series = {
   list: () => api<SeriesSummary[]>('/api/v1/series'),
   get: (id: number) => api<Series>(`/api/v1/series/${id}`),
   episodes: (id: number) => api<Episode[]>(`/api/v1/series/${id}/episodes`),
+  /** Automatic search for one episode, now, by every version of the series: the best approved release is grabbed (picked in shadow mode). */
+  searchEpisode: (id: number, episodeId: number) => post<SeriesAutomaticSearchResult[]>(`/api/v1/series/${id}/episodes/${episodeId}/search`),
   lookup: (term: string) => api<SeriesLookupResult[]>(`/api/v1/series/lookup?term=${encodeURIComponent(term)}`),
   add: (body: AddSeriesRequest) => post<Series>('/api/v1/series', body),
   update: (id: number, body: { seriesType?: SeriesType }) => put<Series>(`/api/v1/series/${id}`, body),

@@ -46,7 +46,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatBytes, formatDate } from '@/i18n'
-import { EpisodeDetailSheet } from './EpisodeDetailSheet'
+import { EpisodeDetailDialog } from './EpisodeDetailDialog'
 import { EpisodeProgress } from './EpisodeProgress'
 import { audioLabel, type EpisodeColumn, episodeColumns, type EpisodeStatus, episodeStatus, fileFlags, fileLanguages } from './episodeColumns'
 import { defaultEpisodeSort, type EpisodeSort, type EpisodeSortKey, nextEpisodeSort, sortEpisodes, sortStillShown } from './episodeSort'
@@ -1083,13 +1083,14 @@ function EpisodeTable({
       </TableBody>
       {fixing && <ReassignFileDialog series={s} file={fixing} onClose={() => setFixing(null)} onDone={onChanged} />}
       {detail && (
-        <EpisodeDetailSheet
+        <EpisodeDetailDialog
           series={s}
           version={version}
           episode={episodes.find((e) => e.id === detail.id) ?? detail}
           file={files.get(detail.id)}
           onClose={() => setDetail(null)}
-          onSearch={detail.ownedByFilm ? undefined : () => searchEpisode(detail)}
+          onInteractiveSearch={detail.ownedByFilm ? undefined : () => searchEpisode(detail)}
+          onChanged={onChanged}
         />
       )}
     </Table>

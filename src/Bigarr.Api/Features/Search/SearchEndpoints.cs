@@ -51,6 +51,30 @@ public static class SearchEndpoints
             .WithTags("Search")
             .RequireAuthorization(AuthPolicies.Api);
 
+        // Automatic search for one episode, asked by the user (the episode details): every version of the series searches it
+        // now, monitored or not, and the best approved release is grabbed (picked in shadow mode); the outcome per version comes back.
+        app.MapPost("/api/v1/series/{id:int}/episodes/{episodeId:int}/search", async Task<Results<Ok<List<SeriesAutomaticSearchResult>>, NotFound>> (
+                int id, int episodeId, Infrastructure.Persistence.BigarrDbContext db, SeriesAutomaticSearchService search, CancellationToken ct) =>
+            {
+                var versionIds = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
+                    db.EpisodeTargets.Where(t => t.EpisodeId == episodeId && t.Episode.SeriesId == id && t.Episode.MovieLink == null)
+                        .OrderBy(t => t.VersionId).Select(t => t.VersionId), ct);
+                if (versionIds.Count == 0)
+                {
+                    return TypedResults.NotFound();
+                }
+
+                var results = new List<SeriesAutomaticSearchResult>();
+                foreach (var versionId in versionIds)
+                {
+                    results.Add(await search.SearchEpisodesAsync(versionId, [episodeId], SearchTrigger.User, ct));
+                }
+
+                return TypedResults.Ok(results);
+            })
+            .WithTags("Search")
+            .RequireAuthorization(AuthPolicies.Api);
+
         // Automatic search asked by the user: the best approved release is grabbed, one per version, and the outcome comes back.
         app.MapPost("/api/v1/movies/{id:int}/search", async Task<Results<Ok<List<AutomaticSearchResult>>, NotFound>> (
                 int id, int? versionId, MovieQueries movies, AutomaticSearchService search, CancellationToken ct) =>

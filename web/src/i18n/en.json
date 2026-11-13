@@ -2802,13 +2802,24 @@
     "sceneNumber": "Scene (TheXEM)",
     "absoluteShort": "abs. {{number}}",
     "ids": "Links",
-    "file": "File · {{version}}",
     "noFile": "No file for this version.",
-    "history": "History",
     "noHistory": "Nothing happened to this episode yet: no grab, import, failure, deletion or rename.",
-    "plays_one": "{{count}} play",
-    "plays_other": "{{count}} plays",
     "noPlays": "Never played on a media server.",
-    "downloaded": "Downloaded"
+    "downloaded": "Downloaded",
+    "fileOf": "The file of the version on screen ({{version}}).",
+    "autoSearch": "Automatic search",
+    "autoSearchHint": "Search the indexers now and grab the best release, for every version of the series",
+    "autoGrabbed": "{{version}}: grabbed the best release.",
+    "autoPicked": "{{version}}: the best release was recorded as Bigarr’s pick (shadow mode).",
+    "autoNothing": "{{version}}: nothing grabbed. {{detail}}",
+    "tabsLabel": "Episode details",
+    "tabs": {
+      "summary": "Summary",
+      "file": "File",
+      "history": "History",
+      "historyCount": "History ({{count}})",
+      "plays": "Plays",
+      "playsCount": "Plays ({{count}})"
+    }
   }
 }

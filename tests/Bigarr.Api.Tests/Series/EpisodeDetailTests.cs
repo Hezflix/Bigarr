@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Bigarr.Api.Features.Downloads;
 using Bigarr.Api.Features.History;
 using Bigarr.Api.Features.Playback;
+using Bigarr.Api.Features.Search;
 using Bigarr.Api.Features.Series;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Tests.Search;
@@ -86,6 +87,34 @@ public sealed class EpisodeDetailTests(SeriesApiFactory factory) : IClassFixture
         Assert.Equal(2800, Assert.Single(secondPlays.Records).PlayedSeconds);
 
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/v1/playback/plays?episodeId=999999")).StatusCode);
+    }
+
+    [Fact]
+    public async Task An_episode_automatic_search_grabs_the_best_release_for_each_version()
+    {
+        var client = await ClientAsync(factory);
+        var series = await SeriesSetup.AddAsync(client, SeriesSearchTests.BreakingBad);
+        await SeriesSetup.MockIndexerAsync(client);
+        var created = await client.PostAsJsonAsync("/api/v1/downloadclients", new DownloadClientRequest("Mock episode search", Bigarr.Domain.Downloads.DownloadClientImplementation.Mock, Category: "films-auto", SeriesCategory: "tv-auto"), Json);
+        var downloadClient = (await created.Content.ReadFromJsonAsync<DownloadClientResponse>(Json))!;
+        try
+        {
+            var fifth = await SeriesSetup.EpisodeAsync(client, series.Id, 1, 5);
+            var response = await client.PostAsync($"/api/v1/series/{series.Id}/episodes/{fifth.Id}/search", null);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var result = Assert.Single((await response.Content.ReadFromJsonAsync<List<SeriesAutomaticSearchResult>>(Json))!);
+            Assert.Equal(1, result.Wanted);
+            Assert.Equal(1, result.Grabbed);
+
+            var grabbed = Assert.Single((await client.GetFromJsonAsync<List<HistoryEventResponse>>($"/api/v1/history?episodeId={fifth.Id}", Json))!);
+            Assert.Contains("S01E05", grabbed.SourceTitle, StringComparison.Ordinal);
+
+            Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsync($"/api/v1/series/{series.Id}/episodes/999999/search", null)).StatusCode);
+        }
+        finally
+        {
+            await client.DeleteAsync($"/api/v1/downloadclients/{downloadClient.Id}");
+        }
     }
 
     private static MediaServerItem Item(MediaServer server, string key, int? tvdbId, int? showTvdbId, int season, int episode, string title) => new()

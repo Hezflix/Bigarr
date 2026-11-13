@@ -56,6 +56,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/series/{id}/episodes/{episodeId}/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                    episodeId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SeriesAutomaticSearchResult"][];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/movies/{id}/search": {
         parameters: {
             query?: never;
@@ -11098,6 +11143,26 @@ export interface components {
             versionId: number;
             monitored: boolean;
             statistics: components["schemas"]["EpisodeStatistics"];
+        };
+        SeriesAutomaticSearchResult: {
+            /** Format: int32 */
+            seriesId: number;
+            seriesTitle: string;
+            /** Format: int32 */
+            versionId: number;
+            versionName: string;
+            /** Format: int32 */
+            wanted: number;
+            /** Format: int32 */
+            covered: number;
+            /** Format: int32 */
+            picked: number;
+            /** Format: int32 */
+            grabbed: number;
+            /** Format: int32 */
+            releases: number;
+            fallbackSeasons: number[];
+            detail: null | string;
         };
         SeriesBulkDeleteRequest: {
             seriesIds: number[];
