@@ -61,6 +61,7 @@ public static class WholeSeriesSearch
             var found = new Dictionary<string, ReleaseInfo>(StringComparer.Ordinal);
             foreach (var one in criteria)
             {
+                using var step = IndexerRequestTrace.Step(one.Step);
                 foreach (var release in await gateway.SearchSeriesAsync(indexer, one, token))
                 {
                     found.TryAdd(release.Guid, release);

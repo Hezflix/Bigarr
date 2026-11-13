@@ -35,7 +35,7 @@ public sealed class IndexerGateway(IEnumerable<IIndexerClient> clients, TimeProv
     {
         var interval = TimeSpan.FromSeconds(Math.Max(0, indexer.RateLimitSeconds));
         var state = State(indexer.Id);
-        return ExecuteAsync(indexer, (client, ct) => client.SearchSeriesAsync(indexer, criteria, token => state.WaitForSlotAsync(interval, time, token), ct), cancellationToken, paced: false);
+        return ExecuteAsync(indexer, (client, ct) => client.SearchSeriesAsync(indexer, criteria, token => WaitAsync(indexer, state, interval, token), ct), cancellationToken, paced: false);
     }
 
     /// <summary>The capabilities (cached by the client), paced and backed off like any request.</summary>
@@ -105,12 +105,14 @@ public sealed class IndexerGateway(IEnumerable<IIndexerClient> clients, TimeProv
 
         if (state.DisabledUntil is { } until && until > now)
         {
-            throw new IndexerException(IndexerFailureKind.Disabled, $"{indexer.Name} is paused until {until:HH:mm} UTC after {state.Failures} failure(s): {state.LastError}");
+            var paused = new IndexerException(IndexerFailureKind.Disabled, $"{indexer.Name} is paused until {until:HH:mm} UTC after {state.Failures} failure(s): {state.LastError}");
+            IndexerRequestTrace.RecordSkipped(indexer, paused);
+            throw paused;
         }
 
         if (paced)
         {
-            await state.WaitForSlotAsync(TimeSpan.FromSeconds(Math.Max(0, indexer.RateLimitSeconds)), time, cancellationToken);
+            await WaitAsync(indexer, state, TimeSpan.FromSeconds(Math.Max(0, indexer.RateLimitSeconds)), cancellationToken);
         }
 
         try
@@ -125,6 +127,14 @@ public sealed class IndexerGateway(IEnumerable<IIndexerClient> clients, TimeProv
             logger.LogWarning("Indexer {Indexer} failed ({Kind}): {Message}. Paused until {Until:u}.", indexer.Name, ex.Kind, ex.Message, disabledUntil);
             throw;
         }
+    }
+
+    /// <summary>The indexer's rate limit, the wait told to the search's trace when there is one.</summary>
+    private async Task WaitAsync(Indexer indexer, RuntimeState state, TimeSpan interval, CancellationToken cancellationToken)
+    {
+        var started = time.GetTimestamp();
+        await state.WaitForSlotAsync(interval, time, cancellationToken);
+        IndexerRequestTrace.Waited(indexer.Id, time.GetElapsedTime(started));
     }
 
     private IIndexerClient ClientFor(Indexer indexer) =>

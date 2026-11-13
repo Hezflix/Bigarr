@@ -13,8 +13,9 @@ public static class SearchEndpoints
 
         // Interactive search: one round of indexer queries for the film, judged by every version (or one). A query
         // replaces the film's ids and titles with the user's own text (a film listed under another name or spelling).
+        // includeQueries=true adds what each indexer was asked, URLs redacted (the advanced view).
         group.MapGet("/", async Task<Results<Ok<SearchResponse>, ValidationProblem, ProblemHttpResult>> (
-            int? movieId, int? versionId, string? query, InteractiveSearchService search, CancellationToken ct) =>
+            int? movieId, int? versionId, string? query, InteractiveSearchService search, CancellationToken ct, bool includeQueries = false) =>
         {
             if (movieId is null or <= 0)
             {
@@ -26,14 +27,14 @@ public static class SearchEndpoints
                 return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["query"] = [$"The search text is limited to {MaxQueryLength} characters."] });
             }
 
-            var result = await search.SearchAsync(movieId.Value, versionId, query, ct);
+            var result = await search.SearchAsync(movieId.Value, versionId, query, ct, includeQueries);
             return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
         });
 
         // Interactive search for a series: an episode (episodeId), a season (season) or the whole series (neither), judged
         // by every version of the series (or one). A query replaces the show's ids and titles with the user's own text.
         app.MapGet("/api/v1/series/{id:int}/search", async Task<Results<Ok<SeriesSearchResponse>, ValidationProblem, ProblemHttpResult>> (
-                int id, int? episodeId, int? season, int? versionId, string? query, SeriesSearchService search, CancellationToken ct, bool orderSeason = false) =>
+                int id, int? episodeId, int? season, int? versionId, string? query, SeriesSearchService search, CancellationToken ct, bool orderSeason = false, bool includeQueries = false) =>
             {
                 if (query?.Trim().Length > MaxQueryLength)
                 {
@@ -45,7 +46,7 @@ public static class SearchEndpoints
                     return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["season"] = ["Search an episode or a season, not both."] });
                 }
 
-                var result = await search.SearchAsync(id, episodeId, season, versionId, query, ct, orderSeason);
+                var result = await search.SearchAsync(id, episodeId, season, versionId, query, ct, orderSeason, includeQueries);
                 return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
             })
             .WithTags("Search")

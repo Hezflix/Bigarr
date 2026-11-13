@@ -50,8 +50,10 @@ public sealed partial class MockIndexerClient(TimeProvider time) : IIndexerClien
 
     public IndexerImplementation Implementation => IndexerImplementation.Mock;
 
-    public Task<IndexerCapabilities> GetCapabilitiesAsync(Indexer indexer, CancellationToken cancellationToken) =>
-        Task.FromResult(new IndexerCapabilities(
+    public Task<IndexerCapabilities> GetCapabilitiesAsync(Indexer indexer, CancellationToken cancellationToken) => Task.FromResult(Capabilities);
+
+    /// <summary>A new instance each time: callers may fill in what they learn from it.</summary>
+    private static IndexerCapabilities Capabilities => new(
             true,
             true,
             true,
@@ -60,16 +62,54 @@ public sealed partial class MockIndexerClient(TimeProvider time) : IIndexerClien
                 .Concat(new[] { 5000, 5030, 5040, 5045, Indexer.AnimeCategory }.Select(c => new IndexerCategory(c, $"TV/{c}")))
                 .ToList(),
             100)
+    {
+        SupportsTvSearch = true,
+        TvSearchParams = new HashSet<string>(["q", "season", "ep", "tvdbid", "tmdbid", "imdbid"]),
+    };
+
+    /// <summary>
+    /// The request a Torznab indexer would get, for the search's trace: the same URL building, on a <c>mock://</c>
+    /// endpoint when the row has no URL. Nothing is sent.
+    /// </summary>
+    private static void Trace(Indexer indexer, IReadOnlyDictionary<string, string> parameters, IReadOnlyList<int> categories, int results)
+    {
+        var endpoint = new Indexer
         {
-            SupportsTvSearch = true,
-            TvSearchParams = new HashSet<string>(["q", "season", "ep", "tvdbid", "tmdbid", "imdbid"]),
-        });
+            Name = indexer.Name,
+            BaseUrl = string.IsNullOrWhiteSpace(indexer.BaseUrl) ? "mock://indexer" : indexer.BaseUrl,
+            ApiPath = indexer.ApiPath,
+            ApiKey = indexer.ApiKey,
+        };
+        IndexerRequestTrace.Record(indexer, parameters, categories, Torznab.TorznabClient.BuildUrl(endpoint, parameters, categories), 200, TimeSpan.Zero, results, null);
+    }
 
     public Task<IReadOnlyList<ReleaseInfo>> SearchSeriesAsync(Indexer indexer, SeriesSearchCriteria criteria, Func<CancellationToken, Task> pace, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(indexer);
         ArgumentNullException.ThrowIfNull(criteria);
-        return Task.FromResult<IReadOnlyList<ReleaseInfo>>(MockSeriesReleases.ForSearch(indexer, criteria, time.GetUtcNow()));
+        var releases = MockSeriesReleases.ForSearch(indexer, criteria, time.GetUtcNow());
+        if (IndexerRequestTrace.Current is not null)
+        {
+            // What a Torznab indexer would have been asked, tier by tier: the titles only when the ids found nothing.
+            var capabilities = Capabilities;
+            var tiers = Torznab.SeriesQueryBuilder.Build(capabilities, criteria, Torznab.SeriesQueryBuilder.Categories(indexer, capabilities, criteria.SeriesType));
+            for (var tier = 0; tier < tiers.Count; tier++)
+            {
+                for (var i = 0; i < tiers[tier].Count; i++)
+                {
+                    var request = tiers[tier][i];
+                    using var step = IndexerRequestTrace.Step(tier == 0 ? request.Step : $"Fallback: {request.Step}");
+                    Trace(indexer, request.Parameters, request.Categories, i == 0 ? releases.Count : 0);
+                }
+
+                if (releases.Count > 0)
+                {
+                    break;
+                }
+            }
+        }
+
+        return Task.FromResult<IReadOnlyList<ReleaseInfo>>(releases);
     }
 
     public Task<IReadOnlyList<ReleaseInfo>> FetchRecentSeriesAsync(Indexer indexer, CancellationToken cancellationToken)
@@ -84,6 +124,16 @@ public sealed partial class MockIndexerClient(TimeProvider time) : IIndexerClien
         ArgumentNullException.ThrowIfNull(criteria);
 
         var releases = Templates.Select((template, index) => Build(indexer, criteria, template, index)).ToList();
+        if (IndexerRequestTrace.Current is not null)
+        {
+            var queries = Torznab.TorznabClient.BuildSearchQueries(Capabilities, criteria);
+            for (var i = 0; i < queries.Count; i++)
+            {
+                using var step = IndexerRequestTrace.Step(queries[i].ContainsKey("q") ? "Title" : "IDs");
+                Trace(indexer, queries[i], indexer.Categories, i == 0 ? releases.Count : 0);
+            }
+        }
+
         return Task.FromResult<IReadOnlyList<ReleaseInfo>>(releases);
     }
 

@@ -23,7 +23,8 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
     private readonly ReleaseEvaluator _evaluator = ReleaseEvaluator.Interactive();
 
     /// <summary>Searches the film by its ids and titles, or by <paramref name="query"/> when the user typed one.</summary>
-    public async Task<Result<SearchResponse>> SearchAsync(int movieId, int? versionId, string? query, CancellationToken ct)
+    /// <param name="includeQueries">Report what each indexer was asked (the advanced view).</param>
+    public async Task<Result<SearchResponse>> SearchAsync(int movieId, int? versionId, string? query, CancellationToken ct, bool includeQueries = false)
     {
         var movie = await contexts.MoviesWithVersions().FirstOrDefaultAsync(m => m.Id == movieId, ct);
         if (movie is null)
@@ -51,6 +52,7 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
         query = string.IsNullOrWhiteSpace(query) ? null : query.Trim();
         var criteria = query is null ? CriteriaFor(movie) : MovieSearchCriteria.ForTitle(query);
 
+        var trace = IndexerRequestTrace.Start(includeQueries);
         var stopwatch = Stopwatch.StartNew();
         var results = await IndexerQueries.RunAsync(indexers, (indexer, token) => gateway.SearchAsync(indexer, criteria, token), ct);
         logger.LogInformation("Interactive search for {Movie}{Query}: {Releases} release(s) from {Indexers} indexer(s) in {Elapsed} ms",
@@ -77,7 +79,11 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
             .Select(r => new IndexerErrorResponse(r.Indexer.Id, r.Indexer.Name, r.Error!.Kind, r.Error.Message))
             .ToList();
 
-        return Result<SearchResponse>.Ok(new SearchResponse(movie.Id, time.GetUtcNow().UtcDateTime, indexers.Count, releases, errors, query));
+        var queries = trace is null
+            ? null
+            : SearchQueryReports.Build(trace, indexers, releases.Select(r => (r.IndexerId, r.Versions.Count > 0, r.MatchesMovie && r.Versions.Count > 0, r.MatchesMovie && r.Versions.Any(v => v.Approved))));
+
+        return Result<SearchResponse>.Ok(new SearchResponse(movie.Id, time.GetUtcNow().UtcDateTime, indexers.Count, releases, errors, query, queries));
     }
 
     /// <summary>What the indexers are asked: title, year, ids and every alternative title the metadata knows.</summary>

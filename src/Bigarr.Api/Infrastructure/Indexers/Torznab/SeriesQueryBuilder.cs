@@ -4,8 +4,8 @@ using Bigarr.Domain.Tv;
 
 namespace Bigarr.Api.Infrastructure.Indexers.Torznab;
 
-/// <summary>One Torznab request: its parameters (<c>t</c>, <c>q</c>, ids, numbers) and the categories it asks.</summary>
-public sealed record TorznabRequest(IReadOnlyDictionary<string, string> Parameters, IReadOnlyList<int> Categories)
+/// <summary>One Torznab request: its parameters (<c>t</c>, <c>q</c>, ids, numbers), the categories it asks and what it is, for the search's trace.</summary>
+public sealed record TorznabRequest(IReadOnlyDictionary<string, string> Parameters, IReadOnlyList<int> Categories, string Step = "")
 {
     public override string ToString() => string.Join('&', Parameters.Select(p => $"{p.Key}={p.Value}")) + $" cat={string.Join(',', Categories)}";
 }
@@ -34,7 +34,7 @@ public static class SeriesQueryBuilder
             return
             [
                 criteria.SpecialQueries.Select(TorznabClient.CleanQuery).Where(q => q.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Select(q => new TorznabRequest(new Dictionary<string, string> { ["t"] = "search", ["q"] = q }, categories))
+                    .Select(q => new TorznabRequest(new Dictionary<string, string> { ["t"] = "search", ["q"] = q }, categories, "Special by title"))
                     .ToList(),
             ];
         }
@@ -56,7 +56,7 @@ public static class SeriesQueryBuilder
                 parameters[key] = value;
             }
 
-            idTier.Add(new TorznabRequest(parameters, categories));
+            idTier.Add(new TorznabRequest(parameters, categories, "IDs"));
         }
 
         if (animeAbsolute)
@@ -71,12 +71,12 @@ public static class SeriesQueryBuilder
                     byIds[key] = value;
                 }
 
-                idTier.Add(new TorznabRequest(byIds, categories));
+                idTier.Add(new TorznabRequest(byIds, categories, "IDs + absolute number"));
             }
 
             foreach (var title in titles)
             {
-                idTier.Add(new TorznabRequest(new Dictionary<string, string> { ["t"] = "search", ["q"] = $"{title} {absolute}" }, categories));
+                idTier.Add(new TorznabRequest(new Dictionary<string, string> { ["t"] = "search", ["q"] = $"{title} {absolute}" }, categories, "Title + absolute number"));
             }
         }
 
@@ -100,7 +100,7 @@ public static class SeriesQueryBuilder
                     parameters = new Dictionary<string, string> { ["t"] = "search", ["q"] = text.Length == 0 ? title : $"{title} {text}" };
                 }
 
-                titleTier.Add(new TorznabRequest(parameters, categories));
+                titleTier.Add(new TorznabRequest(parameters, categories, "Title"));
             }
         }
 
