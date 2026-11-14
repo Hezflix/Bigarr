@@ -135,9 +135,10 @@ public sealed class SonarrFollowTests(SonarrShadowApiFactory factory) : IClassFi
         var same = compare.Rows.Single(r => r.Outcome == SeriesCompareOutcome.Same);
         Assert.Equal(81189, same.TvdbId);
         Assert.Equal("S01E01–S01E07 (7 episodes)", same.Episodes);
+        Assert.Null(same.Timing);
         Assert.Equal(7, same.EpisodeCount);
         Assert.Equal(1, same.PackSeason);
-        Assert.Contains(compare.Rows, r => r.Outcome == SeriesCompareOutcome.SonarrOnly && r.TvdbId == 424536 && r.Sighting is null && r.PackSeason is null);
+        Assert.Contains(compare.Rows, r => r.Outcome == SeriesCompareOutcome.SonarrOnly && r.TvdbId == 424536 && r.Sighting is null && r.PackSeason is null && r.Timing is { Kind: CompareTimingKind.NeverSeen });
         Assert.Contains(compare.Rows, r => r.Outcome == SeriesCompareOutcome.BigarrOnly && r.Episodes.StartsWith("S02E01", StringComparison.Ordinal));
         Assert.Equal(1, compare.Summary.Same);
         // One flat list of rows, newest first, paged by row.

@@ -8812,6 +8812,7 @@ export interface components {
             /** Format: int64 */
             bigarrLeadSeconds: null | number;
             sighting: null | components["schemas"]["CompareSightingResponse"];
+            timing: null | components["schemas"]["CompareTimingNote"];
         };
         CompareSightingResponse: {
             /** Format: date-time */
@@ -8822,6 +8823,15 @@ export interface components {
             unmatchedReason: null | string;
             attributedVersion: null | string;
             verdict: null | components["schemas"]["SightingVerdict"];
+        };
+        /** @enum {unknown} */
+        CompareTimingKind: "seenBefore" | "seenAfterGrab" | "seenAfterImport" | "neverSeen";
+        CompareTimingNote: {
+            kind: components["schemas"]["CompareTimingKind"];
+            /** Format: int64 */
+            gapSeconds: number;
+            rejection: null | string;
+            engineApproved: boolean;
         };
         CompareVersionSummary: {
             versionName: string;
@@ -11333,6 +11343,7 @@ export interface components {
             /** Format: int64 */
             bigarrLeadSeconds: null | number;
             sighting: null | components["schemas"]["CompareSightingResponse"];
+            timing: null | components["schemas"]["CompareTimingNote"];
         };
         SeriesCompareVersionSummary: {
             versionName: string;

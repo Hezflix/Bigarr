@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { formatGap, TimingNote } from '@/features/activity/TimingNote'
 import { formatAge, formatBytes, formatDateTime } from '@/i18n'
 
 export const outcomeStyles: Record<CompareOutcome, string> = {
@@ -21,15 +22,6 @@ export const outcomeStyles: Record<CompareOutcome, string> = {
 const formatStyle = 'border-violet-600/30 bg-violet-500/10 text-violet-700 dark:border-violet-400/30 dark:text-violet-300'
 const okStyle = 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300'
 const rejectStyle = 'border-red-600/30 bg-red-500/10 text-red-700 dark:border-red-400/30 dark:text-red-300'
-
-/** "10 min", "2 h", "3 d": how far apart the two sides chose. */
-function formatGap(seconds: number): string {
-  const s = Math.abs(seconds)
-  if (s < 90) return `${Math.round(s)} s`
-  if (s < 3600) return `${Math.round(s / 60)} min`
-  if (s < 48 * 3600) return `${Math.round(s / 3600)} h`
-  return `${Math.round(s / 86400)} d`
-}
 
 function leadText(t: TFunction, row: CompareRow): string | null {
   if (row.bigarrLeadSeconds === null) return null
@@ -139,6 +131,7 @@ export function CompareTable({ rows, showMovie = true }: { rows: CompareRow[]; s
                     ) : (
                       <span className="text-xs text-muted-foreground">{t('compare.nothing')}</span>
                     )}
+                    <TimingNote note={row.timing} app="Radarr" />
                   </TableCell>
                   <TableCell className="align-top whitespace-nowrap text-xs">
                     <Tooltip>
@@ -393,6 +386,7 @@ function RadarrOnlyWhy({ row }: { row: CompareRow }) {
   const verdict = sighting?.verdict
   return (
     <Card title={t('compare.whyNotBigarr')} tone="bigarr">
+      {row.timing?.kind !== 'neverSeen' && <TimingNote note={row.timing} app="Radarr" className="text-sm" />}
       <Field label={t('compare.feeds')}>
         {!sighting ? (
           <span>

@@ -63,7 +63,9 @@ public sealed record CompareRowResponse(
     /// <summary>Positive when Bigarr picked first: by how many seconds. Null on a one-sided row.</summary>
     long? BigarrLeadSeconds,
     /// <summary>Radarr-only rows: the RSS pass's sighting of Radarr's release (null: never seen in Bigarr's feeds).</summary>
-    CompareSightingResponse? Sighting);
+    CompareSightingResponse? Sighting,
+    /// <summary>Radarr-only rows: whether timing explains why Bigarr picked nothing.</summary>
+    CompareTimingNote? Timing);
 
 public sealed record CompareCounts(int Same, int Different, int BigarrOnly, int RadarrOnly)
 {
@@ -153,6 +155,7 @@ public sealed class CompareService(BigarrDbContext db, IOptions<ShadowOptions> o
             var tmdbId = grab?.TmdbId ?? pick!.TmdbId;
             var movie = movies.GetValueOrDefault(tmdbId);
             var versionName = grab?.VersionName ?? pick!.VersionName;
+            var seen = grab is not null && sightings.TryGetValue(grab.Id, out var sighting) ? Sighting(sighting, versionName) : null;
             return new CompareRowResponse(
                 $"{(grab is null ? "p" : $"g{grab.Id}")}-{(pick is null ? "" : $"p{pick.Id}")}",
                 pair.Outcome,
@@ -167,7 +170,8 @@ public sealed class CompareService(BigarrDbContext db, IOptions<ShadowOptions> o
                 pick is null ? null : ToResponse(pick),
                 pair.AlsoPicked.Select(p => ToResponse(picks[p.Id])).ToList(),
                 grab is not null && pick is not null ? (long)(grab.GrabbedAt - pick.PickedAt).TotalSeconds : null,
-                grab is not null && sightings.TryGetValue(grab.Id, out var sighting) ? Sighting(sighting, versionName) : null);
+                seen,
+                pair.Outcome == CompareOutcome.RadarrOnly && grab is not null ? Timing(grab, seen) : null);
         }).ToList();
 
         var versions = (await db.ShadowPicks.AsNoTracking().Select(p => p.VersionName).Distinct().ToListAsync(ct))
@@ -177,6 +181,13 @@ public sealed class CompareService(BigarrDbContext db, IOptions<ShadowOptions> o
 
         return new CompareResponse(from, now, (int)window.TotalHours, options.Value.Enabled, versions, summary, byVersion, rows, filtered.Count, page, pageSize);
     }
+
+    private static CompareTimingNote Timing(RadarrGrab grab, CompareSightingResponse? seen) => CompareTiming.Note(
+        grab.GrabbedAt,
+        grab.State == RadarrGrabState.Imported ? grab.ResolvedAt : null,
+        seen?.SeenAt,
+        seen is null ? null : CompareTiming.SeenRejection(seen),
+        grab.BigarrVerdict is { Unmatched: null } verdict ? verdict.Approved : null);
 
     private static CompareCounts Count(IEnumerable<ComparePairing.Pair> pairs)
     {

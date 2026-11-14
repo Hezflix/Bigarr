@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { formatGap, TimingNote } from '@/features/activity/TimingNote'
 import { formatBytes, formatDateTime } from '@/i18n'
 
 const pageSize = 50
@@ -27,14 +28,6 @@ export const seriesOutcomeStyles: Record<SeriesCompareOutcome, string> = {
 }
 const okStyle = 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300'
 const rejectStyle = 'border-red-600/30 bg-red-500/10 text-red-700 dark:border-red-400/30 dark:text-red-300'
-
-function formatGap(seconds: number): string {
-  const s = Math.abs(seconds)
-  if (s < 90) return `${Math.round(s)} s`
-  if (s < 3600) return `${Math.round(s / 60)} min`
-  if (s < 48 * 3600) return `${Math.round(s / 3600)} h`
-  return `${Math.round(s / 86400)} d`
-}
 
 /**
  * Activity → Compare, series: one flat table like the Radarr page, newest first, one row per show, version and episode
@@ -293,6 +286,7 @@ export function SeriesCompareTable({ rows, showSeries = true }: { rows: SeriesCo
                   </TableCell>
                   <TableCell className="min-w-[13rem] max-w-[24rem] align-top whitespace-normal">
                     {row.bigarr.length === 0 ? <span className="text-muted-foreground">{t('compare.nothing')}</span> : row.bigarr.map((p) => <ReleaseLine key={p.id} title={p.title} pack={p.fullSeason} quality={p.quality} />)}
+                    <TimingNote note={row.timing} app="Sonarr" />
                     {row.alsoPicked.length > 0 && <span className="block text-xs text-muted-foreground">{t('compare.alsoPickedSeries', { count: row.alsoPicked.length })}</span>}
                   </TableCell>
                   <TableCell className="align-top text-sm whitespace-nowrap">
@@ -314,6 +308,7 @@ export function SeriesCompareTable({ rows, showSeries = true }: { rows: SeriesCo
                             <GrabCard key={g.id} grab={g} />
                           ))}
                           {row.sonarr.length === 0 && <p className="text-sm text-muted-foreground">{t('compare.whyNotSonarr')}: {t('compare.nothing')}</p>}
+                          {row.timing && row.timing.kind !== 'neverSeen' && <TimingNote note={row.timing} app="Sonarr" className="text-sm" />}
                           {row.sighting === null && row.outcome === 'sonarrOnly' && <p className="text-xs text-muted-foreground">{t('compare.neverSeen')}</p>}
                           {row.sighting && (
                             <p className="text-xs text-muted-foreground">
