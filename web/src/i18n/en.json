@@ -1845,7 +1845,7 @@
     "films": "Films",
     "seriesTab": "Series",
     "seriesTitle": "Compare with Sonarr",
-    "seriesIntro": "Shadow mode, show by show: what the followed Sonarr grabbed next to what Bigarr would have grabbed for the same episodes and version. A row is an episode set: a season pack on one side and single episodes on the other land on one row. Paired by release (guid, info hash, title), else by overlapping episodes within the window.",
+    "seriesIntro": "Shadow mode, newest first: what the followed Sonarr grabbed next to what Bigarr would have grabbed for the same episodes and version. A row is an episode set: a season pack on one side and single episodes on the other land on one row. Paired by release (guid, info hash, title), else by overlapping episodes within the window.",
     "seriesOutcomes": {
       "same": "Same release",
       "different": "Different release",
@@ -1884,12 +1884,8 @@
     "seriesFileThen": "The episodes had {{quality}} (score {{score}}) when Sonarr grabbed.",
     "seriesPickThen": "Bigarr had already picked {{quality}} (score {{score}}) for those episodes when Sonarr grabbed: judged against that pick.",
     "seriesNoFileThen": "The episodes had no file when Sonarr grabbed.",
-    "seasonLabel": "Season {{season}}",
-    "specials": "Specials",
-    "rowsCount_one": "{{count}} row",
-    "rowsCount_other": "{{count}} rows",
-    "latest": "Latest {{date}}",
-    "showsPage": "Shows {{from}}–{{to}} of {{total}}"
+    "seasonPack_one": "S{{season}} pack ({{count}} episode)",
+    "seasonPack_other": "S{{season}} pack ({{count}} episodes)"
   },
   "radarrFollow": {
     "title": "Followed Radarrs",

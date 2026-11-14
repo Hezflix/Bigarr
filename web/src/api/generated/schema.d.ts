@@ -11260,20 +11260,6 @@ export interface components {
             resolvedAt: null | string;
             bigarr: null | components["schemas"]["BigarrVerdict"];
         };
-        SeriesCompareGroupResponse: {
-            /** Format: int32 */
-            tvdbId: number;
-            /** Format: int32 */
-            seriesId: null | number;
-            seriesTitle: string;
-            /** Format: int32 */
-            year: null | number;
-            posterUrl: null | string;
-            counts: components["schemas"]["SeriesCompareCounts"];
-            /** Format: date-time */
-            latestAt: string;
-            rows: components["schemas"]["SeriesCompareRowResponse"][];
-        };
         /** @enum {unknown} */
         SeriesCompareOutcome: "same" | "different" | "bigarrOnly" | "sonarrOnly";
         SeriesComparePickResponse: {
@@ -11314,7 +11300,7 @@ export interface components {
             versions: string[];
             summary: components["schemas"]["SeriesCompareCounts"];
             byVersion: components["schemas"]["SeriesCompareVersionSummary"][];
-            groups: components["schemas"]["SeriesCompareGroupResponse"][];
+            rows: components["schemas"]["SeriesCompareRowResponse"][];
             /** Format: int32 */
             total: number;
             /** Format: int32 */
@@ -11338,7 +11324,9 @@ export interface components {
             at: string;
             episodes: string;
             /** Format: int32 */
-            seasonNumber: number;
+            episodeCount: number;
+            /** Format: int32 */
+            packSeason: null | number;
             sonarr: components["schemas"]["SeriesCompareGrabResponse"][];
             bigarr: components["schemas"]["SeriesComparePickResponse"][];
             alsoPicked: components["schemas"]["SeriesComparePickResponse"][];
