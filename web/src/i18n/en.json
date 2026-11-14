@@ -1695,7 +1695,7 @@
     "sonarrUrl": "Sonarr URL to enter in the app",
     "sonarrLegacyHint": "Bigarr answers as Sonarr {{version}} under the URL base {{base}}.",
     "sonarr": "Seerr, Bazarr and Prowlarr for series",
-    "sonarrHint": "For series the same apps connect to Bigarr as to a Sonarr, under the URL base {{base}}. Seerr: two Sonarr servers, a standard one with a version:1080p key and a 4K one with a version:4k key, URL base {{base}}. Bazarr: one instance per version again, Base URL {{base}}. Prowlarr: a Sonarr app whose Sonarr Server is the URL above; an indexer it pushes to both apps stays one indexer here, with its film and series categories. Series need a series root folder and a series quality profile."
+    "sonarrHint": "For series the same apps connect to Bigarr as to a Sonarr, under the URL base {{base}}. Seerr: two Sonarr servers, a standard one with a version:1080p key and a 4K one with a version:4k key, URL base {{base}}. Bazarr: one instance per version again, Base URL {{base}}; it follows series and episodes live over SignalR at {{base}}/signalr/messages. Prowlarr: a Sonarr app whose Sonarr Server is the URL above; an indexer it pushes to both apps stays one indexer here, with its film and series categories. Series need a series root folder and a series quality profile."
   },
   "backups": {
     "title": "Backups",

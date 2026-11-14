@@ -320,6 +320,8 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         series.Versions.Add(version);
         AttachVersion(series, version, request.Monitor);
         await db.SaveChangesAsync(ct);
+        outbox.Publish(new Bigarr.Domain.Events.SeriesVersionAdded(Bigarr.Domain.Events.SeriesRef.From(series), Bigarr.Domain.Events.SeriesVersionRef.From(version)) { OccurredAt = Now });
+        await db.SaveChangesAsync(ct);
         return Result<SeriesVersion>.Ok(version);
     }
 
@@ -417,6 +419,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             }
         }
 
+        outbox.Publish(new Bigarr.Domain.Events.SeriesVersionUpdated(Bigarr.Domain.Events.SeriesRef.From(series), Bigarr.Domain.Events.SeriesVersionRef.From(version)) { OccurredAt = Now });
         await db.SaveChangesAsync(ct);
         return Result<SeriesVersion>.Ok(version);
     }
@@ -438,6 +441,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             target.Monitored = monitored;
         }
 
+        await PublishEpisodesChangedAsync(versionId, ct);
         await db.SaveChangesAsync(ct);
         return Result<bool>.Ok(monitored);
     }
@@ -463,6 +467,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             target.Monitored = monitored;
         }
 
+        await PublishEpisodesChangedAsync(versionId, ct);
         await db.SaveChangesAsync(ct);
         return Result<int>.Ok(targets.Count);
     }
@@ -497,8 +502,24 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             season.Monitored = seasons[season.Season.SeasonNumber];
         }
 
+        await PublishEpisodesChangedAsync(versionId, ct);
         await db.SaveChangesAsync(ct);
         return Result<bool>.Ok(true);
+    }
+
+    /// <summary>A version's season or episode monitoring changed: Sonarr's <c>episodesChanged</c>, for the consumers that mirror episodes.</summary>
+    private async Task PublishEpisodesChangedAsync(int versionId, CancellationToken ct)
+    {
+        var version = await db.SeriesVersions.AsNoTracking()
+            .Include(v => v.Series)
+            .Include(v => v.RootFolder)
+            .Include(v => v.QualityProfile)
+            .Include(v => v.Tags)
+            .FirstOrDefaultAsync(v => v.Id == versionId, ct);
+        if (version is not null)
+        {
+            outbox.Publish(new Bigarr.Domain.Events.SeriesVersionUpdated(Bigarr.Domain.Events.SeriesRef.From(version.Series), Bigarr.Domain.Events.SeriesVersionRef.From(version), EpisodesChanged: true) { OccurredAt = Now });
+        }
     }
 
     // ---- refresh ----------------------------------------------------------------------------------------------------
@@ -1074,6 +1095,11 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         }
 
         next.IsDefault = true;
+        outbox.Publish(new Bigarr.Domain.Events.SeriesDefaultVersionChanged(
+            Bigarr.Domain.Events.SeriesRef.From(next.Series),
+            Bigarr.Domain.Events.SeriesVersionRef.From(next),
+            previous is null ? null : Bigarr.Domain.Events.SeriesVersionRef.From(previous))
+        { OccurredAt = Now });
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
     }
