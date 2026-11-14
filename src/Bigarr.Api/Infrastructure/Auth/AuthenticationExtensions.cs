@@ -11,6 +11,8 @@ public static class AuthenticationExtensions
     {
         services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddSingleton<SessionStamps>();
+        services.AddSingleton<External.ExternalSignInFlows>();
+        services.AddScoped<External.IExternalIdentityProvider, External.PlexIdentityProvider>();
 
         services.AddAuthentication(AuthSchemes.Session)
             .AddCookie(AuthSchemes.Session, o =>
