@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, queue, search, type Movie, type Release, type Version } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
@@ -14,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { OneShotGrabDialog } from '@/features/search/OneShotGrabDialog'
 import { grabObjections } from '@/features/search/grabRules'
+import { FitCell } from '@/features/search/ReasonsDisplay'
 import { InteractiveSearchIcon } from '@/features/search/SearchButtons'
 import { AdvancedToggle, SearchQueriesPanel, useAdvancedSearch } from '@/features/search/SearchQueriesPanel'
 import {
@@ -25,15 +25,14 @@ import {
   IndexerSizePeersCells,
   isGrabbable,
   type PendingGrab,
-  permanentStyle,
   ReleaseTitleCell,
   SearchSkeleton,
   SortableHead as SharedSortableHead,
   sortReleases,
   useReleaseSort,
   VerdictIcon,
-  VersionVerdicts,
 } from '@/features/search/releaseTable'
+import { versionFits } from '@/features/search/rejectionReasons'
 import { formatAge, formatDateTime } from '@/i18n'
 
 type SortKey = keyof typeof commonComparators
@@ -41,7 +40,7 @@ type SortKey = keyof typeof commonComparators
 const SortableHead = (props: Omit<Parameters<typeof SharedSortableHead<SortKey>>[0], 'testIdPrefix'>) => <SharedSortableHead testIdPrefix="sort" {...props} />
 
 /** The film is acceptable for at least one version, and the release is the film. */
-function fits(release: Release) {
+function fitsAny(release: Release) {
   return release.matchesMovie && release.versions.some((v) => v.approved)
 }
 
@@ -139,6 +138,7 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
 
   const data = query.data
   const releases = data ? sortReleases(data.releases, sort, commonComparators) : []
+  const fitsOf = (release: Release) => versionFits(release.versions, release.matchesMovie ? [] : release.rejections.map((r) => t('search.notThisFilm', { reason: r.reason })), t('search.reasons.release'))
   const acceptable = movie.versions.map((v) => ({
     version: v,
     count: data?.releases.filter((r) => r.matchesMovie && r.versions.some((d) => d.versionId === v.id && d.approved)).length ?? 0,
@@ -241,6 +241,7 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
                       <ReleaseRow
                         key={`${release.indexerId}:${release.guid}`}
                         release={release}
+                        fits={fitsOf(release)}
                         versions={movie.versions}
                         target={target}
                         grabbing={grab.isPending && grab.variables?.release.guid === release.guid && grab.variables.release.indexerId === release.indexerId}
@@ -266,6 +267,7 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
 
 function ReleaseRow({
   release,
+  fits,
   versions,
   target,
   grabbing,
@@ -273,6 +275,7 @@ function ReleaseRow({
   onGrabOneShot,
 }: {
   release: Release
+  fits: ReturnType<typeof versionFits>
   versions: Version[]
   /** Where the grab button sends the release: the version that accepts it, or the closest. */
   target: Version | undefined
@@ -282,7 +285,7 @@ function ReleaseRow({
   onGrabOneShot: () => void
 }) {
   const { t } = useTranslation()
-  const good = fits(release)
+  const good = fitsAny(release)
   const grabbable = isGrabbable(release)
   const details = [
     release.edition,
@@ -317,18 +320,7 @@ function ReleaseRow({
       </TableCell>
       <ReleaseTitleCell release={release} good={good} details={details} className="min-w-[24rem]" />
       <IndexerSizePeersCells release={release} />
-      <TableCell className="min-w-[18rem] align-top whitespace-normal" data-testid="release-fit">
-        {!release.matchesMovie && (
-          <span className="mb-1 flex flex-wrap gap-1">
-            {release.rejections.map((r) => (
-              <Badge key={r.reason} variant="outline" className={cn('h-auto rounded-md whitespace-normal text-left', permanentStyle)}>
-                {t('search.notThisFilm', { reason: r.reason })}
-              </Badge>
-            ))}
-          </span>
-        )}
-        <VersionVerdicts decisions={release.versions} matches={release.matchesMovie} />
-      </TableCell>
+      <FitCell fits={fits} matches={release.matchesMovie} testId="release-fit" />
       <TableCell className="align-top">
         <GrabSplitButton
           accepted={accepted}

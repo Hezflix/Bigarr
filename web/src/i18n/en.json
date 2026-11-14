@@ -920,7 +920,12 @@
     "noVerdict": "No verdict: the title could not be read as a release",
     "confirmTitle": "Grab for {{version}} anyway?",
     "confirmReasons": "The search would not pick this release for this version:",
-    "confirmGrab": "Grab anyway"
+    "confirmGrab": "Grab anyway",
+    "reasons": {
+      "temporary": "clears on its own",
+      "release": "Release",
+      "why": "Why: every version's verdict"
+    }
   },
   "rss": {
     "title": "Releases",

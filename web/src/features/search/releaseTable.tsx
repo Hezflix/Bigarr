@@ -218,39 +218,6 @@ export function IndexerSizePeersCells({ release }: { release: ReleaseCommon }) {
   )
 }
 
-/** One line per version: its verdict, its custom format score, then "accepted" or every reason it refuses. */
-export function VersionVerdicts({ decisions, matches }: { decisions: VersionDecision[]; matches: boolean }) {
-  const { t } = useTranslation()
-  return (
-    <ul className="flex flex-col gap-1">
-      {decisions.map((v) => (
-        <li key={v.versionId} className="flex items-start gap-1">
-          <span className="flex h-5 shrink-0 items-center gap-1">
-            <VerdictIcon decision={v} />
-            <span className={cn('text-xs font-medium whitespace-nowrap', v.approved && matches && 'text-foreground')}>
-              {v.versionName}
-              {v.customFormatScore !== 0 && <span className="font-normal text-muted-foreground"> · {t('search.score', { score: v.customFormatScore })}</span>}
-            </span>
-          </span>
-          <span className="flex flex-wrap gap-1">
-            {v.approved ? (
-              <Badge variant="outline" className={approvedStyle}>
-                {t('search.approved')}
-              </Badge>
-            ) : (
-              v.rejections.map((r) => (
-                <Badge key={r.reason} variant="outline" className={cn('h-auto rounded-md whitespace-normal text-left', r.temporary ? temporaryStyle : permanentStyle)}>
-                  {r.reason}
-                </Badge>
-              ))
-            )}
-          </span>
-        </li>
-      ))}
-    </ul>
-  )
-}
-
 /** The grab button for the suggested version, and beside it the menu to send the release elsewhere (its items are the caller's). */
 export function GrabSplitButton({
   accepted,

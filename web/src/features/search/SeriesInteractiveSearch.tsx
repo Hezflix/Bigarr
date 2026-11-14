@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { grabObjections, languagesComparator, qualityComparator } from '@/features/search/grabRules'
+import { FitCell } from '@/features/search/ReasonsDisplay'
 import { AdvancedToggle, SearchQueriesPanel, useAdvancedSearch } from '@/features/search/SearchQueriesPanel'
 import {
   commonComparators,
@@ -22,7 +23,6 @@ import {
   IndexerErrors,
   IndexerSizePeersCells,
   isGrabbable,
-  permanentStyle,
   QualityLanguagesFormatsCells,
   ReleaseTitleCell,
   SearchSkeleton,
@@ -31,8 +31,8 @@ import {
   temporaryStyle,
   useReleaseSort,
   VerdictIcon,
-  VersionVerdicts,
 } from '@/features/search/releaseTable'
+import { versionFits } from '@/features/search/rejectionReasons'
 import { formatAge } from '@/i18n'
 
 import { type PendingSeriesGrab, SeriesGrabDialog } from './SeriesGrabDialog'
@@ -44,7 +44,7 @@ type SortKey = keyof typeof commonComparators | 'episodes' | 'quality' | 'langua
 
 const SortableHead = (props: Omit<Parameters<typeof SharedSortableHead<SortKey>>[0], 'testIdPrefix'>) => <SharedSortableHead testIdPrefix="series-sort" {...props} />
 
-const fits = (release: SeriesRelease) => release.matchesSeries && release.episodes.length > 0 && release.versions.some((v) => v.approved)
+const fitsAny = (release: SeriesRelease) => release.matchesSeries && release.episodes.length > 0 && release.versions.some((v) => v.approved)
 
 /**
  * Interactive search for a series (Sonarr's manual search): an episode, a season (packs and single episodes together)
@@ -135,6 +135,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
 
   const data = query.data
   const releases = data ? sortReleases(data.releases, sort, comparators) : []
+  const fitsOf = (release: SeriesRelease) => versionFits(release.versions, release.rejections.map((r) => r.reason), t('search.reasons.release'))
   const acceptable = series.versions.map((v) => ({
     version: v,
     count: data?.releases.filter((r) => r.matchesSeries && r.episodes.length > 0 && r.versions.some((d) => d.versionId === v.id && d.approved)).length ?? 0,
@@ -238,6 +239,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
                     <ReleaseRow
                       key={`${release.indexerId}:${release.guid}`}
                       release={release}
+                      fits={fitsOf(release)}
                       versions={series.versions}
                       target={targetOf(release)}
                       grabbing={grab.isPending && grab.variables?.release.guid === release.guid && grab.variables.release.indexerId === release.indexerId}
@@ -258,6 +260,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
 
 function ReleaseRow({
   release,
+  fits,
   versions,
   target,
   grabbing,
@@ -266,6 +269,7 @@ function ReleaseRow({
   onGrab,
 }: {
   release: SeriesRelease
+  fits: ReturnType<typeof versionFits>
   versions: SeriesVersion[]
   target: SeriesVersion | undefined
   grabbing: boolean
@@ -276,7 +280,7 @@ function ReleaseRow({
   onGrab: (versionId: number) => void
 }) {
   const { t } = useTranslation()
-  const good = fits(release)
+  const good = fitsAny(release)
   const mapped = release.episodes.length > 0
   const grabbable = episodesLoaded && isGrabbable(release) && !grabbed
   const details = [release.releaseGroup, release.isRepack ? t('search.repack') : null].filter((d): d is string => !!d)
@@ -332,18 +336,7 @@ function ReleaseRow({
       </TableCell>
       <IndexerSizePeersCells release={release} />
       <QualityLanguagesFormatsCells release={release} score={targetDecision?.customFormatScore} scoreVersion={target?.name} />
-      <TableCell className="min-w-[13rem] align-top whitespace-normal" data-testid="series-release-fit">
-        {release.rejections.length > 0 && (
-          <span className="mb-1 flex flex-wrap gap-1">
-            {release.rejections.map((r) => (
-              <Badge key={r.reason} variant="outline" className={cn('h-auto rounded-md whitespace-normal text-left', permanentStyle)}>
-                {r.reason}
-              </Badge>
-            ))}
-          </span>
-        )}
-        <VersionVerdicts decisions={release.versions} matches={release.matchesSeries} />
-      </TableCell>
+      <FitCell fits={fits} matches={release.matchesSeries} testId="series-release-fit" />
       <TableCell className="align-top">
         <GrabSplitButton
           accepted={accepted}
