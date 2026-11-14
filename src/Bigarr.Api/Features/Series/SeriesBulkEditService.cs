@@ -15,7 +15,7 @@ using Microsoft.EntityFrameworkCore;
 /// all) of many series, each following the single-item rules of <see cref="SeriesService"/>. A series that lacks the
 /// version is skipped and reported.
 /// </summary>
-public sealed class SeriesBulkEditService(BigarrDbContext db, SeriesService series, ILogger<SeriesBulkEditService> logger)
+public sealed class SeriesBulkEditService(BigarrDbContext db, SeriesService series, Infrastructure.Events.OutboxWriter outbox, ILogger<SeriesBulkEditService> logger)
 {
     /// <summary>One save for the whole request: every version changes, or none.</summary>
     public async Task<Result<SeriesBulkResponse>> UpdateAsync(SeriesBulkUpdateRequest request, CancellationToken ct)
@@ -88,7 +88,13 @@ public sealed class SeriesBulkEditService(BigarrDbContext db, SeriesService seri
                 continue;
             }
 
-            var changed = versionChange ? picked.Where(v => Apply(v, request, profile, tagsMode, changesTags ? tags : null)).Select(v => v.Name).ToList() : [];
+            var changedVersions = versionChange ? picked.Where(v => Apply(v, request, profile, tagsMode, changesTags ? tags : null)).ToList() : [];
+            var changed = changedVersions.Select(v => v.Name).ToList();
+            foreach (var version in changedVersions)
+            {
+                outbox.Publish(new Bigarr.Domain.Events.SeriesVersionUpdated(Bigarr.Domain.Events.SeriesRef.From(show), Bigarr.Domain.Events.SeriesVersionRef.From(version)));
+            }
+
             var reported = versionChange ? picked.Select(v => v.Name).ToList() : [];
             results.Add(changed.Count > 0 || typeChanged
                 ? new BulkSeriesResult(show.Id, show.Title, BulkOutcome.Updated, changed)

@@ -15,6 +15,7 @@ public static class SonarrCompatEndpoints
     {
         services.AddScoped<SonarrLibrary>();
         services.AddSingleton<SonarrCommandLog>();
+        services.AddHostedService<SonarrHubBroadcaster>();
         return services;
     }
 
@@ -41,6 +42,7 @@ public static class SonarrCompatEndpoints
         // Sonarr serves its covers under its URL base, and again under the API path Bazarr's image proxy asks.
         app.MapGet(SonarrCompat.UrlBase + "/MediaCover/{id:int}/{file}", MediaCoverAsync).WithTags("Compat").RequireAuthorization(AuthPolicies.Api).ExcludeFromDescription();
         app.MapGet(SonarrCompat.RoutePrefix + "/MediaCover/{id:int}/{file}", MediaCoverAsync).WithTags("Compat").RequireAuthorization(AuthPolicies.ApiKey).ExcludeFromDescription();
+        app.MapHub<SonarrHub>(SonarrHub.Route).RequireAuthorization(AuthPolicies.ApiKey);
         return app;
     }
 
