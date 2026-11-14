@@ -230,7 +230,7 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
 
         if (parsed is not null && !special)
         {
-            var match = index.Find(parsed, release.TvdbId is { } t && t == series.TvdbId ? t : null);
+            var match = index.Find(parsed, release.TvdbId, release.ImdbId);
             if (release.TvdbId is { } tvdb && series.TvdbId is { } own && tvdb != own)
             {
                 rejections.Add(new RejectionResponse($"Release is TVDB {tvdb}, not {own}", false));

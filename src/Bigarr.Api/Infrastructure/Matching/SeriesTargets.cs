@@ -80,7 +80,8 @@ public sealed class SeriesTargets
         Series.TvdbId,
         Series.Title,
         Series.Year,
-        new[] { Series.OriginalTitle }.Concat(Series.AlternativeTitles.Select(a => a.Title)).OfType<string>().ToList());
+        new[] { Series.OriginalTitle }.Concat(Series.AlternativeTitles.Select(a => a.Title)).OfType<string>().ToList(),
+        Series.ImdbId);
 
     public EpisodeSlot? Slot(int versionId, int episodeId) => _slots.GetValueOrDefault((versionId, episodeId));
 
@@ -164,16 +165,16 @@ public sealed class SeriesTargetsFactory(BigarrDbContext db, CustomFormatScorer 
         return all.GetValueOrDefault(seriesId);
     }
 
-    /// <summary>Every series of the library by title, alias and TVDB id: how a release or a file finds its show.</summary>
+    /// <summary>Every series of the library by title, alias, TVDB id and IMDb id: how a release or a file finds its show.</summary>
     public async Task<SeriesTitleIndex> IndexAsync(CancellationToken ct)
     {
         var series = await db.Series.AsNoTracking()
-            .Select(s => new { s.Id, s.TvdbId, s.Title, s.OriginalTitle, s.Year, s.AlternativeTitles })
+            .Select(s => new { s.Id, s.TvdbId, s.ImdbId, s.Title, s.OriginalTitle, s.Year, s.AlternativeTitles })
             .ToListAsync(ct);
         var tvdbIds = series.Where(s => s.TvdbId != null).Select(s => s.TvdbId!.Value).ToList();
         var aliases = await db.SceneNames.AsNoTracking().Where(n => tvdbIds.Contains(n.TvdbId)).ToListAsync(ct);
         return new SeriesTitleIndex(
-            series.Select(s => new IndexedSeries(s.Id, s.TvdbId, s.Title, s.Year, new[] { s.OriginalTitle }.Concat(s.AlternativeTitles.Select(a => a.Title)).OfType<string>().ToList())),
+            series.Select(s => new IndexedSeries(s.Id, s.TvdbId, s.Title, s.Year, new[] { s.OriginalTitle }.Concat(s.AlternativeTitles.Select(a => a.Title)).OfType<string>().ToList(), s.ImdbId)),
             aliases.Select(a => new SceneAlias(a.TvdbId, a.Title, a.SceneSeasonNumber)));
     }
 
