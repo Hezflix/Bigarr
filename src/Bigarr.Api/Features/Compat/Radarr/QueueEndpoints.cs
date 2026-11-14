@@ -71,10 +71,18 @@ public static class QueueEndpoints
     {
         var visible = await library.VisibleVersionIdsAsync(user.CompatView(), ct);
         var now = time.GetUtcNow().UtcDateTime;
-        return queue.Snapshot.Items
-            .Where(i => i.Tracked && i.GrabId is not null && i.VersionId is { } versionId && visible.Contains(versionId) && (movieId is null || versionId == movieId))
-            .Select(i => ToResource(i, now))
-            .ToList();
+        return queue.Snapshot.Items.Where(i => Lists(i, visible, movieId)).Select(i => ToResource(i, now)).ToList();
+    }
+
+    /// <summary>
+    /// A tracked film download whose version the key sees. A series grab's <c>VersionId</c> is a series version id, a
+    /// separate id space: it must not pass for the film version that happens to have the same number.
+    /// </summary>
+    public static bool Lists(QueueItemResponse item, IReadOnlySet<int> visible, int? movieId)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(visible);
+        return item.Tracked && !item.Series && item.GrabId is not null && item.VersionId is { } versionId && visible.Contains(versionId) && (movieId is null || versionId == movieId);
     }
 
     private static Func<RadarrQueueItem, object?> SortBy(string key) => key.ToLowerInvariant() switch
