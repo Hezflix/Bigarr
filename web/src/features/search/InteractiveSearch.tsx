@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
 import { CopyPlusIcon } from 'lucide-react'
@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { OneShotGrabDialog } from '@/features/search/OneShotGrabDialog'
 import { grabObjections } from '@/features/search/grabRules'
-import { FitCell, FitExpandedRow, FitSidePanel, ReasonsVariantPicker, useReasonsVariant } from '@/features/search/ReasonsDisplay'
+import { FitCell } from '@/features/search/ReasonsDisplay'
 import { InteractiveSearchIcon } from '@/features/search/SearchButtons'
 import { AdvancedToggle, SearchQueriesPanel, useAdvancedSearch } from '@/features/search/SearchQueriesPanel'
 import {
@@ -32,7 +32,7 @@ import {
   useReleaseSort,
   VerdictIcon,
 } from '@/features/search/releaseTable'
-import { type ReasonsVariant, versionFits } from '@/features/search/rejectionReasons'
+import { versionFits } from '@/features/search/rejectionReasons'
 import { formatAge, formatDateTime } from '@/i18n'
 
 type SortKey = keyof typeof commonComparators
@@ -69,9 +69,6 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
   const [oneShot, setOneShot] = useState<{ release: Release; profileId: number } | null>(null)
   const [pending, setPending] = useState<PendingGrab | null>(null)
   const [advanced, setAdvanced] = useAdvancedSearch()
-  const reasonsVariant = useReasonsVariant()
-  const [panelKey, setPanelKey] = useState<string | null>(null)
-  const panelId = useId()
   const query = useQuery({
     queryKey: ['search', movie.id, submitted ?? ''],
     queryFn: () => search.movie(movie.id, { query: submitted || undefined, includeQueries: advanced }),
@@ -142,7 +139,6 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
   const data = query.data
   const releases = data ? sortReleases(data.releases, sort, commonComparators) : []
   const fitsOf = (release: Release) => versionFits(release.versions, release.matchesMovie ? [] : release.rejections.map((r) => t('search.notThisFilm', { reason: r.reason })), t('search.reasons.release'))
-  const panelRelease = releases.find((r) => releaseKey(r) === panelKey)
   const acceptable = movie.versions.map((v) => ({
     version: v,
     count: data?.releases.filter((r) => r.matchesMovie && r.versions.some((d) => d.versionId === v.id && d.approved)).length ?? 0,
@@ -206,8 +202,6 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
             {acceptable.map(({ version, count }) => t('search.acceptableFor', { count, version: version.name })).join(' · ')}
           </p>
 
-          <ReasonsVariantPicker />
-
           <IndexerErrors errors={data.indexerErrors} />
 
           {advanced && <SearchQueriesPanel queries={data.queries} />}
@@ -245,13 +239,9 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
                     const target = versionById.get(release.suggestedVersionId ?? -1) ?? defaultVersion
                     return (
                       <ReleaseRow
-                        key={releaseKey(release)}
+                        key={`${release.indexerId}:${release.guid}`}
                         release={release}
-                        reasonsVariant={reasonsVariant}
                         fits={fitsOf(release)}
-                        inPanel={panelKey === releaseKey(release)}
-                        onPanel={() => setPanelKey((current) => (current === releaseKey(release) ? null : releaseKey(release)))}
-                        panelId={panelId}
                         versions={movie.versions}
                         target={target}
                         grabbing={grab.isPending && grab.variables?.release.guid === release.guid && grab.variables.release.indexerId === release.indexerId}
@@ -265,10 +255,6 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
             </div>
           )}
 
-          {reasonsVariant === 6 && releases.length > 0 && (
-            <FitSidePanel id={panelId} title={panelRelease?.title} fits={panelRelease ? fitsOf(panelRelease) : undefined} onClose={() => setPanelKey(null)} />
-          )}
-
           <p className="text-xs text-muted-foreground">{t('search.grabHint')}</p>
         </>
       )}
@@ -279,15 +265,9 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
   )
 }
 
-const releaseKey = (release: Release) => `${release.indexerId}:${release.guid}`
-
 function ReleaseRow({
   release,
-  reasonsVariant,
   fits,
-  inPanel,
-  onPanel,
-  panelId,
   versions,
   target,
   grabbing,
@@ -295,13 +275,7 @@ function ReleaseRow({
   onGrabOneShot,
 }: {
   release: Release
-  /** TEMPORARY: which rejection-reason display is compared. */
-  reasonsVariant: ReasonsVariant
   fits: ReturnType<typeof versionFits>
-  /** 6: this row's verdicts are the ones the panel under the table shows. */
-  inPanel: boolean
-  onPanel: () => void
-  panelId: string
   versions: Version[]
   /** Where the grab button sends the release: the version that accepts it, or the closest. */
   target: Version | undefined
@@ -311,8 +285,6 @@ function ReleaseRow({
   onGrabOneShot: () => void
 }) {
   const { t } = useTranslation()
-  const [expanded, setExpanded] = useState(false)
-  const expandedId = useId()
   const good = fitsAny(release)
   const grabbable = isGrabbable(release)
   const details = [
@@ -337,66 +309,55 @@ function ReleaseRow({
           : t('search.grabAnyway', { version: target?.name ?? '' })
 
   return (
-    <>
-      <TableRow className={cn(!good && 'text-muted-foreground', inPanel && 'bg-muted/50')} data-fits={good}>
-        <TableCell className="align-top whitespace-nowrap">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span>{formatAge(release.publishDate)}</span>
-            </TooltipTrigger>
-            <TooltipContent>{formatDateTime(release.publishDate)}</TooltipContent>
-          </Tooltip>
-        </TableCell>
-        <ReleaseTitleCell release={release} good={good} details={details} className="min-w-[24rem]" />
-        <IndexerSizePeersCells release={release} />
-        <FitCell
-          variant={reasonsVariant}
-          fits={fits}
-          matches={release.matchesMovie}
-          expanded={reasonsVariant === 5 ? expanded : inPanel}
-          onToggle={reasonsVariant === 5 ? () => setExpanded((e) => !e) : onPanel}
-          detailsId={reasonsVariant === 5 ? expandedId : panelId}
-          testId="release-fit"
-        />
-        <TableCell className="align-top">
-          <GrabSplitButton
-            accepted={accepted}
-            tip={grabTip}
-            targetName={target?.name}
-            grabbing={grabbing}
-            disabled={grabbing || targetBusy || !grabbable || !target}
-            menuDisabled={grabbing || !grabbable}
-            onGrab={() => target && onGrab(target.id)}
-            testId="grab"
-            menuTestId="grab-menu"
-            menuClassName="min-w-64"
-          >
-            {versions.map((v) => {
-              const decision = decisionFor(v.id)
-              const busy = v.status === 'downloading'
-              return (
-                <DropdownMenuItem key={v.id} disabled={busy} onSelect={() => onGrab(v.id)} data-testid="grab-version">
-                  <VerdictIcon decision={decision} />
-                  <span className={cn(v.id === target?.id && 'font-medium')}>{v.name}</span>
-                  <span className="ml-auto pl-4 text-xs text-muted-foreground">
-                    {busy
-                      ? t('search.activeDownload')
-                      : [v.isDefault ? t('search.defaultVersion') : null, v.mode === 'oneShot' ? t('versions.oneShot').toLowerCase() : null, v.id === target?.id ? t('search.suggested') : null]
-                          .filter(Boolean)
-                          .join(' · ')}
-                  </span>
-                </DropdownMenuItem>
-              )
-            })}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={onGrabOneShot} data-testid="grab-oneshot">
-              <CopyPlusIcon />
-              {t('search.grabOneShot')}
-            </DropdownMenuItem>
-          </GrabSplitButton>
-        </TableCell>
-      </TableRow>
-      {reasonsVariant === 5 && expanded && <FitExpandedRow id={expandedId} fits={fits} colSpan={7} />}
-    </>
+    <TableRow className={cn(!good && 'text-muted-foreground')} data-fits={good}>
+      <TableCell className="align-top whitespace-nowrap">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>{formatAge(release.publishDate)}</span>
+          </TooltipTrigger>
+          <TooltipContent>{formatDateTime(release.publishDate)}</TooltipContent>
+        </Tooltip>
+      </TableCell>
+      <ReleaseTitleCell release={release} good={good} details={details} className="min-w-[24rem]" />
+      <IndexerSizePeersCells release={release} />
+      <FitCell fits={fits} matches={release.matchesMovie} testId="release-fit" />
+      <TableCell className="align-top">
+        <GrabSplitButton
+          accepted={accepted}
+          tip={grabTip}
+          targetName={target?.name}
+          grabbing={grabbing}
+          disabled={grabbing || targetBusy || !grabbable || !target}
+          menuDisabled={grabbing || !grabbable}
+          onGrab={() => target && onGrab(target.id)}
+          testId="grab"
+          menuTestId="grab-menu"
+          menuClassName="min-w-64"
+        >
+          {versions.map((v) => {
+            const decision = decisionFor(v.id)
+            const busy = v.status === 'downloading'
+            return (
+              <DropdownMenuItem key={v.id} disabled={busy} onSelect={() => onGrab(v.id)} data-testid="grab-version">
+                <VerdictIcon decision={decision} />
+                <span className={cn(v.id === target?.id && 'font-medium')}>{v.name}</span>
+                <span className="ml-auto pl-4 text-xs text-muted-foreground">
+                  {busy
+                    ? t('search.activeDownload')
+                    : [v.isDefault ? t('search.defaultVersion') : null, v.mode === 'oneShot' ? t('versions.oneShot').toLowerCase() : null, v.id === target?.id ? t('search.suggested') : null]
+                        .filter(Boolean)
+                        .join(' · ')}
+                </span>
+              </DropdownMenuItem>
+            )
+          })}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={onGrabOneShot} data-testid="grab-oneshot">
+            <CopyPlusIcon />
+            {t('search.grabOneShot')}
+          </DropdownMenuItem>
+        </GrabSplitButton>
+      </TableCell>
+    </TableRow>
   )
 }

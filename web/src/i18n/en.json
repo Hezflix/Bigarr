@@ -922,25 +922,9 @@
     "confirmReasons": "The search would not pick this release for this version:",
     "confirmGrab": "Grab anyway",
     "reasons": {
-      "picker": "Reasons display",
-      "variant1": "First reason + count",
-      "variant2": "Info button",
-      "variant3": "Subtle text line",
-      "variant4": "Status chip + count",
-      "variant5": "Expandable row",
-      "variant6": "Colour border + panel",
       "temporary": "clears on its own",
       "release": "Release",
-      "why": "Why: every version's verdict",
-      "whyFor": "Why {{version}} does not take it",
-      "whyShort": "Why",
-      "showInPanel": "Show the verdicts in the panel under the table",
-      "showDetails": "Show the reasons",
-      "hideDetails": "Hide the reasons",
-      "rejectedCount": "Rejected · {{count}}",
-      "waitingCount": "Waiting · {{count}}",
-      "panelTitle": "Verdicts per version",
-      "panelEmpty": "Pick “Why” on a row to read its verdicts here."
+      "why": "Why: every version's verdict"
     }
   },
   "rss": {
