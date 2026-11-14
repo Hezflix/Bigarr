@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using Bigarr.Api.Features.Auth;
 using Bigarr.Api.Features.Blocklist;
 using Bigarr.Api.Features.Compat.Radarr;
+using Bigarr.Api.Features.Compat.Sonarr;
 using Bigarr.Api.Features.Downloads;
 using Bigarr.Api.Features.History;
 using Bigarr.Api.Features.Import;
@@ -163,6 +164,9 @@ builder.Services.AddScoped<IScheduledJob, BackupJob>();
 // The Radarr-compatible surface: /api/v3 behind API keys, /signalr/messages, /MediaCover.
 builder.Services.AddRadarrCompat();
 
+// The Sonarr-compatible surface, under its own URL base (/sonarr/api/v3, /sonarr/MediaCover).
+builder.Services.AddSonarrCompat();
+
 // Every outgoing HttpClient accepts gzip/deflate/brotli answers.
 builder.Services.AddOutgoingDecompression();
 
@@ -264,6 +268,7 @@ app.UseStaticFiles(PrecompressedStaticFiles.Options);
 app.UseRouting();
 
 app.UseRadarrCompat();
+app.UseSonarrCompat();
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -299,9 +304,10 @@ app.MapMediaServers();
 app.MapPlayback();
 app.MapShadow();
 app.MapRadarrCompat();
+app.MapSonarrCompat();
 
 // The SPA is built into wwwroot by `bun run build`; anything that is not API falls back to index.html.
-app.MapFallbackToFile("{*path:regex(^(?!api/|health$|openapi/|signalr/|MediaCover/).*$)}", "index.html", PrecompressedStaticFiles.Options);
+app.MapFallbackToFile("{*path:regex(^(?!api/|health$|openapi/|signalr/|MediaCover/|sonarr/).*$)}", "index.html", PrecompressedStaticFiles.Options);
 
 app.Run();
 

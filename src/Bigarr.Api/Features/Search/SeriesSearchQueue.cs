@@ -30,6 +30,13 @@ public sealed class SeriesSearchQueue
 
     public int Pending => _pending.Count;
 
+    /// <summary>True while the request is waiting or being searched.</summary>
+    public bool IsPending(SeriesSearchRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return _pending.ContainsKey(request.Key);
+    }
+
     public void Done(SeriesSearchRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
