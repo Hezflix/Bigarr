@@ -281,6 +281,11 @@ public sealed class GrabService(
             history.Data["releaseGuid"] = request.Guid;
             history.Data["trigger"] = trigger;
             history.Data["numbering"] = NumberingName(grab.Numbering!.Value);
+            if (!string.IsNullOrWhiteSpace(request.InfoUrl))
+            {
+                history.Data["nzbInfoUrl"] = request.InfoUrl;
+            }
+
             if (ordered.Count > 1)
             {
                 history.Data["episodes"] = string.Join(", ", labels);
@@ -463,6 +468,11 @@ public sealed class GrabService(
         if (request.Flags != IndexerFlags.None)
         {
             data["indexerFlags"] = request.Flags.ToString();
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.InfoUrl))
+        {
+            data["nzbInfoUrl"] = request.InfoUrl;
         }
 
         var quality = QualityOf(request.Title);
