@@ -94,6 +94,15 @@ public sealed record SeriesDeleted(SeriesRef Series, bool DeletedFiles, List<Ser
 
 public sealed record SeriesVersionDeleted(SeriesRef Series, SeriesVersionRef Version, bool DeletedFiles) : DomainEvent;
 
+/// <summary>A version was added to a show already in the library (the first one comes with <see cref="SeriesAdded"/>).</summary>
+public sealed record SeriesVersionAdded(SeriesRef Series, SeriesVersionRef Version) : DomainEvent;
+
+/// <summary>A version's settings or monitoring changed.</summary>
+/// <param name="EpisodesChanged">Season or episode monitoring changed (Sonarr's <c>episodesChanged</c>): a consumer that mirrors episodes reads them again.</param>
+public sealed record SeriesVersionUpdated(SeriesRef Series, SeriesVersionRef Version, bool EpisodesChanged = false) : DomainEvent;
+
+public sealed record SeriesDefaultVersionChanged(SeriesRef Series, SeriesVersionRef NewDefault, SeriesVersionRef? PreviousDefault) : DomainEvent;
+
 /// <param name="DownloadClientType">The client's implementation: <c>QBittorrent</c>.</param>
 public sealed record EpisodeGrabbed(
     SeriesRef Series,
