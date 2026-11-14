@@ -27,29 +27,44 @@ public static partial class MediaCoverEndpoints
     private static async Task<Results<PhysicalFileHttpResult, NotFound, StatusCodeHttpResult>> GetAsync(
         int id, string file, CompatLibrary library, IHttpClientFactory httpClientFactory, IOptions<BigarrOptions> options, ILoggerFactory loggerFactory, CancellationToken ct)
     {
-        var match = FileRegex().Match(file);
-        if (!match.Success)
+        if (!TryParse(file, out var type, out var stem))
         {
             return TypedResults.NotFound();
         }
 
         // Any version of the film will do: covers belong to the film, and the key's view does not hide artwork.
         var row = await library.FindAsync(Domain.Auth.CompatView.All, id, ct);
-        if (row is null)
+        var remote = row?.Movie.Images.FirstOrDefault(i => i.Type == type)?.RemoteUrl;
+        if (row is null || remote is null)
         {
             return TypedResults.NotFound();
         }
 
-        var type = match.Groups["type"].Value.Equals("poster", StringComparison.OrdinalIgnoreCase) ? ImageType.Poster : ImageType.Fanart;
-        var remote = row.Movie.Images.FirstOrDefault(i => i.Type == type)?.RemoteUrl;
-        if (remote is null)
-        {
-            return TypedResults.NotFound();
-        }
-
-        var size = match.Groups["size"].Success ? int.Parse(match.Groups["size"].Value, System.Globalization.CultureInfo.InvariantCulture) : (int?)null;
         var cacheDirectory = Path.Combine(options.Value.ConfigDirectory, "MediaCover", row.Movie.Id.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        var cached = Path.Combine(cacheDirectory, $"{match.Groups["type"].Value.ToLowerInvariant()}{(size is null ? string.Empty : $"-{size}")}.jpg");
+        return await ServeAsync(remote, type, stem, cacheDirectory, httpClientFactory, loggerFactory, ct);
+    }
+
+    /// <summary>Reads a cover file name (<c>poster-500.jpg</c>): its type and its stem (<c>poster-500</c>), the cache file's name.</summary>
+    public static bool TryParse(string file, out ImageType type, out string stem)
+    {
+        ArgumentNullException.ThrowIfNull(file);
+        var match = FileRegex().Match(file);
+        type = match.Success && match.Groups["type"].Value.Equals("poster", StringComparison.OrdinalIgnoreCase) ? ImageType.Poster : ImageType.Fanart;
+        stem = match.Success ? $"{match.Groups["type"].Value.ToLowerInvariant()}{(match.Groups["size"].Success ? "-" + match.Groups["size"].Value : string.Empty)}" : string.Empty;
+        return match.Success;
+    }
+
+    /// <summary>The cover from the cache directory, fetched once from the provider at the size the stem asks for.</summary>
+    public static async Task<Results<PhysicalFileHttpResult, NotFound, StatusCodeHttpResult>> ServeAsync(
+        string remote, ImageType type, string stem, string cacheDirectory, IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(stem);
+        ArgumentNullException.ThrowIfNull(httpClientFactory);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
+
+        var dash = stem.IndexOf('-', StringComparison.Ordinal);
+        var size = dash < 0 ? (int?)null : int.Parse(stem[(dash + 1)..], System.Globalization.CultureInfo.InvariantCulture);
+        var cached = Path.Combine(cacheDirectory, stem + ".jpg");
         if (!File.Exists(cached))
         {
             var url = Sized(remote, type, size);

@@ -1696,7 +1696,11 @@
     "bazarrHint": "One Bazarr per version, like the usual Bazarr + Bazarr 4K pair: a version:1080p key on the first, a version:4k key on the second. Bazarr keeps one line per TMDB id, so a key with the all view would make it skip the second version of a film. Each instance follows its files live over SignalR at /signalr/messages.",
     "prowlarr": "Prowlarr",
     "prowlarrHint": "In Prowlarr, Settings → Apps → + → Radarr: Prowlarr Server is Prowlarr's URL as Bigarr reaches it, Radarr Server is the URL above, API Key a key with the default view, sync level Full Sync. Prowlarr then pushes its torrent indexers here and keeps them in sync.",
-    "legacyHint": "Bigarr answers as Radarr {{version}}."
+    "legacyHint": "Bigarr answers as Radarr {{version}}.",
+    "sonarrUrl": "Sonarr URL to enter in the app",
+    "sonarrLegacyHint": "Bigarr answers as Sonarr {{version}} under the URL base {{base}}.",
+    "sonarr": "Seerr, Bazarr and Prowlarr for series",
+    "sonarrHint": "For series the same apps connect to Bigarr as to a Sonarr, under the URL base {{base}}. Seerr: two Sonarr servers, a standard one with a version:1080p key and a 4K one with a version:4k key, URL base {{base}}. Bazarr: one instance per version again, Base URL {{base}}. Prowlarr: a Sonarr app whose Sonarr Server is the URL above; an indexer it pushes to both apps stays one indexer here, with its film and series categories. Series need a series root folder and a series quality profile."
   },
   "backups": {
     "title": "Backups",

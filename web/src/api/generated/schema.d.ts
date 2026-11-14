@@ -9380,6 +9380,7 @@ export interface components {
             publishDate?: null | string;
             episodeIds?: null | number[];
             numbering?: null | components["schemas"]["EpisodeNumbering"];
+            infoUrl?: null | string;
             isSeries?: boolean;
         };
         GrabResponse: {

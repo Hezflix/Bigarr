@@ -17,7 +17,15 @@ public static class SystemEndpoints
     }
 
     private static JsonHttpResult<RadarrSystemStatus> Status(IOptions<BigarrOptions> options, IHostEnvironment environment, Server.ProcessStart start) =>
-        RadarrCompat.Ok(new RadarrSystemStatus(
+        RadarrCompat.Ok(Describe(options, environment, start));
+
+    /// <summary>The status as Radarr words it; the Sonarr surface changes the app name, version and URL base.</summary>
+    public static RadarrSystemStatus Describe(IOptions<BigarrOptions> options, IHostEnvironment environment, Server.ProcessStart start)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(environment);
+        ArgumentNullException.ThrowIfNull(start);
+        return new RadarrSystemStatus(
             AppName: "Radarr",
             InstanceName: "Bigarr",
             Version: RadarrCompat.ApplicationVersion,
@@ -47,5 +55,6 @@ public static class SystemEndpoints
             StartTime: start.At,
             PackageVersion: Server.SystemEndpoints.Version,
             PackageAuthor: "Bigarr",
-            PackageUpdateMechanism: "docker"));
+            PackageUpdateMechanism: "docker");
+    }
 }

@@ -69,7 +69,9 @@ public sealed record GrabRequest(
     /// </summary>
     List<int>? EpisodeIds = null,
     /// <summary>A series grab: which numbering the release matched its episodes on (the search returns it).</summary>
-    Bigarr.Domain.Tv.EpisodeNumbering? Numbering = null)
+    Bigarr.Domain.Tv.EpisodeNumbering? Numbering = null,
+    /// <summary>The release's page on the indexer, kept in the grab's history as <c>nzbInfoUrl</c> (Bazarr's release refiner reads it).</summary>
+    string? InfoUrl = null)
 {
     public bool IsSeries => EpisodeIds is { Count: > 0 };
 
@@ -80,7 +82,7 @@ public sealed record GrabRequest(
     public static GrabRequest From(ReleaseInfo release, int versionId)
     {
         ArgumentNullException.ThrowIfNull(release);
-        return new GrabRequest(versionId, release.IndexerId, release.Guid, release.Title, release.DownloadUrl, release.MagnetUrl, release.InfoHash, release.Size, release.Seeders, release.Flags, release.Protocol, release.IndexerName, release.PublishDate);
+        return new GrabRequest(versionId, release.IndexerId, release.Guid, release.Title, release.DownloadUrl, release.MagnetUrl, release.InfoHash, release.Size, release.Seeders, release.Flags, release.Protocol, release.IndexerName, release.PublishDate, InfoUrl: release.InfoUrl);
     }
 }
 

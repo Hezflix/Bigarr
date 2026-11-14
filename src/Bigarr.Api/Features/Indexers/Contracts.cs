@@ -10,6 +10,7 @@ public sealed record IndexerRequest(
     string? BaseUrl = null,
     string? ApiPath = null,
     string? ApiKey = null,
+    /// <summary>Film categories; empty means Radarr's defaults, null keeps the current ones (the defaults on a new indexer): Prowlarr's Sonarr sync sends series categories only.</summary>
     List<int>? Categories = null,
     int Priority = 25,
     bool EnableRss = true,

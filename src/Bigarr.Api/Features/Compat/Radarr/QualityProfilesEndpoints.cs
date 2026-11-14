@@ -1,4 +1,5 @@
 using Bigarr.Api.Features.Quality;
+using Bigarr.Domain.Library;
 using Bigarr.Domain.Quality;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -7,29 +8,17 @@ namespace Bigarr.Api.Features.Compat.Radarr;
 /// <summary><c>/qualityprofile</c>: Seerr offers them at request time, Bazarr reads <c>language.name</c> as its audio fallback.</summary>
 public static class QualityProfilesEndpoints
 {
-    public static void MapCompatQualityProfiles(this RouteGroupBuilder group)
+    /// <param name="kind">Films for the Radarr surface, series for the Sonarr one: each client only sees the profiles its versions can take.</param>
+    public static void MapCompatQualityProfiles(this RouteGroupBuilder group, MediaKind kind = MediaKind.Movies)
     {
-        group.MapGet("/qualityprofile", async Task<JsonHttpResult<List<RadarrQualityProfile>>> (QualityProfileService profiles, CancellationToken ct) =>
-        {
-            var definitions = (await profiles.ListDefinitionsAsync(ct)).ToDictionary(d => d.Id);
-            var result = new List<RadarrQualityProfile>();
-            // Radarr's clients only see profiles a film version can take.
-            foreach (var summary in (await profiles.ListAsync(ct)).Where(p => p.Kind.ForMovies()))
-            {
-                var profile = await profiles.GetAsync(summary.Id, ct);
-                if (profile is not null)
-                {
-                    result.Add(ToResource(profile, definitions));
-                }
-            }
+        Func<ProfileKind, bool> fits = kind == MediaKind.Series ? ProfileKinds.ForSeries : ProfileKinds.ForMovies;
 
-            return RadarrCompat.Ok(result);
-        });
+        group.MapGet("/qualityprofile", (QualityProfileService profiles, CancellationToken ct) => ListAsync(profiles, fits, ct));
 
         group.MapGet("/qualityprofile/{id:int}", async Task<Results<JsonHttpResult<RadarrQualityProfile>, NotFound>> (int id, QualityProfileService profiles, CancellationToken ct) =>
         {
             var profile = await profiles.GetAsync(id, ct);
-            if (profile is null || !profile.Kind.ForMovies())
+            if (profile is null || !fits(profile.Kind))
             {
                 return TypedResults.NotFound();
             }
@@ -39,22 +28,23 @@ public static class QualityProfilesEndpoints
         });
 
         // Radarr's alias; Seerr calls the camelCase spelling, ASP.NET Core routes are case-insensitive anyway.
-        group.MapGet("/profile", async Task<JsonHttpResult<List<RadarrQualityProfile>>> (QualityProfileService profiles, CancellationToken ct) =>
-        {
-            var definitions = (await profiles.ListDefinitionsAsync(ct)).ToDictionary(d => d.Id);
-            var result = new List<RadarrQualityProfile>();
-            // Radarr's clients only see profiles a film version can take.
-            foreach (var summary in (await profiles.ListAsync(ct)).Where(p => p.Kind.ForMovies()))
-            {
-                var profile = await profiles.GetAsync(summary.Id, ct);
-                if (profile is not null)
-                {
-                    result.Add(ToResource(profile, definitions));
-                }
-            }
+        group.MapGet("/profile", (QualityProfileService profiles, CancellationToken ct) => ListAsync(profiles, fits, ct));
+    }
 
-            return RadarrCompat.Ok(result);
-        });
+    private static async Task<JsonHttpResult<List<RadarrQualityProfile>>> ListAsync(QualityProfileService profiles, Func<ProfileKind, bool> fits, CancellationToken ct)
+    {
+        var definitions = (await profiles.ListDefinitionsAsync(ct)).ToDictionary(d => d.Id);
+        var result = new List<RadarrQualityProfile>();
+        foreach (var summary in (await profiles.ListAsync(ct)).Where(p => fits(p.Kind)))
+        {
+            var profile = await profiles.GetAsync(summary.Id, ct);
+            if (profile is not null)
+            {
+                result.Add(ToResource(profile, definitions));
+            }
+        }
+
+        return RadarrCompat.Ok(result);
     }
 
     public static RadarrQualityProfile ToResource(QualityProfileResponse profile, IReadOnlyDictionary<int, QualityDefinitionResponse> definitions)

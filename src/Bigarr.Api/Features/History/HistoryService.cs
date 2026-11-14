@@ -10,6 +10,7 @@ namespace Bigarr.Api.Features.History;
 /// What to read from the journal. Every filter is optional; <paramref name="MovieIds"/> and <paramref name="MovieId"/> combine as an OR.
 /// <paramref name="VersionIds"/> narrows to those targets, <paramref name="TargetVersions"/> to the events whose target satisfies
 /// the predicate (events without a target never do): the database evaluates both, no list of ids is shipped for a whole library.
+/// <paramref name="TargetEpisodes"/> is the same for series events, whose target is a (series version, episode) pair.
 /// </summary>
 public sealed record HistoryFilter(
     int? MovieId = null,
@@ -18,7 +19,8 @@ public sealed record HistoryFilter(
     IReadOnlyCollection<HistoryEventType>? EventTypes = null,
     IReadOnlyCollection<int>? VersionIds = null,
     Expression<Func<MovieVersion, bool>>? TargetVersions = null,
-    int? SeriesId = null);
+    int? SeriesId = null,
+    Expression<Func<Bigarr.Domain.Tv.EpisodeTarget, bool>>? TargetEpisodes = null);
 
 public sealed record HistoryPage(List<HistoryEvent> Events, int Total);
 
@@ -79,6 +81,11 @@ public sealed class HistoryService(BigarrDbContext db)
         if (filter.TargetVersions is { } targets)
         {
             query = query.Where(h => db.MovieVersions.Where(targets).Any(v => v.Id == h.TargetId));
+        }
+
+        if (filter.TargetEpisodes is { } episodes)
+        {
+            query = query.Where(h => db.EpisodeTargets.Where(episodes).Any(t => t.Id == h.TargetId));
         }
 
         if (filter.EventTypes is { Count: > 0 } types)

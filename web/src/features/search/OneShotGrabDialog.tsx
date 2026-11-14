@@ -58,6 +58,7 @@ export function OneShotGrabDialog({ movie, release, defaultProfileId, onClose }:
           protocol: release.protocol,
           indexer: release.indexer,
           publishDate: release.publishDate,
+          infoUrl: release.infoUrl,
         })
         return { version, grabbed }
       } catch (e) {
