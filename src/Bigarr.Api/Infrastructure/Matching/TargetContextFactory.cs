@@ -78,7 +78,12 @@ public sealed class TargetContextFactory(BigarrDbContext db, CustomFormatScorer 
                 {
                     var matched = calculator.Match(CustomFormatScorer.FileInput(
                         file.OriginalReleaseTitle, file.RelativePath, file.Size, file.IndexerFlags, file.Quality, file.Languages, file.Edition, file.ReleaseGroup, movie.Year, movie.OriginalLanguage));
-                    existing = new ExistingFile(file.QualityId, file.Revision.Version, file.Revision.Real, file.Revision.IsRepack) { CustomFormatIds = matched.Select(m => m.Id).ToList() };
+                    existing = new ExistingFile(file.QualityId, file.Revision.Version, file.Revision.Real, file.Revision.IsRepack)
+                    {
+                        CustomFormatIds = matched.Select(m => m.Id).ToList(),
+                        ReleaseGroup = file.ReleaseGroup,
+                        DateAdded = file.DateAdded,
+                    };
                 }
 
                 contexts.Add(new TargetContext(
@@ -129,6 +134,8 @@ public sealed class TargetContextFactory(BigarrDbContext db, CustomFormatScorer 
         return new ExistingFile(id, pick.RevisionVersion ?? revision?.Version ?? 1, revision?.Real ?? 0, revision?.IsRepack ?? false)
         {
             CustomFormatIds = formats.Select(f => f.Id).ToList(),
+            ReleaseGroup = pick.ReleaseGroup,
+            DateAdded = pick.PickedAt,
             IsPick = true,
         };
     }
