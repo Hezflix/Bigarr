@@ -34,9 +34,10 @@ public sealed class SeriesRssPass(
     RssFeedState state,
     Indexers.IndexerService indexerService,
     HeldReleaseService held,
+    TimeProvider time,
     ILogger<SeriesRssPass> logger)
 {
-    private readonly ReleaseEvaluator _evaluator = ReleaseEvaluator.Automatic();
+    private readonly ReleaseEvaluator _evaluator = ReleaseEvaluator.Rss(time);
 
     /// <param name="matchedAsFilm">Keys (<c>indexerId:guid</c>) of the releases the film half of the pass matched to a film: a release both feeds list keeps that verdict on the list when no series claims it.</param>
     public async Task<SeriesRssOutcome> RunAsync(IReadOnlyList<(Indexer Indexer, ReleaseInfo Release)> feed, DateTime now, IReadOnlySet<string> matchedAsFilm, CancellationToken ct)

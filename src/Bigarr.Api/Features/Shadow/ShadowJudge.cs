@@ -12,9 +12,10 @@ namespace Bigarr.Api.Features.Shadow;
 
 /// <summary>
 /// Runs a release Radarr grabbed through Bigarr's own parser, film matching and decision engine (the automatic rules,
-/// those of the RSS pass) for the version that follows that Radarr, against the library as it is now. Called when the
-/// grab is read, before the follow brings in Radarr's file, so the version is judged with the file it had then; or
-/// with Bigarr's own latest pick made before Radarr grabbed, the file Bigarr would have had by then.
+/// those of the RSS pass but its "no proper for an old file": Radarr may have grabbed from a search) for the version
+/// that follows that Radarr, against the library as it is now. Called when the grab is read, before the follow brings
+/// in Radarr's file, so the version is judged with the file it had then; or with Bigarr's own latest pick made before
+/// Radarr grabbed, the file Bigarr would have had by then.
 /// </summary>
 public sealed class ShadowJudge(BigarrDbContext db, TargetContextFactory contexts, CustomFormatScorer scorer)
 {

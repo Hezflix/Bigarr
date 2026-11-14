@@ -16,6 +16,7 @@ public sealed class ReleaseEvaluator
         new BlocklistSpecification(),
         new QueueSpecification(),
         new UpgradableSpecification(),
+        new RepackSpecification(),
 
         // Episode-only rules: silent for a film release.
         new EpisodeRequestedSpecification(),
@@ -27,7 +28,7 @@ public sealed class ReleaseEvaluator
         new AnimeVersionUpgradeSpecification(),
     ];
 
-    /// <summary>What RSS and automatic search apply: the defaults plus monitoring and availability.</summary>
+    /// <summary>What automatic search applies (and RSS, see <see cref="Rss"/>): the defaults plus monitoring and availability.</summary>
     public static readonly IReadOnlyList<IReleaseSpecification> AutomaticSpecifications =
     [
         new MonitoredSpecification(),
@@ -45,6 +46,9 @@ public sealed class ReleaseEvaluator
     public static ReleaseEvaluator Interactive() => new(DefaultSpecifications);
 
     public static ReleaseEvaluator Automatic() => new(AutomaticSpecifications);
+
+    /// <summary>What the RSS pass applies: the automatic rules plus the RSS-only one (no proper for an old file).</summary>
+    public static ReleaseEvaluator Rss(TimeProvider time) => new([.. AutomaticSpecifications, new ProperSpecification(time)]);
 
     public ReleaseEvaluator(IReadOnlyList<IReleaseSpecification> specifications)
     {

@@ -15,8 +15,11 @@ public sealed record ExistingFile(int QualityId, int RevisionVersion, int Revisi
     /// </summary>
     public bool IsPick { get; init; }
 
-    /// <summary>Release group of the file (or pick): anime v2 upgrades must come from the same group.</summary>
+    /// <summary>Release group of the file (or pick): anime v2 upgrades and repacks must come from the same group.</summary>
     public string? ReleaseGroup { get; init; }
+
+    /// <summary>When the file was added (for a pick, when it was picked): RSS takes no proper for an old file.</summary>
+    public DateTime? DateAdded { get; init; }
 }
 
 /// <summary>

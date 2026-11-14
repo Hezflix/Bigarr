@@ -43,7 +43,7 @@ public sealed class RssSyncService(
 {
     public const string GrabTrigger = "rss";
 
-    private readonly ReleaseEvaluator _evaluator = ReleaseEvaluator.Automatic();
+    private readonly ReleaseEvaluator _evaluator = ReleaseEvaluator.Rss(time);
 
     /// <summary>A next pass only when one will come on its own: RSS enabled and the scheduler on, as System → Tasks shows it.</summary>
     public RssStatusResponse Status()

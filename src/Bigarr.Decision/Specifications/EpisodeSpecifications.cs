@@ -125,7 +125,7 @@ public sealed class AnimeVersionUpgradeSpecification : IReleaseSpecification
         var group = candidate.ReleaseGroup;
         foreach (var slot in episodes.Slots)
         {
-            if (slot.File is not { } file || !IsRevisionUpgrade(file, candidate.Quality))
+            if (slot.File is not { } file || !RevisionUpgrade.Is(file, candidate.Quality))
             {
                 continue;
             }
@@ -148,9 +148,4 @@ public sealed class AnimeVersionUpgradeSpecification : IReleaseSpecification
 
         return null;
     }
-
-    /// <summary>Sonarr's <c>IsRevisionUpgrade</c>: same quality, higher revision.</summary>
-    private static bool IsRevisionUpgrade(ExistingFile file, QualityModel release) =>
-        release.Quality.Id == file.QualityId
-        && (release.Revision ?? new Revision()).CompareTo(new Revision(file.RevisionVersion, file.RevisionReal, file.IsRepack)) > 0;
 }

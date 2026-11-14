@@ -241,6 +241,7 @@ public sealed class SeriesTargetsFactory(BigarrDbContext db, CustomFormatScorer 
                         {
                             CustomFormatIds = matched.Select(m => m.Id).ToList(),
                             ReleaseGroup = file.ReleaseGroup,
+                            DateAdded = file.DateAdded,
                         };
                     }
 
@@ -301,6 +302,7 @@ public sealed class SeriesTargetsFactory(BigarrDbContext db, CustomFormatScorer 
         {
             CustomFormatIds = formats.Select(f => f.Id).ToList(),
             ReleaseGroup = pick.ReleaseGroup,
+            DateAdded = pick.PickedAt,
             IsPick = true,
         };
     }

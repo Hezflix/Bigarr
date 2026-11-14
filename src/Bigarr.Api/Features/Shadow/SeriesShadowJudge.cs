@@ -12,9 +12,10 @@ namespace Bigarr.Api.Features.Shadow;
 
 /// <summary>
 /// The series twin of <see cref="ShadowJudge"/>: runs a release Sonarr grabbed through Bigarr's own episode parser, series
-/// matching, episode mapping and decision engine (the automatic rules, those of the RSS pass) for the series version that
-/// follows that Sonarr. Called when the grab is read, before the follow brings in Sonarr's files, so each episode is judged
-/// with the file it had then, or with Bigarr's own latest pick made before Sonarr grabbed.
+/// matching, episode mapping and decision engine (the automatic rules, those of the RSS pass but its "no proper for an old
+/// file": Sonarr may have grabbed from a search) for the series version that follows that Sonarr. Called when the grab
+/// is read, before the follow brings in Sonarr's files, so each episode is judged with the file it had then, or with
+/// Bigarr's own latest pick made before Sonarr grabbed.
 /// </summary>
 public sealed class SeriesShadowJudge(BigarrDbContext db, SeriesTargetsFactory targetsFactory, CustomFormatScorer scorer)
 {
