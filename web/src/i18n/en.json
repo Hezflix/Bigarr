@@ -1885,7 +1885,15 @@
     "seriesPickThen": "Bigarr had already picked {{quality}} (score {{score}}) for those episodes when Sonarr grabbed: judged against that pick.",
     "seriesNoFileThen": "The episodes had no file when Sonarr grabbed.",
     "seasonPack_one": "S{{season}} pack ({{count}} episode)",
-    "seasonPack_other": "S{{season}} pack ({{count}} episodes)"
+    "seasonPack_other": "S{{season}} pack ({{count}} episodes)",
+    "timing": {
+      "seenBeforeRejected": "Bigarr saw it {{gap}} earlier, rejected: {{reason}}",
+      "seenBeforeApproved": "Bigarr saw it {{gap}} earlier and approved it",
+      "seenAfterGrab": "Bigarr first saw it {{gap}} after {{app}}'s grab, before {{app}}'s file was imported",
+      "seenAfterImport": "Bigarr first saw it {{gap}} after {{app}}'s grab, after {{app}}'s file was imported",
+      "neverSeen": "Never in Bigarr's feeds",
+      "engineApproved": "Bigarr's engine approved it at grab time"
+    }
   },
   "radarrFollow": {
     "title": "Followed Radarrs",

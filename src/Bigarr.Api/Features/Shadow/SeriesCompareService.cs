@@ -73,7 +73,9 @@ public sealed record SeriesCompareRowResponse(
     /// <summary>Positive when Bigarr picked first: by how many seconds. Null on a one-sided row.</summary>
     long? BigarrLeadSeconds,
     /// <summary>Sonarr-only rows: the RSS pass's sighting of Sonarr's release (null: never seen in Bigarr's feeds).</summary>
-    CompareSightingResponse? Sighting);
+    CompareSightingResponse? Sighting,
+    /// <summary>Sonarr-only rows with one grab: whether timing explains why Bigarr picked nothing.</summary>
+    CompareTimingNote? Timing);
 
 public sealed record SeriesCompareCounts(int Same, int Different, int BigarrOnly, int SonarrOnly)
 {
@@ -162,6 +164,7 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
             var show = series.GetValueOrDefault(row.TvdbId);
             var title = show?.Title ?? rowGrabs.FirstOrDefault()?.SeriesTitle ?? rowPicks.FirstOrDefault()?.SeriesTitle ?? rowFilmPicks[0].SeriesTitle;
             var pickedAt = rowPicks.Select(p => p.PickedAt).Concat(rowFilmPicks.Select(f => f.Pick.PickedAt)).ToList();
+            var seen = rowGrabs.Count == 1 && rowPicks.Count == 0 && sightings.TryGetValue(rowGrabs[0].Id, out var sighting) ? Sighting(sighting, row.Version) : null;
             long? lead = rowGrabs.Count > 0 && pickedAt.Count > 0 ? (long)(rowGrabs.Min(g => g.GrabbedAt) - pickedAt.Min()).TotalSeconds : null;
             var key = $"{string.Join(".", rowGrabs.Select(g => $"g{g.Id}"))}-{string.Join(".", rowPicks.Select(p => $"p{p.Id}").Concat(rowFilmPicks.Select(f => $"f{f.Pick.Id}")))}";
             return new SeriesCompareRowResponse(
@@ -181,7 +184,8 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
                 rowPicks.Select(ToResponse).Concat(rowFilmPicks.Select(ToResponse)).ToList(),
                 row.AlsoPicked.Select(p => p.Id < 0 ? ToResponse(filmPicks[p.Id]) : ToResponse(picks[p.Id])).ToList(),
                 lead,
-                rowGrabs.Count == 1 && rowPicks.Count == 0 && sightings.TryGetValue(rowGrabs[0].Id, out var sighting) ? Sighting(sighting, row.Version) : null);
+                seen,
+                row.Outcome == SeriesCompareOutcome.SonarrOnly && rowGrabs.Count == 1 ? Timing(rowGrabs[0], seen) : null);
         }).ToList();
 
         var versions = (await db.SeriesShadowPicks.AsNoTracking().Select(p => p.VersionName).Distinct().ToListAsync(ct))
@@ -305,6 +309,13 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
 
         return result;
     }
+
+    private static CompareTimingNote Timing(SonarrGrab grab, CompareSightingResponse? seen) => CompareTiming.Note(
+        grab.GrabbedAt,
+        grab.State == RadarrGrabState.Imported ? grab.ResolvedAt : null,
+        seen?.SeenAt,
+        seen is null ? null : CompareTiming.SeenRejection(seen),
+        grab.BigarrVerdict is { Unmatched: null } verdict ? verdict.Approved : null);
 
     private static CompareSightingResponse Sighting(ReleaseSighting sighting, string versionName) => new(
         sighting.SeenAt,

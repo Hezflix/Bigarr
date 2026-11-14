@@ -1114,6 +1114,9 @@ export type SeriesCompareGrab = Schemas['SeriesCompareGrabResponse']
 
 export type SeriesCompareRow = Schemas['SeriesCompareRowResponse']
 
+/** One-sided rows: whether timing explains why Bigarr picked nothing (seen earlier and rejected, seen only after the grab). */
+export type CompareTimingNote = Schemas['CompareTimingNote']
+
 export type SeriesCompareCounts = Schemas['SeriesCompareCounts']
 
 /** Rows newest first; `total` counts rows of the asked outcome. */
