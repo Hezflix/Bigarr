@@ -55,7 +55,7 @@ public sealed class SeriesShadowJudge(BigarrDbContext db, SeriesTargetsFactory t
 
         if (!special)
         {
-            var match = index.Find(parsed, release.TvdbId is { } t && t == series.TvdbId ? t : null);
+            var match = index.Find(parsed, release.TvdbId, release.ImdbId);
             if (match.Series is null)
             {
                 return Unmatched($"Title '{parsed.SeriesTitle}' does not match {series.Title} in Bigarr.");

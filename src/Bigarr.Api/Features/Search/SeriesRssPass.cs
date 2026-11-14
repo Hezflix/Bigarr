@@ -19,8 +19,8 @@ public sealed record SeriesRssOutcome(int Matched, int Attributed, int Grabbed, 
 
 /// <summary>
 /// The series half of the RSS pass: each release of the TV feed is parsed with Sonarr's parser, matched to a series of
-/// the library (TVDB id from the indexer, XEM scene name, title, title + year: Sonarr's order), mapped to episodes and
-/// judged by every version with the automatic rules, then attributed to one version. The best releases of the pass are
+/// the library (XEM scene name, title, title + year, then the indexer's TVDB id or else its IMDb id: Sonarr's order),
+/// mapped to episodes and judged by every version with the automatic rules, then attributed to one version. The best releases of the pass are
 /// grabbed without overlap (Sonarr's prioritisation: quality, custom format score, revision, season packs first, then
 /// fewer episodes, indexer priority, seeders), through <see cref="GrabService"/>: in shadow mode they become picks. A
 /// real grab for a series is refused before reaching a client until series downloads can be imported.
@@ -55,8 +55,9 @@ public sealed class SeriesRssPass(
                     // Sonarr: a name without an episode number may still name a special of a show found by TVDB id or
                     // by the start of the name; the special's title is looked for once the show is loaded.
                     var show = (f.Release.TvdbId is { } tvdb ? index.ByTvdbId(tvdb) : null)
-                        ?? (parsed is null ? null : index.Find(parsed, f.Release.TvdbId).Series)
-                        ?? index.FindInexact(f.Release.Title);
+                        ?? (parsed is null ? null : index.Find(parsed, f.Release.TvdbId, f.Release.ImdbId).Series)
+                        ?? index.FindInexact(f.Release.Title)
+                        ?? (f.Release.TvdbId is null ? index.ByImdbId(f.Release.ImdbId) : null);
                     if (show is not null)
                     {
                         return (f.Indexer, f.Release, Parsed: parsed, Match: new SeriesMatch(show, SeriesMatchKind.Title, null, []), Reason: (string?)null, Special: true);
@@ -68,12 +69,14 @@ public sealed class SeriesRssPass(
                     }
                 }
 
-                var match = index.Find(parsed, f.Release.TvdbId);
+                var match = index.Find(parsed, f.Release.TvdbId, f.Release.ImdbId);
+                SeriesMatchLog.ById(logger, match, parsed.SeriesTitle, f.Release.TvdbId, f.Release.ImdbId);
                 string? reason = match switch
                 {
                     { Series: not null } => null,
                     { IsAmbiguous: true } => $"Several series in the library match '{parsed.SeriesTitle}': {string.Join(", ", match.Ambiguous.Select(s => s.Title))}",
                     _ when f.Release.TvdbId is { } tvdb => $"TVDB {tvdb} is not in the library and no title matches '{parsed.SeriesTitle}'",
+                    _ when f.Release.ImdbId is { } imdb => $"IMDb {imdb} names no single series in the library and no title matches '{parsed.SeriesTitle}'",
                     _ => $"No series in the library matches '{parsed.SeriesTitle}'",
                 };
                 return (f.Indexer, f.Release, Parsed: parsed, Match: match, Reason: reason, Special: false);
@@ -210,12 +213,12 @@ public sealed class SeriesRssPass(
     private async Task<SeriesTitleIndex> BuildIndexAsync(CancellationToken ct)
     {
         var series = await db.Series.AsNoTracking()
-            .Select(s => new { s.Id, s.TvdbId, s.Title, s.OriginalTitle, s.Year, s.AlternativeTitles })
+            .Select(s => new { s.Id, s.TvdbId, s.ImdbId, s.Title, s.OriginalTitle, s.Year, s.AlternativeTitles })
             .ToListAsync(ct);
         var tvdbIds = series.Where(s => s.TvdbId != null).Select(s => s.TvdbId!.Value).ToList();
         var aliases = await db.SceneNames.AsNoTracking().Where(n => tvdbIds.Contains(n.TvdbId)).ToListAsync(ct);
         return new SeriesTitleIndex(
-            series.Select(s => new IndexedSeries(s.Id, s.TvdbId, s.Title, s.Year, new[] { s.OriginalTitle }.Concat(s.AlternativeTitles.Select(a => a.Title)).OfType<string>().ToList())),
+            series.Select(s => new IndexedSeries(s.Id, s.TvdbId, s.Title, s.Year, new[] { s.OriginalTitle }.Concat(s.AlternativeTitles.Select(a => a.Title)).OfType<string>().ToList(), s.ImdbId)),
             aliases.Select(a => new SceneAlias(a.TvdbId, a.Title, a.SceneSeasonNumber)));
     }
 

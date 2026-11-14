@@ -208,7 +208,9 @@ public sealed class SeriesAutomaticSearchService(
                     continue;
                 }
 
-                var match = index.Find(parsed, release.TvdbId is { } t && t == series.TvdbId ? t : null);
+                var match = index.Find(parsed, release.TvdbId, release.ImdbId);
+                SeriesMatchLog.ById(logger, match, parsed.SeriesTitle, release.TvdbId, release.ImdbId);
+                SeriesMatchLog.ById(logger, match, parsed.SeriesTitle, release.TvdbId, release.ImdbId);
                 if (match.Series is null || (release.TvdbId is { } tvdb && series.TvdbId is { } own && tvdb != own))
                 {
                     continue;
