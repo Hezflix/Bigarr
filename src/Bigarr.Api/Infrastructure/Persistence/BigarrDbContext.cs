@@ -107,6 +107,10 @@ public sealed class BigarrDbContext : DbContext
 
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
 
+    public DbSet<ExternalLogin> ExternalLogins => Set<ExternalLogin>();
+
+    public DbSet<ExternalLoginProvider> ExternalLoginProviders => Set<ExternalLoginProvider>();
+
     public DbSet<OutboxEvent> Outbox => Set<OutboxEvent>();
 
     public DbSet<NotificationEndpoint> NotificationEndpoints => Set<NotificationEndpoint>();

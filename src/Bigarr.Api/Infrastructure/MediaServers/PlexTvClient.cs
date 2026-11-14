@@ -26,12 +26,27 @@ public sealed class PlexTvOptions
 public sealed record PlexTvFriend(string Id, string? Username, bool Home, IReadOnlyList<string> Servers);
 
 /// <summary>
+/// A sign-in PIN (<c>/api/v2/pins</c>): the person approves <c>Code</c> on plex.tv's auth page, after which reading
+/// the PIN back gives <c>AuthToken</c>. Null until then.
+/// </summary>
+public sealed record PlexTvPin(long Id, string Code, DateTimeOffset? ExpiresAt, string? AuthToken);
+
+/// <summary>The plex.tv account behind a token (<c>/api/v2/user</c>): <c>Id</c> is the numeric account id.</summary>
+public sealed record PlexTvAccount(string Id, string Username, string? Email, string? Thumb);
+
+/// <summary>
 /// plex.tv's own API with a server owner's token: the geolocation of an address (<c>/api/v2/geoip?ip_address=</c>,
 /// the lookup Plex Web and Tautulli use) and the accounts the owner shares with (<c>/api/users</c>, Tautulli's list).
+/// Without a token: the sign-in PINs (<c>/api/v2/pins</c>) and, with the token one gives, the account behind it.
 /// </summary>
 public sealed class PlexTvClient(HttpClient http)
 {
     public const string HttpClientName = "bigarr-plextv";
+
+    /// <summary>How Bigarr introduces itself to plex.tv; a PIN is read back with the identifier that created it.</summary>
+    public const string ClientIdentifier = "bigarr";
+
+    public const string Product = "Bigarr";
 
     /// <summary>Where plex.tv places <paramref name="ipAddress"/>; null when it has no idea.</summary>
     public async Task<GeoLocation?> GeoIpAsync(string token, string ipAddress, CancellationToken ct)
@@ -86,6 +101,106 @@ public sealed class PlexTvClient(HttpClient http)
         }
     }
 
+    /// <summary>A new sign-in PIN. <c>strong</c> PINs are the ones plex.tv's auth page approves.</summary>
+    public async Task<PlexTvPin> CreatePinAsync(CancellationToken ct)
+    {
+        using var request = Request(HttpMethod.Post, "api/v2/pins?strong=true", token: null, "application/json");
+        using var response = await SendAsync(request, "the sign-in PIN", ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new MediaServerException($"plex.tv answered HTTP {(int)response.StatusCode} to the sign-in PIN.") { StatusCode = response.StatusCode };
+        }
+
+        return ParsePin(await ReadJsonAsync(response, "the sign-in PIN", ct))
+            ?? throw new MediaServerException("plex.tv answered a sign-in PIN without an id or a code.");
+    }
+
+    /// <summary>The PIN as plex.tv has it now; null once it is gone (expired, or never was).</summary>
+    public async Task<PlexTvPin?> PinAsync(long id, CancellationToken ct)
+    {
+        using var request = Request(HttpMethod.Get, "api/v2/pins/" + id.ToString(System.Globalization.CultureInfo.InvariantCulture), token: null, "application/json");
+        using var response = await SendAsync(request, "the sign-in PIN", ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new MediaServerException($"plex.tv answered HTTP {(int)response.StatusCode} to the sign-in PIN.") { StatusCode = response.StatusCode };
+        }
+
+        return ParsePin(await ReadJsonAsync(response, "the sign-in PIN", ct));
+    }
+
+    /// <summary>The account <paramref name="token"/> belongs to; null when plex.tv refuses the token.</summary>
+    public async Task<PlexTvAccount?> AccountAsync(string token, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(token);
+
+        using var request = Request(HttpMethod.Get, "api/v2/user", token, "application/json");
+        using var response = await SendAsync(request, "the account", ct);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            return null;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new MediaServerException($"plex.tv answered HTTP {(int)response.StatusCode} to the account.") { StatusCode = response.StatusCode };
+        }
+
+        return ParseAccount(await ReadJsonAsync(response, "the account", ct))
+            ?? throw new MediaServerException("plex.tv answered an account without an id or a username.");
+    }
+
+    /// <summary><c>{ "id": 123, "code": "abcd", "expiresAt": "…", "authToken": null }</c></summary>
+    public static PlexTvPin? ParsePin(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty("id", out var id) || !id.TryGetInt64(out var pinId)
+            || Text(root, "code") is not { } code)
+        {
+            return null;
+        }
+
+        DateTimeOffset? expiresAt = root.TryGetProperty("expiresAt", out var expires) && expires.ValueKind == JsonValueKind.String && expires.TryGetDateTimeOffset(out var at) ? at : null;
+        return new PlexTvPin(pinId, code, expiresAt, Text(root, "authToken"));
+    }
+
+    /// <summary><c>{ "id": 123, "uuid": "…", "username": "…", "title": "…", "email": "…", "thumb": "…" }</c></summary>
+    public static PlexTvAccount? ParseAccount(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("id", out var id))
+        {
+            return null;
+        }
+
+        var accountId = id.ValueKind switch
+        {
+            JsonValueKind.Number => id.GetRawText(),
+            JsonValueKind.String => id.GetString()?.Trim(),
+            _ => null,
+        };
+        var username = Text(root, "username") ?? Text(root, "title");
+        return string.IsNullOrEmpty(accountId) || username is null
+            ? null
+            : new PlexTvAccount(accountId, username, Text(root, "email"), Text(root, "thumb"));
+    }
+
+    private static async Task<JsonElement> ReadJsonAsync(HttpResponseMessage response, string what, CancellationToken ct)
+    {
+        try
+        {
+            using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+            return doc.RootElement.Clone();
+        }
+        catch (JsonException ex)
+        {
+            throw new MediaServerException($"plex.tv answered something that is not JSON to {what}.", ex);
+        }
+    }
+
     /// <summary><c>&lt;MediaContainer&gt;&lt;User id username home&gt;&lt;Server machineIdentifier pending/&gt;…</c></summary>
     public static List<PlexTvFriend> ParseFriends(XDocument document)
     {
@@ -106,12 +221,18 @@ public sealed class PlexTvClient(HttpClient http)
             .ToList() ?? [];
     }
 
-    private static HttpRequestMessage Request(string path, string token, string accept)
+    private static HttpRequestMessage Request(string path, string token, string accept) => Request(HttpMethod.Get, path, token, accept);
+
+    private static HttpRequestMessage Request(HttpMethod method, string path, string? token, string accept)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, path);
-        request.Headers.TryAddWithoutValidation("X-Plex-Token", token.Trim());
-        request.Headers.TryAddWithoutValidation("X-Plex-Client-Identifier", "bigarr");
-        request.Headers.TryAddWithoutValidation("X-Plex-Product", "Bigarr");
+        var request = new HttpRequestMessage(method, path);
+        if (token is not null)
+        {
+            request.Headers.TryAddWithoutValidation("X-Plex-Token", token.Trim());
+        }
+
+        request.Headers.TryAddWithoutValidation("X-Plex-Client-Identifier", ClientIdentifier);
+        request.Headers.TryAddWithoutValidation("X-Plex-Product", Product);
         request.Headers.Accept.ParseAdd(accept);
         return request;
     }
