@@ -34,9 +34,9 @@ public sealed class PlexIdentityParsingTests
     [Fact]
     public void The_auth_page_names_bigarr_and_carries_the_code()
     {
-        var url = PlexIdentityProvider.AuthUrl("ab cd");
+        var url = PlexIdentityProvider.AuthUrl("ab cd", "0f8c2a3e-1b2c-4d5e-8f90-a1b2c3d4e5f6");
 
-        Assert.StartsWith("https://app.plex.tv/auth/#!?clientID=bigarr&code=ab%20cd&", url, StringComparison.Ordinal);
+        Assert.StartsWith("https://app.plex.tv/auth/#!?clientID=0f8c2a3e-1b2c-4d5e-8f90-a1b2c3d4e5f6&code=ab%20cd&", url, StringComparison.Ordinal);
         Assert.Contains("context%5Bdevice%5D%5Bproduct%5D=Bigarr", url, StringComparison.Ordinal);
     }
 

@@ -8,7 +8,7 @@ namespace Bigarr.Api.Infrastructure.Auth.External;
 /// creates a PIN on plex.tv, the browser opens plex.tv's auth page with the PIN's code, Bigarr reads the PIN until it
 /// carries a token, then asks plex.tv whose token it is. The token is used for that one question and dropped.
 /// </summary>
-public sealed class PlexIdentityProvider(PlexTvClient plexTv, TimeProvider time) : IExternalIdentityProvider
+public sealed class PlexIdentityProvider(PlexTvClient plexTv, PlexClientIdentity identity, TimeProvider time) : IExternalIdentityProvider
 {
     public const string ProviderKey = "plex";
 
@@ -37,7 +37,9 @@ public sealed class PlexIdentityProvider(PlexTvClient plexTv, TimeProvider time)
         var now = time.GetUtcNow();
         var cap = now + DefaultLifetime;
         var expiresAt = pin.ExpiresAt is { } at && at > now && at < cap ? at : cap;
-        return new ExternalChallenge(pin.Id.ToString(CultureInfo.InvariantCulture), AuthUrl(pin.Code), null, expiresAt);
+        // The same identifier that created the PIN, so plex.tv's page approves the PIN Bigarr reads back.
+        var clientIdentifier = await identity.GetAsync(ct);
+        return new ExternalChallenge(pin.Id.ToString(CultureInfo.InvariantCulture), AuthUrl(pin.Code, clientIdentifier), null, expiresAt);
     }
 
     public async Task<ExternalPoll> PollAsync(ExternalChallenge challenge, CancellationToken ct)
@@ -72,14 +74,15 @@ public sealed class PlexIdentityProvider(PlexTvClient plexTv, TimeProvider time)
         }
     }
 
-    /// <summary>plex.tv's auth page for <paramref name="code"/>, naming Bigarr as the app asking.</summary>
-    public static string AuthUrl(string code)
+    /// <summary>plex.tv's auth page for <paramref name="code"/>, naming Bigarr (this install's identifier) as the app asking.</summary>
+    public static string AuthUrl(string code, string clientIdentifier)
     {
         ArgumentException.ThrowIfNullOrEmpty(code);
+        ArgumentException.ThrowIfNullOrEmpty(clientIdentifier);
 
         var query = string.Join('&', new[]
         {
-            ("clientID", PlexTvClient.ClientIdentifier),
+            ("clientID", clientIdentifier),
             ("code", code),
             ("context[device][product]", PlexTvClient.Product),
             ("context[device][version]", Features.Server.SystemEndpoints.Version),

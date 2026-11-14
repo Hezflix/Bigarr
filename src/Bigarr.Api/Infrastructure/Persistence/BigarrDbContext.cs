@@ -111,6 +111,8 @@ public sealed class BigarrDbContext : DbContext
 
     public DbSet<ExternalLoginProvider> ExternalLoginProviders => Set<ExternalLoginProvider>();
 
+    public DbSet<Bigarr.Domain.Common.InstanceSettings> InstanceSettings => Set<Bigarr.Domain.Common.InstanceSettings>();
+
     public DbSet<OutboxEvent> Outbox => Set<OutboxEvent>();
 
     public DbSet<NotificationEndpoint> NotificationEndpoints => Set<NotificationEndpoint>();

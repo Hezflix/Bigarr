@@ -22,6 +22,9 @@ public sealed class ExternalLogin
     /// <summary>The account's name at the provider, as of the last sign-in: only shown, never trusted.</summary>
     public string? ExternalUsername { get; set; }
 
+    /// <summary>The account's email at the provider, as of the last sign-in: shown in Settings, never logged.</summary>
+    public string? Email { get; set; }
+
     /// <summary>The account's picture at the provider, as of the last sign-in.</summary>
     public string? ThumbUrl { get; set; }
 

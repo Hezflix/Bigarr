@@ -30,6 +30,7 @@ public sealed class ExternalLoginConfiguration : IEntityTypeConfiguration<Extern
         builder.Property(l => l.Provider).HasMaxLength(32);
         builder.Property(l => l.ExternalId).HasMaxLength(128);
         builder.Property(l => l.ExternalUsername).HasMaxLength(256);
+        builder.Property(l => l.Email).HasMaxLength(320);
         builder.Property(l => l.ThumbUrl).HasMaxLength(1024);
 
         // An outside account signs in one user; a user has one account per provider.
@@ -51,5 +52,16 @@ public sealed class ExternalLoginProviderConfiguration : IEntityTypeConfiguratio
 
         builder.HasKey(p => p.Provider);
         builder.Property(p => p.Provider).HasMaxLength(32);
+    }
+}
+
+public sealed class InstanceSettingsConfiguration : IEntityTypeConfiguration<Bigarr.Domain.Common.InstanceSettings>
+{
+    public void Configure(EntityTypeBuilder<Bigarr.Domain.Common.InstanceSettings> builder)
+    {
+        builder.ToTable("InstanceSettings");
+
+        builder.Property(s => s.Id).ValueGeneratedNever();
+        builder.Property(s => s.PlexClientIdentifier).HasMaxLength(64);
     }
 }

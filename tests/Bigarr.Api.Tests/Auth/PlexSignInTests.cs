@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -6,7 +7,9 @@ using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Tests.Compat;
 using Bigarr.Api.Tests.Indexers;
 using Bigarr.Domain.Auth;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Bigarr.Api.Tests.Auth;
 
@@ -35,8 +38,9 @@ public sealed class PlexSignInTests
 
         var link = await StartAsync(session, "/api/v1/auth/external/plex/link");
         var authUrl = link.GetProperty("authUrl").GetString()!;
+        var clientIdentifier = StoredClientIdentifier(factory);
         Assert.StartsWith("https://app.plex.tv/auth/#!?", authUrl, StringComparison.Ordinal);
-        Assert.Contains("clientID=bigarr", authUrl, StringComparison.Ordinal);
+        Assert.Contains("clientID=" + clientIdentifier, authUrl, StringComparison.Ordinal);
         Assert.Contains("code=code" + plexTv.LastPinId, authUrl, StringComparison.Ordinal);
 
         Assert.Equal("pending", await PollAsync(session, link));
@@ -48,6 +52,7 @@ public sealed class PlexSignInTests
         settings = await SettingsAsync(session);
         Assert.Equal("1001", settings.GetProperty("link").GetProperty("externalId").GetString());
         Assert.Equal("demo-owner", settings.GetProperty("link").GetProperty("externalUsername").GetString());
+        Assert.Equal("owner@example.invalid", settings.GetProperty("link").GetProperty("email").GetString());
         Assert.Single(await ProvidersAsync(factory.CreateAnonymousClient()));
 
         // The login page: another browser, no session.
@@ -69,6 +74,9 @@ public sealed class PlexSignInTests
         Assert.Equal("expired", await PollAsync(browser, login));
 
         Assert.DoesNotContain(plexTv.Requests, r => r.Path == "/api/v2/user" && !r.Headers.ContainsKey("X-Plex-Token"));
+        Assert.Equal([clientIdentifier], plexTv.ClientIdentifiers); // one identifier for every call
+        Assert.Contains("demo-owner", factory.Logs, StringComparison.Ordinal); // the capture works
+        Assert.DoesNotContain("owner@example.invalid", factory.Logs, StringComparison.Ordinal);
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
         var row = Assert.Single(db.ExternalLogins);
@@ -248,6 +256,75 @@ public sealed class PlexSignInTests
         Assert.Equal(HttpStatusCode.NotFound, (await session.PutAsJsonAsync("/api/v1/auth/external/jellyfin", new { enabled = true })).StatusCode);
     }
 
+    [Fact]
+    public async Task The_plex_client_identifier_is_generated_once_per_install_and_sent_to_plex_tv_and_plex_servers()
+    {
+        await using var plexTv = await FakePlexTvSignIn.StartAsync();
+        await using var plex = await Playback.FakePlex.StartAsync();
+        var directory = Path.Combine(Path.GetTempPath(), $"bigarr-api-test-{Guid.NewGuid():N}");
+        var settings = new Dictionary<string, string> { ["Bigarr:PlexTv:BaseUrl"] = plexTv.Url };
+        string first;
+        try
+        {
+            await using (var factory = new ConfiguredBigarrApiFactory(directory, settings, deleteOnDispose: false))
+            {
+                var session = await CompatTestHelpers.SessionAsync(factory);
+                using (var scope = factory.Services.CreateScope())
+                {
+                    var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+                    Assert.Empty(db.InstanceSettings); // nothing until Bigarr first talks to Plex
+                }
+
+                await LinkAsync(session, plexTv, FakePlexTvSignIn.Owner);
+                first = StoredClientIdentifier(factory);
+                Assert.True(Guid.TryParse(first, out _));
+                Assert.Equal([first], plexTv.ClientIdentifiers);
+
+                // The playback side (a Plex server) gets the same identifier.
+                int serverId;
+                using (var scope = factory.Services.CreateScope())
+                {
+                    var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+                    var server = db.MediaServers.Add(new Bigarr.Domain.MediaServers.MediaServer { Name = "Plex", Url = plex.Url, Token = Playback.FakePlex.Token }).Entity;
+                    await db.SaveChangesAsync();
+                    serverId = server.Id;
+                }
+
+                await session.PostAsync($"/api/v1/mediaservers/{serverId}/test", content: null);
+                Assert.NotEmpty(plex.Requests);
+                Assert.Contains(plex.Requests, r => r.Headers.TryGetValue("X-Plex-Client-Identifier", out var id) && id == first);
+                Assert.DoesNotContain(plex.Requests, r => r.Headers.TryGetValue("X-Plex-Client-Identifier", out var id) && id != first);
+            }
+
+            // A restart keeps it.
+            await using (var restarted = new ConfiguredBigarrApiFactory(directory, settings))
+            {
+                var session = await CompatTestHelpers.SessionAsync(restarted);
+                await StartAsync(session, "/api/v1/auth/external/plex/link");
+                Assert.Equal(first, StoredClientIdentifier(restarted));
+                Assert.Equal([first], plexTv.ClientIdentifiers);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+
+        // Another install gets its own.
+        await using var other = new Factory(plexTv.Url);
+        await StartAsync(await CompatTestHelpers.SessionAsync(other), "/api/v1/auth/external/plex/link");
+        Assert.NotEqual(first, StoredClientIdentifier(other));
+    }
+
+    private static string StoredClientIdentifier(BigarrApiFactory factory)
+    {
+        using var scope = factory.Services.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<BigarrDbContext>().InstanceSettings.Single().PlexClientIdentifier!;
+    }
+
     private static async Task LinkAsync(HttpClient session, FakePlexTvSignIn plexTv, FakePlexTvSignIn.Account account)
     {
         var link = await StartAsync(session, "/api/v1/auth/external/plex/link");
@@ -288,5 +365,39 @@ public sealed class PlexSignInTests
     }
 
     private sealed class Factory(string plexTvUrl, TimeProvider? time = null)
-        : BigarrApiFactory(null, new Dictionary<string, string> { ["Bigarr:PlexTv:BaseUrl"] = plexTvUrl }, deleteOnDispose: true, time);
+        : BigarrApiFactory(null, new Dictionary<string, string> { ["Bigarr:PlexTv:BaseUrl"] = plexTvUrl }, deleteOnDispose: true, time)
+    {
+        private readonly LogCapture _logs = new();
+
+        /// <summary>Everything the app logged, to check what it never writes.</summary>
+        public string Logs => string.Join('\n', _logs.Lines);
+
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            builder.ConfigureLogging(logging => logging.AddProvider(_logs));
+        }
+    }
+
+    private sealed class LogCapture : ILoggerProvider
+    {
+        public ConcurrentQueue<string> Lines { get; } = new();
+
+        public ILogger CreateLogger(string categoryName) => new Logger(this);
+
+        public void Dispose()
+        {
+        }
+
+        private sealed class Logger(LogCapture owner) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state)
+                where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+                owner.Lines.Enqueue($"{formatter(state, exception)} {exception}");
+        }
+    }
 }

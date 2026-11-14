@@ -29,7 +29,7 @@ public sealed record ExternalProviderResponse(string Key, string Name);
 public sealed record ExternalLoginSettingsResponse(string Key, string Name, bool Enabled, ExternalLinkResponse? Link);
 
 /// <summary>The outside account linked to the signed-in user, as of its last sign-in.</summary>
-public sealed record ExternalLinkResponse(string ExternalId, string? ExternalUsername, string? ThumbUrl, DateTime LinkedAt, DateTime? LastLoginAt);
+public sealed record ExternalLinkResponse(string ExternalId, string? ExternalUsername, string? Email, string? ThumbUrl, DateTime LinkedAt, DateTime? LastLoginAt);
 
 public sealed record UpdateExternalProviderRequest(bool Enabled);
 

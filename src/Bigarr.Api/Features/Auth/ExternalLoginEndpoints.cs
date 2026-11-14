@@ -66,7 +66,7 @@ public static class ExternalLoginEndpoints
                 p.DisplayName,
                 enabled.Contains(p.Key),
                 links.FirstOrDefault(l => l.Provider == p.Key) is { } link
-                    ? new ExternalLinkResponse(link.ExternalId, link.ExternalUsername, link.ThumbUrl, link.LinkedAt, link.LastLoginAt)
+                    ? new ExternalLinkResponse(link.ExternalId, link.ExternalUsername, link.Email, link.ThumbUrl, link.LinkedAt, link.LastLoginAt)
                     : null))
             .ToList());
     }
@@ -291,6 +291,7 @@ public static class ExternalLoginEndpoints
     private static void Refresh(ExternalLogin link, ExternalIdentity identity)
     {
         link.ExternalUsername = Truncate(identity.Username, 256);
+        link.Email = identity.Email is { Length: > 0 and <= 320 } email ? email : null;
         link.ThumbUrl = identity.ThumbUrl is { Length: <= 1024 } thumb && Uri.TryCreate(thumb, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps ? thumb : null;
     }
 

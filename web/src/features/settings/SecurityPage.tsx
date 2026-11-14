@@ -127,6 +127,11 @@ function ProviderCard({ provider }: { provider: ExternalLoginSettings }) {
                 <p className="truncate font-medium" data-testid={`security-${provider.key}-account`}>
                   {linked.externalUsername ?? linked.externalId}
                 </p>
+                {linked.email && (
+                  <p className="truncate text-sm text-muted-foreground" data-testid={`security-${provider.key}-email`}>
+                    {linked.email}
+                  </p>
+                )}
                 <p className="text-sm text-muted-foreground">
                   {t('security.linkedSince', { date: formatDateTime(linked.linkedAt) })}
                   {' · '}

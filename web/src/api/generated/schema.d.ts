@@ -9510,6 +9510,7 @@ export interface components {
         ExternalLinkResponse: {
             externalId: string;
             externalUsername: null | string;
+            email: null | string;
             thumbUrl: null | string;
             /** Format: date-time */
             linkedAt: string;

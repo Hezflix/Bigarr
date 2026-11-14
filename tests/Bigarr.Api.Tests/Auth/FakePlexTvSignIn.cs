@@ -8,11 +8,10 @@ namespace Bigarr.Api.Tests.Auth;
 /// <summary>
 /// plex.tv's sign-in PINs and accounts, with invented people: <c>POST /api/v2/pins</c> creates a PIN,
 /// <c>GET /api/v2/pins/{id}</c> carries a token once the test approves it, <c>GET /api/v2/user</c> says whose token it is.
+/// Like plex.tv, a PIN is only read back with the <c>X-Plex-Client-Identifier</c> that created it.
 /// </summary>
 public sealed class FakePlexTvSignIn : IAsyncDisposable
 {
-    public const string ClientIdentifier = "bigarr";
-
     private readonly FakeHttpServer _http;
     private readonly ConcurrentDictionary<long, Pin> _pins = new();
     private readonly ConcurrentDictionary<string, Account> _tokens = new(StringComparer.Ordinal);
@@ -31,7 +30,7 @@ public sealed class FakePlexTvSignIn : IAsyncDisposable
 
     public static readonly Account Stranger = new(2002, "demo-stranger", "stranger@example.invalid", "https://plex.tv/users/demo-stranger/avatar");
 
-    private sealed record Pin(long Id, string Code, string? Token);
+    private sealed record Pin(long Id, string Code, string ClientIdentifier, string? Token);
 
     public string Url => _http.Url;
 
@@ -65,8 +64,8 @@ public sealed class FakePlexTvSignIn : IAsyncDisposable
             return new FakeHttpServer.Answer(503);
         }
 
-        if (request.Path.StartsWith("/api/v2/pins", StringComparison.Ordinal)
-            && (!request.Headers.TryGetValue("X-Plex-Client-Identifier", out var client) || client != ClientIdentifier))
+        request.Headers.TryGetValue("X-Plex-Client-Identifier", out var client);
+        if (request.Path.StartsWith("/api/v2/pins", StringComparison.Ordinal) && string.IsNullOrEmpty(client))
         {
             return new FakeHttpServer.Answer(400, """{"errors":[{"code":1000,"message":"X-Plex-Client-Identifier is missing"}]}""");
         }
@@ -74,14 +73,14 @@ public sealed class FakePlexTvSignIn : IAsyncDisposable
         if (request.Method == "POST" && request.Path == "/api/v2/pins")
         {
             var id = Interlocked.Increment(ref _nextPin);
-            var pin = new Pin(id, "code" + id.ToString(CultureInfo.InvariantCulture), null);
+            var pin = new Pin(id, "code" + id.ToString(CultureInfo.InvariantCulture), client!, null);
             _pins[id] = pin;
             return new FakeHttpServer.Answer(201, PinJson(pin));
         }
 
         if (request.Method == "GET" && request.Path.StartsWith("/api/v2/pins/", StringComparison.Ordinal))
         {
-            return long.TryParse(request.Path["/api/v2/pins/".Length..], CultureInfo.InvariantCulture, out var id) && _pins.TryGetValue(id, out var pin)
+            return long.TryParse(request.Path["/api/v2/pins/".Length..], CultureInfo.InvariantCulture, out var id) && _pins.TryGetValue(id, out var pin) && pin.ClientIdentifier == client
                 ? new FakeHttpServer.Answer(200, PinJson(pin))
                 : new FakeHttpServer.Answer(404, """{"errors":[{"code":1020,"message":"Code not found or expired"}]}""");
         }
@@ -108,13 +107,18 @@ public sealed class FakePlexTvSignIn : IAsyncDisposable
         return null;
     }
 
+    /// <summary>Every <c>X-Plex-Client-Identifier</c> plex.tv was sent.</summary>
+    public IReadOnlySet<string> ClientIdentifiers => _http.Requests
+        .Select(r => r.Headers.TryGetValue("X-Plex-Client-Identifier", out var id) ? id : string.Empty)
+        .ToHashSet(StringComparer.Ordinal);
+
     private static string PinJson(Pin pin) => JsonSerializer.Serialize(new
     {
         id = pin.Id,
         code = pin.Code,
         product = "Bigarr",
         trusted = false,
-        clientIdentifier = ClientIdentifier,
+        clientIdentifier = pin.ClientIdentifier,
         expiresIn = 1800,
         createdAt = "2026-11-14T10:00:00Z",
         expiresAt = "2099-01-01T00:00:00Z",

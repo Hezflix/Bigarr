@@ -33,6 +33,7 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     ExternalId = table.Column<string>(type: "TEXT", maxLength: 128, nullable: false),
                     UserId = table.Column<int>(type: "INTEGER", nullable: false),
                     ExternalUsername = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
+                    Email = table.Column<string>(type: "TEXT", maxLength: 320, nullable: true),
                     ThumbUrl = table.Column<string>(type: "TEXT", maxLength: 1024, nullable: true),
                     LinkedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     LastLoginAt = table.Column<DateTime>(type: "TEXT", nullable: true)
@@ -46,6 +47,18 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         principalTable: "Users",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "InstanceSettings",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "INTEGER", nullable: false),
+                    PlexClientIdentifier = table.Column<string>(type: "TEXT", maxLength: 64, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_InstanceSettings", x => x.Id);
                 });
 
             migrationBuilder.CreateIndex(
@@ -69,6 +82,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "ExternalLogins");
+
+            migrationBuilder.DropTable(
+                name: "InstanceSettings");
         }
     }
 }
