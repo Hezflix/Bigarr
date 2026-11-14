@@ -43,7 +43,8 @@
     "settingsFollowedSonarrs": "Followed Sonarrs",
     "calendar": "Calendar",
     "seriesWanted": "Wanted",
-    "held": "Held for review"
+    "held": "Held for review",
+    "settingsSecurity": "Security"
   },
   "theme": {
     "label": "Theme",
@@ -2862,5 +2863,39 @@
     "skippedRequest": "Not sent",
     "copyUrl": "Copy the URL (key hidden)",
     "copied": "URL copied, with the key hidden."
+  },
+  "externalLogin": {
+    "or": "or",
+    "signInWith": "Sign in with {{provider}}",
+    "waiting": "Waiting for {{provider}}…",
+    "blocked": "The browser blocked the sign-in window. Allow pop-ups for this page and try again.",
+    "closed": "The {{provider}} window was closed before signing in.",
+    "expired": "The sign-in took too long. Try again.",
+    "denied": "{{provider}} did not confirm the sign-in. Try again.",
+    "unknownAccount": "The {{provider}} account {{account}} is not linked to any Bigarr user. Sign in with your password, then link it in Settings → Security.",
+    "linkedElsewhere": "The {{provider}} account {{account}} is already linked to another Bigarr user.",
+    "disabled": "Signing in with {{provider}} was turned off.",
+    "unreachable": "{{provider}} could not be reached. Sign in with your password instead."
+  },
+  "security": {
+    "title": "Security",
+    "hint": "How you sign in to Bigarr. API keys for other apps are under Connect.",
+    "localLoginAlwaysWorks": "Your username and password always work, whatever is set here, even when plex.tv cannot be reached. Keep them: they are how you get back in if an outside service is down.",
+    "offered": "On the login page",
+    "notOffered": "Not offered",
+    "providerHint": "Sign in with your {{provider}} account instead of typing the password. {{provider}} only confirms who you are; what you can do in Bigarr stays the same.",
+    "enable": "Offer “Sign in with {{provider}}” on the login page",
+    "enableHint": "The button appears beside the password form while this is on.",
+    "enableNeedsLink": "The button appears once a {{provider}} account is linked below.",
+    "notLinked": "No {{provider}} account linked yet.",
+    "link": "Link {{provider}} account",
+    "relink": "Link another account",
+    "linked": "{{provider}} account {{account}} linked.",
+    "linkedSince": "Linked {{date}}",
+    "lastSignIn": "last sign-in {{date}}",
+    "neverSignedIn": "not used to sign in yet",
+    "unlink": "Unlink",
+    "unlinkTitle": "Unlink this {{provider}} account?",
+    "unlinkBody": "“Sign in with {{provider}}” will no longer sign you in. Sessions already open stay open; your password keeps working."
   }
 }

@@ -108,6 +108,7 @@ const customFormatsRoute = createRoute({ getParentRoute: () => appRoute, path: '
 const downloadClientsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/downloadclients', component: lazyRouteComponent(() => import('./features/settings/DownloadClientsPage'), 'DownloadClientsPage') })
 const notificationsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/notifications', component: lazyRouteComponent(() => import('./features/settings/NotificationsPage'), 'NotificationsPage') })
 const connectRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/connect', component: lazyRouteComponent(() => import('./features/settings/ConnectPage'), 'ConnectPage') })
+const securityRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/security', component: lazyRouteComponent(() => import('./features/settings/SecurityPage'), 'SecurityPage') })
 const mediaServersRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/mediaservers', component: lazyRouteComponent(() => import('./features/settings/MediaServersPage'), 'MediaServersPage') })
 const importRadarrRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/import-radarr', component: lazyRouteComponent(() => import('./features/settings/ImportRadarrPage'), 'ImportRadarrPage') })
 const importTautulliRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/import-tautulli', component: lazyRouteComponent(() => import('./features/settings/ImportTautulliPage'), 'ImportTautulliPage') })
@@ -145,6 +146,7 @@ const router = createRouter({
       downloadClientsRoute,
       notificationsRoute,
       connectRoute,
+      securityRoute,
       mediaServersRoute,
       importRadarrRoute,
       importTautulliRoute,
