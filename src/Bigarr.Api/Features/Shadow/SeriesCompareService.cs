@@ -62,8 +62,10 @@ public sealed record SeriesCompareRowResponse(
     DateTime At,
     /// <summary>Every episode either side covers on the row.</summary>
     string Episodes,
-    /// <summary>The first season the row covers, for grouping by season.</summary>
-    int SeasonNumber,
+    /// <summary>How many episodes the row covers.</summary>
+    int EpisodeCount,
+    /// <summary>Set when a release on the row is a whole-season pack and the row stays within that season.</summary>
+    int? PackSeason,
     List<SeriesCompareGrabResponse> Sonarr,
     List<SeriesComparePickResponse> Bigarr,
     /// <summary>Other picks for those episodes while Sonarr's download was in flight, or upgrades within the group.</summary>
@@ -80,19 +82,7 @@ public sealed record SeriesCompareCounts(int Same, int Different, int BigarrOnly
 
 public sealed record SeriesCompareVersionSummary(string VersionName, SeriesCompareCounts Counts);
 
-/// <summary>One show of Activity → Compare · Sonarr: one line until opened, its rows newest first.</summary>
-public sealed record SeriesCompareGroupResponse(
-    int TvdbId,
-    int? SeriesId,
-    string SeriesTitle,
-    int? Year,
-    string? PosterUrl,
-    SeriesCompareCounts Counts,
-    /// <summary>The latest row's time.</summary>
-    DateTime LatestAt,
-    List<SeriesCompareRowResponse> Rows);
-
-/// <param name="Total">Shows with at least one row of the asked outcome; pages count shows, not rows.</param>
+/// <param name="Total">Rows of the asked outcome; pages count rows, newest first.</param>
 public sealed record SeriesCompareResponse(
     DateTime? From,
     DateTime To,
@@ -101,7 +91,7 @@ public sealed record SeriesCompareResponse(
     List<string> Versions,
     SeriesCompareCounts Summary,
     List<SeriesCompareVersionSummary> ByVersion,
-    List<SeriesCompareGroupResponse> Groups,
+    List<SeriesCompareRowResponse> Rows,
     int Total,
     int Page,
     int PageSize);
@@ -156,14 +146,8 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
             .Select(g => new SeriesCompareVersionSummary(g.Key, Count(g)))
             .ToList();
 
-        // Paged by show: a show with a hundred rows is one line until opened.
-        var shows = rows.Where(r => outcome is null || r.Outcome == outcome)
-            .GroupBy(r => r.TvdbId)
-            .Select(g => (TvdbId: g.Key, Rows: g.OrderByDescending(r => r.At).ToList()))
-            .OrderByDescending(g => g.Rows[0].At)
-            .ToList();
-        var pageShows = shows.Skip((page - 1) * pageSize).Take(pageSize).ToList();
-        var pageRows = pageShows.SelectMany(g => g.Rows).ToList();
+        var filtered = rows.Where(r => outcome is null || r.Outcome == outcome).OrderByDescending(r => r.At).ToList();
+        var pageRows = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
         var tvdbIds = pageRows.Select(r => r.TvdbId).Distinct().ToList();
         var series = (await db.Series.AsNoTracking().Where(s => s.TvdbId != null && tvdbIds.Contains(s.TvdbId.Value)).ToListAsync(ct)).ToDictionary(s => s.TvdbId!.Value);
@@ -171,6 +155,7 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
 
         var responses = pageRows.Select(row =>
         {
+            var episodes = row.Episodes;
             var rowGrabs = row.Sonarr.Select(g => grabs[g.Id]).ToList();
             var rowPicks = row.Bigarr.Where(p => p.Id > 0).Select(p => picks[p.Id]).ToList();
             var rowFilmPicks = row.Bigarr.Where(p => p.Id < 0).Select(p => filmPicks[p.Id]).ToList();
@@ -189,27 +174,14 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
                 show?.Images.FirstOrDefault(i => i.Type == ImageType.Poster)?.RemoteUrl,
                 row.Version,
                 row.At,
-                SonarrFollower.EpisodesLabel(row.Episodes),
-                row.Episodes.Count == 0 ? 0 : row.Episodes.Min(e => e.Season),
+                SonarrFollower.EpisodesLabel(episodes),
+                episodes.Count,
+                PackSeason(episodes, rowGrabs.Any(g => g.FullSeason) || rowPicks.Any(p => p.FullSeason)),
                 rowGrabs.Select(ToResponse).ToList(),
                 rowPicks.Select(ToResponse).Concat(rowFilmPicks.Select(ToResponse)).ToList(),
                 row.AlsoPicked.Select(p => p.Id < 0 ? ToResponse(filmPicks[p.Id]) : ToResponse(picks[p.Id])).ToList(),
                 lead,
                 rowGrabs.Count == 1 && rowPicks.Count == 0 && sightings.TryGetValue(rowGrabs[0].Id, out var sighting) ? Sighting(sighting, row.Version) : null);
-        }).ToList();
-        var byShow = responses.ToLookup(r => r.TvdbId);
-        var groups = pageShows.Select(g =>
-        {
-            var first = byShow[g.TvdbId].First();
-            return new SeriesCompareGroupResponse(
-                g.TvdbId,
-                first.SeriesId,
-                first.SeriesTitle,
-                first.Year,
-                first.PosterUrl,
-                Count(g.Rows),
-                g.Rows[0].At,
-                byShow[g.TvdbId].ToList());
         }).ToList();
 
         var versions = (await db.SeriesShadowPicks.AsNoTracking().Select(p => p.VersionName).Distinct().ToListAsync(ct))
@@ -217,7 +189,7 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
             .OrderBy(v => v, StringComparer.Ordinal)
             .ToList();
 
-        return new SeriesCompareResponse(from, now, (int)window.TotalHours, options.Value.Enabled, versions, summary, byVersion, groups, shows.Count, page, pageSize);
+        return new SeriesCompareResponse(from, now, (int)window.TotalHours, options.Value.Enabled, versions, summary, byVersion, responses, filtered.Count, page, pageSize);
     }
 
     /// <summary>A film pick shown as the Bigarr side of a special that is that film (ids negated so they never clash).</summary>
@@ -275,6 +247,18 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
     private static SeriesComparePickResponse ToResponse(FilmPick film) => new(
         film.Pair.Id, film.Pick.PickedAt, film.Pick.LastPickedAt, film.Pick.Picks, film.Pick.Trigger, film.Pick.ReleaseTitle, film.Pick.IndexerName, film.Pick.Size, film.Pick.Quality,
         film.Pick.ReleaseGroup, film.Pick.Languages, film.Pick.CustomFormats, film.Pick.CustomFormatScore, film.Pick.PublishDate, false, $"S00E{film.EpisodeNumber:00}", null, film.Film);
+
+    /// <summary>The season of a whole-season pack row, so it reads "S03 pack (52 episodes)" rather than a range.</summary>
+    public static int? PackSeason(IReadOnlyCollection<(int Season, int Episode)> episodes, bool anyPack)
+    {
+        if (!anyPack || episodes.Count == 0)
+        {
+            return null;
+        }
+
+        var season = episodes.First().Season;
+        return episodes.All(e => e.Season == season) ? season : null;
+    }
 
     private static HashSet<(int Season, int Episode)> EpisodesOf(SonarrGrab grab) => grab.Episodes.Select(e => (e.SeasonNumber, e.EpisodeNumber)).ToHashSet();
 

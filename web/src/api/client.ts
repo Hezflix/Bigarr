@@ -1116,10 +1116,7 @@ export type SeriesCompareRow = Schemas['SeriesCompareRowResponse']
 
 export type SeriesCompareCounts = Schemas['SeriesCompareCounts']
 
-/** One show: one line until opened, its rows newest first. */
-export type SeriesCompareGroup = Schemas['SeriesCompareGroupResponse']
-
-/** `total` counts shows; pages are pages of shows. */
+/** Rows newest first; `total` counts rows of the asked outcome. */
 export type SeriesCompareResult = Schemas['SeriesCompareResponse']
 
 export type SeriesCompareQuery = Omit<CompareQuery, 'outcome' | 'tmdbId'> & { outcome?: SeriesCompareOutcome; tvdbId?: number }

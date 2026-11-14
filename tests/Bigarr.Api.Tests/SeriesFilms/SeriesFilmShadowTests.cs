@@ -69,7 +69,7 @@ public sealed class SeriesFilmShadowTests(BigarrApiFactory factory) : IClassFixt
         }
 
         var compare = (await client.GetFromJsonAsync<Bigarr.Api.Features.Shadow.SeriesCompareResponse>($"/api/v1/shadow/compare/series?tvdbId={DemonSlayer}", Json))!;
-        var row = compare.Groups.SelectMany(g => g.Rows).Single(r => r.Episodes == "S00E16");
+        var row = compare.Rows.Single(r => r.Episodes == "S00E16");
         Assert.Equal(Bigarr.Api.Features.Shadow.SeriesCompareOutcome.Same, row.Outcome);
         var pick = Assert.Single(row.Bigarr);
         Assert.Equal("Demon Slayer: Kimetsu no Yaiba Infinity Castle (2025)", pick.Film);
