@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Bigarr.Api.Features.Indexers;
 using Bigarr.Domain.Indexers;
+using Bigarr.Domain.Library;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Bigarr.Api.Features.Compat.Radarr;
@@ -12,24 +13,30 @@ namespace Bigarr.Api.Features.Compat.Radarr;
 /// It reads the schema, posts one Torznab indexer per tracker pointing at its own per-indexer endpoint, and on each sync
 /// adopts the rows whose <c>baseUrl</c> starts with its URL or whose <c>apiKey</c> is its key, its indexer id being the
 /// <c>/{id}/</c> at the end of <c>baseUrl</c>. Usenet indexers are refused: Bigarr has no usenet client.
+/// <para>
+/// The Sonarr surface serves the same rows with Sonarr's fields: <c>categories</c> are the row's series categories,
+/// plus <c>animeCategories</c>, <c>animeStandardFormatSearch</c> and <c>seedCriteria.seasonPackSeedTime</c>, which
+/// Prowlarr's Sonarr sync dereferences without a null check. A Prowlarr that syncs to both surfaces lands on one row
+/// (adopted by its <c>ProwlarrId</c>): each sync writes its own categories and leaves the other's alone.
+/// </para>
 /// </summary>
 public static partial class IndexersEndpoints
 {
-    public static void MapCompatIndexers(this RouteGroupBuilder group)
+    public static void MapCompatIndexers(this RouteGroupBuilder group, MediaKind kind = MediaKind.Movies)
     {
-        group.MapGet("/indexer/schema", JsonHttpResult<List<RadarrIndexer>> () => RadarrCompat.Ok(Schema()));
+        group.MapGet("/indexer/schema", JsonHttpResult<List<RadarrIndexer>> () => RadarrCompat.Ok(Schema(kind)));
         group.MapGet("/indexer", async Task<JsonHttpResult<List<RadarrIndexer>>> (IndexerService indexers, CancellationToken ct) =>
-            RadarrCompat.Ok((await indexers.ListAsync(ct)).Where(i => i.Implementation == IndexerImplementation.Torznab).Select(ToResource).ToList()));
+            RadarrCompat.Ok((await indexers.ListAsync(ct)).Where(i => i.Implementation == IndexerImplementation.Torznab).Select(i => ToResource(i, kind)).ToList()));
 
         group.MapGet("/indexer/{id:int}", async Task<Results<JsonHttpResult<RadarrIndexer>, NotFound>> (int id, IndexerService indexers, CancellationToken ct) =>
         {
             var indexer = await indexers.GetAsync(id, ct);
-            return indexer is null || indexer.Implementation != IndexerImplementation.Torznab ? TypedResults.NotFound() : RadarrCompat.Ok(ToResource(indexer));
+            return indexer is null || indexer.Implementation != IndexerImplementation.Torznab ? TypedResults.NotFound() : RadarrCompat.Ok(ToResource(indexer, kind));
         });
 
         group.MapPost("/indexer", async Task<Results<JsonHttpResult<RadarrIndexer>, JsonHttpResult<List<RadarrValidationFailure>>>> (RadarrIndexer resource, IndexerService indexers, CancellationToken ct, bool forceSave = false) =>
         {
-            var request = ToRequest(resource, out var invalid);
+            var request = ToRequest(resource, out var invalid, kind);
             if (request is null)
             {
                 return invalid!;
@@ -37,12 +44,12 @@ public static partial class IndexersEndpoints
 
             // An indexer Prowlarr already has here (same ProwlarrId) is updated and returned: Prowlarr maps onto its id.
             var result = await indexers.AddAsync(request, ct);
-            return result.IsSuccess ? RadarrCompat.Created(ToResource(result.Value!)) : RadarrCompat.BadRequest("Name", result.Failure!.Detail ?? result.Failure.Title);
+            return result.IsSuccess ? RadarrCompat.Created(ToResource(result.Value!, kind)) : RadarrCompat.BadRequest("Name", result.Failure!.Detail ?? result.Failure.Title);
         });
 
         group.MapPut("/indexer/{id:int}", async Task<Results<JsonHttpResult<RadarrIndexer>, JsonHttpResult<List<RadarrValidationFailure>>, NotFound>> (int id, RadarrIndexer resource, IndexerService indexers, CancellationToken ct, bool forceSave = false) =>
         {
-            var request = ToRequest(resource, out var invalid);
+            var request = ToRequest(resource, out var invalid, kind);
             if (request is null)
             {
                 return invalid!;
@@ -51,7 +58,7 @@ public static partial class IndexersEndpoints
             var result = await indexers.UpdateAsync(id, request, ct);
             if (result.IsSuccess)
             {
-                return RadarrCompat.Ok(ToResource(result.Value!));
+                return RadarrCompat.Ok(ToResource(result.Value!, kind));
             }
 
             return result.Failure!.StatusCode == StatusCodes.Status404NotFound ? TypedResults.NotFound() : RadarrCompat.BadRequest("Name", result.Failure.Detail ?? result.Failure.Title);
@@ -69,7 +76,7 @@ public static partial class IndexersEndpoints
         // to succeed; the version header on the answer is what Prowlarr actually checks.
         group.MapPost("/indexer/test", async Task<Results<Ok, JsonHttpResult<List<RadarrValidationFailure>>>> (RadarrIndexer resource, IndexerService indexers, CancellationToken ct) =>
         {
-            var request = ToRequest(resource, out var invalid, allowUsenetForTest: true);
+            var request = ToRequest(resource, out var invalid, kind, allowUsenetForTest: true);
             if (request is null)
             {
                 return invalid!;
@@ -83,7 +90,7 @@ public static partial class IndexersEndpoints
     }
 
     /// <summary>Both contracts Prowlarr looks up by implementation name; it copies the fields it syncs from here.</summary>
-    public static List<RadarrIndexer> Schema() =>
+    public static List<RadarrIndexer> Schema(MediaKind kind = MediaKind.Movies) =>
     [
         new RadarrIndexer
         {
@@ -92,7 +99,7 @@ public static partial class IndexersEndpoints
             ConfigContract = "TorznabSettings",
             InfoLink = "https://github.com/Hezflix/Bigarr",
             Protocol = "torrent",
-            Fields = Fields(torrent: true),
+            Fields = Fields(torrent: true, kind),
         },
         new RadarrIndexer
         {
@@ -101,46 +108,74 @@ public static partial class IndexersEndpoints
             ConfigContract = "NewznabSettings",
             InfoLink = "https://github.com/Hezflix/Bigarr",
             Protocol = "usenet",
-            Fields = Fields(torrent: false),
+            Fields = Fields(torrent: false, kind),
         },
     ];
 
-    private static List<RadarrField> Fields(bool torrent)
+    /// <summary>Sonarr's default TV categories (TV and every sub-category but anime), as Prowlarr's Sonarr settings default them.</summary>
+    public static readonly int[] SonarrCategories = [5000, 5010, 5020, 5030, 5040, 5045, 5050, 5090];
+
+    private static List<RadarrField> Fields(bool torrent, MediaKind kind)
     {
+        var series = kind == MediaKind.Series;
         var order = 0;
         var fields = new List<RadarrField>
         {
             new() { Order = order++, Name = "baseUrl", Label = "URL", Type = "textbox" },
             new() { Order = order++, Name = "apiPath", Label = "API Path", Value = Element("/api"), Type = "textbox", Advanced = true },
             new() { Order = order++, Name = "apiKey", Label = "API Key", Type = "textbox", Privacy = "apiKey" },
-            new() { Order = order++, Name = "categories", Label = "Categories", Value = Element(Indexer.DefaultCategories), Type = "select", SelectOptionsProviderAction = "newznabCategories" },
-            new() { Order = order++, Name = "multiLanguages", Label = "Multi Languages", Value = Element(Array.Empty<int>()), Type = "select", Advanced = true },
-            new() { Order = order++, Name = "removeYear", Label = "Remove year", Value = Element(false), Type = "checkbox", Advanced = true },
+            new() { Order = order++, Name = "categories", Label = "Categories", Value = Element(series ? SonarrCategories : Indexer.DefaultCategories), Type = "select", SelectOptionsProviderAction = "newznabCategories" },
         };
+
+        if (series)
+        {
+            // Prowlarr's Sonarr sync casts animeCategories to an array without a null check: the field must be there.
+            fields.Add(new RadarrField { Order = order++, Name = "animeCategories", Label = "Anime Categories", Value = Element(new[] { Indexer.AnimeCategory }), Type = "select", SelectOptionsProviderAction = "newznabCategories" });
+            fields.Add(new RadarrField { Order = order++, Name = "animeStandardFormatSearch", Label = "Anime Standard Format Search", Value = Element(false), Type = "checkbox" });
+            fields.Add(new RadarrField { Order = order++, Name = "additionalParameters", Label = "Additional Parameters", Type = "textbox", Advanced = true });
+            fields.Add(new RadarrField { Order = order++, Name = "multiLanguages", Label = "Multi Languages", Value = Element(Array.Empty<int>()), Type = "select", Advanced = true });
+        }
+        else
+        {
+            fields.Add(new RadarrField { Order = order++, Name = "multiLanguages", Label = "Multi Languages", Value = Element(Array.Empty<int>()), Type = "select", Advanced = true });
+            fields.Add(new RadarrField { Order = order++, Name = "removeYear", Label = "Remove year", Value = Element(false), Type = "checkbox", Advanced = true });
+        }
 
         if (torrent)
         {
             fields.Add(new RadarrField { Order = order++, Name = "minimumSeeders", Label = "Minimum Seeders", Value = Element(1), Type = "number", Advanced = true });
             fields.Add(new RadarrField { Order = order++, Name = "seedCriteria.seedRatio", Label = "Seed Ratio", Type = "textbox", Advanced = true });
             fields.Add(new RadarrField { Order = order++, Name = "seedCriteria.seedTime", Label = "Seed Time", Type = "number", Advanced = true });
+            if (series)
+            {
+                // Set by Prowlarr's Sonarr sync on every torrent indexer, again without a null check on the schema field.
+                fields.Add(new RadarrField { Order = order++, Name = "seedCriteria.seasonPackSeedTime", Label = "Season-Pack Seed Time", Type = "number", Advanced = true });
+            }
+
             fields.Add(new RadarrField { Order = order++, Name = "rejectBlocklistedTorrentHashesWhileGrabbing", Label = "Reject Blocklisted Torrent Hashes While Grabbing", Value = Element(false), Type = "checkbox", Advanced = true });
         }
 
-        fields.Add(new RadarrField { Order = order, Name = "requiredFlags", Label = "Required Flags", Value = Element(Array.Empty<int>()), Type = "select", Advanced = true });
+        if (!series)
+        {
+            fields.Add(new RadarrField { Order = order, Name = "requiredFlags", Label = "Required Flags", Value = Element(Array.Empty<int>()), Type = "select", Advanced = true });
+        }
+
         return fields;
     }
 
-    public static RadarrIndexer ToResource(IndexerResponse indexer)
+    public static RadarrIndexer ToResource(IndexerResponse indexer, MediaKind kind = MediaKind.Movies)
     {
         ArgumentNullException.ThrowIfNull(indexer);
 
-        var fields = Fields(torrent: true).Select(f => f.Name switch
+        var series = kind == MediaKind.Series;
+        var fields = Fields(torrent: true, kind).Select(f => f.Name switch
         {
             // Prowlarr compares baseUrl textually with "{prowlarr}/{id}/": give the trailing slash back.
             "baseUrl" => f with { Value = Element((indexer.BaseUrl ?? string.Empty).TrimEnd('/') + "/") },
             "apiPath" => f with { Value = Element(indexer.ApiPath) },
             "apiKey" => f with { Value = Element(indexer.ApiKey ?? string.Empty) },
-            "categories" => f with { Value = Element(indexer.Categories) },
+            "categories" => f with { Value = Element(series ? indexer.TvCategories ?? [] : indexer.Categories) },
+            "animeCategories" => f with { Value = Element(indexer.AnimeCategories ?? []) },
             "minimumSeeders" => f with { Value = Element(indexer.MinimumSeeders) },
             "seedCriteria.seedRatio" => f with { Value = indexer.SeedRatio is { } ratio ? Element(ratio) : null },
             "seedCriteria.seedTime" => f with { Value = indexer.SeedTimeMinutes is { } minutes ? Element(minutes) : null },
@@ -164,7 +199,11 @@ public static partial class IndexersEndpoints
     }
 
     /// <summary>Prowlarr's resource back into the slice's request; null with the failure to answer when it cannot be.</summary>
-    public static IndexerRequest? ToRequest(RadarrIndexer resource, out JsonHttpResult<List<RadarrValidationFailure>>? invalid, bool allowUsenetForTest = false)
+    /// <remarks>
+    /// The Radarr surface writes the film categories and leaves the series ones alone, the Sonarr surface the other way
+    /// round: a Prowlarr indexer synced to both apps is one row here.
+    /// </remarks>
+    public static IndexerRequest? ToRequest(RadarrIndexer resource, out JsonHttpResult<List<RadarrValidationFailure>>? invalid, MediaKind kind = MediaKind.Movies, bool allowUsenetForTest = false)
     {
         ArgumentNullException.ThrowIfNull(resource);
         invalid = null;
@@ -182,6 +221,7 @@ public static partial class IndexersEndpoints
         var baseUrl = Field(resource, "baseUrl").String();
         var apiKey = Field(resource, "apiKey").String();
         var categories = Field(resource, "categories").Ints();
+        var series = kind == MediaKind.Series;
         var minimumSeeders = Field(resource, "minimumSeeders").Int() ?? 1;
         var seedRatio = Field(resource, "seedCriteria.seedRatio").Double();
         var seedTime = Field(resource, "seedCriteria.seedTime").Int();
@@ -199,7 +239,7 @@ public static partial class IndexersEndpoints
             baseUrl,
             string.IsNullOrWhiteSpace(apiPath) ? "/api" : apiPath,
             apiKey,
-            categories is { Count: > 0 } ? categories : null,
+            series ? null : categories ?? [],
             Math.Clamp(resource.Priority, Indexer.MinPriority, Indexer.MaxPriority),
             resource.EnableRss,
             resource.EnableAutomaticSearch,
@@ -207,7 +247,9 @@ public static partial class IndexersEndpoints
             Math.Max(0, minimumSeeders),
             seedRatio is { } r && r > 0 ? r : null,
             seedTime is { } t && t > 0 ? t : null,
-            ProwlarrId: prowlarrId);
+            ProwlarrId: prowlarrId,
+            TvCategories: series ? categories ?? [] : null,
+            AnimeCategories: series ? Field(resource, "animeCategories").Ints() ?? [] : null);
     }
 
     private static JsonElement? Field(RadarrIndexer resource, string name) =>

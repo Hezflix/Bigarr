@@ -293,7 +293,10 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
         indexer.BaseUrl = request.Implementation == IndexerImplementation.Torznab ? request.BaseUrl!.Trim().TrimEnd('/') : null;
         indexer.ApiPath = string.IsNullOrWhiteSpace(request.ApiPath) ? "/api" : "/" + request.ApiPath.Trim().Trim('/');
         indexer.ApiKey = string.IsNullOrWhiteSpace(request.ApiKey) ? null : request.ApiKey.Trim();
-        indexer.Categories = request.Categories is { Count: > 0 } ? request.Categories.Distinct().OrderBy(c => c).ToList() : [.. Indexer.DefaultCategories];
+        if (request.Categories is not null)
+        {
+            indexer.Categories = request.Categories.Count > 0 ? request.Categories.Distinct().OrderBy(c => c).ToList() : [.. Indexer.DefaultCategories];
+        }
         indexer.Priority = request.Priority;
         indexer.EnableRss = request.EnableRss;
         indexer.EnableAutomaticSearch = request.EnableAutomaticSearch;
