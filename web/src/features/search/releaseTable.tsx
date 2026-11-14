@@ -160,6 +160,7 @@ export function grabRequest(release: ReleaseCommon, versionId: number): GrabRequ
     protocol: release.protocol,
     indexer: release.indexer,
     publishDate: release.publishDate,
+    infoUrl: release.infoUrl,
   }
 }
 
