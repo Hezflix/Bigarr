@@ -10,7 +10,7 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { AddError, AddFormHeader, IdSelectField, LookupResultCard, LookupSearch, useAddTargets, VersionNameField } from '@/features/library/addParts'
+import { AddError, AddFormHeader, FormField, IdSelectField, LookupResultCard, LookupSearch, useAddTargets, VersionNameField } from '@/features/library/addParts'
 import { useDebounced } from '@/hooks/useDebounced'
 
 const availabilities: MinimumAvailability[] = ['announced', 'inCinemas', 'released']
@@ -139,8 +139,7 @@ function AddForm({ movie, onCancel, onAdded }: { movie: MovieLookupResult; onCan
 
             <VersionNameField id="add-version-name" value={versionName} onChange={setVersionName} placeholder={effectiveName} />
 
-            <div className="grid grid-cols-1 gap-2">
-              <Label htmlFor="add-availability">{t('addMovie.minimumAvailability')}</Label>
+            <FormField id="add-availability" label={t('addMovie.minimumAvailability')}>
               <Select value={availability} onValueChange={(value) => setAvailability(value as MinimumAvailability)}>
                 <SelectTrigger id="add-availability" className="w-full">
                   <SelectValue />
@@ -153,7 +152,7 @@ function AddForm({ movie, onCancel, onAdded }: { movie: MovieLookupResult; onCan
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </FormField>
           </div>
 
           <div className="flex flex-col gap-3">

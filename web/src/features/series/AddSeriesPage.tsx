@@ -19,7 +19,7 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { AddError, AddFormHeader, IdSelectField, LookupResultCard, LookupSearch, useAddTargets, VersionNameField } from '@/features/library/addParts'
+import { AddError, AddFormHeader, FormField, IdSelectField, LookupResultCard, LookupSearch, useAddTargets, VersionNameField } from '@/features/library/addParts'
 import { useDebounced } from '@/hooks/useDebounced'
 
 const resultKey = (r: SeriesLookupResult) => `${r.tvdbId ?? ''}-${r.tmdbId ?? ''}`
@@ -155,8 +155,7 @@ function AddForm({ show, onCancel, onAdded }: { show: SeriesLookupResult; onCanc
           )}
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid grid-cols-1 gap-2">
-              <Label htmlFor="series-monitor">{t('addSeries.monitor')}</Label>
+            <FormField id="series-monitor" label={t('addSeries.monitor')} hint={t('addSeries.monitorHint')}>
               <Select value={monitor} onValueChange={(value) => setMonitor(value as MonitoringOption)}>
                 <SelectTrigger id="series-monitor" className="w-full" data-testid="series-monitor">
                   <SelectValue />
@@ -169,11 +168,9 @@ function AddForm({ show, onCancel, onAdded }: { show: SeriesLookupResult; onCanc
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">{t('addSeries.monitorHint')}</p>
-            </div>
+            </FormField>
 
-            <div className="grid grid-cols-1 gap-2">
-              <Label htmlFor="series-type">{t('addSeries.seriesType')}</Label>
+            <FormField id="series-type" label={t('addSeries.seriesType')} hint={t('addSeries.seriesTypeHint')}>
               <Select value={seriesType} onValueChange={(value) => setSeriesType(value as SeriesType)}>
                 <SelectTrigger id="series-type" className="w-full">
                   <SelectValue />
@@ -187,8 +184,7 @@ function AddForm({ show, onCancel, onAdded }: { show: SeriesLookupResult; onCanc
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">{t('addSeries.seriesTypeHint')}</p>
-            </div>
+            </FormField>
 
             <IdSelectField id="series-profile" label={t('addMovie.qualityProfile')} value={profileId} onChange={setProfileId} options={profiles?.map((p) => ({ id: p.id, label: p.name }))} />
 
