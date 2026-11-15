@@ -11,7 +11,7 @@ namespace Bigarr.Api.Infrastructure.MediaServers;
 /// Plex Media Server over its HTTP API with a token: sections from <c>/library/sections</c>, partial scan through
 /// <c>/library/sections/{key}/refresh?path=</c> like Radarr's Plex connection does, full scan without the path.
 /// </summary>
-public sealed class PlexClient(IHttpClientFactory httpClientFactory) : IMediaServerClient
+public sealed class PlexClient(IHttpClientFactory httpClientFactory, PlexClientIdentity identity) : IMediaServerClient
 {
     public static readonly TimeSpan EventsIdleTimeout = TimeSpan.FromSeconds(60);
 
@@ -250,8 +250,8 @@ public sealed class PlexClient(IHttpClientFactory httpClientFactory) : IMediaSer
     {
         using var request = new HttpRequestMessage(method, server.BaseUrl + path);
         request.Headers.TryAddWithoutValidation("X-Plex-Token", server.Token.Trim());
-        request.Headers.TryAddWithoutValidation("X-Plex-Client-Identifier", "bigarr");
-        request.Headers.TryAddWithoutValidation("X-Plex-Product", "Bigarr");
+        request.Headers.TryAddWithoutValidation("X-Plex-Client-Identifier", await identity.GetAsync(ct));
+        request.Headers.TryAddWithoutValidation("X-Plex-Product", PlexTvClient.Product);
         request.Headers.TryAddWithoutValidation("X-Plex-Version", Features.Server.SystemEndpoints.Version);
         request.Headers.Accept.ParseAdd(accept);
 

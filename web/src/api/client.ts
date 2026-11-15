@@ -74,6 +74,26 @@ export const auth = {
   logout: () => post<void>('/api/v1/auth/logout'),
 }
 
+// ---- sign-in with an outside account (Plex) ---------------------------------
+
+export type ExternalProvider = Schemas['ExternalProviderResponse']
+export type ExternalLoginSettings = Schemas['ExternalLoginSettingsResponse']
+export type ExternalFlowStarted = Schemas['ExternalFlowStartedResponse']
+export type ExternalFlowStatus = Schemas['ExternalFlowStatus']
+export type ExternalFlowPoll = Schemas['ExternalFlowPollResponse']
+
+export const externalLogin = {
+  /** Providers the login page offers: on, and linked to a user. Anonymous. */
+  providers: () => api<ExternalProvider[]>('/api/v1/auth/providers'),
+  settings: () => api<ExternalLoginSettings[]>('/api/v1/auth/external'),
+  setEnabled: (provider: string, enabled: boolean) => put<void>(`/api/v1/auth/external/${provider}`, { enabled }),
+  startLogin: (provider: string) => post<ExternalFlowStarted>(`/api/v1/auth/external/${provider}/login`, {}),
+  startLink: (provider: string) => post<ExternalFlowStarted>(`/api/v1/auth/external/${provider}/link`, {}),
+  unlink: (provider: string) => del(`/api/v1/auth/external/${provider}/link`),
+  poll: (flowId: string) => post<ExternalFlowPoll>('/api/v1/auth/external/poll', { flowId }),
+  cancel: (flowId: string) => post<void>('/api/v1/auth/external/cancel', { flowId }),
+}
+
 export const system = {
   status: () => api<SystemStatus>('/api/v1/system/status'),
 }

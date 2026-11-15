@@ -366,7 +366,7 @@ public sealed class PlaybackTrackerTests : IAsyncLifetime, IDisposable
     private async Task<int> ReconcileAsync()
     {
         await using var db = _database.CreateContext();
-        var plex = new PlexClient(_services.GetRequiredService<IHttpClientFactory>());
+        var plex = new PlexClient(_services.GetRequiredService<IHttpClientFactory>(), _database.PlexClientIdentity());
         var live = await plex.SessionsAsync(_server, CancellationToken.None);
         return await Tracker(db, plex).ReconcileAsync(_server, live, CancellationToken.None);
     }
@@ -374,7 +374,7 @@ public sealed class PlaybackTrackerTests : IAsyncLifetime, IDisposable
     private async Task<bool> EventAsync(string sessionKey, string ratingKey, string state, long offsetMs)
     {
         await using var db = _database.CreateContext();
-        var plex = new PlexClient(_services.GetRequiredService<IHttpClientFactory>());
+        var plex = new PlexClient(_services.GetRequiredService<IHttpClientFactory>(), _database.PlexClientIdentity());
         return await Tracker(db, plex).OnEventAsync(_server, new PlexPlayingEvent(sessionKey, ratingKey, state, offsetMs), CancellationToken.None);
     }
 

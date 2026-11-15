@@ -270,6 +270,7 @@ app.UseAuthorization();
 app.MapOpenApi(); // /openapi/v1.json, the same document the build writes for the TypeScript types
 app.MapAuth();
 app.MapApiKeys();
+app.MapExternalLogin();
 app.MapSystem();
 app.MapMovies();
 app.MapSeries();

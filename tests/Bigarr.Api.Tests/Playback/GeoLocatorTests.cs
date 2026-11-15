@@ -28,6 +28,7 @@ public sealed class GeoLocatorTests : IAsyncLifetime, IDisposable
         var services = new ServiceCollection();
         services.AddHttpClient<PlexTvClient>(http => http.BaseAddress = new Uri(_plexTv.Url + "/"));
         services.AddScoped(_ => _database.CreateContext());
+        services.AddSingleton<PlexClientIdentity>();
         _services = services.BuildServiceProvider();
         _geo = new GeoLocator(_services.GetRequiredService<IServiceScopeFactory>(), _services, _time, NullLogger<GeoLocator>.Instance);
 

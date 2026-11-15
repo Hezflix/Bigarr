@@ -408,7 +408,7 @@ public sealed class PlaybackStatsTests : IAsyncLifetime, IDisposable
     private async Task<BackstopPass> BackstopAsync()
     {
         await using var db = _database.CreateContext();
-        var plex = new PlexClient(_services.GetRequiredService<IHttpClientFactory>());
+        var plex = new PlexClient(_services.GetRequiredService<IHttpClientFactory>(), _database.PlexClientIdentity());
         var libraries = new PlexLibraries(plex, _time, NullLogger<PlexLibraries>.Instance);
         var resolver = new VersionResolver(db);
         var tracker = new PlaybackTracker(db, plex, libraries, resolver, new LiveTranscodes(), _time, NullLogger<PlaybackTracker>.Instance);

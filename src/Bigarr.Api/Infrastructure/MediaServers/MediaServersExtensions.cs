@@ -30,6 +30,7 @@ public static class MediaServersExtensions
                 http.DefaultRequestHeaders.UserAgent.ParseAdd($"Bigarr/{Features.Server.SystemEndpoints.Version}");
             })
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
+        services.AddSingleton<PlexClientIdentity>();
         services.AddSingleton<PlexClient>();
         services.AddSingleton<IMediaServerClient>(sp => sp.GetRequiredService<PlexClient>());
         services.AddSingleton<IMediaServerClient, EmbyClient>();

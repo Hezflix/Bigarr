@@ -1,6 +1,7 @@
 using Bigarr.Api.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Bigarr.Api.Tests.Persistence;
 
@@ -26,6 +27,13 @@ public sealed class SqliteTestDatabase : IDisposable
     }
 
     public BigarrDbContext CreateContext() => new(_options);
+
+    /// <summary>The install's Plex client identifier, generated in and read from this database like the app does.</summary>
+    public Bigarr.Api.Infrastructure.MediaServers.PlexClientIdentity PlexClientIdentity() =>
+        new(new ServiceCollection()
+            .AddScoped(_ => CreateContext())
+            .BuildServiceProvider()
+            .GetRequiredService<IServiceScopeFactory>());
 
     public void Dispose()
     {
