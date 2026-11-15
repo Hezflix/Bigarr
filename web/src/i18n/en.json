@@ -2692,6 +2692,12 @@
     "title": "Calendar",
     "today": "Today",
     "view": "View",
+    "kind": "Show",
+    "kinds": {
+      "all": "All",
+      "films": "Films",
+      "series": "Series"
+    },
     "views": {
       "week": "Week",
       "month": "Month"
@@ -2706,7 +2712,12 @@
       "downloaded": "Downloaded",
       "unmonitored": "Unmonitored"
     },
-    "icalHint": "Subscribe from a calendar app with an API key (Settings → Connect):"
+    "icalHint": "Subscribe to the episodes from a calendar app with an API key (Settings → Connect):",
+    "release": {
+      "inCinemas": "In cinemas",
+      "digital": "Digital release",
+      "physical": "Physical release"
+    }
   },
   "seriesBulk": {
     "delete": {

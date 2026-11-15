@@ -119,13 +119,13 @@ function useSections(): NavSection[] {
       items: [
         { to: '/series', label: t('nav.seriesLibrary'), icon: TvIcon, exact: true },
         { to: '/series/add', label: t('nav.addSeries'), icon: PlusIcon },
-        { to: '/calendar', label: t('nav.calendar'), icon: CalendarDaysIcon },
         { to: '/series/wanted', label: t('nav.seriesWanted'), icon: ListTodoIcon },
       ],
     },
     {
       title: t('nav.activity'),
       items: [
+        { to: '/calendar', label: t('nav.calendar'), icon: CalendarDaysIcon },
         { to: '/activity/queue', label: t('nav.queue'), icon: ListOrderedIcon },
         { to: '/activity/releases', label: t('nav.releases'), icon: RssIcon },
         { to: '/activity/history', label: t('nav.history'), icon: HistoryIcon },
