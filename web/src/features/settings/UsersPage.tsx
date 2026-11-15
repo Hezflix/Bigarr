@@ -58,7 +58,7 @@ export function UsersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>{t('users.user')}</TableHead>
-                  <TableHead>{t('users.role')}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t('users.role')}</TableHead>
                   <TableHead className="hidden md:table-cell">{t('users.signsInWith')}</TableHead>
                   <TableHead className="hidden lg:table-cell">{t('users.lastLogin')}</TableHead>
                   <TableHead className="text-right">
@@ -106,10 +106,13 @@ function UserRow({ user, onEdit, onDisable }: { user: UserSummary; onEdit: () =>
               {disabled && <Badge variant="secondary">{t('users.disabled')}</Badge>}
             </p>
             {email && <p className="truncate text-xs text-muted-foreground">{email}</p>}
+            <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="mt-1 sm:hidden">
+              {t(`users.roles.${user.role}`)}
+            </Badge>
           </div>
         </div>
       </TableCell>
-      <TableCell>
+      <TableCell className="hidden sm:table-cell">
         <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>{t(`users.roles.${user.role}`)}</Badge>
       </TableCell>
       <TableCell className="hidden md:table-cell">
