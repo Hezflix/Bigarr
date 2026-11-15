@@ -14,6 +14,7 @@ import {
   HeartPulseIcon,
   HistoryIcon,
   ImportIcon,
+  InboxIcon,
   ListOrderedIcon,
   ListTodoIcon,
   ListVideoIcon,
@@ -36,6 +37,7 @@ import { useTranslation } from 'react-i18next'
 export type NavPath =
   | '/'
   | '/discover'
+  | '/requests'
   | '/settings/discover'
   | '/add'
   | '/wanted'
@@ -80,6 +82,8 @@ export type NavItem = {
   exact?: boolean
   /** The health badge sits on this entry. */
   health?: boolean
+  /** The count of pending requests sits on this entry. */
+  pendingRequests?: boolean
   /** Reached from the palette only: a page linked from elsewhere (the library) that the sidebar does not list. */
   paletteOnly?: boolean
 }
@@ -95,7 +99,10 @@ export function useNavSections(): NavSection[] {
   return useMemo(() => [
     {
       title: t('nav.requests'),
-      items: [{ to: '/discover', label: t('nav.discover'), icon: CompassIcon }],
+      items: [
+        { to: '/discover', label: t('nav.discover'), icon: CompassIcon },
+        { to: '/requests', label: t('nav.requests'), icon: InboxIcon, pendingRequests: true },
+      ],
     },
     {
       title: t('nav.movies'),

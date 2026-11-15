@@ -1636,6 +1636,417 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    filter?: string;
+                    mediaType?: string;
+                    userId?: number;
+                    page?: number;
+                    pageSize?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MediaRequestPage"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateRequestRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MediaRequestResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requests/quota": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["QuotaResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requests/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MediaRequestResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requests/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RequestCountsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requests/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    mediaType: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RequestOptionsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requests/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["ApproveRequestRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MediaRequestResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requests/{id}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["DeclineRequestRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MediaRequestResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requests/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MediaRequestResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/requests/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RequestDefaultsDto"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RequestDefaultsDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RequestDefaultsDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/status": {
         parameters: {
             query?: never;
@@ -9548,6 +9959,14 @@ export interface components {
         ApplyMonitoringRequest: {
             monitor: components["schemas"]["MonitoringOption"];
         };
+        ApproveRequestRequest: {
+            /** Format: int32 */
+            qualityProfileId?: null | number;
+            /** Format: int32 */
+            rootFolderId?: null | number;
+            fourK?: null | boolean;
+            seasons?: null | number[];
+        };
         AssignUnmatchedRequest: {
             episodeIds: number[];
             /** @default false */
@@ -9920,6 +10339,14 @@ export interface components {
             name: string;
             compatView: null | string;
         };
+        CreateRequestRequest: {
+            mediaType: components["schemas"]["RequestMediaType"];
+            /** Format: int32 */
+            tmdbId: number;
+            /** @default false */
+            fourK: boolean;
+            seasons?: null | number[];
+        };
         CustomFormatEvaluationResponse: {
             title: string;
             parsedTitle: null | string;
@@ -10007,6 +10434,9 @@ export interface components {
             /** Format: int32 */
             unknown: number;
         };
+        DeclineRequestRequest: {
+            reason?: null | string;
+        };
         /** @enum {unknown} */
         DiscordGrabField: "overview" | "rating" | "genres" | "quality" | "group" | "size" | "links" | "release" | "poster" | "fanart" | "indexer" | "customFormats" | "customFormatScore" | "tags" | "version";
         /** @enum {unknown} */
@@ -10047,6 +10477,7 @@ export interface components {
             voteAverage: null | number;
             subtitle: null | string;
             availability: null | components["schemas"]["AvailabilityResponse"];
+            requests: null | components["schemas"]["RequestSlotsResponse"];
         };
         DiscoverLookupResult: {
             /** Format: int32 */
@@ -10084,6 +10515,7 @@ export interface components {
             availability: components["schemas"]["AvailabilityResponse"];
             /** Format: int32 */
             libraryId: null | number;
+            requests: null | components["schemas"]["RequestSlotsResponse"];
         };
         DiscoverPage: {
             /** Format: int32 */
@@ -10121,6 +10553,7 @@ export interface components {
             posterUrl: null | string;
             inLibraryOnly: boolean;
             availability: components["schemas"]["AvailabilityResponse"];
+            requests: null | components["schemas"]["RequestSlotsResponse"];
         };
         DiscoverSeriesResponse: {
             /** Format: int32 */
@@ -10153,6 +10586,7 @@ export interface components {
             availability: components["schemas"]["AvailabilityResponse"];
             /** Format: int32 */
             libraryId: null | number;
+            requests: null | components["schemas"]["RequestSlotsResponse"];
         };
         DiscoverSettingsResponse: {
             fourKVersion: null | string;
@@ -10631,6 +11065,8 @@ export interface components {
             /** Format: int32 */
             score: number;
         };
+        /** @enum {unknown} */
+        ForwardStatus: "none" | "forwarded" | "alreadyThere" | "failed" | null;
         GrabRequest: {
             /** Format: int32 */
             versionId: number;
@@ -11188,6 +11624,49 @@ export interface components {
             /** @default true */
             replaceIllegalCharacters: boolean;
             colonReplacement: components["schemas"]["ColonReplacement"];
+        };
+        MediaRequestPage: {
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
+            /** Format: int32 */
+            totalRecords: number;
+            records: components["schemas"]["MediaRequestResponse"][];
+        };
+        MediaRequestResponse: {
+            /** Format: int32 */
+            id: number;
+            mediaType: components["schemas"]["RequestMediaType"];
+            /** Format: int32 */
+            tmdbId: number;
+            title: string;
+            /** Format: int32 */
+            year: null | number;
+            posterUrl: null | string;
+            fourK: boolean;
+            seasons: number[];
+            state: components["schemas"]["RequestState"];
+            status: components["schemas"]["RequestStatus"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            requestedBy: null | components["schemas"]["RequestUserRef"];
+            decidedBy: null | components["schemas"]["RequestUserRef"];
+            /** Format: date-time */
+            decidedAt: null | string;
+            autoApproved: boolean;
+            declineReason: null | string;
+            qualityProfile: null | string;
+            rootFolder: null | string;
+            forwardStatus: null | components["schemas"]["ForwardStatus"];
+            forwardedTo: null | string;
+            forwardError: null | string;
+            error: null | string;
+            /** Format: int32 */
+            libraryId: null | number;
+            canCancel: boolean;
         };
         /** @enum {unknown} */
         MediaServerKind: "plex" | "jellyfin" | "emby";
@@ -11989,6 +12468,31 @@ export interface components {
             items: components["schemas"]["QueueItemResponse"][];
             clients: components["schemas"]["QueueClientStatusResponse"][];
         };
+        QuotaDto: {
+            /** Format: int32 */
+            filmLimit: null | number;
+            /** Format: int32 */
+            filmDays: number;
+            /** Format: int32 */
+            seasonLimit: null | number;
+            /** Format: int32 */
+            seasonDays: number;
+        };
+        QuotaResponse: {
+            films: components["schemas"]["QuotaUsage"];
+            seasons: components["schemas"]["QuotaUsage"];
+            exempt: boolean;
+        };
+        QuotaUsage: {
+            /** Format: int32 */
+            limit: null | number;
+            /** Format: int32 */
+            days: number;
+            /** Format: int32 */
+            used: number;
+            /** Format: int32 */
+            remaining: null | number;
+        };
         RadarrFollowPass: {
             /** Format: int32 */
             followedRadarrId: number;
@@ -12245,6 +12749,64 @@ export interface components {
             relativePath: string;
             renamed: boolean;
             error: null | string;
+        };
+        RequestCountsResponse: {
+            /** Format: int32 */
+            pending: number;
+            /** Format: int32 */
+            failed: number;
+        };
+        RequestDefaultsDto: {
+            /** Format: int32 */
+            movieProfileId: null | number;
+            /** Format: int32 */
+            movieRootFolderId: null | number;
+            /** Format: int32 */
+            movieFourKProfileId: null | number;
+            /** Format: int32 */
+            movieFourKRootFolderId: null | number;
+            /** Format: int32 */
+            seriesProfileId: null | number;
+            /** Format: int32 */
+            seriesRootFolderId: null | number;
+            /** Format: int32 */
+            seriesFourKProfileId: null | number;
+            /** Format: int32 */
+            seriesFourKRootFolderId: null | number;
+        };
+        /** @enum {unknown} */
+        RequestMediaType: "movie" | "series";
+        RequestOption: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+        };
+        RequestOptionsResponse: {
+            mediaType: components["schemas"]["RequestMediaType"];
+            profiles: components["schemas"]["RequestOption"][];
+            rootFolders: components["schemas"]["RequestOption"][];
+            fourKVersion: null | string;
+            /** Format: int32 */
+            standardProfileId: null | number;
+            /** Format: int32 */
+            standardRootFolderId: null | number;
+            /** Format: int32 */
+            fourKProfileId: null | number;
+            /** Format: int32 */
+            fourKRootFolderId: null | number;
+        };
+        RequestSlotsResponse: {
+            standard: null | components["schemas"]["RequestState"];
+            fourK: null | components["schemas"]["RequestState"];
+        };
+        /** @enum {unknown} */
+        RequestState: "pending" | "approved" | "declined" | "failed" | "processing" | "partiallyAvailable" | "available" | null;
+        /** @enum {unknown} */
+        RequestStatus: "pending" | "approved" | "declined" | "failed";
+        RequestUserRef: {
+            /** Format: int32 */
+            id: number;
+            username: string;
         };
         RestoreResponse: {
             name: string;
@@ -13810,10 +14372,12 @@ export interface components {
         UpdateUserRequest: {
             role: components["schemas"]["UserRole"];
             permissions: components["schemas"]["PermissionsDto"];
+            quota?: null | components["schemas"]["QuotaDto"];
         };
         UpdateUserSettingsRequest: {
             plexNewAccounts: boolean;
             defaultPermissions: components["schemas"]["PermissionsDto"];
+            defaultQuota?: null | components["schemas"]["QuotaDto"];
         };
         UpdateVersionRequest: {
             name?: null | string;
@@ -13850,6 +14414,7 @@ export interface components {
             hasPassword: boolean;
             logins: components["schemas"]["UserLoginResponse"][];
             isYou: boolean;
+            quota: components["schemas"]["QuotaDto"];
         };
         /** @enum {unknown} */
         UserRole: "admin" | "requestManager" | "user";
@@ -13857,6 +14422,7 @@ export interface components {
             plexNewAccounts: boolean;
             defaultPermissions: components["schemas"]["PermissionsDto"];
             plexServerConfigured: boolean;
+            defaultQuota: components["schemas"]["QuotaDto"];
         };
         VersionDecisionResponse: {
             /** Format: int32 */

@@ -2,11 +2,13 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { LibraryIcon, PlayIcon, StarIcon, UserIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { Availability, DiscoverItem, DiscoverSeason } from '@/api/client'
+import type { Availability, DiscoverItem, DiscoverSeason, RequestSlots } from '@/api/client'
 import { discover } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { RequestButton } from '@/features/requests/RequestButton'
+import { RequestChips } from '@/features/requests/requestState'
 import { AvailabilityChips } from './availability'
 import { TitleCard, rowCardClass } from './TitleCard'
 
@@ -24,11 +26,13 @@ type HeroProps = {
   tagline: string | null
   overview: string | null
   availability: Availability
+  requests: RequestSlots | null
   trailerUrl: string | null
   library: React.ReactNode
+  request: React.ReactNode
 }
 
-function Hero({ title, posterUrl, backdropUrl, facts, genres, voteAverage, tagline, overview, availability, trailerUrl, library }: HeroProps) {
+function Hero({ title, posterUrl, backdropUrl, facts, genres, voteAverage, tagline, overview, availability, requests, trailerUrl, library, request }: HeroProps) {
   const { t } = useTranslation()
   const image = backdrop(backdropUrl)
   return (
@@ -57,8 +61,12 @@ function Hero({ title, posterUrl, backdropUrl, facts, genres, voteAverage, tagli
             )}
           </p>
           {genres}
-          <AvailabilityChips availability={availability} />
+          <div className="flex flex-wrap items-center gap-1.5">
+            <AvailabilityChips availability={availability} />
+            <RequestChips requests={requests} />
+          </div>
           <div className="flex flex-wrap gap-2">
+            {request}
             {trailerUrl && (
               <Button asChild variant="outline" size="sm">
                 <a href={trailerUrl} target="_blank" rel="noreferrer noopener">
@@ -166,6 +174,8 @@ export function DiscoverMoviePage() {
         tagline={m.tagline}
         overview={m.overview}
         availability={m.availability}
+        requests={m.requests}
+        request={<RequestButton mediaType="movie" tmdbId={m.tmdbId} availability={m.availability} requests={m.requests} />}
         trailerUrl={m.trailerUrl}
         library={
           m.libraryId != null && (
@@ -205,7 +215,10 @@ function Seasons({ seasons }: { seasons: DiscoverSeason[] }) {
                 ].filter(Boolean).join(' · ')}
               </p>
             </div>
-            <AvailabilityChips availability={season.availability} className="w-full pl-[3.25rem] sm:w-auto sm:justify-end sm:pl-0" />
+            <div className="flex w-full flex-wrap gap-1.5 pl-[3.25rem] sm:w-auto sm:justify-end sm:pl-0">
+              <AvailabilityChips availability={season.availability} />
+              <RequestChips requests={season.requests} />
+            </div>
           </li>
         ))}
       </ul>
@@ -241,6 +254,8 @@ export function DiscoverSeriesPage() {
         tagline={s.tagline}
         overview={s.overview}
         availability={s.availability}
+        requests={s.requests}
+        request={<RequestButton mediaType="series" tmdbId={s.tmdbId} availability={s.availability} requests={s.requests} seasons={s.seasons} />}
         trailerUrl={s.trailerUrl}
         library={
           s.libraryId != null && (

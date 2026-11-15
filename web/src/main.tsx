@@ -10,6 +10,7 @@ import { DiscoverShell } from './features/discover/DiscoverShell'
 import './i18n'
 import './index.css'
 
+import { validateRequestsSearch } from './features/requests/requestsSearch'
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
 })
@@ -101,6 +102,13 @@ const discoverSeriesRoute = createRoute({
 const discoverMovieRoute = createRoute({ getParentRoute: () => shellRoute, path: '/discover/movie/$tmdbId', component: lazyRouteComponent(() => import('./features/discover/TitlePages'), 'DiscoverMoviePage') })
 const discoverTvRoute = createRoute({ getParentRoute: () => shellRoute, path: '/discover/tv/$tmdbId', component: lazyRouteComponent(() => import('./features/discover/TitlePages'), 'DiscoverSeriesPage') })
 const discoverPersonRoute = createRoute({ getParentRoute: () => shellRoute, path: '/discover/person/$tmdbId', component: lazyRouteComponent(() => import('./features/discover/TitlePages'), 'DiscoverPersonPage') })
+// Requests: everyone's own, and everyone's for an admin or a request manager. `?filter=pending&type=series&user=3`.
+const requestsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/requests',
+  validateSearch: validateRequestsSearch,
+  component: lazyRouteComponent(() => import('./features/requests/RequestsPage'), 'RequestsPage'),
+})
 
 // Each page is its own chunk, fetched on first visit: the shell and the login page load without the rest.
 const libraryRoute = createRoute({
@@ -204,6 +212,7 @@ const router = createRouter({
     discoverMovieRoute,
     discoverTvRoute,
     discoverPersonRoute,
+    requestsRoute,
     appRoute.addChildren([
       libraryRoute,
       addRoute,

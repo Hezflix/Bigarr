@@ -108,14 +108,19 @@ export type UserSettings = Schemas['UserSettingsResponse']
 /** Bigarr's own pages are the admin's; other roles get Discover only. */
 export const isAdmin = (me: Me | undefined) => me?.role === 'Admin'
 
+export type RequestQuotaSettings = Schemas['QuotaDto']
+
+/** Approves and declines other people's requests: an admin or a request manager. */
+export const canManageRequests = (me: Me | undefined) => me?.role === 'Admin' || me?.role === 'RequestManager'
+
 export const users = {
   list: () => api<UserSummary[]>('/api/v1/users'),
-  update: (id: number, role: UserRole, permissions: UserPermissions) => put<UserSummary>(`/api/v1/users/${id}`, { role, permissions }),
+  update: (id: number, role: UserRole, permissions: UserPermissions, quota?: RequestQuotaSettings) => put<UserSummary>(`/api/v1/users/${id}`, { role, permissions, quota }),
   disable: (id: number) => post<UserSummary>(`/api/v1/users/${id}/disable`),
   enable: (id: number) => post<UserSummary>(`/api/v1/users/${id}/enable`),
   settings: () => api<UserSettings>('/api/v1/users/settings'),
-  updateSettings: (plexNewAccounts: boolean, defaultPermissions: UserPermissions) =>
-    put<UserSettings>('/api/v1/users/settings', { plexNewAccounts, defaultPermissions }),
+  updateSettings: (plexNewAccounts: boolean, defaultPermissions: UserPermissions, defaultQuota?: RequestQuotaSettings) =>
+    put<UserSettings>('/api/v1/users/settings', { plexNewAccounts, defaultPermissions, defaultQuota }),
 }
 
 // ---- Discover (every signed-in user) ----------------------------------------
@@ -156,6 +161,36 @@ export const discover = {
   settings: () => api<DiscoverSettings>('/api/v1/discover/settings'),
   updateSettings: (fourKVersion: string | null, sliders: DiscoverSliderUpdate[]) => put<DiscoverSettings>('/api/v1/discover/settings', { fourKVersion, sliders }),
   lookup: (kind: DiscoverSliderKind, text: string) => api<DiscoverLookupResult[]>(`/api/v1/discover/lookup${query({ kind, query: text })}`),
+}
+
+// ---- Requests (every signed-in user; approvers decide) -----------------------
+
+export type RequestMediaType = Schemas['RequestMediaType']
+export type RequestState = NonNullable<Schemas['RequestState']>
+export type ForwardStatus = NonNullable<Schemas['ForwardStatus']>
+export type MediaRequest = Schemas['MediaRequestResponse']
+export type MediaRequestPage = Schemas['MediaRequestPage']
+export type RequestSlots = Schemas['RequestSlotsResponse']
+export type RequestOptions = Schemas['RequestOptionsResponse']
+export type RequestQuota = Schemas['QuotaResponse']
+export type RequestDefaults = Schemas['RequestDefaultsDto']
+export type RequestFilter = 'all' | 'pending' | 'approved' | 'processing' | 'available' | 'declined' | 'failed'
+export type ApproveEdits = { qualityProfileId?: number | null; rootFolderId?: number | null; fourK?: boolean | null; seasons?: number[] | null }
+
+export const requests = {
+  list: (filter: { filter?: RequestFilter; mediaType?: RequestMediaType; userId?: number; page?: number; pageSize?: number }) =>
+    api<MediaRequestPage>(`/api/v1/requests${query(filter)}`),
+  get: (id: number) => api<MediaRequest>(`/api/v1/requests/${id}`),
+  create: (mediaType: RequestMediaType, tmdbId: number, fourK: boolean, seasons: number[] | null) => post<MediaRequest>('/api/v1/requests', { mediaType, tmdbId, fourK, seasons }),
+  cancel: (id: number) => del(`/api/v1/requests/${id}`),
+  approve: (id: number, edits: ApproveEdits) => post<MediaRequest>(`/api/v1/requests/${id}/approve`, edits),
+  decline: (id: number, reason: string | null) => post<MediaRequest>(`/api/v1/requests/${id}/decline`, { reason }),
+  retry: (id: number) => post<MediaRequest>(`/api/v1/requests/${id}/retry`),
+  count: () => api<Schemas['RequestCountsResponse']>('/api/v1/requests/count'),
+  quota: () => api<RequestQuota>('/api/v1/requests/quota'),
+  options: (mediaType: RequestMediaType) => api<RequestOptions>(`/api/v1/requests/options${query({ mediaType })}`),
+  settings: () => api<RequestDefaults>('/api/v1/requests/settings'),
+  updateSettings: (defaults: RequestDefaults) => put<RequestDefaults>('/api/v1/requests/settings', defaults),
 }
 
 // ---- API keys (Connect) ----------------------------------------------------

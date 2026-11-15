@@ -3092,6 +3092,17 @@
       "autoApproveFilms": "Their film requests skip approval.",
       "autoApproveSeries": "Their series requests skip approval.",
       "reportIssues": "Report a problem with a file: video, audio, subtitles."
+    },
+    "quota": {
+      "title": "Request limits",
+      "defaultTitle": "Request limits a new user starts with",
+      "hint": "How many films and seasons they may request over a sliding window. Leave a limit empty for no limit; a declined request does not count.",
+      "adminExempt": "An admin is never limited.",
+      "films": "Films",
+      "seasons": "Seasons",
+      "unlimited": "No limit",
+      "every": "every",
+      "days": "days"
     }
   },
   "discover": {
@@ -3218,6 +3229,103 @@
       "upcomingSeries": "Upcoming series",
       "seriesGenres": "Series genres",
       "networks": "Networks"
+    }
+  },
+  "addTitle": {
+    "kind": "What to add",
+    "film": "Film",
+    "series": "Series"
+  },
+  "requests": {
+    "title": "Requests",
+    "mine": "My requests",
+    "request": "Request",
+    "film": "Film",
+    "season": "Season {{number}}",
+    "seasons": "Seasons {{list}}",
+    "autoApproved": "auto-approved",
+    "askedOn": "Asked {{date}}",
+    "approvedBy": "approved by {{user}}",
+    "declinedBy": "declined by {{user}}",
+    "empty": "No request here.",
+    "emptyMine": "You have not asked for anything here yet. Find a film or a series in Discover and press Request.",
+    "pendingBadge_one": "{{count}} request waiting",
+    "pendingBadge_other": "{{count}} requests waiting",
+    "state": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "declined": "Declined",
+      "failed": "Failed",
+      "processing": "On its way",
+      "partiallyAvailable": "Partially available",
+      "available": "Available"
+    },
+    "badge": {
+      "pending": "Requested",
+      "approved": "Approved",
+      "declined": "Declined",
+      "failed": "Request failed",
+      "processing": "On its way",
+      "partiallyAvailable": "Partially available",
+      "available": "Available"
+    },
+    "filters": {
+      "state": "Request state",
+      "type": "Type",
+      "allTypes": "Films and series",
+      "all": "All",
+      "pending": "Pending",
+      "approved": "Approved",
+      "processing": "On its way",
+      "available": "Available",
+      "declined": "Declined",
+      "failed": "Failed",
+      "byUser": "Asked by {{user}}",
+      "clearUser": "Everyone"
+    },
+    "actions": {
+      "approve": "Approve",
+      "decline": "Decline",
+      "retry": "Retry",
+      "retryForward": "Retry sending",
+      "cancel": "Cancel request"
+    },
+    "forward": {
+      "none": "",
+      "forwarded": "Sent to {{name}}",
+      "alreadyThere": "Already in {{name}}",
+      "failed": "Could not send it to {{name}}"
+    },
+    "form": {
+      "version": "Version",
+      "seasons": "Seasons",
+      "allSeasons": "All seasons"
+    },
+    "dialog": {
+      "submit": "Request",
+      "submitSeasons_one": "Request {{count}} season",
+      "submitSeasons_other": "Request {{count}} seasons",
+      "sent": "{{title}} requested. You will see here when it is approved.",
+      "approved": "{{title}} requested and approved.",
+      "quotaFilms": "{{remaining}} of your {{limit}} film requests left over {{days}} days.",
+      "quotaSeasons": "{{remaining}} of your {{limit}} season requests left over {{days}} days."
+    },
+    "approve": {
+      "askedBy": "Asked for by {{user}}.",
+      "done": "{{title}} approved.",
+      "failed": "{{title}} approved, but the library could not take it: see the request."
+    },
+    "decline": {
+      "title": "Decline {{title}}?",
+      "hint": "The person who asked sees that it was declined, and your reason if you give one.",
+      "reason": "Reason (optional)",
+      "reasonPlaceholder": "Already on another server…"
+    },
+    "defaults": {
+      "title": "Approved requests",
+      "hint": "The quality profile and root folder an approved request goes to, per type and version, unless the approver picks others. Automatic takes the first of the right kind (a 4K profile for 4K).",
+      "auto": "Automatic",
+      "saved": "Request defaults saved."
     }
   }
 }

@@ -4,7 +4,7 @@ import { Link } from '@tanstack/react-router'
 import { BanIcon, CircleCheckIcon, InfoIcon, KeyRoundIcon, PencilIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, users, type UserPermissions, type UserRole, type UserSummary } from '@/api/client'
+import { ApiError, users, type RequestQuotaSettings, type UserPermissions, type UserRole, type UserSummary } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -199,12 +200,75 @@ function PermissionChecks({
   )
 }
 
+/**
+ * How many films and seasons a user may request over a sliding window. An empty limit is unlimited; the window is in days.
+ */
+function QuotaFields({ idPrefix, value, onChange, disabled }: { idPrefix: string; value: RequestQuotaSettings; onChange: (next: RequestQuotaSettings) => void; disabled?: boolean }) {
+  const { t } = useTranslation()
+  const number = (text: string) => (text.trim() === '' ? null : Math.max(0, Math.floor(Number(text)) || 0))
+  const rows = [
+    { key: 'film', label: t('users.quota.films'), limit: value.filmLimit, days: value.filmDays, set: (limit: number | null, days: number) => onChange({ ...value, filmLimit: limit, filmDays: days }) },
+    { key: 'season', label: t('users.quota.seasons'), limit: value.seasonLimit, days: value.seasonDays, set: (limit: number | null, days: number) => onChange({ ...value, seasonLimit: limit, seasonDays: days }) },
+  ]
+  return (
+    <div className="grid gap-3" data-testid={`${idPrefix}-quota`}>
+      {rows.map((row) => (
+        <div key={row.key} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+          <Label htmlFor={`${idPrefix}-${row.key}-limit`} className="w-full font-normal sm:w-24">
+            {row.label}
+          </Label>
+          <Input
+            id={`${idPrefix}-${row.key}-limit`}
+            type="number"
+            inputMode="numeric"
+            min={0}
+            className="h-9 w-24"
+            placeholder={t('users.quota.unlimited')}
+            value={row.limit ?? ''}
+            disabled={disabled}
+            onChange={(e) => row.set(number(e.target.value), row.days)}
+          />
+          <span className="text-muted-foreground">{t('users.quota.every')}</span>
+          <Input
+            id={`${idPrefix}-${row.key}-days`}
+            aria-label={t('users.quota.days')}
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={365}
+            className="h-9 w-20"
+            value={row.days}
+            disabled={disabled}
+            onChange={(e) => row.set(row.limit, Math.min(365, Math.max(1, Math.floor(Number(e.target.value)) || 1)))}
+          />
+          <span className="text-muted-foreground">{t('users.quota.days')}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** The default limits of new users, saved with their own button (numbers are typed, not toggled). */
+function DefaultQuota({ value, onSave, pending }: { value: RequestQuotaSettings; onSave: (quota: RequestQuotaSettings) => void; pending: boolean }) {
+  const { t } = useTranslation()
+  const [draft, setDraft] = useState(value)
+  const changed = JSON.stringify(draft) !== JSON.stringify(value)
+  return (
+    <div className="flex flex-col items-start gap-3">
+      <QuotaFields idPrefix="users-default" value={draft} onChange={setDraft} />
+      <Button type="button" size="sm" variant="outline" disabled={!changed || pending} onClick={() => onSave(draft)} data-testid="users-default-quota-save">
+        {t('common.save')}
+      </Button>
+    </div>
+  )
+}
+
 function NewUsersCard() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const settings = useQuery({ queryKey: ['users', 'settings'], queryFn: users.settings })
   const save = useMutation({
-    mutationFn: ({ open, defaults }: { open: boolean; defaults: UserPermissions }) => users.updateSettings(open, defaults),
+    mutationFn: ({ open, defaults, quota }: { open: boolean; defaults: UserPermissions; quota?: RequestQuotaSettings }) => users.updateSettings(open, defaults, quota),
     onSuccess: (data) => {
       queryClient.setQueryData(['users', 'settings'], data)
       void queryClient.invalidateQueries({ queryKey: ['auth'] })
@@ -261,6 +325,18 @@ function NewUsersCard() {
                 onChange={(defaults) => save.mutate({ open: data.plexNewAccounts, defaults })}
               />
             </div>
+            <div className="grid gap-3">
+              <div className="grid gap-1">
+                <p className="text-sm font-medium">{t('users.quota.defaultTitle')}</p>
+                <p className="text-xs text-muted-foreground">{t('users.quota.hint')}</p>
+              </div>
+              <DefaultQuota
+                key={JSON.stringify(settings.data?.defaultQuota)}
+                value={data.defaultQuota}
+                pending={save.isPending}
+                onSave={(quota) => save.mutate({ open: data.plexNewAccounts, defaults: data.defaultPermissions, quota })}
+              />
+            </div>
             <p className="text-sm text-muted-foreground">
               {t('users.signInButtonNote')}{' '}
               <Link to="/settings/security" className="underline underline-offset-4">
@@ -279,8 +355,9 @@ function EditUserDialog({ user, onClose }: { user: UserSummary; onClose: () => v
   const queryClient = useQueryClient()
   const [role, setRole] = useState<UserRole>(user.role)
   const [permissions, setPermissions] = useState<UserPermissions>(user.permissions)
+  const [quota, setQuota] = useState<RequestQuotaSettings>(user.quota)
   const save = useMutation({
-    mutationFn: () => users.update(user.id, role, permissions),
+    mutationFn: () => users.update(user.id, role, permissions, quota),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['users'] })
       toast.success(t('users.saved', { name: user.username }))
@@ -291,7 +368,7 @@ function EditUserDialog({ user, onClose }: { user: UserSummary; onClose: () => v
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-xl" data-testid="user-edit-dialog">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl" data-testid="user-edit-dialog">
         <DialogHeader>
           <DialogTitle>{t('users.editTitle', { name: user.username })}</DialogTitle>
           <DialogDescription>{t('users.editHint')}</DialogDescription>
@@ -317,6 +394,13 @@ function EditUserDialog({ user, onClose }: { user: UserSummary; onClose: () => v
             <p className="text-sm font-medium">{t('users.permissionsTitle')}</p>
             {role === 'admin' && <p className="text-xs text-muted-foreground">{t('users.adminHasAll')}</p>}
             <PermissionChecks idPrefix="user-edit" value={permissions} onChange={setPermissions} disabled={role === 'admin'} />
+          </div>
+          <div className="grid gap-3">
+            <div className="grid gap-1">
+              <p className="text-sm font-medium">{t('users.quota.title')}</p>
+              <p className="text-xs text-muted-foreground">{role === 'admin' ? t('users.quota.adminExempt') : t('users.quota.hint')}</p>
+            </div>
+            <QuotaFields idPrefix="user-edit" value={quota} onChange={setQuota} disabled={role === 'admin'} />
           </div>
         </div>
         <DialogFooter>

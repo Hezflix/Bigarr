@@ -9,7 +9,9 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { AddDialog, AddError, FormField, IdSelectField, LookupResultCard, LookupSearch, useAddTargets, VersionNameField } from '@/features/library/addParts'
+import { FormField, LookupResultCard, LookupSearch, useAddTargets, VersionNameField } from '@/features/library/addParts'
+import { AddKindSwitch } from '@/features/library/AddKindSwitch'
+import { TitleForm } from '@/features/library/TitleForm'
 import { useDebounced } from '@/hooks/useDebounced'
 
 const availabilities: MinimumAvailability[] = ['announced', 'inCinemas', 'released']
@@ -38,7 +40,10 @@ export function AddMoviePage() {
 
   return (
     <>
-      <h1 className="text-2xl font-semibold tracking-tight">{t('lookup.title')}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight">{t('lookup.title')}</h1>
+        <AddKindSwitch kind="movie" />
+      </div>
 
       <LookupSearch
         testId="lookup-input"
@@ -118,34 +123,36 @@ function AddForm({ movie, onCancel, onAdded }: { movie: MovieLookupResult; onCan
   })
 
   return (
-    <AddDialog
+    <TitleForm
+      kind="movie"
       posterUrl={movie.posterUrl}
       title={movie.title}
       year={movie.year}
       overview={movie.overview}
+      targets={{
+        profiles,
+        roots: roots?.map((r) => ({ id: r.id, name: r.path })),
+        profileId,
+        onProfile: setProfileId,
+        rootId,
+        onRoot: setRootId,
+        notice: noRoot && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              <Trans i18nKey="addMovie.noRootFolder" components={{ link: <Link to="/settings/library" className="underline underline-offset-4" /> }} />
+            </AlertDescription>
+          </Alert>
+        ),
+      }}
       onCancel={onCancel}
       onSubmit={() => add.mutate()}
       submitLabel={t('addMovie.submit')}
       submitTestId="add-form-submit"
       submitDisabled={noRoot || profileId === '' || rootId === ''}
       pending={add.isPending}
+      error={add.error}
     >
-      {noRoot && (
-        <Alert variant="destructive">
-          <AlertDescription>
-            <Trans
-              i18nKey="addMovie.noRootFolder"
-              components={{ link: <Link to="/settings/library" className="underline underline-offset-4" /> }}
-            />
-          </AlertDescription>
-        </Alert>
-      )}
-
       <div className="grid gap-4 sm:grid-cols-2">
-        <IdSelectField id="add-profile" label={t('addMovie.qualityProfile')} value={profileId} onChange={setProfileId} options={profiles?.map((p) => ({ id: p.id, label: p.name }))} />
-
-        <IdSelectField id="add-root" label={t('addMovie.rootFolder')} value={rootId} onChange={setRootId} options={roots?.map((r) => ({ id: r.id, label: r.path }))} />
-
         <VersionNameField id="add-version-name" value={versionName} onChange={setVersionName} placeholder={effectiveName} />
 
         <FormField id="add-availability" label={t('addMovie.minimumAvailability')}>
@@ -182,7 +189,6 @@ function AddForm({ movie, onCancel, onAdded }: { movie: MovieLookupResult; onCan
         </div>
       </div>
 
-      <AddError error={add.error} />
-    </AddDialog>
+    </TitleForm>
   )
 }

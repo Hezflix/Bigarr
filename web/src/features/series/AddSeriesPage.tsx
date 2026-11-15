@@ -17,7 +17,9 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { AddDialog, AddError, FormField, IdSelectField, LookupResultCard, LookupSearch, useAddTargets, VersionNameField } from '@/features/library/addParts'
+import { FormField, LookupResultCard, LookupSearch, useAddTargets, VersionNameField } from '@/features/library/addParts'
+import { AddKindSwitch } from '@/features/library/AddKindSwitch'
+import { TitleForm } from '@/features/library/TitleForm'
 import { useDebounced } from '@/hooks/useDebounced'
 
 const resultKey = (r: SeriesLookupResult) => `${r.tvdbId ?? ''}-${r.tmdbId ?? ''}`
@@ -46,7 +48,10 @@ export function AddSeriesPage() {
 
   return (
     <>
-      <h1 className="text-2xl font-semibold tracking-tight">{t('addSeries.title')}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight">{t('addSeries.title')}</h1>
+        <AddKindSwitch kind="series" />
+      </div>
 
       <LookupSearch
         testId="series-lookup-input"
@@ -137,31 +142,44 @@ function AddForm({ show, onCancel, onAdded }: { show: SeriesLookupResult; onCanc
   })
 
   return (
-    <AddDialog
+    <TitleForm
+      kind="series"
       posterUrl={show.posterUrl}
       title={show.title}
       year={show.year}
       overview={show.overview}
+      targets={{
+        profiles,
+        roots: roots?.map((r) => ({ id: r.id, name: r.path })),
+        profileId,
+        onProfile: setProfileId,
+        rootId,
+        onRoot: setRootId,
+        notice: (
+          <>
+            {noRoot && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  <Trans i18nKey="addSeries.noRootFolder" components={{ link: <Link to="/settings/library" className="underline underline-offset-4" /> }} />
+                </AlertDescription>
+              </Alert>
+            )}
+            {show.tvdbId === null && (
+              <Alert>
+                <AlertDescription>{t('addSeries.noTvdb')}</AlertDescription>
+              </Alert>
+            )}
+          </>
+        ),
+      }}
       onCancel={onCancel}
       onSubmit={() => add.mutate()}
       submitLabel={t('addSeries.submit')}
       submitTestId="series-add-submit"
       submitDisabled={noRoot || profileId === '' || rootId === ''}
       pending={add.isPending}
+      error={add.error}
     >
-      {noRoot && (
-        <Alert variant="destructive">
-          <AlertDescription>
-            <Trans i18nKey="addSeries.noRootFolder" components={{ link: <Link to="/settings/library" className="underline underline-offset-4" /> }} />
-          </AlertDescription>
-        </Alert>
-      )}
-      {show.tvdbId === null && (
-        <Alert>
-          <AlertDescription>{t('addSeries.noTvdb')}</AlertDescription>
-        </Alert>
-      )}
-
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField id="series-monitor" label={t('addSeries.monitor')} hint={t('addSeries.monitorHint')}>
           <Select value={monitor} onValueChange={(value) => setMonitor(value as MonitoringOption)}>
@@ -194,10 +212,6 @@ function AddForm({ show, onCancel, onAdded }: { show: SeriesLookupResult; onCanc
           </Select>
         </FormField>
 
-        <IdSelectField id="series-profile" label={t('addMovie.qualityProfile')} value={profileId} onChange={setProfileId} options={profiles?.map((p) => ({ id: p.id, label: p.name }))} />
-
-        <IdSelectField id="series-root" label={t('addMovie.rootFolder')} value={rootId} onChange={setRootId} options={roots?.map((r) => ({ id: r.id, label: r.path }))} />
-
         <VersionNameField id="series-version-name" value={versionName} onChange={setVersionName} placeholder={effectiveName} />
       </div>
 
@@ -216,7 +230,6 @@ function AddForm({ show, onCancel, onAdded }: { show: SeriesLookupResult; onCanc
         </div>
       </div>
 
-      <AddError error={add.error} />
-    </AddDialog>
+    </TitleForm>
   )
 }
