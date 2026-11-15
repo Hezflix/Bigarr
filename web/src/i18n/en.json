@@ -2931,5 +2931,21 @@
     "unlink": "Unlink",
     "unlinkTitle": "Unlink this {{provider}} account?",
     "unlinkBody": "“Sign in with {{provider}}” will no longer sign you in. Sessions already open stay open; your password keeps working."
+  },
+  "palette": {
+    "title": "Command palette",
+    "description": "Go to any page of Bigarr.",
+    "placeholder": "Go to a page…",
+    "trigger": "Search…",
+    "open": "Open the command palette",
+    "empty": "Nothing matches.",
+    "recent": "Recent",
+    "clearRecent": "Clear recent",
+    "goToSection": "Go to · {{section}}",
+    "keys": {
+      "move": "to move",
+      "open": "to open",
+      "close": "to close"
+    }
   }
 }

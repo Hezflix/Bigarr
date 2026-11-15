@@ -228,6 +228,8 @@ export function LibrarySearchBar({ term, onTermChange, placeholder, mode: curren
           aria-label={placeholder}
           className="h-8 pl-8"
           data-testid="library-search"
+          // "/" from anywhere on the page lands here.
+          data-page-search
         />
       </div>
 

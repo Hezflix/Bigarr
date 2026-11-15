@@ -38,7 +38,7 @@ export function UsersPage() {
         <h1 className="text-2xl font-semibold tracking-tight">{t('playback.usersTitle')}</h1>
         <div className="relative ml-auto w-full sm:w-64">
           <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('playback.searchUser')} aria-label={t('playback.searchUser')} className="pl-8" />
+          <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('playback.searchUser')} aria-label={t('playback.searchUser')} className="pl-8" data-page-search />
         </div>
       </div>
       {users.isPending && <Skeleton className="h-40 w-full" />}
