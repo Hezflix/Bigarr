@@ -370,6 +370,10 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int>("Id")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("DiscoverFourKVersion")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("PlexClientIdentifier")
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
@@ -403,6 +407,101 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("InstanceSettings", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Discover.DiscoverSlider", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Value")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("DiscoverSliders", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Enabled = true,
+                            Kind = "Trending",
+                            Position = 0
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Enabled = true,
+                            Kind = "PopularMovies",
+                            Position = 1
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Enabled = true,
+                            Kind = "MovieGenres",
+                            Position = 2
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Enabled = true,
+                            Kind = "UpcomingMovies",
+                            Position = 3
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Enabled = true,
+                            Kind = "Studios",
+                            Position = 4
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Enabled = true,
+                            Kind = "PopularSeries",
+                            Position = 5
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Enabled = true,
+                            Kind = "SeriesGenres",
+                            Position = 6
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Enabled = true,
+                            Kind = "UpcomingSeries",
+                            Position = 7
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Enabled = true,
+                            Kind = "Networks",
+                            Position = 8
+                        });
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Downloads.DownloadClient", b =>

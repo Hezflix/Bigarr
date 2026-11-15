@@ -6,7 +6,7 @@ import { ApiError, auth, isAdmin } from './api/client'
 import { AppShell } from './components/AppShell'
 import { ThemeProvider } from './components/theme'
 import { LoginPage } from './features/auth/LoginPage'
-import { SignedInPage } from './features/auth/SignedInPage'
+import { DiscoverShell } from './features/discover/DiscoverShell'
 import './i18n'
 import './index.css'
 
@@ -33,29 +33,74 @@ const fetchMe = async () => {
   }
 }
 
-// Everything under the shell requires the admin's session; a 401 sends to the login page, another role to the
-// signed-in page (the API refuses them everything under the shell anyway).
-const appRoute = createRoute({
+// Every page needs a session (a 401 sends to the login page). The admin gets the full app in its sidebar; anyone else
+// gets Discover in a frame of its own, and is sent there from the admin's pages (the API refuses them those anyway).
+const shellRoute = createRoute({
   getParentRoute: () => rootRoute,
-  id: 'app',
-  beforeLoad: async () => {
-    if (!isAdmin(await fetchMe())) {
-      throw redirect({ to: '/welcome' })
-    }
+  id: 'shell',
+  beforeLoad: async () => ({ admin: isAdmin(await fetchMe()) }),
+  component: function Shell() {
+    const { admin } = shellRoute.useRouteContext()
+    return admin ? <AppShell /> : <DiscoverShell />
   },
-  component: AppShell,
 })
 
+const appRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  id: 'app',
+  beforeLoad: ({ context }) => {
+    if (!context.admin) {
+      throw redirect({ to: '/discover' })
+    }
+  },
+  component: Outlet,
+})
+
+// The landing page of R1, kept as an address: it is Discover now.
 const welcomeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/welcome',
-  beforeLoad: async () => {
-    if (isAdmin(await fetchMe())) {
-      throw redirect({ to: '/' })
-    }
+  beforeLoad: () => {
+    throw redirect({ to: '/discover' })
   },
-  component: SignedInPage,
 })
+
+// Discover: every signed-in user. `name` is the genre, studio or network the list was opened from, for its heading.
+const optionalNumber = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : undefined)
+const optionalText = (value: unknown) => (typeof value === 'string' && value.trim() ? value : undefined)
+const discoverRoute = createRoute({ getParentRoute: () => shellRoute, path: '/discover', component: lazyRouteComponent(() => import('./features/discover/DiscoverPage'), 'DiscoverPage') })
+const discoverSearchRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/discover/search',
+  validateSearch: (search: Record<string, unknown>): { q?: string } => ({ q: optionalText(search.q) }),
+  component: lazyRouteComponent(() => import('./features/discover/DiscoverListPage'), 'DiscoverSearchPage'),
+})
+const discoverRowRoute = createRoute({ getParentRoute: () => shellRoute, path: '/discover/rows/$sliderId', component: lazyRouteComponent(() => import('./features/discover/DiscoverListPage'), 'DiscoverRowPage') })
+const discoverMoviesRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/discover/movies',
+  validateSearch: (search: Record<string, unknown>): { genre?: number; studio?: number; keyword?: number; name?: string } => ({
+    genre: optionalNumber(search.genre),
+    studio: optionalNumber(search.studio),
+    keyword: optionalNumber(search.keyword),
+    name: optionalText(search.name),
+  }),
+  component: lazyRouteComponent(() => import('./features/discover/DiscoverListPage'), 'DiscoverMoviesPage'),
+})
+const discoverSeriesRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/discover/series',
+  validateSearch: (search: Record<string, unknown>): { genre?: number; network?: number; keyword?: number; name?: string } => ({
+    genre: optionalNumber(search.genre),
+    network: optionalNumber(search.network),
+    keyword: optionalNumber(search.keyword),
+    name: optionalText(search.name),
+  }),
+  component: lazyRouteComponent(() => import('./features/discover/DiscoverListPage'), 'DiscoverSeriesListPage'),
+})
+const discoverMovieRoute = createRoute({ getParentRoute: () => shellRoute, path: '/discover/movie/$tmdbId', component: lazyRouteComponent(() => import('./features/discover/TitlePages'), 'DiscoverMoviePage') })
+const discoverTvRoute = createRoute({ getParentRoute: () => shellRoute, path: '/discover/tv/$tmdbId', component: lazyRouteComponent(() => import('./features/discover/TitlePages'), 'DiscoverSeriesPage') })
+const discoverPersonRoute = createRoute({ getParentRoute: () => shellRoute, path: '/discover/person/$tmdbId', component: lazyRouteComponent(() => import('./features/discover/TitlePages'), 'DiscoverPersonPage') })
 
 // Each page is its own chunk, fetched on first visit: the shell and the login page load without the rest.
 const libraryRoute = createRoute({
@@ -139,6 +184,7 @@ const customFormatsRoute = createRoute({ getParentRoute: () => appRoute, path: '
 const downloadClientsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/downloadclients', component: lazyRouteComponent(() => import('./features/settings/DownloadClientsPage'), 'DownloadClientsPage') })
 const notificationsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/notifications', component: lazyRouteComponent(() => import('./features/settings/NotificationsPage'), 'NotificationsPage') })
 const connectRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/connect', component: lazyRouteComponent(() => import('./features/settings/ConnectPage'), 'ConnectPage') })
+const discoverSettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/discover', component: lazyRouteComponent(() => import('./features/settings/DiscoverSettingsPage'), 'DiscoverSettingsPage') })
 const usersRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/users', component: lazyRouteComponent(() => import('./features/settings/UsersPage'), 'UsersPage') })
 const securityRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/security', component: lazyRouteComponent(() => import('./features/settings/SecurityPage'), 'SecurityPage') })
 const mediaServersRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/mediaservers', component: lazyRouteComponent(() => import('./features/settings/MediaServersPage'), 'MediaServersPage') })
@@ -149,7 +195,16 @@ const importSonarrRoute = createRoute({ getParentRoute: () => appRoute, path: '/
 const followedSonarrsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/followed-sonarrs', component: lazyRouteComponent(() => import('./features/settings/SonarrFollowPage'), 'SonarrFollowPage') })
 
 const router = createRouter({
-  routeTree: rootRoute.addChildren([loginRoute, welcomeRoute, appRoute.addChildren([
+  routeTree: rootRoute.addChildren([loginRoute, welcomeRoute, shellRoute.addChildren([
+    discoverRoute,
+    discoverSearchRoute,
+    discoverRowRoute,
+    discoverMoviesRoute,
+    discoverSeriesRoute,
+    discoverMovieRoute,
+    discoverTvRoute,
+    discoverPersonRoute,
+    appRoute.addChildren([
       libraryRoute,
       addRoute,
       wantedRoute,
@@ -180,6 +235,7 @@ const router = createRouter({
       connectRoute,
       securityRoute,
       usersRoute,
+      discoverSettingsRoute,
       mediaServersRoute,
       importRadarrRoute,
       importTautulliRoute,
@@ -189,7 +245,7 @@ const router = createRouter({
       qualitySettingsRoute,
       customFormatsRoute,
       systemRoute,
-    ])]),
+    ])])]),
 })
 
 declare module '@tanstack/react-router' {

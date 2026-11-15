@@ -113,6 +113,8 @@ public sealed class BigarrDbContext : DbContext
 
     public DbSet<Bigarr.Domain.Common.InstanceSettings> InstanceSettings => Set<Bigarr.Domain.Common.InstanceSettings>();
 
+    public DbSet<Bigarr.Domain.Discover.DiscoverSlider> DiscoverSliders => Set<Bigarr.Domain.Discover.DiscoverSlider>();
+
     public DbSet<OutboxEvent> Outbox => Set<OutboxEvent>();
 
     public DbSet<NotificationEndpoint> NotificationEndpoints => Set<NotificationEndpoint>();

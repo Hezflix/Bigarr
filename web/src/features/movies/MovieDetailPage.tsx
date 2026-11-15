@@ -46,7 +46,7 @@ const availabilities: MinimumAvailability[] = ['announced', 'inCinemas', 'releas
 
 export function MovieDetailPage() {
   const { t } = useTranslation()
-  const { movieId } = useParams({ from: '/app/movies/$movieId' })
+  const { movieId } = useParams({ from: '/shell/app/movies/$movieId' })
   const id = Number(movieId)
   const navigate = useNavigate()
   const queryClient = useQueryClient()

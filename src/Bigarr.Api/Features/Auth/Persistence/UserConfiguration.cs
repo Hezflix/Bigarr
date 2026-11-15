@@ -68,5 +68,6 @@ public sealed class InstanceSettingsConfiguration : IEntityTypeConfiguration<Big
         builder.Property(s => s.Id).ValueGeneratedNever();
         builder.Property(s => s.PlexClientIdentifier).HasMaxLength(64);
         builder.ComplexProperty(s => s.DefaultPermissions);
+        builder.Property(s => s.DiscoverFourKVersion).HasMaxLength(64);
     }
 }

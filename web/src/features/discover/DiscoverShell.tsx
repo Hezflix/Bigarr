@@ -1,0 +1,67 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link, Outlet, useNavigate } from '@tanstack/react-router'
+import { CompassIcon, LogOutIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { auth } from '@/api/client'
+import { ThemeToggle } from '@/components/ThemeToggle'
+import { Button } from '@/components/ui/button'
+import { Toaster } from '@/components/ui/sonner'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+
+/**
+ * The frame of someone who is not the admin: Bigarr's own pages are not theirs, so no sidebar, only what they may
+ * see (Discover), who they are, the theme and sign out.
+ */
+export function DiscoverShell() {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const me = useQuery({ queryKey: ['me'], queryFn: auth.me, staleTime: 60_000 })
+  const logout = useMutation({
+    mutationFn: auth.logout,
+    onSettled: async () => {
+      queryClient.clear()
+      await navigate({ to: '/login' })
+    },
+  })
+
+  return (
+    <TooltipProvider>
+    <div className="flex min-h-svh flex-col bg-background">
+      <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur md:px-6" data-testid="discover-shell">
+        <Link to="/discover" className="text-lg font-semibold tracking-tight">
+          {t('app.name')}
+        </Link>
+        <nav className="flex items-center">
+          <Link
+            to="/discover"
+            activeOptions={{ exact: false }}
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-muted-foreground hover:text-foreground data-[status=active]:font-medium data-[status=active]:text-foreground"
+          >
+            <CompassIcon className="size-4" aria-hidden="true" />
+            {t('nav.discover')}
+          </Link>
+        </nav>
+        <div className="ml-auto flex items-center gap-1">
+          <span className="mr-1 hidden max-w-40 truncate text-sm text-muted-foreground sm:inline" data-testid="signed-in-as">
+            {me.data?.username}
+          </span>
+          <ThemeToggle />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon-sm" onClick={() => logout.mutate()} disabled={logout.isPending} aria-label={t('nav.logout')} data-testid="logout">
+                <LogOutIcon />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{t('nav.logout')}</TooltipContent>
+          </Tooltip>
+        </div>
+      </header>
+      <main className="flex min-w-0 flex-1 flex-col gap-6 p-4 md:p-6">
+        <Outlet />
+      </main>
+      <Toaster />
+    </div>
+    </TooltipProvider>
+  )
+}

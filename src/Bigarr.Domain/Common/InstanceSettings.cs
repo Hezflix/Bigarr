@@ -21,4 +21,10 @@ public sealed class InstanceSettings
     /// set up in Bigarr. On unless the admin turns it off; off: only accounts already linked to a user sign in.
     /// </summary>
     public bool PlexNewAccounts { get; set; } = true;
+
+    /// <summary>
+    /// The version name Discover shows as "4K" next to the default version ("standard"), as a 4K Seerr sees it through a
+    /// <c>version:4k</c> key. Null or empty: Discover shows the default version only.
+    /// </summary>
+    public string? DiscoverFourKVersion { get; set; } = "4k";
 }

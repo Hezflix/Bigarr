@@ -3,6 +3,7 @@ import {
   CalendarDaysIcon,
   ChartColumnIcon,
   CirclePlayIcon,
+  CompassIcon,
   FilmIcon,
   FolderCogIcon,
   FolderOpenIcon,
@@ -34,6 +35,8 @@ import { useTranslation } from 'react-i18next'
 /** Every page the sidebar links to. */
 export type NavPath =
   | '/'
+  | '/discover'
+  | '/settings/discover'
   | '/add'
   | '/wanted'
   | '/series'
@@ -91,6 +94,10 @@ export function useNavSections(): NavSection[] {
   const { t } = useTranslation()
   return useMemo(() => [
     {
+      title: t('nav.requests'),
+      items: [{ to: '/discover', label: t('nav.discover'), icon: CompassIcon }],
+    },
+    {
       title: t('nav.movies'),
       items: [
         { to: '/', label: t('nav.library'), icon: FilmIcon, exact: true },
@@ -142,6 +149,7 @@ export function useNavSections(): NavSection[] {
         { to: '/settings/mediaservers', label: t('nav.settingsMediaServers'), icon: MonitorPlayIcon },
         { to: '/settings/connect', label: t('nav.settingsConnect'), icon: PlugIcon },
         { to: '/settings/users', label: t('nav.settingsUsers'), icon: UsersIcon },
+        { to: '/settings/discover', label: t('nav.settingsDiscover'), icon: CompassIcon },
         { to: '/settings/security', label: t('nav.settingsSecurity'), icon: ShieldCheckIcon },
         { to: '/settings/import-radarr', label: t('nav.settingsImportRadarr'), icon: ImportIcon },
         { to: '/settings/import-tautulli', label: t('nav.settingsImportTautulli'), icon: HistoryIcon },
