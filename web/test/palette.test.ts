@@ -85,4 +85,10 @@ describe('paletteFilter', () => {
     expect(paletteFilter('Settings Media servers /settings/mediaservers', 'MÉDIA')).toBeGreaterThan(0)
     expect(paletteFilter('action:rss', 'sync', ['RSS sync now'])).toBeGreaterThan(0)
   })
+
+  test('server rows always pass', () => {
+    expect(paletteFilter('content:movie:3', 'chihiro')).toBe(1)
+    expect(paletteFilter('add:series', 'anything')).toBeGreaterThan(0)
+    expect(paletteFilter('add:series', 'sync')).toBeLessThan(paletteFilter('Activity Releases /activity/releases', 'rel'))
+  })
 })

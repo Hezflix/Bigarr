@@ -352,6 +352,15 @@ export const rootFolders = {
   unmapped: () => api<UnmappedFolder[]>('/api/v1/rootfolders/unmapped'),
 }
 
+export type LibrarySearchResult = Schemas['LibrarySearchResult']
+
+export type LibrarySearch = Schemas['LibrarySearchResponse']
+
+export const library = {
+  /** Films and series by title, alternative titles and year: the command palette's content search. */
+  search: (term: string, limit = 8) => api<LibrarySearch>(`/api/v1/library/search?term=${encodeURIComponent(term)}&limit=${limit}`),
+}
+
 // ---- filesystem ------------------------------------------------------------
 
 export type FileSystemItem = Schemas['FileSystemItem']

@@ -1,4 +1,4 @@
-import { useCallback, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useSyncExternalStore } from 'react'
 
 /** Something the palette lists under "Recent" when its input is empty: a page of the nav, a film or a series. */
 export type RecentItem =
@@ -81,3 +81,11 @@ export function useRecent(): [RecentItem[], () => void] {
   return [items, clear]
 }
 
+/** A detail page puts its film or series first under "Recent" once it has loaded. */
+export function useRecordRecent(item: RecentItem | null) {
+  // Keyed on the content: the page re-renders with a new object on every poll.
+  const key = item ? JSON.stringify(item) : null
+  useEffect(() => {
+    if (key) recordRecent(JSON.parse(key) as RecentItem)
+  }, [key])
+}

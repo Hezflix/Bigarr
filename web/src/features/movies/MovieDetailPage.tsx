@@ -37,6 +37,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatBytes, formatDate } from '@/i18n'
+import { useRecordRecent } from '@/features/palette/recent'
 
 const availabilities: MinimumAvailability[] = ['announced', 'inCinemas', 'released']
 
@@ -59,6 +60,7 @@ export function MovieDetailPage() {
     if (wasDownloading.current && !downloading) void queryClient.invalidateQueries({ queryKey: ['search', id] })
     wasDownloading.current = downloading
   }, [movie.data, id, queryClient])
+  useRecordRecent(movie.data ? { kind: 'movie', id, title: movie.data.title, year: movie.data.year } : null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   // Bumped by the header's Interactive search button: the section below runs the film's search and scrolls into view.
   const [interactiveRun, setInteractiveRun] = useState(0)

@@ -62,6 +62,7 @@ import { SeriesManualImportDialog } from '@/features/import/SeriesManualImportDi
 import { HeldReleasesSection } from '@/features/activity/HeldPage'
 import { AssignUnmatchedDialog, DeleteFilesOption, EpisodeFileActions, RenameSeriesDialog } from './SeriesFiles'
 import { OrderUndoBanner, ReassignFileDialog, SeriesOrderDialog, orderLabel } from './SeriesOrderDialog'
+import { useRecordRecent } from '@/features/palette/recent'
 
 const errorMessage = (error: unknown, fallback: string) => (error instanceof ApiError ? error.message : fallback)
 
@@ -74,6 +75,7 @@ export function SeriesDetailPage() {
   const detail = useQuery({ queryKey: ['seriesDetail', id], queryFn: () => seriesApi.get(id) })
   const episodes = useQuery({ queryKey: ['seriesEpisodes', id], queryFn: () => seriesApi.episodes(id) })
   const files = useQuery({ queryKey: ['seriesFiles', id], queryFn: () => seriesApi.files(id) })
+  useRecordRecent(detail.data ? { kind: 'series', id, title: detail.data.title, year: detail.data.year } : null)
   const [chosenVersion, setChosenVersion] = useState<number | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [searchScope, setSearchScope] = useState<SeriesSearchScope | null>(null)

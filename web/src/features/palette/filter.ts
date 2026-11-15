@@ -1,5 +1,11 @@
 import { defaultFilter } from 'cmdk'
 
+/** Entries the server ranked (films, series, "Add"): they always pass and keep their order. */
+export const isServerItem = (value: string) => value.startsWith('content:') || value.startsWith('add:')
+
+/** The films and series found rank first; "Add '…'" always shows but ranks last, below any page or action that matched. */
+const serverScore = (value: string) => (value.startsWith('content:') ? 1 : 0.001)
+
 /** Lower case, no accents, letters and digits only: "Média" and "/settings/media" both give words to match. */
 export function paletteWords(text: string): string[] {
   return text
@@ -15,6 +21,7 @@ export function paletteWords(text: string): string[] {
  * names. Here every typed word must start a word of the entry; cmdk's score then ranks what is left.
  */
 export function paletteFilter(value: string, search: string, keywords?: string[]): number {
+  if (isServerItem(value)) return serverScore(value)
   const words = paletteWords(search)
   if (words.length === 0) return 1
   const haystack = paletteWords([value, ...(keywords ?? [])].join(' '))

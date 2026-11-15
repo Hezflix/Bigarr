@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { Trans, useTranslation } from 'react-i18next'
 import {
   monitoringOptions,
@@ -25,8 +25,16 @@ const resultKey = (r: SeriesLookupResult) => `${r.tvdbId ?? ''}-${r.tmdbId ?? ''
 export function AddSeriesPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const [term, setTerm] = useState('')
+  const { term: askedTerm } = useSearch({ strict: false })
+  const [term, setTerm] = useState(askedTerm ?? '')
   const [selected, setSelected] = useState<SeriesLookupResult | null>(null)
+  // The palette's "Add '…'" entry can land here while the page is already open.
+  useEffect(() => {
+    if (askedTerm) {
+      setTerm(askedTerm)
+      setSelected(null)
+    }
+  }, [askedTerm])
 
   const debounced = useDebounced(term.trim(), 400)
 
