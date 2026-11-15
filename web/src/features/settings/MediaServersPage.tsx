@@ -285,12 +285,12 @@ function MediaServerDialog({ server, onClose, onSaved }: { server: MediaServer |
           </DialogHeader>
 
           <div className="my-6 grid gap-4 sm:grid-cols-2">
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 content-start gap-2">
               <Label htmlFor="ms-name">{t('mediaServers.name')}</Label>
               <Input id="ms-name" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Plex" autoFocus />
             </div>
 
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 content-start gap-2">
               <Label htmlFor="ms-kind">{t('mediaServers.kind')}</Label>
               <Select value={form.kind} onValueChange={(value) => set('kind', value as MediaServerKind)}>
                 <SelectTrigger id="ms-kind" className="w-full">
@@ -306,13 +306,13 @@ function MediaServerDialog({ server, onClose, onSaved }: { server: MediaServer |
               </Select>
             </div>
 
-            <div className="grid grid-cols-1 gap-2 sm:col-span-2">
+            <div className="grid grid-cols-1 content-start gap-2 sm:col-span-2">
               <Label htmlFor="ms-url">{t('mediaServers.url')}</Label>
               <Input id="ms-url" value={form.url} onChange={(e) => set('url', e.target.value)} placeholder={form.kind === 'plex' ? 'http://plex:32400' : 'http://jellyfin:8096'} />
               <p className="text-xs text-muted-foreground">{t('mediaServers.urlHint')}</p>
             </div>
 
-            <div className="grid grid-cols-1 gap-2 sm:col-span-2">
+            <div className="grid grid-cols-1 content-start gap-2 sm:col-span-2">
               <Label htmlFor="ms-token">{t('mediaServers.token')}</Label>
               <Input id="ms-token" type="password" value={form.token} onChange={(e) => set('token', e.target.value)} autoComplete="new-password" />
               <p className="text-xs text-muted-foreground">{form.kind === 'plex' ? t('mediaServers.tokenHintPlex') : t('mediaServers.tokenHintApiKey')}</p>

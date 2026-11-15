@@ -85,12 +85,12 @@ export function ConnectForm({
   }
   return (
     <form className="flex max-w-xl flex-col gap-4" onSubmit={submit} data-testid={`${app}-connect-form`}>
-      <div className="grid grid-cols-1 gap-2">
+      <div className="grid grid-cols-1 content-start gap-2">
         <Label htmlFor={`${app}-url`}>{texts.url}</Label>
         <Input id={`${app}-url`} value={url} onChange={(e) => onUrl(e.target.value)} placeholder={placeholder} autoFocus />
         <p className="text-xs text-muted-foreground">{texts.urlHint}</p>
       </div>
-      <div className="grid grid-cols-1 gap-2">
+      <div className="grid grid-cols-1 content-start gap-2">
         <Label htmlFor={`${app}-key`}>{texts.apiKey}</Label>
         <Input id={`${app}-key`} type="password" value={apiKey} onChange={(e) => onApiKey(e.target.value)} autoComplete="off" />
         <p className="text-xs text-muted-foreground">{texts.apiKeyHint}</p>

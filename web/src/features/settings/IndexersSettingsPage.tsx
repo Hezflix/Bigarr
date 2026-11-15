@@ -357,12 +357,12 @@ function IndexerDialog({ indexer, onClose, onSaved }: { indexer: Indexer | null;
           )}
 
           <div className="my-6 grid gap-4 sm:grid-cols-2">
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 content-start gap-2">
               <Label htmlFor="indexer-name">{t('indexers.name')}</Label>
               <Input id="indexer-name" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Prowlarr" autoFocus />
             </div>
 
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 content-start gap-2">
               <Label htmlFor="indexer-implementation">{t('indexers.implementation')}</Label>
               <Select value={form.implementation} onValueChange={(value) => set('implementation', value as IndexerImplementation)}>
                 <SelectTrigger id="indexer-implementation" className="w-full">
@@ -381,7 +381,7 @@ function IndexerDialog({ indexer, onClose, onSaved }: { indexer: Indexer | null;
 
             {isTorznab && (
               <>
-                <div className="grid grid-cols-1 gap-2 sm:col-span-2">
+                <div className="grid grid-cols-1 content-start gap-2 sm:col-span-2">
                   <Label htmlFor="indexer-url">{t('indexers.url')}</Label>
                   <Input
                     id="indexer-url"
@@ -392,11 +392,11 @@ function IndexerDialog({ indexer, onClose, onSaved }: { indexer: Indexer | null;
                   />
                   <p className="text-xs text-muted-foreground">{t('indexers.urlHint')}</p>
                 </div>
-                <div className="grid grid-cols-1 gap-2">
+                <div className="grid grid-cols-1 content-start gap-2">
                   <Label htmlFor="indexer-apipath">{t('indexers.apiPath')}</Label>
                   <Input id="indexer-apipath" value={form.apiPath} onChange={(e) => set('apiPath', e.target.value)} placeholder="/api" />
                 </div>
-                <div className="grid grid-cols-1 gap-2">
+                <div className="grid grid-cols-1 content-start gap-2">
                   <Label htmlFor="indexer-apikey">{t('indexers.apiKey')}</Label>
                   <Input
                     id="indexer-apikey"
@@ -409,13 +409,13 @@ function IndexerDialog({ indexer, onClose, onSaved }: { indexer: Indexer | null;
               </>
             )}
 
-            <div className="grid grid-cols-1 gap-2 sm:col-span-2">
+            <div className="grid grid-cols-1 content-start gap-2 sm:col-span-2">
               <Label htmlFor="indexer-categories">{t('indexers.categories')}</Label>
               <Input id="indexer-categories" value={categories} onChange={(e) => setCategories(e.target.value)} placeholder={DEFAULT_CATEGORIES.join(', ')} />
               <p className="text-xs text-muted-foreground">{t('indexers.categoriesHint')}</p>
             </div>
 
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 content-start gap-2">
               <Label htmlFor="indexer-tv-categories">{t('indexers.tvCategories')}</Label>
               <Input
                 id="indexer-tv-categories"
@@ -425,7 +425,7 @@ function IndexerDialog({ indexer, onClose, onSaved }: { indexer: Indexer | null;
                 data-testid="indexer-tv-categories"
               />
             </div>
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 content-start gap-2">
               <Label htmlFor="indexer-anime-categories">{t('indexers.animeCategories')}</Label>
               <Input
                 id="indexer-anime-categories"
@@ -437,7 +437,7 @@ function IndexerDialog({ indexer, onClose, onSaved }: { indexer: Indexer | null;
             </div>
             <p className="text-xs text-muted-foreground sm:col-span-2">{t('indexers.seriesCategoriesHint')}</p>
 
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 content-start gap-2">
               <Label htmlFor="indexer-priority">{t('indexers.priority')}</Label>
               <Input
                 id="indexer-priority"
@@ -450,7 +450,7 @@ function IndexerDialog({ indexer, onClose, onSaved }: { indexer: Indexer | null;
               <p className="text-xs text-muted-foreground">{t('indexers.priorityHint')}</p>
             </div>
 
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 content-start gap-2">
               <Label htmlFor="indexer-seeders">{t('indexers.minimumSeeders')}</Label>
               <Input
                 id="indexer-seeders"
@@ -461,7 +461,7 @@ function IndexerDialog({ indexer, onClose, onSaved }: { indexer: Indexer | null;
               />
             </div>
 
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 content-start gap-2">
               <Label htmlFor="indexer-ratelimit">{t('indexers.rateLimit')}</Label>
               <Input
                 id="indexer-ratelimit"
@@ -475,7 +475,7 @@ function IndexerDialog({ indexer, onClose, onSaved }: { indexer: Indexer | null;
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              <div className="grid grid-cols-1 gap-2">
+              <div className="grid grid-cols-1 content-start gap-2">
                 <Label htmlFor="indexer-seedratio">{t('indexers.seedRatio')}</Label>
                 <Input
                   id="indexer-seedratio"
@@ -486,7 +486,7 @@ function IndexerDialog({ indexer, onClose, onSaved }: { indexer: Indexer | null;
                   onChange={(e) => set('seedRatio', optionalNumber(e.target.value))}
                 />
               </div>
-              <div className="grid grid-cols-1 gap-2">
+              <div className="grid grid-cols-1 content-start gap-2">
                 <Label htmlFor="indexer-seedtime">{t('indexers.seedTime')}</Label>
                 <Input
                   id="indexer-seedtime"

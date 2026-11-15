@@ -546,7 +546,7 @@ function MediaManagementForm({ film, series }: { film: MediaManagement; series: 
   const seasonPacks = (
     <Group title={t('mediaManagement.seasonPacks')} testId="season-packs">
       <div className="grid max-w-xl gap-4 sm:grid-cols-[minmax(0,1fr)_10rem]">
-        <div className="grid gap-2">
+        <div className="grid content-start gap-2">
           <Label htmlFor="mm-pack-upgrade">{t('mediaManagement.seasonPackUpgrade')}</Label>
           <Select value={filmForm.seasonPackUpgrade} onValueChange={(v) => setFilmForm({ ...filmForm, seasonPackUpgrade: v as SeasonPackUpgrade })}>
             <SelectTrigger id="mm-pack-upgrade" className="w-full" data-testid="mm-pack-upgrade">
@@ -562,7 +562,7 @@ function MediaManagementForm({ film, series }: { film: MediaManagement; series: 
           </Select>
         </div>
         {filmForm.seasonPackUpgrade === 'threshold' && (
-          <div className="grid gap-2">
+          <div className="grid content-start gap-2">
             <Label htmlFor="mm-pack-threshold">{t('mediaManagement.seasonPackUpgradeThreshold')}</Label>
             <Input
               id="mm-pack-threshold"
@@ -639,12 +639,12 @@ function MediaManagementForm({ film, series }: { film: MediaManagement; series: 
   const recycleBin = (
     <Group title={t('mediaManagement.recycleBin')} testId="recycle-bin">
       <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_10rem]">
-        <div className="grid gap-2">
+        <div className="grid content-start gap-2">
           <Label htmlFor="mm-bin">{t('mediaManagement.recycleBinPath')}</Label>
           <Input id="mm-bin" value={filmForm.recycleBinPath ?? ''} onChange={(e) => setFilmForm({ ...filmForm, recycleBinPath: e.target.value })} placeholder="/data/recycle" data-testid="mm-bin" />
           <span className="text-xs text-muted-foreground">{t('mediaManagement.recycleBinPathHint')}</span>
         </div>
-        <div className="grid gap-2">
+        <div className="grid content-start gap-2">
           <Label htmlFor="mm-retention">{t('mediaManagement.retention')}</Label>
           <Input
             id="mm-retention"
