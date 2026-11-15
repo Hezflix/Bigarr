@@ -8,6 +8,8 @@ const sizes = {
   thumb: 'w-7 text-[9px]',
   thumbMedium: 'w-10 text-[11px]',
   thumbLarge: 'w-14 text-xs',
+  /** A calendar entry: a seventh of the page wide on a computer, the full width once the days stack on a phone. */
+  calendar: 'w-7 text-[9px] max-sm:w-10 max-sm:text-[11px]',
   large: 'w-40 text-4xl sm:w-48',
 } satisfies Record<string, string>
 
@@ -24,6 +26,7 @@ const layoutWidths: Record<PosterSize, string> = {
   thumb: '28px',
   thumbMedium: '40px',
   thumbLarge: '56px',
+  calendar: '(max-width: 639px) 40px, 28px',
   large: '(min-width: 640px) 192px, 160px',
 }
 

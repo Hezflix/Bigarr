@@ -1,8 +1,7 @@
 namespace Bigarr.Api.Features.Series;
 
-using System.Globalization;
-using System.Text;
 using Bigarr.Api.Infrastructure.Persistence;
+using Bigarr.Decision;
 using Bigarr.Domain.Movies;
 using Bigarr.Domain.Tv;
 using Microsoft.EntityFrameworkCore;
@@ -28,6 +27,7 @@ public enum CalendarStatus
     Unmonitored = 6,
 }
 
+/// <param name="CutoffMet">The series list's verdict: null without a file or for a one-shot version, false when the file's quality is below the profile cutoff.</param>
 public sealed record CalendarEpisodeResponse(
     int SeriesId,
     string SeriesTitle,
@@ -48,6 +48,7 @@ public sealed record CalendarEpisodeResponse(
     bool Monitored,
     bool HasFile,
     string? Quality,
+    bool? CutoffMet,
     CalendarStatus Status);
 
 /// <summary>
@@ -97,6 +98,8 @@ public sealed class CalendarService(BigarrDbContext db, TimeProvider time)
                 VersionName = t.Version.Name,
                 t.Version.IsDefault,
                 VersionMonitored = t.Version.Monitored,
+                t.Version.Mode,
+                t.Version.QualityProfileId,
                 t.EpisodeId,
                 t.Episode.SeasonNumber,
                 t.Episode.EpisodeNumber,
@@ -108,9 +111,13 @@ public sealed class CalendarService(BigarrDbContext db, TimeProvider time)
                 t.Monitored,
                 HasFile = t.EpisodeFileId != null,
                 Quality = t.EpisodeFile == null ? null : t.EpisodeFile.Quality.Name,
+                FileQualityId = t.EpisodeFile == null ? (int?)null : t.EpisodeFile.QualityId,
                 Downloading = db.GrabTargets.Any(g => g.Active && g.TargetId == t.Id),
             })
             .ToListAsync(ct);
+
+        // Quality only, like the series list: the custom format score of an episode file is the series page's business.
+        var profiles = await db.QualityProfiles.AsNoTracking().ToDictionaryAsync(p => p.Id, ct);
 
         return rows
             .OrderBy(r => r.AirDateUtc).ThenBy(r => r.Title).ThenBy(r => r.SeasonNumber).ThenBy(r => r.EpisodeNumber).ThenByDescending(r => r.IsDefault).ThenBy(r => r.VersionId)
@@ -144,50 +151,13 @@ public sealed class CalendarService(BigarrDbContext db, TimeProvider time)
                     monitored,
                     r.HasFile,
                     r.Quality,
+                    r.FileQualityId is { } quality && r.Mode == VersionMode.Managed && profiles.TryGetValue(r.QualityProfileId, out var profile)
+                        ? ProfileRanking.CutoffMet(profile, quality)
+                        : null,
                     status);
             })
             .ToList();
     }
-
-    /// <summary>
-    /// Sonarr's iCal feed: one event per episode (the versions of a show folded into one), from its air time for its
-    /// runtime, <c>Show - S01E05 - Title</c>, a stable uid so calendar apps update rather than duplicate.
-    /// </summary>
-    public static string ICal(IEnumerable<CalendarEpisodeResponse> episodes, DateTime now)
-    {
-        ArgumentNullException.ThrowIfNull(episodes);
-        var text = new StringBuilder();
-        text.Append("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Bigarr//Calendar//EN\r\nCALSCALE:GREGORIAN\r\nX-WR-CALNAME:Bigarr TV Schedule\r\n");
-        foreach (var episode in episodes.GroupBy(e => e.EpisodeId).Select(g => g.OrderByDescending(e => e.IsDefaultVersion).First()))
-        {
-            var startAt = episode.AirDateUtc!.Value;
-            var endAt = startAt.AddMinutes(episode.Runtime ?? 30);
-            var label = episode.SeriesType == SeriesType.Daily && episode.AirDate is { } day
-                ? day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
-                : $"S{episode.SeasonNumber:00}E{episode.EpisodeNumber:00}";
-            text.Append("BEGIN:VEVENT\r\n")
-                .Append(CultureInfo.InvariantCulture, $"UID:bigarr-episode-{episode.EpisodeId}\r\n")
-                .Append(CultureInfo.InvariantCulture, $"DTSTAMP:{Stamp(now)}\r\n")
-                .Append(CultureInfo.InvariantCulture, $"DTSTART:{Stamp(startAt)}\r\n")
-                .Append(CultureInfo.InvariantCulture, $"DTEND:{Stamp(endAt)}\r\n")
-                .Append(CultureInfo.InvariantCulture, $"SUMMARY:{Escape($"{episode.SeriesTitle} - {label} - {episode.Title}")}\r\n")
-                .Append(CultureInfo.InvariantCulture, $"STATUS:{(episode.Status == CalendarStatus.Downloaded ? "CONFIRMED" : "TENTATIVE")}\r\n");
-            if (!string.IsNullOrWhiteSpace(episode.Network))
-            {
-                text.Append(CultureInfo.InvariantCulture, $"LOCATION:{Escape(episode.Network)}\r\n");
-            }
-
-            text.Append("END:VEVENT\r\n");
-        }
-
-        text.Append("END:VCALENDAR\r\n");
-        return text.ToString();
-    }
-
-    private static string Stamp(DateTime utc) => utc.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
-
-    private static string Escape(string value) =>
-        value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace(";", "\\;", StringComparison.Ordinal).Replace(",", "\\,", StringComparison.Ordinal).Replace("\n", "\\n", StringComparison.Ordinal);
 }
 
 public static class CalendarEndpoints
@@ -201,14 +171,6 @@ public static class CalendarEndpoints
         {
             var today = time.GetUtcNow().UtcDateTime.Date;
             return TypedResults.Ok(await calendar.ListAsync(Utc(start) ?? today, Utc(end) ?? today.AddDays(7), unmonitored, seriesId, ct));
-        });
-
-        // Sonarr's feed: what a calendar app subscribes to with ?apikey=, 7 days back and 28 ahead.
-        group.MapGet("/bigarr.ics", async (CalendarService calendar, TimeProvider time, CancellationToken ct, int pastDays = 7, int futureDays = 28, bool unmonitored = false) =>
-        {
-            var now = time.GetUtcNow().UtcDateTime;
-            var episodes = await calendar.ListAsync(now.Date.AddDays(-Math.Clamp(pastDays, 0, 31)), now.Date.AddDays(Math.Clamp(futureDays, 1, 31)), unmonitored, null, ct);
-            return Results.Text(CalendarService.ICal(episodes, now), "text/calendar; charset=utf-8");
         });
         return app;
     }

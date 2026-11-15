@@ -4,6 +4,83 @@
  */
 
 export interface paths {
+    "/api/v1/calendar/movies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    start?: string;
+                    end?: string;
+                    unmonitored?: boolean;
+                    movieId?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CalendarMovieResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/calendar/bigarr.ics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    pastDays?: number;
+                    futureDays?: number;
+                    unmonitored?: boolean;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/series/{id}/search": {
         parameters: {
             query?: never;
@@ -3071,43 +3148,6 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["CalendarEpisodeResponse"][];
                     };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/calendar/bigarr.ics": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: {
-                    pastDays?: number;
-                    futureDays?: number;
-                    unmonitored?: boolean;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
                 };
             };
         };
@@ -9004,7 +9044,28 @@ export interface components {
             monitored: boolean;
             hasFile: boolean;
             quality: null | string;
+            cutoffMet: null | boolean;
             status: components["schemas"]["CalendarStatus"];
+        };
+        CalendarMovieResponse: {
+            /** Format: int32 */
+            movieId: number;
+            title: string;
+            /** Format: int32 */
+            year: null | number;
+            posterUrl: null | string;
+            /** Format: int32 */
+            versionId: number;
+            versionName: string;
+            isDefaultVersion: boolean;
+            releaseType: components["schemas"]["ReleaseType"];
+            /** Format: date */
+            date: string;
+            monitored: boolean;
+            hasFile: boolean;
+            quality: null | string;
+            cutoffMet: null | boolean;
+            status: components["schemas"]["VersionStatus"];
         };
         /** @enum {unknown} */
         CalendarStatus: "unaired" | "onAir" | "missing" | "downloading" | "downloaded" | "unmonitored";
@@ -11273,6 +11334,8 @@ export interface components {
             /** Format: int32 */
             suggestedVersionId: null | number;
         };
+        /** @enum {unknown} */
+        ReleaseType: "inCinemas" | "digital" | "physical";
         RenamePreviewResponse: {
             /** Format: int32 */
             versionId: number;

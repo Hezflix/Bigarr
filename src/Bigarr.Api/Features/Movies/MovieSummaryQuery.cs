@@ -133,26 +133,11 @@ public sealed class MovieSummaryQuery(BigarrDbContext db, CustomFormatScorer sco
     }
 
     /// <summary>
-    /// The movie page's verdict (<see cref="CustomFormatScorer.Assess"/>). A profile that scores no custom format
-    /// gives every file 0, and a file below the cutoff quality misses it whatever its score, so the file's formats are
-    /// only matched (or remembered) when a score can change the answer.
-    /// Only managed versions get a verdict: a one-shot version is never upgraded (<see cref="MovieMapper.CutoffMet"/>).
+    /// The movie page's verdict (<see cref="FileFormatMatches.CutoffMet"/>). Only managed versions get one: a one-shot
+    /// version is never upgraded (<see cref="MovieMapper.CutoffMet"/>).
     /// </summary>
-    private bool CutoffMet(FileRow file, QualityProfile profile, Dictionary<int, QualityDefinition> qualities, Formats formats)
-    {
-        if (profile.FormatScores.All(s => s.Score == 0))
-        {
-            return ProfileRanking.CutoffMet(profile, file.Input.QualityId) && profile.CutoffFormatScore <= 0;
-        }
-
-        if (!ProfileRanking.CutoffMet(profile, file.Input.QualityId))
-        {
-            return false;
-        }
-
-        var matched = matches.Match(file.Id, file.Input, qualities.GetValueOrDefault(file.Input.QualityId), formats.Calculator, formats.Signature);
-        return ProfileRanking.FormatScore(profile, matched) >= profile.CutoffFormatScore;
-    }
+    private bool CutoffMet(FileRow file, QualityProfile profile, Dictionary<int, QualityDefinition> qualities, Formats formats) =>
+        matches.CutoffMet(profile, file.Id, file.Input, qualities.GetValueOrDefault(file.Input.QualityId), () => (formats.Calculator, formats.Signature));
 
     private sealed record Formats(CustomFormatCalculator Calculator, string Signature);
 

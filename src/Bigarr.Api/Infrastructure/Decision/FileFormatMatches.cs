@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Bigarr.Decision;
 using Bigarr.Decision.CustomFormats;
 using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Quality;
@@ -33,6 +34,30 @@ public sealed class FileFormatMatches
         var ids = matched.Select(m => m.Id).ToArray();
         _entries[fileId] = new Entry(input, formatsSignature, ids);
         return ids;
+    }
+
+    /// <summary>
+    /// The library's cutoff verdict for a film file (<see cref="CustomFormatScorer.Assess"/>). A profile that scores no
+    /// custom format gives every file 0, and a file below the cutoff quality misses it whatever its score, so the file's
+    /// formats are only matched (or remembered) when a score can change the answer; <paramref name="formats"/> is read then only.
+    /// </summary>
+    public bool CutoffMet(QualityProfile profile, int fileId, FileFormatInput input, QualityDefinition? quality, Func<(CustomFormatCalculator Calculator, string Signature)> formats)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(formats);
+
+        if (profile.FormatScores.All(s => s.Score == 0))
+        {
+            return ProfileRanking.CutoffMet(profile, input.QualityId) && profile.CutoffFormatScore <= 0;
+        }
+
+        if (!ProfileRanking.CutoffMet(profile, input.QualityId))
+        {
+            return false;
+        }
+
+        var (calculator, signature) = formats();
+        return ProfileRanking.FormatScore(profile, Match(fileId, input, quality, calculator, signature)) >= profile.CutoffFormatScore;
     }
 
     /// <summary>

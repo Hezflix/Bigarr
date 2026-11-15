@@ -1605,9 +1605,18 @@ export type CalendarStatus = Schemas['CalendarStatus']
 
 export type CalendarEpisode = Schemas['CalendarEpisodeResponse']
 
+/** Which of a film's TMDB dates a calendar entry stands for. */
+export type ReleaseType = Schemas['ReleaseType']
+
+/** One release date of one film version, with the library status of that version. */
+export type CalendarMovie = Schemas['CalendarMovieResponse']
+
 export const calendar = {
   /** `start` and `end` are UTC instants, the end excluded; at most 62 days. */
   list: (start: Date, end: Date, unmonitored = false) =>
     api<CalendarEpisode[]>(`/api/v1/calendar?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}&unmonitored=${unmonitored}`),
+  /** Release dates of the films' versions; `start` and `end` are local days (YYYY-MM-DD), the end excluded; at most 62 days. */
+  movies: (start: string, end: string, unmonitored = false) =>
+    api<CalendarMovie[]>(`/api/v1/calendar/movies?start=${start}&end=${end}&unmonitored=${unmonitored}`),
   icsUrl: '/api/v1/calendar/bigarr.ics',
 }
