@@ -45,7 +45,8 @@ public sealed class SonarrHub : Hub
 }
 
 /// <summary>
-/// Outbox events into Sonarr messages, routed by version like the Radarr hub: a file imported, upgraded or deleted is an
+/// Outbox events into Sonarr messages, routed by version like the Radarr hub: a show or version added is
+/// <c>series created</c> (as on the Radarr hub; Bazarr treats every action but <c>deleted</c> as a change); a file imported, upgraded or deleted is an
 /// <c>episode updated</c> per episode (Bazarr syncs episodes from those); a monitoring change is <c>series updated</c>
 /// with <c>episodesChanged</c>; a rename too, as it moves every file path Bazarr knows; a version or show deleted is
 /// <c>series deleted</c>.
@@ -96,8 +97,8 @@ public sealed class SonarrHubBroadcaster(EventStream stream, IHubContext<SonarrH
         var domainEvent = (DomainEvent?)JsonSerializer.Deserialize(serverEvent.Payload, type, EventJson.Options);
         return domainEvent switch
         {
-            SeriesAdded e => Series("updated", e.Series, e.Version),
-            SeriesVersionAdded e => Series("updated", e.Series, e.Version),
+            SeriesAdded e => Series("created", e.Series, e.Version),
+            SeriesVersionAdded e => Series("created", e.Series, e.Version),
             SeriesVersionUpdated e => Series("updated", e.Series, e.Version, e.EpisodesChanged),
             EpisodeFileRenamed e => Series("updated", e.Series, e.Version, episodesChanged: true),
             SeriesVersionDeleted e => Series("deleted", e.Series, e.Version),

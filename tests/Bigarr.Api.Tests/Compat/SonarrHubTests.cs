@@ -47,13 +47,13 @@ public sealed class SonarrHubTests(SeriesApiFactory factory) : IClassFixture<Ser
         var greeting = await WaitAsync(hdMessages, m => Name(m) == "version");
         Assert.Equal(SonarrCompat.ApplicationVersion, greeting.GetProperty("body").GetProperty("version").GetString());
 
-        // A show added through the 1080p key: "series updated" for that key, with what Bazarr requires; nothing for the 4K key.
+        // A show added through the 1080p key: "series created" for that key, with what Bazarr requires; nothing for the 4K key.
         var added = await seerrHd.PostAsJsonAsync($"{Api}/series", Add(hd, root.Path));
         Assert.Equal(HttpStatusCode.Created, added.StatusCode);
         var hdId = (await added.ReadJsonAsync()).GetProperty("id").GetInt32();
         var created = await WaitAsync(hdMessages, m => Name(m) == "series" && Id(m) == hdId);
         var resource = created.GetProperty("body").GetProperty("resource");
-        Assert.Equal("updated", created.GetProperty("body").GetProperty("action").GetString());
+        Assert.Equal("created", created.GetProperty("body").GetProperty("action").GetString());
         Assert.Equal("Firefly", resource.GetProperty("title").GetString());
         Assert.Equal(2002, resource.GetProperty("year").GetInt32());
 
@@ -84,6 +84,14 @@ public sealed class SonarrHubTests(SeriesApiFactory factory) : IClassFixture<Ser
             })
             .Build();
         await Assert.ThrowsAnyAsync<Exception>(() => anonymous.StartAsync());
+
+        // The hubs live under their URL bases only: the bare /signalr/messages is gone.
+        var anonymousClient = factory.CreateAnonymousClient();
+        var bare = await anonymousClient.PostAsync($"/signalr/messages/negotiate?negotiateVersion=1&access_token={Uri.EscapeDataString(hdKey)}", null);
+        Assert.False(bare.IsSuccessStatusCode, $"the bare hub answered {bare.StatusCode}");
+        Assert.Equal(System.Net.HttpStatusCode.NotFound, (await anonymousClient.GetAsync($"/signalr/messages?access_token={Uri.EscapeDataString(hdKey)}")).StatusCode);
+        Assert.Equal("/radarr/signalr/messages", CompatHub.Route);
+        Assert.Equal("/sonarr/signalr/messages", SonarrHub.Route);
     }
 
     [Fact]
