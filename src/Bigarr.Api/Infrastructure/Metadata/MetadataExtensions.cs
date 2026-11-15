@@ -17,7 +17,6 @@ public static class MetadataExtensions
         var options = configuration.GetSection(MetadataOptions.Section).Get<MetadataOptions>() ?? new MetadataOptions();
         if (options.HasApiKey)
         {
-            services.AddTransient<TmdbAuthHandler>();
             services.AddHttpClient<TmdbClient>(http =>
                 {
                     http.BaseAddress = new Uri(options.BaseUrl);
@@ -31,6 +30,19 @@ public static class MetadataExtensions
         {
             services.AddSingleton<IMetadataProvider, FixtureMetadataProvider>();
         }
+
+        // Discover reads TMDB lists and title pages through its own client, cached in memory; it answers "not configured"
+        // without a key instead of falling back to the fixtures.
+        services.Configure<DiscoverOptions>(configuration.GetSection(DiscoverOptions.Section));
+        services.AddMemoryCache();
+        services.AddTransient<TmdbAuthHandler>();
+        services.AddHttpClient<TmdbDiscoverClient>(http =>
+            {
+                http.BaseAddress = new Uri(options.BaseUrl);
+                http.Timeout = TimeSpan.FromSeconds(20);
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("Bigarr/0.1 (+https://github.com/Hezflix/Bigarr)");
+            })
+            .AddHttpMessageHandler<TmdbAuthHandler>();
 
         // Series: TVDB numbers the episodes, TMDB brings ids and images. Either key alone works.
         services.Configure<TvdbOptions>(configuration.GetSection(TvdbOptions.Section));

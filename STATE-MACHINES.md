@@ -362,6 +362,13 @@ See [F10](#f10-shadow-follow-searches-and-views-were-lost-for-good).
   creates its user (role user, default permissions) on its first sign-in, only when new Plex accounts are let in and
   plex.tv lists the configured Plex server among the account's resources; a non-admin needs that access at every
   sign-in, the admin never.
+- Discover availability: derived on every request from the library, never stored, no scan job
+  (`Features/Discover/Availability.cs`, `LibraryAvailability.cs`). Per version slot ("standard" = default version, "4K" =
+  the version named in Discover settings): a film version is available with a file, processing while monitored without
+  one, not in the library otherwise. A season or a whole series (specials left out) is available when every aired
+  episode has a file, partially available when only some do, processing when none has one yet but episodes are
+  monitored (or the monitored version has no episode listed yet), not in the library otherwise. An episode that has not
+  aired never makes it partial. TMDB answers are cached for a few minutes; availability is not.
 - The web UI holds no state machine of its own: server state lives in the query cache, invalidated by the server's
   event stream (`web/src/hooks/useServerEvents.ts`). The stream is at most once and the cache is not invalidated on
   reconnect, so an event missed while disconnected leaves a page stale until its next refetch. Not audited further.
