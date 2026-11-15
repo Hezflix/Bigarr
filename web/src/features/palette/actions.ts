@@ -12,6 +12,29 @@ export type PaletteAction = {
   confirm?: { title: string; description: string }
   /** Started once the palette has closed; it reports its own outcome (toasts). */
   run: () => unknown
+  /** Tab on the action asks for this before running it on something narrower (a season, an episode); Enter still runs `run`. */
+  param?: PaletteParam
+}
+
+/** One value a parameter can take: "Season 2", "S02E05 · The Title". */
+export type PaletteParamOption = {
+  id: string
+  label: string
+  /** Muted, after the label: an episode count, an air date. */
+  hint?: string
+  keywords?: string[]
+  /** The list it sits in ("Seasons", "Episodes"). */
+  group: string
+  /** Long lists (episodes) only show once something is typed. */
+  onlyWhenTyping?: boolean
+}
+
+/** What Tab asks for, as in Raycast's arguments. */
+export type PaletteParam = {
+  /** "season or episode": next to the action, and the field's placeholder once Tab was pressed. */
+  hint: string
+  options: () => PaletteParamOption[]
+  run: (option: PaletteParamOption) => unknown
 }
 
 /** The actions of the page on screen: a film, a series. */

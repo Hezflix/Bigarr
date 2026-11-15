@@ -59,7 +59,9 @@ import { SeriesFilmsSection } from './SeriesFilmsSection'
 import { AutomaticSearchButton, InteractiveSearchButton } from '@/features/search/SearchButtons'
 import { SeriesSearchDialog, type SeriesSearchScope } from '@/features/search/SeriesInteractiveSearch'
 import { EditSeriesVersionDialog } from '@/features/series/EditSeriesVersionDialog'
-import { useEpisodeAutomaticSearch } from '@/features/series/useEpisodeAutomaticSearch'
+import type { PaletteParam } from '@/features/palette/actions'
+import { parseSeriesScope, type SeriesScope, seriesScopeOptions, shownEpisodeCode } from '@/features/palette/seriesScopes'
+import { toastEpisodeSearch, useEpisodeAutomaticSearch } from '@/features/series/useEpisodeAutomaticSearch'
 import { Checkbox } from '@/components/ui/checkbox'
 import { SeriesManualImportDialog } from '@/features/import/SeriesManualImportDialog'
 import { HeldReleasesSection } from '@/features/activity/HeldPage'
@@ -138,18 +140,60 @@ export function SeriesDetailPage() {
 
   // Cmd+K on this page: the header's buttons, and the shown version's folder and monitoring.
   const loaded = detail.data
+  // Tab on a search narrows it to a season or an episode.
+  // Seasons and codes follow the show's order, as on the page.
+  const altOrder = detail.data ? detail.data.ordering !== 'tvdb' : false
+  const scopeParam = (run: (scope: SeriesScope) => unknown): PaletteParam => ({
+    hint: t('palette.param.seriesHint'),
+    options: () => seriesScopeOptions(t, episodes.data ?? [], altOrder),
+    run: (option) => {
+      const scope = parseSeriesScope(option.id, episodes.data ?? [], altOrder)
+      if (scope) return run(scope)
+    },
+  })
   const shownVersion = loaded ? (loaded.versions.find((v) => v.id === chosenVersion) ?? loaded.versions.find((v) => v.isDefault) ?? loaded.versions[0]) : undefined
   usePaletteActions(
     loaded ? t('palette.page.series', { title: loaded.title }) : '',
     loaded
       ? [
-          { id: 'search-missing', label: t('palette.page.searchMissing'), icon: ZapIcon, keywords: ['automatic', 'wanted'], run: () => searchMissingEpisodes(t, id) },
+          {
+            id: 'search-missing',
+            label: t('palette.page.searchMissing'),
+            icon: ZapIcon,
+            keywords: ['automatic', 'wanted'],
+            run: () => searchMissingEpisodes(t, id),
+            param: scopeParam((scope) => {
+              if (scope.kind === 'series') return searchMissingEpisodes(t, id)
+              if (scope.kind === 'season') return searchMissingEpisodes(t, id, new Set(scope.episodeIds))
+              return seriesApi.searchEpisode(id, scope.episode.id).then(
+                (results) => {
+                  toastEpisodeSearch(t, results)
+                  void queryClient.invalidateQueries({ queryKey: ['queue'] })
+                },
+                (error) => toast.error(errorMessage(error, t('search.failed'))),
+              )
+            }),
+          },
           {
             id: 'interactive-search',
             label: t('palette.page.interactiveSearch'),
             icon: TextSearchIcon,
             keywords: ['releases', 'manual'],
             run: () => setSearchScope({ kind: 'series', label: loaded.title }),
+            param: scopeParam((scope) =>
+              setSearchScope(
+                scope.kind === 'series'
+                  ? { kind: 'series', label: loaded.title }
+                  : scope.kind === 'season'
+                    ? {
+                        kind: 'season',
+                        season: scope.season,
+                        orderSeason: scope.orderSeason,
+                        label: scope.season === 0 ? t('palette.param.specials') : t('palette.param.season', { number: scope.season }),
+                      }
+                    : { kind: 'episode', episodeId: scope.episode.id, label: shownEpisodeCode(scope.episode, altOrder) },
+              ),
+            ),
           },
           { id: 'refresh', label: t('palette.page.refresh'), icon: RefreshCwIcon, keywords: ['tvdb', 'tmdb', 'metadata'], run: () => refresh.mutate() },
           { id: 'rescan', label: t('palette.page.rescan'), icon: FolderSearchIcon, keywords: ['scan', 'disk'], run: () => rescan.mutate() },
@@ -1332,15 +1376,16 @@ function MonitorToggle({ monitored, label, onToggle, disabled, size = 'md' }: { 
   )
 }
 
-/** The automatic search of the series' missing episodes: the rows Series wanted lists for it, queued in one go. */
-async function searchMissingEpisodes(t: TFunction, seriesId: number) {
+/** The automatic search of the series' (or some episodes') missing episodes: the rows Series wanted lists for it, queued in one go. */
+async function searchMissingEpisodes(t: TFunction, seriesId: number, episodeIds?: Set<number>) {
   try {
     const targetIds: number[] = []
     // Wanted pages hold 200 rows at most.
-    for (let page = 1; ; page++) {
+    for (let page = 1, seen = 0; ; page++) {
       const rows = await seriesWanted.list('missing', page, 200, seriesId)
-      targetIds.push(...rows.items.map((item) => item.targetId))
-      if (rows.items.length === 0 || targetIds.length >= rows.total) break
+      seen += rows.items.length
+      targetIds.push(...rows.items.filter((item) => episodeIds === undefined || episodeIds.has(item.episodeId)).map((item) => item.targetId))
+      if (rows.items.length === 0 || seen >= rows.total) break
     }
     if (targetIds.length === 0) {
       toast.info(t('palette.page.nothingMissing'))

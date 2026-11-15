@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test'
+import type { TFunction } from 'i18next'
+import type { Episode } from '../src/api/client'
 import { paletteFilter } from '../src/features/palette/filter'
 import { isPaletteShortcut, isSearchShortcut } from '../src/features/palette/keys'
 import { parseRecent, pushRecent, type RecentItem } from '../src/features/palette/recent'
+import { parseSeriesScope, seriesScopeOptions } from '../src/features/palette/seriesScopes'
 
 const page = (to: string): RecentItem => ({ kind: 'page', to })
 const movie = (id: number, title = `Film ${id}`): RecentItem => ({ kind: 'movie', id, title, year: 2000 + id })
@@ -90,5 +93,64 @@ describe('paletteFilter', () => {
     expect(paletteFilter('content:movie:3', 'chihiro')).toBe(1)
     expect(paletteFilter('add:series', 'anything')).toBeGreaterThan(0)
     expect(paletteFilter('add:series', 'sync')).toBeLessThan(paletteFilter('Activity Releases /activity/releases', 'rel'))
+  })
+})
+
+describe('series scopes (Tab on a series search)', () => {
+  const t = ((key: string, values?: Record<string, unknown>) => `${key}${values ? ` ${JSON.stringify(values)}` : ''}`) as unknown as TFunction
+  const ep = (id: number, season: number, number: number, title: string, patch: Partial<Episode> = {}) =>
+    ({ id, seasonNumber: season, episodeNumber: number, title, airDate: null, absoluteEpisodeNumber: null, ownedByFilm: null, ...patch }) as unknown as Episode
+  const episodes = [ep(3, 2, 1, 'Third'), ep(1, 1, 1, 'Pilot'), ep(2, 1, 2, 'Second'), ep(9, 0, 1, 'A special'), ep(10, 0, 2, 'Owned', { ownedByFilm: { movieId: 1 } as Episode['ownedByFilm'] })]
+  const options = seriesScopeOptions(t, episodes, false)
+  const find = (search: string) => options.filter((o) => paletteFilter(`param:${o.id}`, search, [o.label, ...(o.keywords ?? [])]) > 0).map((o) => o.id)
+
+  test('lists the series, the seasons with specials last, then the episodes in order, without those a film owns', () => {
+    expect(options.map((o) => o.id)).toEqual(['series', 'season:1', 'season:2', 'season:0', 'episode:9', 'episode:1', 'episode:2', 'episode:3'])
+    expect(options.filter((o) => o.onlyWhenTyping).map((o) => o.group)).toEqual(Array(4).fill('palette.param.episodesGroup'))
+  })
+
+  test('finds an episode by code in any spelling, or by a word of its title', () => {
+    for (const search of ['s1e2', 's01e02', 'S1E02', '1x02', '1x2']) expect(find(search)).toEqual(['episode:2'])
+    expect(find('pilot')).toEqual(['episode:1'])
+  })
+
+  test('"s2" finds the season and its episodes; the id never matches', () => {
+    expect(find('s2')).toEqual(['season:2', 'episode:3'])
+    expect(find('3')).toEqual([])
+  })
+
+  test('maps an id back to its scope', () => {
+    expect(parseSeriesScope('series', episodes, false)).toEqual({ kind: 'series' })
+    expect(parseSeriesScope('season:1', episodes, false)).toEqual({ kind: 'season', season: 1, orderSeason: false, episodeIds: [1, 2] })
+    expect(parseSeriesScope('season:0', episodes, false)).toEqual({ kind: 'season', season: 0, orderSeason: false, episodeIds: [9] })
+    expect(parseSeriesScope('episode:2', episodes, false)).toEqual({ kind: 'episode', episode: episodes[2] })
+    expect(parseSeriesScope('episode:404', episodes, false)).toBeNull()
+  })
+
+  describe('a show on another order', () => {
+    // TVDB S01E01-S01E03 become the order's S01E01, S02E01 and S02E02; TVDB S02E01 has no counterpart.
+    const ordered = [
+      ep(1, 1, 1, 'Pilot', { displaySeasonNumber: 1, displayEpisodeNumber: 1 }),
+      ep(2, 1, 2, 'Second', { displaySeasonNumber: 2, displayEpisodeNumber: 1 }),
+      ep(3, 1, 3, 'Third', { displaySeasonNumber: 2, displayEpisodeNumber: 2 }),
+      ep(4, 2, 1, 'Extra', { notInOrder: true }),
+    ]
+    const alt = seriesScopeOptions(t, ordered, true)
+    const findAlt = (search: string) => alt.filter((o) => paletteFilter(`param:${o.id}`, search, [o.label, ...(o.keywords ?? [])]) > 0).map((o) => o.id)
+
+    test("lists the order's seasons and codes, those it leaves out last", () => {
+      expect(alt.map((o) => o.id)).toEqual(['series', 'season:1', 'season:2', 'episode:1', 'episode:2', 'episode:3', 'episode:4'])
+      expect(alt.find((o) => o.id === 'episode:3')?.label).toBe('S02E02 · Third')
+      expect(alt.find((o) => o.id === 'episode:4')?.label).toBe('S02E01 · Extra')
+    })
+
+    test("types the order's codes, not TVDB's", () => {
+      expect(findAlt('2x02')).toEqual(['episode:3'])
+      expect(findAlt('s1e3')).toEqual([])
+    })
+
+    test("a season is the order's, with its episodes", () => {
+      expect(parseSeriesScope('season:2', ordered, true)).toEqual({ kind: 'season', season: 2, orderSeason: true, episodeIds: [2, 3] })
+    })
   })
 })

@@ -24,7 +24,8 @@ export function paletteFilter(value: string, search: string, keywords?: string[]
   if (isServerItem(value)) return serverScore(value)
   const words = paletteWords(search)
   if (words.length === 0) return 1
-  const haystack = paletteWords([value, ...(keywords ?? [])].join(' '))
+  // A parameter's value is only an id ("param:episode:12"): matching on it would find episode 12 for "12".
+  const haystack = paletteWords([value.startsWith('param:') ? '' : value, ...(keywords ?? [])].join(' '))
   if (!words.every((word) => haystack.some((candidate) => candidate.startsWith(word)))) return 0
   // Never 0 once the words matched: cmdk would hide the entry.
   return Math.max(defaultFilter(value, search, keywords), 0.01)
