@@ -1,16 +1,18 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2Icon, SearchIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ApiError, profilesFor, quality, rootFolders, rootsOfKind } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-/** What adding a film and adding a series share: the lookup box, a result card, and the profile, root folder and version name of the form. */
+/** What adding a film and adding a series share: the lookup box, a result card, the dialog around the form, and its profile, root folder and version name. */
 
 /** The search box of a lookup, with what the request is doing below it. */
 export function LookupSearch({ testId, placeholder, value, onChange, fetching, failed }: { testId: string; placeholder: string; value: string; onChange: (value: string) => void; fetching: boolean; failed: boolean }) {
@@ -72,16 +74,69 @@ export function LookupResultCard({
   )
 }
 
-export function AddFormHeader({ posterUrl, title, year, overview }: { posterUrl: string | null; title: string; year: number | null; overview: string | null }) {
+/**
+ * The add form of a lookup result, as a dialog over the results: the poster, title and overview of the result, the fields
+ * (`children`), then Cancel and the submit button. Closing it (Esc, the cross, a click outside or Cancel) leaves the search as it was.
+ */
+export function AddDialog({
+  posterUrl,
+  title,
+  year,
+  overview,
+  onCancel,
+  onSubmit,
+  submitLabel,
+  submitTestId,
+  submitDisabled,
+  pending,
+  children,
+}: {
+  posterUrl: string | null
+  title: string
+  year: number | null
+  overview: string | null
+  onCancel: () => void
+  onSubmit: () => void
+  submitLabel: string
+  submitTestId: string
+  submitDisabled: boolean
+  pending: boolean
+  children: ReactNode
+}) {
+  const { t } = useTranslation()
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    onSubmit()
+  }
   return (
-    <CardHeader className="grid-cols-[auto_1fr] gap-4">
-      <Poster url={posterUrl} title={title} size="small" className="row-span-2" />
-      <CardTitle className="flex flex-wrap items-baseline gap-2 text-lg">
-        {title}
-        {year && <span className="text-sm font-normal text-muted-foreground">({year})</span>}
-      </CardTitle>
-      {overview && <p className="line-clamp-3 text-sm text-muted-foreground">{overview}</p>}
-    </CardHeader>
+    <Dialog open onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl" data-testid="add-dialog" {...(overview ? {} : { 'aria-describedby': undefined })}>
+        <form onSubmit={submit} className="flex flex-col gap-6">
+          <div className="flex items-start gap-4 pr-6">
+            <Poster url={posterUrl} title={title} size="small" className="shrink-0" />
+            <DialogHeader className="min-w-0 gap-1 text-left">
+              <DialogTitle className="flex flex-wrap items-baseline gap-2 leading-snug">
+                {title}
+                {year && <span className="text-sm font-normal text-muted-foreground">({year})</span>}
+              </DialogTitle>
+              {overview && <DialogDescription className="line-clamp-4">{overview}</DialogDescription>}
+            </DialogHeader>
+          </div>
+
+          <div className="flex flex-col gap-4">{children}</div>
+
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={onCancel}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="submit" data-testid={submitTestId} disabled={pending || submitDisabled}>
+              {pending && <Loader2Icon className="animate-spin" />}
+              {submitLabel}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 

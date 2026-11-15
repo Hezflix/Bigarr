@@ -1,7 +1,6 @@
-import { useState, type FormEvent } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { Loader2Icon } from 'lucide-react'
 import { Trans, useTranslation } from 'react-i18next'
 import {
   monitoringOptions,
@@ -15,11 +14,10 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { AddError, AddFormHeader, FormField, IdSelectField, LookupResultCard, LookupSearch, useAddTargets, VersionNameField } from '@/features/library/addParts'
+import { AddDialog, AddError, FormField, IdSelectField, LookupResultCard, LookupSearch, useAddTargets, VersionNameField } from '@/features/library/addParts'
 import { useDebounced } from '@/hooks/useDebounced'
 
 const resultKey = (r: SeriesLookupResult) => `${r.tvdbId ?? ''}-${r.tmdbId ?? ''}`
@@ -54,7 +52,7 @@ export function AddSeriesPage() {
         failed={!!results.error}
       />
 
-      {!selected && results.data && (
+      {results.data && (
         <div className="flex flex-col gap-3">
           {results.data.length === 0 && <p className="text-sm text-muted-foreground">{t('lookup.noResults')}</p>}
           {results.data.map((r) => (
@@ -130,97 +128,87 @@ function AddForm({ show, onCancel, onAdded }: { show: SeriesLookupResult; onCanc
     },
   })
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault()
-    add.mutate()
-  }
-
   return (
-    <Card className="max-w-3xl">
-      <form onSubmit={submit}>
-        <AddFormHeader posterUrl={show.posterUrl} title={show.title} year={show.year} overview={show.overview} />
+    <AddDialog
+      posterUrl={show.posterUrl}
+      title={show.title}
+      year={show.year}
+      overview={show.overview}
+      onCancel={onCancel}
+      onSubmit={() => add.mutate()}
+      submitLabel={t('addSeries.submit')}
+      submitTestId="series-add-submit"
+      submitDisabled={noRoot || profileId === '' || rootId === ''}
+      pending={add.isPending}
+    >
+      {noRoot && (
+        <Alert variant="destructive">
+          <AlertDescription>
+            <Trans i18nKey="addSeries.noRootFolder" components={{ link: <Link to="/settings/library" className="underline underline-offset-4" /> }} />
+          </AlertDescription>
+        </Alert>
+      )}
+      {show.tvdbId === null && (
+        <Alert>
+          <AlertDescription>{t('addSeries.noTvdb')}</AlertDescription>
+        </Alert>
+      )}
 
-        <CardContent className="mt-6 flex flex-col gap-4">
-          {noRoot && (
-            <Alert variant="destructive">
-              <AlertDescription>
-                <Trans i18nKey="addSeries.noRootFolder" components={{ link: <Link to="/settings/library" className="underline underline-offset-4" /> }} />
-              </AlertDescription>
-            </Alert>
-          )}
-          {show.tvdbId === null && (
-            <Alert>
-              <AlertDescription>{t('addSeries.noTvdb')}</AlertDescription>
-            </Alert>
-          )}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormField id="series-monitor" label={t('addSeries.monitor')} hint={t('addSeries.monitorHint')}>
+          <Select value={monitor} onValueChange={(value) => setMonitor(value as MonitoringOption)}>
+            <SelectTrigger id="series-monitor" className="w-full" data-testid="series-monitor">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {monitoringOptions.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {t(`monitoringOption.${option}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormField>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FormField id="series-monitor" label={t('addSeries.monitor')} hint={t('addSeries.monitorHint')}>
-              <Select value={monitor} onValueChange={(value) => setMonitor(value as MonitoringOption)}>
-                <SelectTrigger id="series-monitor" className="w-full" data-testid="series-monitor">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {monitoringOptions.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {t(`monitoringOption.${option}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
+        <FormField id="series-type" label={t('addSeries.seriesType')} hint={t('addSeries.seriesTypeHint')}>
+          <Select value={seriesType} onValueChange={(value) => setSeriesType(value as SeriesType)}>
+            <SelectTrigger id="series-type" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {seriesTypes.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {t(`seriesType.${type}`)}
+                  {type === show.suggestedType && <span className="text-muted-foreground"> ({t('addSeries.suggested')})</span>}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormField>
 
-            <FormField id="series-type" label={t('addSeries.seriesType')} hint={t('addSeries.seriesTypeHint')}>
-              <Select value={seriesType} onValueChange={(value) => setSeriesType(value as SeriesType)}>
-                <SelectTrigger id="series-type" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {seriesTypes.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {t(`seriesType.${type}`)}
-                      {type === show.suggestedType && <span className="text-muted-foreground"> ({t('addSeries.suggested')})</span>}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
+        <IdSelectField id="series-profile" label={t('addMovie.qualityProfile')} value={profileId} onChange={setProfileId} options={profiles?.map((p) => ({ id: p.id, label: p.name }))} />
 
-            <IdSelectField id="series-profile" label={t('addMovie.qualityProfile')} value={profileId} onChange={setProfileId} options={profiles?.map((p) => ({ id: p.id, label: p.name }))} />
+        <IdSelectField id="series-root" label={t('addMovie.rootFolder')} value={rootId} onChange={setRootId} options={roots?.map((r) => ({ id: r.id, label: r.path }))} />
 
-            <IdSelectField id="series-root" label={t('addMovie.rootFolder')} value={rootId} onChange={setRootId} options={roots?.map((r) => ({ id: r.id, label: r.path }))} />
+        <VersionNameField id="series-version-name" value={versionName} onChange={setVersionName} placeholder={effectiveName} />
+      </div>
 
-            <VersionNameField id="series-version-name" value={versionName} onChange={setVersionName} placeholder={effectiveName} />
-          </div>
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <Checkbox id="series-season-folder" checked={seasonFolder} onCheckedChange={(checked) => setSeasonFolder(checked === true)} />
+          <Label htmlFor="series-season-folder" className="font-normal">
+            {t('addSeries.seasonFolder')}
+          </Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Checkbox id="series-monitor-new" checked={monitorNew} onCheckedChange={(checked) => setMonitorNew(checked === true)} />
+          <Label htmlFor="series-monitor-new" className="font-normal">
+            {t('addSeries.monitorNewItems')}
+          </Label>
+        </div>
+      </div>
 
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-              <Checkbox id="series-season-folder" checked={seasonFolder} onCheckedChange={(checked) => setSeasonFolder(checked === true)} />
-              <Label htmlFor="series-season-folder" className="font-normal">
-                {t('addSeries.seasonFolder')}
-              </Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox id="series-monitor-new" checked={monitorNew} onCheckedChange={(checked) => setMonitorNew(checked === true)} />
-              <Label htmlFor="series-monitor-new" className="font-normal">
-                {t('addSeries.monitorNewItems')}
-              </Label>
-            </div>
-          </div>
-
-          <AddError error={add.error} />
-        </CardContent>
-
-        <CardFooter className="mt-6 justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onCancel}>
-            {t('common.cancel')}
-          </Button>
-          <Button type="submit" data-testid="series-add-submit" disabled={add.isPending || noRoot || profileId === '' || rootId === ''}>
-            {add.isPending && <Loader2Icon className="animate-spin" />}
-            {t('addSeries.submit')}
-          </Button>
-        </CardFooter>
-      </form>
-    </Card>
+      <AddError error={add.error} />
+    </AddDialog>
   )
 }
