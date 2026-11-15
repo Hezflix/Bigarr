@@ -53,7 +53,7 @@ public static class RadarrCompat
     {
         app.Use(async (context, next) =>
         {
-            if (context.Request.Path.StartsWithSegments(UrlBase) || context.Request.Path.StartsWithSegments("/signalr"))
+            if (context.Request.Path.StartsWithSegments(UrlBase))
             {
                 context.Response.OnStarting(static state =>
                 {

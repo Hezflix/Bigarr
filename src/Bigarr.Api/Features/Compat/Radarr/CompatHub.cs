@@ -18,13 +18,13 @@ public sealed record ResourceChange(string Action, ResourceStub Resource);
 public sealed record ResourceStub(int Id, string Title, int? Year, int TmdbId, string TitleSlug);
 
 /// <summary>
-/// Radarr's SignalR hub at <c>/signalr/messages</c>: Bazarr relies on it for incremental updates. Connections are
+/// Radarr's SignalR hub at <c>{base}/signalr/messages</c>: Bazarr relies on it for incremental updates. Connections are
 /// grouped by the key's view, so a change reaches only the clients whose view contains the version.
 /// </summary>
 [Authorize(Policy = AuthPolicies.ApiKey)]
 public sealed class CompatHub : Hub
 {
-    public const string Route = "/signalr/messages";
+    public const string Route = RadarrCompat.UrlBase + "/signalr/messages";
 
     public const string Method = "receiveMessage";
 

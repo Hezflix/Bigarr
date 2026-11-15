@@ -71,7 +71,7 @@ public sealed class ResponseCompressionTests(BigarrApiFactory factory) : IClassF
         var session = await SessionAsync(factory);
         var (bazarr, key) = await KeyClientAsync(factory, session, "compression-bazarr", "all", header: true);
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"/signalr/messages/negotiate?negotiateVersion=1&access_token={key}");
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/radarr/signalr/messages/negotiate?negotiateVersion=1&access_token={key}");
         request.Headers.AcceptEncoding.ParseAdd("gzip, br");
         var response = await bazarr.SendAsync(request);
 
