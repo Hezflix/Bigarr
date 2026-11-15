@@ -10766,6 +10766,8 @@ export interface components {
             player: null | string;
             platform: null | string;
             local: null | boolean;
+            /** Format: int32 */
+            seriesId: null | number;
         };
         /** @enum {unknown} */
         PlaySource: "live" | "serverHistory" | "tautulli";

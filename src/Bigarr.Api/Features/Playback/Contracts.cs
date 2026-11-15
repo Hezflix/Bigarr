@@ -67,7 +67,8 @@ public sealed record PlayResponse(
     StreamDecision? Decision,
     string? Player,
     string? Platform,
-    bool? Local);
+    bool? Local,
+    int? SeriesId = null);
 
 public enum PlaySort
 {
