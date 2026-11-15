@@ -105,7 +105,7 @@ export function SeriesLibraryPage() {
   const onReport = (r: BulkReport) => toastBulk(t, r, setReport)
 
   // `?view=table&preset=continuing` (or `&rootFolder=2` from the storage bar) opens the page on that layout and view, then leaves the URL clean.
-  const params = useSearch({ from: '/app/series' })
+  const params = useSearch({ from: '/shell/app/series' })
   const navigate = useNavigate()
   useEffect(() => {
     if ((!params.view && !params.preset && params.rootFolder === undefined) || !library.data) return

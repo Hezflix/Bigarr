@@ -1209,6 +1209,433 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DiscoverHomeResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/discover/sliders/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    page?: number;
+                };
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DiscoverPage"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/discover/movies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    genre?: number;
+                    keyword?: number;
+                    studio?: number;
+                    page?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DiscoverPage"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/discover/series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    genre?: number;
+                    keyword?: number;
+                    network?: number;
+                    page?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DiscoverPage"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/discover/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    query?: string;
+                    page?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DiscoverPage"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/discover/movies/{tmdbId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    tmdbId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DiscoverMovieResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/discover/series/{tmdbId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    tmdbId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DiscoverSeriesResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/discover/people/{tmdbId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    tmdbId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DiscoverPersonResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/discover/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DiscoverSettingsResponse"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateDiscoverSettingsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DiscoverSettingsResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/discover/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    kind: components["schemas"]["DiscoverSliderKind"];
+                    query?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DiscoverLookupResult"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/status": {
         parameters: {
             query?: never;
@@ -9150,6 +9577,12 @@ export interface components {
             approved: number;
             indexerErrors: components["schemas"]["IndexerErrorResponse"][];
         };
+        AvailabilityResponse: {
+            standard: components["schemas"]["AvailabilityState"];
+            fourK: null | components["schemas"]["AvailabilityState"];
+        };
+        /** @enum {unknown} */
+        AvailabilityState: "notInLibrary" | "processing" | "partiallyAvailable" | "available";
         BackfillResponse: {
             mediaInfoAvailable: boolean;
             /** Format: int32 */
@@ -9587,6 +10020,168 @@ export interface components {
             grabFields: null | components["schemas"]["DiscordGrabField"][];
             importFields: null | components["schemas"]["DiscordImportField"][];
             manualInteractionFields: null | components["schemas"]["DiscordManualInteractionField"][];
+        };
+        DiscoverCastMember: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+            character: null | string;
+            profileUrl: null | string;
+        };
+        DiscoverHomeResponse: {
+            configured: boolean;
+            fourK: boolean;
+            sliders: components["schemas"]["DiscoverSliderResponse"][];
+        };
+        DiscoverItem: {
+            mediaType: components["schemas"]["DiscoverMediaType"];
+            /** Format: int32 */
+            tmdbId: number;
+            title: string;
+            /** Format: int32 */
+            year: null | number;
+            releaseDate: null | string;
+            posterUrl: null | string;
+            overview: null | string;
+            /** Format: double */
+            voteAverage: null | number;
+            subtitle: null | string;
+            availability: null | components["schemas"]["AvailabilityResponse"];
+        };
+        DiscoverLookupResult: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+        };
+        /** @enum {unknown} */
+        DiscoverMediaType: "movie" | "series" | "person";
+        DiscoverMovieResponse: {
+            /** Format: int32 */
+            tmdbId: number;
+            imdbId: null | string;
+            title: string;
+            originalTitle: null | string;
+            /** Format: int32 */
+            year: null | number;
+            releaseDate: null | string;
+            /** Format: int32 */
+            runtime: null | number;
+            overview: null | string;
+            tagline: null | string;
+            status: null | string;
+            certification: null | string;
+            genres: components["schemas"]["DiscoverRef"][];
+            studios: components["schemas"]["DiscoverRef"][];
+            directors: string[];
+            /** Format: double */
+            voteAverage: null | number;
+            posterUrl: null | string;
+            backdropUrl: null | string;
+            trailerUrl: null | string;
+            cast: components["schemas"]["DiscoverCastMember"][];
+            recommendations: components["schemas"]["DiscoverItem"][];
+            similar: components["schemas"]["DiscoverItem"][];
+            availability: components["schemas"]["AvailabilityResponse"];
+            /** Format: int32 */
+            libraryId: null | number;
+        };
+        DiscoverPage: {
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            totalPages: number;
+            /** Format: int32 */
+            totalResults: number;
+            results: components["schemas"]["DiscoverItem"][];
+        };
+        DiscoverPersonResponse: {
+            /** Format: int32 */
+            tmdbId: number;
+            name: string;
+            biography: null | string;
+            birthday: null | string;
+            deathday: null | string;
+            placeOfBirth: null | string;
+            knownFor: null | string;
+            profileUrl: null | string;
+            credits: components["schemas"]["DiscoverItem"][];
+        };
+        DiscoverRef: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+        };
+        DiscoverSeasonResponse: {
+            /** Format: int32 */
+            seasonNumber: number;
+            name: string;
+            /** Format: int32 */
+            episodeCount: null | number;
+            airDate: null | string;
+            posterUrl: null | string;
+            inLibraryOnly: boolean;
+            availability: components["schemas"]["AvailabilityResponse"];
+        };
+        DiscoverSeriesResponse: {
+            /** Format: int32 */
+            tmdbId: number;
+            /** Format: int32 */
+            tvdbId: null | number;
+            title: string;
+            originalTitle: null | string;
+            /** Format: int32 */
+            year: null | number;
+            firstAirDate: null | string;
+            lastAirDate: null | string;
+            status: null | string;
+            /** Format: int32 */
+            runtime: null | number;
+            overview: null | string;
+            tagline: null | string;
+            genres: components["schemas"]["DiscoverRef"][];
+            networks: components["schemas"]["DiscoverRef"][];
+            creators: string[];
+            /** Format: double */
+            voteAverage: null | number;
+            posterUrl: null | string;
+            backdropUrl: null | string;
+            trailerUrl: null | string;
+            cast: components["schemas"]["DiscoverCastMember"][];
+            seasons: components["schemas"]["DiscoverSeasonResponse"][];
+            recommendations: components["schemas"]["DiscoverItem"][];
+            similar: components["schemas"]["DiscoverItem"][];
+            availability: components["schemas"]["AvailabilityResponse"];
+            /** Format: int32 */
+            libraryId: null | number;
+        };
+        DiscoverSettingsResponse: {
+            fourKVersion: null | string;
+            versionNames: string[];
+            sliders: components["schemas"]["DiscoverSliderSettings"][];
+        };
+        /** @enum {unknown} */
+        DiscoverSliderKind: "trending" | "popularMovies" | "upcomingMovies" | "movieGenres" | "studios" | "popularSeries" | "upcomingSeries" | "seriesGenres" | "networks" | "movieGenre" | "seriesGenre" | "movieKeyword" | "seriesKeyword" | "studio" | "network" | "movieSearch" | "seriesSearch";
+        DiscoverSliderResponse: {
+            /** Format: int32 */
+            id: number;
+            kind: components["schemas"]["DiscoverSliderKind"];
+            title: null | string;
+            value: null | string;
+            tiles: null | components["schemas"]["DiscoverTile"][];
+        };
+        DiscoverSliderSettings: {
+            /** Format: int32 */
+            id: number;
+            kind: components["schemas"]["DiscoverSliderKind"];
+            title: null | string;
+            value: null | string;
+            enabled: boolean;
+            builtIn: boolean;
+        };
+        DiscoverTile: {
+            /** Format: int32 */
+            id: number;
+            name: string;
         };
         /** @enum {unknown} */
         DownloadClientImplementation: "qBittorrent" | "mock";
@@ -13175,6 +13770,18 @@ export interface components {
         };
         /** @enum {unknown} */
         UnmatchedFileReason: "notParsable" | "episodeNotFound" | "ambiguous" | "wrongSeriesType" | "duplicate" | "notAnEpisode";
+        UpdateDiscoverSettingsRequest: {
+            fourKVersion: null | string;
+            sliders: components["schemas"]["UpdateDiscoverSliderRequest"][];
+        };
+        UpdateDiscoverSliderRequest: {
+            /** Format: int32 */
+            id: null | number;
+            kind: components["schemas"]["DiscoverSliderKind"];
+            title: null | string;
+            value: null | string;
+            enabled: boolean;
+        };
         UpdateExternalProviderRequest: {
             enabled: boolean;
         };

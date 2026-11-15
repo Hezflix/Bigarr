@@ -25,7 +25,7 @@ const pageSize = 25
  */
 export function UserPage() {
   const { t } = useTranslation()
-  const { userId } = useParams({ from: '/app/playback/users/$userId' })
+  const { userId } = useParams({ from: '/shell/app/playback/users/$userId' })
   const id = Number(userId)
   const [editing, setEditing] = useState(false)
   const user = useQuery({ queryKey: ['playback', 'user', id], queryFn: () => playback.user(id) })

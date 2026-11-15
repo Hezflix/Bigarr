@@ -292,7 +292,7 @@ function MediaManagementForm({ film, series }: { film: MediaManagement; series: 
   const [seriesSample, setSeriesSample] = useState(seriesSampleTitle)
   const [focused, setFocused] = useState<SeriesTemplateField>('standardEpisodeTemplate')
   // The open tab lives in the URL (`?tab=series`), so a link opens the right one; films, the default, keeps the URL bare.
-  const tab: Scope = useSearch({ from: '/app/settings/mediamanagement' }).tab ?? 'films'
+  const tab: Scope = useSearch({ from: '/shell/app/settings/mediamanagement' }).tab ?? 'films'
   const navigate = useNavigate()
   const selectTab = (scope: Scope) => void navigate({ to: '/settings/mediamanagement', search: scope === 'films' ? {} : { tab: scope }, replace: true })
 

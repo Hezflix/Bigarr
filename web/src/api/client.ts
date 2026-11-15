@@ -105,7 +105,7 @@ export type UserPermissions = Schemas['PermissionsDto']
 export type UserSummary = Schemas['UserResponse']
 export type UserSettings = Schemas['UserSettingsResponse']
 
-/** Bigarr's own pages are the admin's; other roles get the signed-in page until requests arrive. */
+/** Bigarr's own pages are the admin's; other roles get Discover only. */
 export const isAdmin = (me: Me | undefined) => me?.role === 'Admin'
 
 export const users = {
@@ -116,6 +116,46 @@ export const users = {
   settings: () => api<UserSettings>('/api/v1/users/settings'),
   updateSettings: (plexNewAccounts: boolean, defaultPermissions: UserPermissions) =>
     put<UserSettings>('/api/v1/users/settings', { plexNewAccounts, defaultPermissions }),
+}
+
+// ---- Discover (every signed-in user) ----------------------------------------
+
+export type AvailabilityState = Schemas['AvailabilityState']
+export type Availability = Schemas['AvailabilityResponse']
+export type DiscoverItem = Schemas['DiscoverItem']
+export type DiscoverPage = Schemas['DiscoverPage']
+export type DiscoverHome = Schemas['DiscoverHomeResponse']
+export type DiscoverSlider = Schemas['DiscoverSliderResponse']
+export type DiscoverSliderKind = Schemas['DiscoverSliderKind']
+export type DiscoverMovie = Schemas['DiscoverMovieResponse']
+export type DiscoverSeries = Schemas['DiscoverSeriesResponse']
+export type DiscoverSeason = Schemas['DiscoverSeasonResponse']
+export type DiscoverPerson = Schemas['DiscoverPersonResponse']
+export type DiscoverSettings = Schemas['DiscoverSettingsResponse']
+export type DiscoverSliderSettings = Schemas['DiscoverSliderSettings']
+export type DiscoverSliderUpdate = Schemas['UpdateDiscoverSliderRequest']
+export type DiscoverLookupResult = Schemas['DiscoverLookupResult']
+
+/** Query string of the filled values only. */
+const query = (values: Record<string, string | number | undefined>) => {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(values)) if (value !== undefined && value !== '') params.set(key, String(value))
+  const text = params.toString()
+  return text ? `?${text}` : ''
+}
+
+export const discover = {
+  home: () => api<DiscoverHome>('/api/v1/discover'),
+  slider: (id: number, page = 1) => api<DiscoverPage>(`/api/v1/discover/sliders/${id}${query({ page })}`),
+  movies: (filter: { genre?: number; keyword?: number; studio?: number }, page = 1) => api<DiscoverPage>(`/api/v1/discover/movies${query({ ...filter, page })}`),
+  series: (filter: { genre?: number; keyword?: number; network?: number }, page = 1) => api<DiscoverPage>(`/api/v1/discover/series${query({ ...filter, page })}`),
+  search: (text: string, page = 1) => api<DiscoverPage>(`/api/v1/discover/search${query({ query: text, page })}`),
+  movie: (tmdbId: number) => api<DiscoverMovie>(`/api/v1/discover/movies/${tmdbId}`),
+  show: (tmdbId: number) => api<DiscoverSeries>(`/api/v1/discover/series/${tmdbId}`),
+  person: (tmdbId: number) => api<DiscoverPerson>(`/api/v1/discover/people/${tmdbId}`),
+  settings: () => api<DiscoverSettings>('/api/v1/discover/settings'),
+  updateSettings: (fourKVersion: string | null, sliders: DiscoverSliderUpdate[]) => put<DiscoverSettings>('/api/v1/discover/settings', { fourKVersion, sliders }),
+  lookup: (kind: DiscoverSliderKind, text: string) => api<DiscoverLookupResult[]>(`/api/v1/discover/lookup${query({ kind, query: text })}`),
 }
 
 // ---- API keys (Connect) ----------------------------------------------------

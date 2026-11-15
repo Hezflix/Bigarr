@@ -75,7 +75,7 @@ const errorMessage = (error: unknown, fallback: string) => (error instanceof Api
 
 export function SeriesDetailPage() {
   const { t } = useTranslation()
-  const { seriesId } = useParams({ from: '/app/series/$seriesId' })
+  const { seriesId } = useParams({ from: '/shell/app/series/$seriesId' })
   const id = Number(seriesId)
   const navigate = useNavigate()
   const queryClient = useQueryClient()

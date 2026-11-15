@@ -95,7 +95,7 @@ export function LibraryPage() {
   const onReport = (r: BulkReport) => toastBulk(t, r, setReport)
 
   // `?view=table&preset=missing-4k` (or `&rootFolder=2`) opens the page on that layout and view, then leaves the URL clean.
-  const params = useSearch({ from: '/app/' })
+  const params = useSearch({ from: '/shell/app/' })
   const navigate = useNavigate()
   useEffect(() => {
     if ((!params.view && !params.preset && params.rootFolder === undefined) || !library.data) return

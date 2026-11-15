@@ -45,7 +45,10 @@
     "seriesWanted": "Wanted",
     "held": "Held for review",
     "settingsSecurity": "Security",
-    "settingsUsers": "Users"
+    "settingsUsers": "Users",
+    "requests": "Requests",
+    "discover": "Discover",
+    "settingsDiscover": "Discover"
   },
   "theme": {
     "label": "Theme",
@@ -3031,12 +3034,6 @@
       "typeForEpisodes": "Type s2e5, 2x05 or a title to find an episode."
     }
   },
-  "signedIn": {
-    "as": "Signed in as {{name}}",
-    "soon": "Requests and issue reports open here soon. Until then there is nothing else to see with your account.",
-    "youMay": "Your account will let you:",
-    "signOut": "Sign out"
-  },
   "users": {
     "title": "Users",
     "hint": "Who signs in to Bigarr and what they may do. Only admins reach Bigarr's own pages; other users will use the request pages.",
@@ -3095,6 +3092,132 @@
       "autoApproveFilms": "Their film requests skip approval.",
       "autoApproveSeries": "Their series requests skip approval.",
       "reportIssues": "Report a problem with a file: video, audio, subtitles."
+    }
+  },
+  "discover": {
+    "title": "Discover",
+    "searchPlaceholder": "Search films, series and people",
+    "search": "Search",
+    "resultsFor": "Results for “{{q}}”",
+    "noResults": "Nothing found on TMDB for these words.",
+    "empty": "Nothing in this list.",
+    "noRows": "Every row is switched off.",
+    "seeAll": "See all",
+    "loadMore": "Load more",
+    "movies": "Films",
+    "series": "Series",
+    "moviesOf": "{{name}} · films",
+    "seriesOf": "{{name}} · series",
+    "seriesTag": "Series",
+    "person": "Person",
+    "trailer": "Trailer",
+    "openInLibrary": "Open in the library",
+    "cast": "Cast",
+    "seasons": "Seasons",
+    "recommendations": "Recommended",
+    "similar": "Similar",
+    "knownFor": "Known for",
+    "born": "born {{date}}",
+    "directedBy": "by {{names}}",
+    "minutes_one": "{{count}} min",
+    "minutes_other": "{{count}} min",
+    "episodes_one": "{{count}} episode",
+    "episodes_other": "{{count}} episodes",
+    "libraryOnlySeason": "in the library only",
+    "notConfigured": {
+      "title": "Nothing to browse yet",
+      "admin": "Discover reads the TMDB catalogue: set a TMDB API key (Bigarr__Tmdb__ApiKey) and restart Bigarr.",
+      "user": "Discover is not set up yet. Ask the person who runs this Bigarr."
+    },
+    "version": {
+      "standard": "Standard",
+      "standardShort": "HD",
+      "fourK": "4K"
+    },
+    "state": {
+      "available": "Available",
+      "partiallyAvailable": "Partially available",
+      "processing": "On its way",
+      "notInLibrary": "Not in the library"
+    },
+    "seriesStatus": {
+      "ReturningSeries": "Returning series",
+      "Ended": "Ended",
+      "Canceled": "Canceled",
+      "InProduction": "In production",
+      "Planned": "Planned",
+      "Pilot": "Pilot"
+    },
+    "slider": {
+      "trending": "Trending",
+      "popularMovies": "Popular films",
+      "upcomingMovies": "Upcoming films",
+      "movieGenres": "Film genres",
+      "studios": "Studios",
+      "popularSeries": "Popular series",
+      "upcomingSeries": "Upcoming series",
+      "seriesGenres": "Series genres",
+      "networks": "Networks",
+      "movieGenre": "Films of a genre",
+      "seriesGenre": "Series of a genre",
+      "movieKeyword": "Films with a keyword",
+      "seriesKeyword": "Series with a keyword",
+      "studio": "Films of a studio",
+      "network": "Series of a network",
+      "movieSearch": "Films matching words",
+      "seriesSearch": "Series matching words"
+    }
+  },
+  "discoverSettings": {
+    "title": "Discover",
+    "hint": "What everyone who signs in sees on the Discover page: rows of TMDB titles, each with its availability read from the library.",
+    "saved": "Discover settings saved",
+    "fourKTitle": "4K version",
+    "fourKHint": "Discover shows the default version of each title as \"Standard\" and the version with this name as \"4K\". Without one, only the standard state is shown.",
+    "fourKNone": "No 4K version",
+    "rowsTitle": "Rows",
+    "rowsHint": "Tick the rows to show, put them in order, add your own. Built-in rows can be switched off, not removed.",
+    "builtIn": "Built in",
+    "builtInKept": "Built-in rows are switched off, not removed",
+    "custom": "Custom",
+    "preview": "Preview",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "remove": "Remove",
+    "addTitle": "Add a row",
+    "kindLabel": "Kind",
+    "titleLabel": "Title",
+    "add": "Add",
+    "pickGenre": "Pick a genre",
+    "value": {
+      "genre": "Genre",
+      "lookup": "Find on TMDB",
+      "words": "Search words"
+    },
+    "lookupPlaceholder": {
+      "movieKeyword": "A keyword, e.g. heist",
+      "seriesKeyword": "A keyword, e.g. time travel",
+      "studio": "A studio, e.g. A24",
+      "network": "A network name or its TMDB id"
+    },
+    "kind": {
+      "movieGenre": "Films of a genre",
+      "seriesGenre": "Series of a genre",
+      "movieKeyword": "Films with a keyword",
+      "seriesKeyword": "Series with a keyword",
+      "studio": "Films of a studio",
+      "network": "Series of a network",
+      "movieSearch": "Films matching words",
+      "seriesSearch": "Series matching words",
+      "trending": "Trending",
+      "popularMovies": "Popular films",
+      "upcomingMovies": "Upcoming films",
+      "movieGenres": "Film genres",
+      "studios": "Studios",
+      "popularSeries": "Popular series",
+      "upcomingSeries": "Upcoming series",
+      "seriesGenres": "Series genres",
+      "networks": "Networks"
     }
   }
 }
