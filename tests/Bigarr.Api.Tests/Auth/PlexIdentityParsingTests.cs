@@ -40,5 +40,20 @@ public sealed class PlexIdentityParsingTests
         Assert.Contains("context%5Bdevice%5D%5Bproduct%5D=Bigarr", url, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Resources_keep_the_servers_only()
+    {
+        var servers = PlexTvClient.ParseServers(Json("""
+            [
+              {"name":"Demo server","clientIdentifier":"machine-a","provides":"server"},
+              {"name":"Demo both","clientIdentifier":"machine-b","provides":"client, server"},
+              {"name":"Phone","clientIdentifier":"phone","provides":"client,player"},
+              {"name":"No id","provides":"server"}
+            ]
+            """));
+        Assert.Equal(["machine-a", "machine-b"], servers);
+        Assert.Empty(PlexTvClient.ParseServers(Json("""{"errors":[]}""")));
+    }
+
     private static JsonElement Json(string text) => JsonDocument.Parse(text).RootElement.Clone();
 }

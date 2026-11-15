@@ -1,14 +1,25 @@
 using System.Globalization;
 using Bigarr.Api.Infrastructure.MediaServers;
+using Bigarr.Api.Infrastructure.Persistence;
+using Bigarr.Domain.MediaServers;
+using Microsoft.EntityFrameworkCore;
 
 namespace Bigarr.Api.Infrastructure.Auth.External;
 
 /// <summary>
 /// Plex's PIN flow, the one Overseerr and Tautulli use: no client secret, no redirect address to register. Bigarr
 /// creates a PIN on plex.tv, the browser opens plex.tv's auth page with the PIN's code, Bigarr reads the PIN until it
-/// carries a token, then asks plex.tv whose token it is. The token is used for that one question and dropped.
+/// carries a token, then asks plex.tv whose token it is and which servers it reaches, the way Overseerr checks access:
+/// the account has access when plex.tv lists a Plex server set up in Bigarr among its resources. The token is used for
+/// those two questions and dropped, never stored.
 /// </summary>
-public sealed class PlexIdentityProvider(PlexTvClient plexTv, PlexClientIdentity identity, TimeProvider time) : IExternalIdentityProvider
+public sealed class PlexIdentityProvider(
+    PlexTvClient plexTv,
+    PlexClient plex,
+    PlexClientIdentity identity,
+    BigarrDbContext db,
+    TimeProvider time,
+    ILogger<PlexIdentityProvider> logger) : IExternalIdentityProvider
 {
     public const string ProviderKey = "plex";
 
@@ -66,11 +77,60 @@ public sealed class PlexIdentityProvider(PlexTvClient plexTv, PlexClientIdentity
             var account = await plexTv.AccountAsync(pin.AuthToken, ct);
             return account is null
                 ? ExternalPoll.Denied
-                : new ExternalPoll(ExternalPollStatus.Completed, new ExternalIdentity(account.Id, account.Username, account.Email, account.Thumb));
+                : new ExternalPoll(
+                    ExternalPollStatus.Completed,
+                    new ExternalIdentity(account.Id, account.Username, account.Email, account.Thumb, await ServerAccessAsync(pin.AuthToken, ct)));
         }
         catch (MediaServerException ex)
         {
             throw new ExternalIdentityException(ex.Message, ex);
+        }
+    }
+
+    /// <summary>
+    /// Whether the account behind <paramref name="token"/> reaches one of the Plex servers set up in Bigarr: false when
+    /// none is set up, null when it cannot be told (no server gave its id, or plex.tv did not answer the resources).
+    /// </summary>
+    private async Task<bool?> ServerAccessAsync(string token, CancellationToken ct)
+    {
+        var servers = await db.MediaServers.AsNoTracking()
+            .Where(s => s.Enabled && s.Kind == MediaServerKind.Plex && s.Token != string.Empty)
+            .ToListAsync(ct);
+        if (servers.Count == 0)
+        {
+            return false;
+        }
+
+        var machineIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var server in servers)
+        {
+            try
+            {
+                if (await plex.MachineIdentifierAsync(server, ct) is { Length: > 0 } id)
+                {
+                    machineIds.Add(id);
+                }
+            }
+            catch (MediaServerException ex)
+            {
+                logger.LogWarning("Plex {Server} did not give its id, so access to it cannot be checked: {Error}", server.Name, ex.Message);
+            }
+        }
+
+        if (machineIds.Count == 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            var reachable = await plexTv.ServersAsync(token, ct);
+            return reachable.Any(machineIds.Contains);
+        }
+        catch (MediaServerException ex)
+        {
+            logger.LogWarning("plex.tv did not list the account's servers: {Error}", ex.Message);
+            return null;
         }
     }
 

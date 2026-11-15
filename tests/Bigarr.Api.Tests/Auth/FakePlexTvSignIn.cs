@@ -7,7 +7,8 @@ namespace Bigarr.Api.Tests.Auth;
 
 /// <summary>
 /// plex.tv's sign-in PINs and accounts, with invented people: <c>POST /api/v2/pins</c> creates a PIN,
-/// <c>GET /api/v2/pins/{id}</c> carries a token once the test approves it, <c>GET /api/v2/user</c> says whose token it is.
+/// <c>GET /api/v2/pins/{id}</c> carries a token once the test approves it, <c>GET /api/v2/user</c> says whose token it is,
+/// <c>GET /api/v2/resources</c> lists the servers the token's account reaches (<see cref="Share"/>).
 /// Like plex.tv, a PIN is only read back with the <c>X-Plex-Client-Identifier</c> that created it.
 /// </summary>
 public sealed class FakePlexTvSignIn : IAsyncDisposable
@@ -15,6 +16,7 @@ public sealed class FakePlexTvSignIn : IAsyncDisposable
     private readonly FakeHttpServer _http;
     private readonly ConcurrentDictionary<long, Pin> _pins = new();
     private readonly ConcurrentDictionary<string, Account> _tokens = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<long, string[]> _servers = new();
     private long _nextPin = 4000;
 
     private FakePlexTvSignIn(FakeHttpServer http)
@@ -29,6 +31,15 @@ public sealed class FakePlexTvSignIn : IAsyncDisposable
     public static readonly Account Owner = new(1001, "demo-owner", "owner@example.invalid", "https://plex.tv/users/demo-owner/avatar");
 
     public static readonly Account Stranger = new(2002, "demo-stranger", "stranger@example.invalid", "https://plex.tv/users/demo-stranger/avatar");
+
+    /// <summary>A friend the owner shares the server with.</summary>
+    public static readonly Account Friend = new(3003, "demo-friend", "friend@example.invalid", "https://plex.tv/users/demo-friend/avatar");
+
+    /// <summary>plex.tv answers HTTP 503 to the resources only.</summary>
+    public bool ResourcesDown { get; set; }
+
+    /// <summary>The account reaches the servers with these machine identifiers (none by default).</summary>
+    public void Share(Account account, params string[] machineIdentifiers) => _servers[account.Id] = machineIdentifiers;
 
     private sealed record Pin(long Id, string Code, string ClientIdentifier, string? Token);
 
@@ -102,6 +113,26 @@ public sealed class FakePlexTvSignIn : IAsyncDisposable
                 thumb = account.Thumb,
                 authToken = token,
             }));
+        }
+
+        if (request.Method == "GET" && request.Path == "/api/v2/resources")
+        {
+            if (ResourcesDown)
+            {
+                return new FakeHttpServer.Answer(503);
+            }
+
+            if (!request.Headers.TryGetValue("X-Plex-Token", out var token) || !_tokens.TryGetValue(token, out var account))
+            {
+                return new FakeHttpServer.Answer(401, """{"errors":[{"code":1001,"message":"User could not be authenticated"}]}""");
+            }
+
+            // A player device beside the servers, as plex.tv lists them: only servers count.
+            var servers = _servers.TryGetValue(account.Id, out var ids) ? ids : [];
+            return new FakeHttpServer.Answer(200, JsonSerializer.Serialize(
+                servers.Select(id => new { name = "Server " + id, clientIdentifier = id, provides = "server" })
+                    .Append(new { name = "Phone", clientIdentifier = "player-" + account.Id.ToString(CultureInfo.InvariantCulture), provides = "client,player" })
+                    .ToArray()));
         }
 
         return null;

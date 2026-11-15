@@ -98,6 +98,26 @@ export const system = {
   status: () => api<SystemStatus>('/api/v1/system/status'),
 }
 
+// ---- users & roles (Settings → Users) ------------------------------------------
+
+export type UserRole = Schemas['UserRole']
+export type UserPermissions = Schemas['PermissionsDto']
+export type UserSummary = Schemas['UserResponse']
+export type UserSettings = Schemas['UserSettingsResponse']
+
+/** Bigarr's own pages are the admin's; other roles get the signed-in page until requests arrive. */
+export const isAdmin = (me: Me | undefined) => me?.role === 'Admin'
+
+export const users = {
+  list: () => api<UserSummary[]>('/api/v1/users'),
+  update: (id: number, role: UserRole, permissions: UserPermissions) => put<UserSummary>(`/api/v1/users/${id}`, { role, permissions }),
+  disable: (id: number) => post<UserSummary>(`/api/v1/users/${id}/disable`),
+  enable: (id: number) => post<UserSummary>(`/api/v1/users/${id}/enable`),
+  settings: () => api<UserSettings>('/api/v1/users/settings'),
+  updateSettings: (plexNewAccounts: boolean, defaultPermissions: UserPermissions) =>
+    put<UserSettings>('/api/v1/users/settings', { plexNewAccounts, defaultPermissions }),
+}
+
 // ---- API keys (Connect) ----------------------------------------------------
 
 /** What a key sees through the Radarr-compatible API: `default`, `all` or `version:<slug>`. */

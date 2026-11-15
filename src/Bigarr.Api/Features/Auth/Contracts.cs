@@ -4,8 +4,10 @@ public sealed record LoginRequest(string Username, string Password, bool Remembe
 
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
+/// <param name="Role"><c>Admin</c>, <c>RequestManager</c> or <c>User</c>.</param>
 /// <param name="AuthKind">Authentication scheme used for this request: <c>Session</c> or <c>ApiKey</c>.</param>
-public sealed record MeResponse(int Id, string Username, string Role, string AuthKind, string? CompatView);
+/// <param name="Permissions">What the user may do (<c>RequestFilms</c>…), every one of them for an admin.</param>
+public sealed record MeResponse(int Id, string Username, string Role, string AuthKind, string? CompatView, IReadOnlyList<string> Permissions);
 
 public sealed record ApiKeyResponse(
     int Id,
@@ -22,7 +24,7 @@ public sealed record CreateApiKeyRequest(string Name, string? CompatView);
 /// <summary>The only time the key itself is returned.</summary>
 public sealed record ApiKeyCreatedResponse(int Id, string Name, string Key, string KeyPrefix, string CompatView, DateTime CreatedAt);
 
-/// <summary>A provider offered on the login page: on, and linked to at least one user.</summary>
+/// <summary>A provider offered on the login page: on, and linked to at least one user or open to new accounts.</summary>
 public sealed record ExternalProviderResponse(string Key, string Name);
 
 /// <summary>A provider as Settings shows it, with the signed-in user's link if there is one.</summary>
@@ -66,6 +68,15 @@ public enum ExternalFlowStatus
 
     /// <summary>Signing in with this provider was turned off meanwhile.</summary>
     Disabled,
+
+    /// <summary>The account has no access to the Plex server set up in Bigarr (or there is none): no user is created.</summary>
+    NoServerAccess,
+
+    /// <summary>Bigarr could not tell whether the account has access to its Plex server (the server did not answer): try later.</summary>
+    AccessUnknown,
+
+    /// <summary>The account belongs to a user the admin disabled.</summary>
+    UserDisabled,
 }
 
 /// <param name="Account">The provider's name for the account, when the provider vouched for one.</param>

@@ -152,6 +152,36 @@ public sealed class PlexTvClient(HttpClient http, PlexClientIdentity identity)
             ?? throw new MediaServerException("plex.tv answered an account without an id or a username.");
     }
 
+    /// <summary>
+    /// The machine identifiers of the Plex servers the account behind <paramref name="token"/> reaches, owned or shared
+    /// with it (<c>/api/v2/resources</c>, what Plex Web lists and Overseerr checks access against).
+    /// </summary>
+    public async Task<List<string>> ServersAsync(string token, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(token);
+
+        using var request = await RequestAsync(HttpMethod.Get, "api/v2/resources?includeHttps=1&includeRelay=1", token, "application/json", ct);
+        using var response = await SendAsync(request, "the account's servers", ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new MediaServerException($"plex.tv answered HTTP {(int)response.StatusCode} to the account's servers.") { StatusCode = response.StatusCode };
+        }
+
+        return ParseServers(await ReadJsonAsync(response, "the account's servers", ct));
+    }
+
+    /// <summary><c>[{ "name": "…", "clientIdentifier": "…", "provides": "server" }, { …, "provides": "client,player" }]</c></summary>
+    public static List<string> ParseServers(JsonElement root) =>
+        root.ValueKind != JsonValueKind.Array
+            ? []
+            : root.EnumerateArray()
+                .Where(r => r.ValueKind == JsonValueKind.Object
+                    && Text(r, "provides") is { } provides
+                    && provides.Split(',', StringSplitOptions.TrimEntries).Contains("server", StringComparer.OrdinalIgnoreCase))
+                .Select(r => Text(r, "clientIdentifier"))
+                .OfType<string>()
+                .ToList();
+
     /// <summary><c>{ "id": 123, "code": "abcd", "expiresAt": "…", "authToken": null }</c></summary>
     public static PlexTvPin? ParsePin(JsonElement root)
     {

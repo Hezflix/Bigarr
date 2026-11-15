@@ -1,7 +1,9 @@
 using Bigarr.Domain.Auth;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace Bigarr.Api.Infrastructure.Auth;
 
@@ -38,27 +40,58 @@ public static class AuthenticationExtensions
                         return Task.CompletedTask;
                     },
 
-                    // A session opened with a password that has since changed is over (and so is one of a user that
-                    // is gone): changing the password is how a session someone else got hold of is ended.
+                    // A session opened with a password that has since changed is over, and so is one of a user that is
+                    // disabled or gone: changing the password is how a session someone else got hold of is ended. A
+                    // session whose role or permissions changed goes on with the current ones.
                     OnValidatePrincipal = async ctx =>
                     {
                         var stamps = ctx.HttpContext.RequestServices.GetRequiredService<SessionStamps>();
                         var db = ctx.HttpContext.RequestServices.GetRequiredService<Persistence.BigarrDbContext>();
                         var stamp = ctx.Principal?.FindFirst(BigarrClaims.SessionStamp)?.Value;
-                        if (ctx.Principal is null || !await stamps.IsCurrentAsync(ctx.Principal.UserId(), stamp, db, ctx.HttpContext.RequestAborted))
+                        var ct = ctx.HttpContext.RequestAborted;
+                        var state = ctx.Principal is null ? null : await stamps.CurrentAsync(ctx.Principal.UserId(), stamp, db, ct);
+                        if (state is null)
                         {
                             ctx.RejectPrincipal();
                             await ctx.HttpContext.SignOutAsync(AuthSchemes.Session);
+                            return;
+                        }
+
+                        if (!SessionStamps.Matches(ctx.Principal!, state))
+                        {
+                            var user = await db.Users.AsNoTracking().FirstAsync(u => u.Id == ctx.Principal!.UserId(), ct);
+                            ctx.ReplacePrincipal(BigarrPrincipal.ForUser(user, AuthSchemes.Session));
+                            ctx.ShouldRenew = true;
                         }
                     },
                 };
             })
             .AddScheme<ApiKeyAuthenticationOptions, ApiKeyAuthenticationHandler>(AuthSchemes.ApiKey, _ => { });
 
-        services.AddAuthorizationBuilder()
-            .AddPolicy(AuthPolicies.Session, p => p.AddAuthenticationSchemes(AuthSchemes.Session).RequireAuthenticatedUser())
+        var admin = nameof(UserRole.Admin);
+        var adminApi = new AuthorizationPolicyBuilder(AuthSchemes.Session, AuthSchemes.ApiKey).RequireAuthenticatedUser().RequireRole(admin).Build();
+        var builder = services.AddAuthorizationBuilder()
+            .AddPolicy(AuthPolicies.Session, p => p.AddAuthenticationSchemes(AuthSchemes.Session).RequireAuthenticatedUser().RequireRole(admin))
             .AddPolicy(AuthPolicies.ApiKey, p => p.AddAuthenticationSchemes(AuthSchemes.ApiKey).RequireAuthenticatedUser())
-            .AddPolicy(AuthPolicies.Api, p => p.AddAuthenticationSchemes(AuthSchemes.Session, AuthSchemes.ApiKey).RequireAuthenticatedUser());
+            .AddPolicy(AuthPolicies.Api, adminApi)
+            .AddPolicy(AuthPolicies.SignedIn, p => p.AddAuthenticationSchemes(AuthSchemes.Session, AuthSchemes.ApiKey).RequireAuthenticatedUser())
+            .AddPolicy(AuthPolicies.ManageRequests, p => p.AddAuthenticationSchemes(AuthSchemes.Session, AuthSchemes.ApiKey)
+                .RequireAuthenticatedUser()
+                .RequireRole(admin, nameof(UserRole.RequestManager)))
+
+            // Default deny: an endpoint that names no policy is the admin's. A request that matched no endpoint is left
+            // alone, so an unknown address still answers 404.
+            .SetFallbackPolicy(new AuthorizationPolicyBuilder(AuthSchemes.Session, AuthSchemes.ApiKey)
+                .RequireAssertion(ctx => (ctx.Resource is HttpContext http && http.GetEndpoint() is null)
+                    || (ctx.User.Identity?.IsAuthenticated == true && ctx.User.IsInRole(admin)))
+                .Build());
+
+        foreach (var permission in Enum.GetValues<UserPermission>())
+        {
+            builder.AddPolicy(AuthPolicies.Has(permission), p => p.AddAuthenticationSchemes(AuthSchemes.Session, AuthSchemes.ApiKey)
+                .RequireAuthenticatedUser()
+                .RequireAssertion(ctx => ctx.User.Has(permission)));
+        }
 
         return services;
     }

@@ -353,8 +353,15 @@ See [F10](#f10-shadow-follow-searches-and-views-were-lost-for-good).
 ## Auth and UI
 
 - Session cookie: stateless, 14 days sliding, carrying a fingerprint of the password it was opened with; valid, then
-  refused once the password changes ([F20](#f20-a-password-change-did-not-end-other-sessions)). API key: active, then
-  revoked, checked on every request. `UserRole` never changes.
+  refused once the password changes ([F20](#f20-a-password-change-did-not-end-other-sessions)) or the user is disabled.
+  It also carries the user's role and permissions: when the admin changes them, the next request reissues the cookie
+  with the current ones (`SessionStamps` keeps each user's state in memory, refreshed by `Changed` on every edit). API
+  key: active, then revoked, checked on every request; a disabled user's keys are refused too.
+- User: active ⇄ disabled (`DisabledAt`), by the admin only, never the admin's own account; no delete. Role (admin,
+  request manager, user) and permissions change freely, except the admin's own role. A Plex account linked to no one
+  creates its user (role user, default permissions) on its first sign-in, only when new Plex accounts are let in and
+  plex.tv lists the configured Plex server among the account's resources; a non-admin needs that access at every
+  sign-in, the admin never.
 - The web UI holds no state machine of its own: server state lives in the query cache, invalidated by the server's
   event stream (`web/src/hooks/useServerEvents.ts`). The stream is at most once and the cache is not invalidated on
   reconnect, so an event missed while disconnected leaves a page stale until its next refetch. Not audited further.

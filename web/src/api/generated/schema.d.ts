@@ -980,6 +980,235 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateUserRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{id}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{id}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserSettingsResponse"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateUserSettingsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserSettingsResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/status": {
         parameters: {
             query?: never;
@@ -9605,7 +9834,7 @@ export interface components {
             expiresAt: string;
         };
         /** @enum {unknown} */
-        ExternalFlowStatus: "pending" | "signedIn" | "linked" | "expired" | "denied" | "unknownAccount" | "linkedElsewhere" | "disabled";
+        ExternalFlowStatus: "pending" | "signedIn" | "linked" | "expired" | "denied" | "unknownAccount" | "linkedElsewhere" | "disabled" | "noServerAccess" | "accessUnknown" | "userDisabled";
         ExternalLinkResponse: {
             externalId: string;
             externalUsername: null | string;
@@ -10407,6 +10636,7 @@ export interface components {
             role: string;
             authKind: string;
             compatView: null | string;
+            permissions: string[];
         };
         /** @enum {unknown} */
         MinimumAvailability: "announced" | "inCinemas" | "released";
@@ -10696,6 +10926,14 @@ export interface components {
         PathMappingDto: {
             from: string;
             to: string;
+        };
+        PermissionsDto: {
+            requestFilms: boolean;
+            requestSeries: boolean;
+            request4K: boolean;
+            autoApproveFilms: boolean;
+            autoApproveSeries: boolean;
+            reportIssues: boolean;
         };
         PlaybackAddressResponse: {
             ipAddress: string;
@@ -12962,6 +13200,14 @@ export interface components {
             /** @default false */
             clearConstraints: boolean;
         };
+        UpdateUserRequest: {
+            role: components["schemas"]["UserRole"];
+            permissions: components["schemas"]["PermissionsDto"];
+        };
+        UpdateUserSettingsRequest: {
+            plexNewAccounts: boolean;
+            defaultPermissions: components["schemas"]["PermissionsDto"];
+        };
         UpdateVersionRequest: {
             name?: null | string;
             mode?: null | components["schemas"]["VersionMode"];
@@ -12973,6 +13219,37 @@ export interface components {
             /** @default false */
             clearConstraints: boolean;
             tagIds?: null | number[];
+        };
+        UserLoginResponse: {
+            provider: string;
+            externalUsername: null | string;
+            email: null | string;
+            thumbUrl: null | string;
+            /** Format: date-time */
+            lastLoginAt: null | string;
+        };
+        UserResponse: {
+            /** Format: int32 */
+            id: number;
+            username: string;
+            role: components["schemas"]["UserRole"];
+            permissions: components["schemas"]["PermissionsDto"];
+            /** Format: date-time */
+            disabledAt: null | string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            lastLoginAt: null | string;
+            hasPassword: boolean;
+            logins: components["schemas"]["UserLoginResponse"][];
+            isYou: boolean;
+        };
+        /** @enum {unknown} */
+        UserRole: "admin" | "requestManager" | "user";
+        UserSettingsResponse: {
+            plexNewAccounts: boolean;
+            defaultPermissions: components["schemas"]["PermissionsDto"];
+            plexServerConfigured: boolean;
         };
         VersionDecisionResponse: {
             /** Format: int32 */

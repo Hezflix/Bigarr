@@ -30,7 +30,7 @@ public sealed class AdminSeeder(
         var configured = options.Value.InitialAdminPassword;
         var password = string.IsNullOrEmpty(configured) ? GeneratePassword() : configured;
 
-        var user = new User { Username = DefaultUsername, PasswordHash = string.Empty };
+        var user = new User { Username = DefaultUsername, PasswordHash = string.Empty, Role = UserRole.Admin };
         user.PasswordHash = hasher.HashPassword(user, password);
         db.Users.Add(user);
         await db.SaveChangesAsync(cancellationToken);

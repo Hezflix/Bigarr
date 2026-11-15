@@ -2,10 +2,11 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Outlet, RouterProvider, createRootRoute, createRoute, createRouter, lazyRouteComponent, redirect } from '@tanstack/react-router'
-import { ApiError, auth } from './api/client'
+import { ApiError, auth, isAdmin } from './api/client'
 import { AppShell } from './components/AppShell'
 import { ThemeProvider } from './components/theme'
 import { LoginPage } from './features/auth/LoginPage'
+import { SignedInPage } from './features/auth/SignedInPage'
 import './i18n'
 import './index.css'
 
@@ -21,21 +22,39 @@ const loginRoute = createRoute({
   component: LoginPage,
 })
 
-// Everything under the shell requires a session; a 401 sends to the login page.
+const fetchMe = async () => {
+  try {
+    return await queryClient.fetchQuery({ queryKey: ['me'], queryFn: auth.me, staleTime: 60_000 })
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      throw redirect({ to: '/login' })
+    }
+    throw error
+  }
+}
+
+// Everything under the shell requires the admin's session; a 401 sends to the login page, another role to the
+// signed-in page (the API refuses them everything under the shell anyway).
 const appRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'app',
   beforeLoad: async () => {
-    try {
-      await queryClient.fetchQuery({ queryKey: ['me'], queryFn: auth.me, staleTime: 60_000 })
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        throw redirect({ to: '/login' })
-      }
-      throw error
+    if (!isAdmin(await fetchMe())) {
+      throw redirect({ to: '/welcome' })
     }
   },
   component: AppShell,
+})
+
+const welcomeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/welcome',
+  beforeLoad: async () => {
+    if (isAdmin(await fetchMe())) {
+      throw redirect({ to: '/' })
+    }
+  },
+  component: SignedInPage,
 })
 
 // Each page is its own chunk, fetched on first visit: the shell and the login page load without the rest.
@@ -120,6 +139,7 @@ const customFormatsRoute = createRoute({ getParentRoute: () => appRoute, path: '
 const downloadClientsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/downloadclients', component: lazyRouteComponent(() => import('./features/settings/DownloadClientsPage'), 'DownloadClientsPage') })
 const notificationsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/notifications', component: lazyRouteComponent(() => import('./features/settings/NotificationsPage'), 'NotificationsPage') })
 const connectRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/connect', component: lazyRouteComponent(() => import('./features/settings/ConnectPage'), 'ConnectPage') })
+const usersRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/users', component: lazyRouteComponent(() => import('./features/settings/UsersPage'), 'UsersPage') })
 const securityRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/security', component: lazyRouteComponent(() => import('./features/settings/SecurityPage'), 'SecurityPage') })
 const mediaServersRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/mediaservers', component: lazyRouteComponent(() => import('./features/settings/MediaServersPage'), 'MediaServersPage') })
 const importRadarrRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/import-radarr', component: lazyRouteComponent(() => import('./features/settings/ImportRadarrPage'), 'ImportRadarrPage') })
@@ -129,7 +149,7 @@ const importSonarrRoute = createRoute({ getParentRoute: () => appRoute, path: '/
 const followedSonarrsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/followed-sonarrs', component: lazyRouteComponent(() => import('./features/settings/SonarrFollowPage'), 'SonarrFollowPage') })
 
 const router = createRouter({
-  routeTree: rootRoute.addChildren([loginRoute, appRoute.addChildren([
+  routeTree: rootRoute.addChildren([loginRoute, welcomeRoute, appRoute.addChildren([
       libraryRoute,
       addRoute,
       wantedRoute,
@@ -159,6 +179,7 @@ const router = createRouter({
       notificationsRoute,
       connectRoute,
       securityRoute,
+      usersRoute,
       mediaServersRoute,
       importRadarrRoute,
       importTautulliRoute,

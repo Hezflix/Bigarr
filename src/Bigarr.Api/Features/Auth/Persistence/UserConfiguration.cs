@@ -13,6 +13,10 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.Username).HasMaxLength(64);
         builder.Property(u => u.PasswordHash).HasMaxLength(512);
         builder.HasIndex(u => u.Username).IsUnique();
+        builder.ComplexProperty(u => u.Permissions);
+        builder.Ignore(u => u.IsDisabled);
+        builder.Ignore(u => u.HasPassword);
+        builder.Ignore(u => u.Effective);
 
         builder.HasMany(u => u.ApiKeys)
             .WithOne(k => k.User)
@@ -63,5 +67,6 @@ public sealed class InstanceSettingsConfiguration : IEntityTypeConfiguration<Big
 
         builder.Property(s => s.Id).ValueGeneratedNever();
         builder.Property(s => s.PlexClientIdentifier).HasMaxLength(64);
+        builder.ComplexProperty(s => s.DefaultPermissions);
     }
 }

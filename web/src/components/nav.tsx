@@ -61,6 +61,7 @@ export type NavPath =
   | '/settings/customformats'
   | '/settings/connect'
   | '/settings/security'
+  | '/settings/users'
   | '/settings/mediaservers'
   | '/settings/import-radarr'
   | '/settings/import-tautulli'
@@ -140,6 +141,7 @@ export function useNavSections(): NavSection[] {
         { to: '/settings/customformats', label: t('nav.settingsCustomFormats'), icon: TagsIcon },
         { to: '/settings/mediaservers', label: t('nav.settingsMediaServers'), icon: MonitorPlayIcon },
         { to: '/settings/connect', label: t('nav.settingsConnect'), icon: PlugIcon },
+        { to: '/settings/users', label: t('nav.settingsUsers'), icon: UsersIcon },
         { to: '/settings/security', label: t('nav.settingsSecurity'), icon: ShieldCheckIcon },
         { to: '/settings/import-radarr', label: t('nav.settingsImportRadarr'), icon: ImportIcon },
         { to: '/settings/import-tautulli', label: t('nav.settingsImportTautulli'), icon: HistoryIcon },

@@ -26,6 +26,7 @@ using Bigarr.Api.Features.Server.Health;
 using Bigarr.Api.Features.Server.Tasks;
 using Bigarr.Api.Features.Shadow;
 using Bigarr.Api.Features.Tags;
+using Bigarr.Api.Features.Users;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Auth;
 using Bigarr.Api.Infrastructure.Decision;
@@ -274,10 +275,11 @@ app.UseSonarrCompat();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapOpenApi(); // /openapi/v1.json, the same document the build writes for the TypeScript types
+app.MapOpenApi().AllowAnonymous(); // /openapi/v1.json, the same document the build writes for the TypeScript types
 app.MapAuth();
 app.MapApiKeys();
 app.MapExternalLogin();
+app.MapUsers();
 app.MapSystem();
 app.MapMovies();
 app.MapSeries();
@@ -314,7 +316,7 @@ app.MapSonarrCompat();
 
 // The SPA is built into wwwroot by `bun run build`; anything that is not API falls back to index.html.
 // signalr/ stays out of the SPA: a client still configured for the old bare hub path gets a 404, not a page.
-app.MapFallbackToFile("{*path:regex(^(?!api/|health$|openapi/|signalr/|radarr/|sonarr/).*$)}", "index.html", PrecompressedStaticFiles.Options);
+app.MapFallbackToFile("{*path:regex(^(?!api/|health$|openapi/|signalr/|radarr/|sonarr/).*$)}", "index.html", PrecompressedStaticFiles.Options).AllowAnonymous();
 
 app.Run();
 

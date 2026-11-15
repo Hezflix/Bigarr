@@ -18,8 +18,8 @@ public static class AuthEndpoints
         var group = app.MapGroup("/api/v1/auth").WithTags("Auth");
 
         group.MapPost("/login", LoginAsync).AllowAnonymous();
-        group.MapPost("/logout", Logout).RequireAuthorization(AuthPolicies.Session);
-        group.MapGet("/me", Me).RequireAuthorization(AuthPolicies.Api);
+        group.MapPost("/logout", Logout).RequireAuthorization(AuthPolicies.SignedIn);
+        group.MapGet("/me", Me).RequireAuthorization(AuthPolicies.SignedIn);
         group.MapPost("/password", ChangePasswordAsync).RequireAuthorization(AuthPolicies.Session);
 
         return app;
@@ -44,15 +44,21 @@ public static class AuthEndpoints
             });
         }
 
+        // A user without a password (created by a Plex sign-in) never signs in here; a disabled one nowhere. Both get
+        // the same answer as a wrong password, so the login form tells nothing about who exists.
         var user = await db.Users.FirstOrDefaultAsync(u => u.Username == request.Username, http.RequestAborted);
-        var verdict = user is null
+        var verdict = user is null || !user.HasPassword
             ? PasswordVerificationResult.Failed
             : hasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
 
-        if (user is null || verdict == PasswordVerificationResult.Failed)
+        if (user is null || verdict == PasswordVerificationResult.Failed || user.IsDisabled)
         {
             loggerFactory.CreateLogger("Bigarr.Auth").LogWarning(
-                "Failed login for {Username} from {RemoteIp}", request.Username, http.Connection.RemoteIpAddress);
+                user?.IsDisabled == true && verdict != PasswordVerificationResult.Failed
+                    ? "Login refused for {Username} from {RemoteIp}: the user is disabled"
+                    : "Failed login for {Username} from {RemoteIp}",
+                request.Username,
+                http.Connection.RemoteIpAddress);
             return TypedResults.Unauthorized();
         }
 
@@ -86,7 +92,8 @@ public static class AuthEndpoints
             user.Identity!.Name!,
             user.FindFirstValue(ClaimTypes.Role)!,
             user.Identity.AuthenticationType!,
-            user.FindFirstValue(BigarrClaims.CompatView)));
+            user.FindFirstValue(BigarrClaims.CompatView),
+            [.. user.Permissions()]));
 
     private static async Task<Results<NoContent, UnauthorizedHttpResult, ValidationProblem>> ChangePasswordAsync(
         ChangePasswordRequest request,
