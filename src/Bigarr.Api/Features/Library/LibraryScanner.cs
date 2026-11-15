@@ -201,7 +201,8 @@ public sealed partial class LibraryScanner(BigarrDbContext db, IMetadataProvider
     }
 
     /// <summary>
-    /// Rescans one version's folder, as Radarr's <c>RescanMovie</c> (Bazarr asks after each subtitle it writes): the
+    /// Rescans one version's folder, as Radarr's <c>RescanMovie</c> (Bazarr asks after each subtitle it writes; run by the
+    /// scan queue): the
     /// file's size is read again, and a version without a file adopts the first video of its folder that no other
     /// version sharing the folder holds. Like the series rescan, a vanished file is left to the root scan and the UI.
     /// </summary>

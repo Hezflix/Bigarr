@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(BigarrDbContext))]
-    [Migration("20261114235231_IndexerSeasonPackSeedTime")]
+    [Migration("20261115002824_IndexerSeasonPackSeedTime")]
     partial class IndexerSeasonPackSeedTime
     {
         /// <inheritdoc />
@@ -247,6 +247,68 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("ApiKeys", (string)null);
                 });
 
+            modelBuilder.Entity("Bigarr.Domain.Auth.ExternalLogin", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(320)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExternalUsername")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastLoginAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("LinkedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ThumbUrl")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Provider", "ExternalId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "Provider")
+                        .IsUnique();
+
+                    b.ToTable("ExternalLogins", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Auth.ExternalLoginProvider", b =>
+                {
+                    b.Property<string>("Provider")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Provider");
+
+                    b.ToTable("ExternalLoginProviders", (string)null);
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Auth.User", b =>
                 {
                     b.Property<int>("Id")
@@ -278,6 +340,20 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("Users", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Common.InstanceSettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PlexClientIdentifier")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("InstanceSettings", (string)null);
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Downloads.DownloadClient", b =>
@@ -3665,6 +3741,17 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("Bigarr.Domain.Auth.User", "User")
                         .WithMany("ApiKeys")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Auth.ExternalLogin", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Auth.User", "User")
+                        .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

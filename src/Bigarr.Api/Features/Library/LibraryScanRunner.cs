@@ -11,8 +11,8 @@ namespace Bigarr.Api.Features.Library;
 /// </summary>
 public sealed class LibraryScanRunner(IServiceScopeFactory scopeFactory, TimeProvider time, ILogger<LibraryScanRunner> logger) : BackgroundService
 {
-    /// <summary>A root folder scan (<see cref="SeriesId"/> 0) or a single series rescan (<see cref="RootFolderId"/> 0).</summary>
-    private readonly record struct ScanKey(int RootFolderId, int SeriesId);
+    /// <summary>A root folder scan (only <see cref="RootFolderId"/> set), a single series rescan or a single film rescan.</summary>
+    private readonly record struct ScanKey(int RootFolderId, int SeriesId, int MovieId = 0);
 
     private sealed record ScanJob(ScanKey Key, Func<IServiceProvider, ScanProgress, CancellationToken, Task> Work);
 
@@ -23,6 +23,8 @@ public sealed class LibraryScanRunner(IServiceScopeFactory scopeFactory, TimePro
 
     public ScanStatusResponse SeriesStatus(int seriesId) => StatusOf(new ScanKey(0, seriesId), () => new ScanProgress(0) { SeriesId = seriesId });
 
+    public ScanStatusResponse MovieStatus(int movieId) => StatusOf(new ScanKey(0, 0, movieId), () => new ScanProgress(0));
+
     /// <summary>Queues a scan unless one is already queued or running for this root folder.</summary>
     public ScanStatusResponse Enqueue(int rootFolderId) =>
         Enqueue(new ScanJob(new ScanKey(rootFolderId, 0), (sp, progress, ct) => ScanRootAsync(sp, rootFolderId, progress, ct)), () => new ScanProgress(rootFolderId));
@@ -30,6 +32,10 @@ public sealed class LibraryScanRunner(IServiceScopeFactory scopeFactory, TimePro
     /// <summary>Queues a rescan of one series (every version folder); <paramref name="work"/> does it in a fresh scope.</summary>
     public ScanStatusResponse EnqueueSeries(int seriesId, Func<IServiceProvider, ScanProgress, CancellationToken, Task> work) =>
         Enqueue(new ScanJob(new ScanKey(0, seriesId), work), () => new ScanProgress(0) { SeriesId = seriesId });
+
+    /// <summary>Queues a rescan of one film's folder(s); <paramref name="work"/> does it in a fresh scope.</summary>
+    public ScanStatusResponse EnqueueMovie(int movieId, Func<IServiceProvider, ScanProgress, CancellationToken, Task> work) =>
+        Enqueue(new ScanJob(new ScanKey(0, 0, movieId), work), () => new ScanProgress(0));
 
     public void Forget(int rootFolderId) => _progress.TryRemove(new ScanKey(rootFolderId, 0), out _);
 
@@ -86,7 +92,7 @@ public sealed class LibraryScanRunner(IServiceScopeFactory scopeFactory, TimePro
                 progress.State = ScanState.Completed;
                 logger.LogInformation(
                     "Scan {Target} done: {Movies} movie(s), {Series} series, {Versions} version(s), {Files} file(s), {Unmapped} unmapped folder(s), {Unmatched} unmatched file(s)",
-                    job.Key.SeriesId > 0 ? $"of series {job.Key.SeriesId}" : $"of root folder {job.Key.RootFolderId}",
+                    job.Key.SeriesId > 0 ? $"of series {job.Key.SeriesId}" : job.Key.MovieId > 0 ? $"of movie {job.Key.MovieId}" : $"of root folder {job.Key.RootFolderId}",
                     progress.MoviesAdded, progress.SeriesAdded, progress.VersionsAdded, progress.FilesAdded, progress.Unmapped, progress.UnmatchedFiles);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

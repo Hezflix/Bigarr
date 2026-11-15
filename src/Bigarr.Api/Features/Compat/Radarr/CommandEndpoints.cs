@@ -90,7 +90,7 @@ public static class CommandEndpoints
         QueueState queue,
         TaskRunner tasks,
         CompatCommandLog log,
-        Library.LibraryScanner scanner,
+        Library.LibraryScanRunner scans,
         TimeProvider time,
         ILoggerFactory loggers,
         CancellationToken ct)
@@ -144,18 +144,20 @@ public static class CommandEndpoints
 
             case "rescanmovie":
                 {
-                    // Bazarr asks after each subtitle it writes next to the file: Radarr rescans the film's folder.
-                    var rescanned = 0;
+                    // Bazarr asks after each subtitle it writes next to the file: Radarr rescans the film's folder, through
+                    // the scan queue like every other scan; the command is done once the queued rescans are.
+                    var scanned = new List<int>();
                     foreach (var id in ids)
                     {
-                        if (await library.FindAsync(view, id, ct) is not null)
+                        if (await library.FindAsync(view, id, ct) is { } row)
                         {
-                            await scanner.ScanVersionAsync(id, new Library.ScanProgress(0), ct);
-                            rescanned++;
+                            var versionId = row.Version.Id;
+                            scans.EnqueueMovie(row.Movie.Id, (services, progress, token) => services.GetRequiredService<Library.LibraryScanner>().ScanVersionAsync(versionId, progress, token));
+                            scanned.Add(row.Movie.Id);
                         }
                     }
 
-                    return RadarrCompat.Created(log.Record("RescanMovie", body, "completed", $"{rescanned} version(s) rescanned", now));
+                    return RadarrCompat.Created(log.Record("RescanMovie", body, "queued", $"{scanned.Count} film(s) queued for a rescan", now, () => scanned.All(id => scans.MovieStatus(id).State is not (Library.ScanState.Queued or Library.ScanState.Running))));
                 }
 
             case "refreshmonitoreddownloads":

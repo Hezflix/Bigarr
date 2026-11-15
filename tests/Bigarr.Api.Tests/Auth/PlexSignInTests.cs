@@ -67,8 +67,8 @@ public sealed class PlexSignInTests
         Assert.Equal(BigarrApiFactory.AdminUsername, me!.Username);
         Assert.Equal("Session", me.AuthKind);
         Assert.Equal(HttpStatusCode.OK, (await browser.GetAsync("/api/v1/system/status")).StatusCode);
-        // A cookie opened through Plex is a cookie like any other: it never opens /api/v3.
-        Assert.Equal(HttpStatusCode.Unauthorized, (await browser.GetAsync("/api/v3/system/status")).StatusCode);
+        // A cookie opened through Plex is a cookie like any other: it never opens /radarr/api/v3.
+        Assert.Equal(HttpStatusCode.Unauthorized, (await browser.GetAsync("/radarr/api/v3/system/status")).StatusCode);
 
         // The flow is over: polling it again tells nothing more.
         Assert.Equal("expired", await PollAsync(browser, login));

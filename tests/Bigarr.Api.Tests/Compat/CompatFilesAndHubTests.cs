@@ -121,9 +121,13 @@ public sealed class CompatFilesAndHubTests(BigarrApiFactory factory) : IClassFix
         await File.WriteAllBytesAsync(Path.Combine(folder, "Inception.2010.1080p.BluRay.x264-GRP.mkv"), new byte[4096]);
         await File.WriteAllTextAsync(Path.Combine(folder, "Inception.2010.1080p.BluRay.x264-GRP.en.srt"), "1");
 
+        // Through the scan queue, like RescanSeries: queued, then completed once the rescan has run.
         var rescan = await bazarr.PostAsJsonAsync("/radarr/api/v3/command", new { name = "RescanMovie", movieId = version.Id });
         Assert.Equal(HttpStatusCode.Created, rescan.StatusCode);
-        Assert.Equal("completed", (await rescan.ReadJsonAsync()).GetProperty("status").GetString());
+        var command = await rescan.ReadJsonAsync();
+        Assert.Equal("queued", command.GetProperty("status").GetString());
+        Assert.Contains("1 film", command.GetProperty("message").GetString());
+        await WaitCommandAsync(bazarr, command.GetProperty("id").GetInt32());
 
         var row = await (await bazarr.GetAsync($"/radarr/api/v3/movie/{version.Id}")).ReadJsonAsync();
         Assert.True(row.GetProperty("hasFile").GetBoolean());
@@ -133,7 +137,8 @@ public sealed class CompatFilesAndHubTests(BigarrApiFactory factory) : IClassFix
 
         // A second rescan reads the size again and keeps the file.
         await File.WriteAllBytesAsync(Path.Combine(folder, "Inception.2010.1080p.BluRay.x264-GRP.mkv"), new byte[8192]);
-        await bazarr.PostAsJsonAsync("/radarr/api/v3/command", new { name = "RescanMovie", movieId = version.Id });
+        var again = await (await bazarr.PostAsJsonAsync("/radarr/api/v3/command", new { name = "RescanMovie", movieId = version.Id })).ReadJsonAsync();
+        await WaitCommandAsync(bazarr, again.GetProperty("id").GetInt32());
         row = await (await bazarr.GetAsync($"/radarr/api/v3/movie/{version.Id}")).ReadJsonAsync();
         Assert.Equal(8192, row.GetProperty("movieFile").GetProperty("size").GetInt64());
     }
@@ -219,6 +224,26 @@ public sealed class CompatFilesAndHubTests(BigarrApiFactory factory) : IClassFix
         Assert.Equal(2, deleted.Count(m => m.Group == "view:all"));
 
         Assert.Empty(Route(new ReleaseGrabbed(movie, hd, new ReleaseRef("t", null, null, 0), 1, "qbt", "abc", "rss")));
+    }
+
+    private static async Task WaitCommandAsync(HttpClient client, int commandId)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        while (true)
+        {
+            var status = (await (await client.GetAsync($"/radarr/api/v3/command/{commandId}")).ReadJsonAsync()).GetProperty("status").GetString();
+            if (status == "completed")
+            {
+                return;
+            }
+
+            if (DateTime.UtcNow > deadline)
+            {
+                throw new TimeoutException($"Command {commandId} still {status}.");
+            }
+
+            await Task.Delay(100);
+        }
     }
 
     private static List<(string Group, SignalRMessage Message)> Route(DomainEvent domainEvent) =>
