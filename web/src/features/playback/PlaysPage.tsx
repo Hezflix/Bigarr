@@ -114,6 +114,7 @@ export function PlaysPage() {
             aria-label={t('playback.searchTitle')}
             className="pl-8"
             data-testid="plays-search"
+            data-page-search
           />
         </div>
         <UserPicker users={users.data ?? []} value={filters.userId} onChange={(id) => set({ userId: id })} />

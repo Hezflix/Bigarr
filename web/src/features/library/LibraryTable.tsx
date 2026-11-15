@@ -170,8 +170,9 @@ export function LibraryTable<T extends LibraryItem, C extends string>({
   return (
     <div ref={frameRef} className={cn('rounded-xl border', overflows && 'overflow-x-auto')} data-testid="library-table">
       <table ref={contentRef} className="block min-w-fit">
-        {/* Sticky on the head, not the row: a sticky box cannot leave its parent, and the row's parent is the head. */}
-        <thead className={cn('block', !overflows && 'sticky top-0 z-10')}>
+        {/* Sticky on the head, not the row: a sticky box cannot leave its parent, and the row's parent is the head.
+            It stops under the app's top bar. */}
+        <thead className={cn('block', !overflows && 'sticky top-(--app-header) z-10')}>
           <tr
             className={cn(
               'grid items-center gap-3 border-b bg-muted px-3 text-xs font-medium text-muted-foreground',
