@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { EyeIcon, EyeOffIcon, FileXIcon, PlusIcon, RefreshCwIcon, StarIcon, Trash2Icon, TvIcon } from 'lucide-react'
+import { EyeIcon, EyeOffIcon, FileXIcon, PencilIcon, PlusIcon, RefreshCwIcon, StarIcon, TextSearchIcon, Trash2Icon, TvIcon, ZapIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, customFormats, history, movies, seriesFilms, quality, rootFolders, rootsOfKind, search, shadow, type MediaInfo, type MinimumAvailability, type Movie, type Version, type VersionMode, profilesFor} from '@/api/client'
@@ -11,6 +11,7 @@ import { CompareTable } from '@/features/activity/CompareTable'
 import { HistoryTable } from '@/features/activity/HistoryTable'
 import { MoviePlays } from '@/features/playback/MoviePlays'
 import { extraSummary } from '@/features/import/extraFiles'
+import { EditVersionDialog } from '@/features/movies/EditVersionDialog'
 import { RenameDialog } from '@/features/movies/RenameDialog'
 import { InteractiveSearch } from '@/features/search/InteractiveSearch'
 import { AutomaticSearchButton, InteractiveSearchButton } from '@/features/search/SearchButtons'
@@ -38,6 +39,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatBytes, formatDate } from '@/i18n'
 import { useRecordRecent } from '@/features/palette/recent'
+import { usePaletteActions } from '@/features/palette/actions'
+import { versionActions } from '@/features/palette/pageActions'
 
 const availabilities: MinimumAvailability[] = ['announced', 'inCinemas', 'released']
 
@@ -62,6 +65,8 @@ export function MovieDetailPage() {
   }, [movie.data, id, queryClient])
   useRecordRecent(movie.data ? { kind: 'movie', id, title: movie.data.title, year: movie.data.year } : null)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  // The version whose settings are being edited, from its row's pencil or from the palette.
+  const [editingId, setEditingId] = useState<number | null>(null)
   // Bumped by the header's Interactive search button: the section below runs the film's search and scrolls into view.
   const [interactiveRun, setInteractiveRun] = useState(0)
   const [exclude, setExclude] = useState(false)
@@ -101,6 +106,25 @@ export function MovieDetailPage() {
     onError: (e) => toast.error(e instanceof ApiError ? e.message : t('common.unexpectedError')),
   })
 
+  // Cmd+K on this page: the header's buttons, and the default version's folder and monitoring.
+  const loaded = movie.data
+  const defaultVersion = loaded ? (loaded.versions.find((v) => v.isDefault) ?? loaded.versions[0]) : undefined
+  usePaletteActions(
+    loaded ? t('palette.page.movie', { title: loaded.title }) : '',
+    loaded
+      ? [
+          ...(loaded.versions.length > 0
+            ? [
+                { id: 'search-now', label: t('palette.page.searchNow'), icon: ZapIcon, keywords: ['automatic'], run: () => searchAll.mutate() },
+                { id: 'interactive-search', label: t('palette.page.interactiveSearch'), icon: TextSearchIcon, keywords: ['releases', 'manual'], run: () => setInteractiveRun((n) => n + 1) },
+              ]
+            : []),
+          { id: 'refresh', label: t('palette.page.refresh'), icon: RefreshCwIcon, keywords: ['tmdb'], run: () => refresh.mutate() },
+          ...versionActions(t, defaultVersion, (monitored) => movies.updateVersion(id, defaultVersion?.id ?? 0, { monitored }), invalidate, () => setEditingId(defaultVersion?.id ?? null)),
+        ]
+      : null,
+  )
+
   if (movie.isPending) {
     return (
       <div className="flex flex-col gap-6 sm:flex-row">
@@ -123,6 +147,7 @@ export function MovieDetailPage() {
   }
 
   const m = movie.data
+  const editingVersion = m.versions.find((v) => v.id === editingId)
 
   return (
     <>
@@ -246,7 +271,8 @@ export function MovieDetailPage() {
         <h2 className="text-xl font-semibold tracking-tight">{t('versions.title')}</h2>
         <AddVersionDialog movie={m} onAdded={invalidate} />
       </div>
-      <VersionsTable movie={m} onChanged={invalidate} onSearched={afterSearch} />
+      <VersionsTable movie={m} onChanged={invalidate} onSearched={afterSearch} onEdit={(v) => setEditingId(v.id)} />
+      {editingVersion && <EditVersionDialog key={editingVersion.id} movie={m} version={editingVersion} onClose={() => setEditingId(null)} onSaved={invalidate} />}
       <InteractiveSearch movie={m} runRequest={interactiveRun} />
       <MovieComparison tmdbId={m.tmdbId} />
       <MoviePlays movieId={m.id} />
@@ -303,7 +329,7 @@ function mediaInfoSummary(info: MediaInfo): string {
   return [info.videoCodec, info.videoDynamicRangeType, audio || null, info.width && info.height ? `${info.width}×${info.height}` : null].filter(Boolean).join(' · ')
 }
 
-function VersionsTable({ movie, onChanged, onSearched }: { movie: Movie; onChanged: () => void; onSearched: () => void }) {
+function VersionsTable({ movie, onChanged, onSearched, onEdit }: { movie: Movie; onChanged: () => void; onSearched: () => void; onEdit: (v: Version) => void }) {
   const { t } = useTranslation()
   const [pendingDelete, setPendingDelete] = useState<Version | null>(null)
   const [pendingFileDelete, setPendingFileDelete] = useState<Version | null>(null)
@@ -480,6 +506,15 @@ function VersionsTable({ movie, onChanged, onSearched }: { movie: Movie; onChang
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>{v.monitored ? t('versions.unmonitor') : t('versions.monitor')}</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button type="button" variant="ghost" size="icon" onClick={() => onEdit(v)} aria-label={t('versions.edit')} data-testid={`edit-version-${v.id}`}>
+                          <PencilIcon />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{t('versions.edit')}</TooltipContent>
                     </Tooltip>
 
                     {!v.isDefault && v.mode === 'managed' && (

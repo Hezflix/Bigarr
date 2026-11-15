@@ -679,6 +679,8 @@
     "confirmDelete": "Delete version “{{name}}”? The file stays on disk.",
     "noManagedCandidate": "No other managed version can become the default.",
     "add": "Add a version",
+    "edit": "Edit",
+    "editTitle": "Edit the {{name}} version",
     "new": "New version",
     "name": "Name",
     "namePlaceholder": "4k, directors-cut…",
@@ -2934,8 +2936,8 @@
   },
   "palette": {
     "title": "Command palette",
-    "description": "Go to a page, or find a movie or a series of the library.",
-    "placeholder": "Go to a page, find a movie or a series…",
+    "description": "Go to a page, find a movie or a series, or run an action.",
+    "placeholder": "Type a page, a title or an action…",
     "trigger": "Search…",
     "open": "Open the command palette",
     "empty": "Nothing matches.",
@@ -2944,7 +2946,7 @@
     "goToSection": "Go to · {{section}}",
     "keys": {
       "move": "to move",
-      "open": "to open",
+      "open": "to choose",
       "close": "to close"
     },
     "content": {
@@ -2955,6 +2957,60 @@
       "addSeries": "Add the series “{{term}}”…",
       "searching": "Searching the library…",
       "alsoKnownAs": "Also known as {{title}}"
+    },
+    "actionsHeading": "Actions",
+    "actions": {
+      "searchMissingMovies": "Search all missing movies",
+      "searchMissingEpisodes": "Search all missing episodes",
+      "rssSync": "RSS sync now",
+      "rescanMovies": "Rescan the movie folders",
+      "rescanSeries": "Rescan the series folders",
+      "refreshMovies": "Refresh movie metadata",
+      "refreshSeries": "Refresh series metadata",
+      "healthCheck": "Check health now",
+      "backup": "Back up the database now",
+      "openQueue": "Open the Activity queue",
+      "themeDark": "Switch to the dark theme",
+      "themeLight": "Switch to the light theme",
+      "themeSystem": "Follow the system theme"
+    },
+    "confirm": {
+      "run": "Yes, run it",
+      "back": "No, go back",
+      "searchMissingMovies": "Every monitored movie without a file is searched on the indexers. On a big library that is many requests, and grabs can follow.",
+      "searchMissingEpisodes": "Every monitored aired episode without a file is searched on the indexers. On a big library that is many requests, and grabs can follow.",
+      "rescanMovies": "Every movie root folder is read again from disk. It can take a while on a large or network drive.",
+      "rescanSeries": "Every series root folder is read again from disk. It can take a while on a large or network drive.",
+      "refreshMovies": "Every movie is refreshed from TMDB, one request each. It runs until the whole library is done.",
+      "refreshSeries": "Every series is refreshed from its metadata sources, with its episodes. It runs until the whole library is done."
+    },
+    "running": {
+      "refreshMovies": "Refreshing movie metadata…",
+      "refreshSeries": "Refreshing series metadata…"
+    },
+    "done": {
+      "rescanMovies_one": "Scanning {{count}} movie root folder.",
+      "rescanMovies_other": "Scanning {{count}} movie root folders."
+    },
+    "page": {
+      "movie": "This movie · {{title}}",
+      "series": "This series · {{title}}",
+      "searchNow": "Search now",
+      "searchMissing": "Search the missing episodes now",
+      "interactiveSearch": "Interactive search",
+      "refresh": "Refresh metadata",
+      "rescan": "Rescan the folder",
+      "rename": "Rename files",
+      "manualImport": "Manual import",
+      "edit": "Edit the {{version}} version",
+      "copyPath": "Copy the folder path",
+      "pathCopied": "Folder path copied.",
+      "copyFailed": "The browser refused to copy.",
+      "monitor": "Monitor the {{version}} version",
+      "unmonitor": "Stop monitoring the {{version}} version",
+      "monitored": "{{version}} is now monitored.",
+      "unmonitored": "{{version}} is no longer monitored.",
+      "nothingMissing": "No missing episode to search."
     }
   }
 }

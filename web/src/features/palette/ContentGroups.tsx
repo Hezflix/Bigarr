@@ -20,7 +20,7 @@ type Props = {
 
 const itemValue = (item: LibrarySearchResult) => `content:${item.kind}:${item.id}`
 
-/** Films and series of the library matching the query, then "Add" entries that open the add pages on it. */
+/** Films and series of the library matching the query. */
 export function ContentGroups({ query, onSelect, onFirstResult }: Props) {
   const { t } = useTranslation()
   const term = query.trim()
@@ -72,17 +72,26 @@ export function ContentGroups({ query, onSelect, onFirstResult }: Props) {
           {t('palette.content.searching')}
         </div>
       )}
-      <CommandGroup heading={t('palette.content.add')}>
-        <CommandItem value="add:movie" onSelect={() => onSelect({ kind: 'add', media: 'movie', term })} data-testid="palette-add-movie">
-          <PlusIcon />
-          <span className="truncate">{t('palette.content.addMovie', { term })}</span>
-        </CommandItem>
-        <CommandItem value="add:series" onSelect={() => onSelect({ kind: 'add', media: 'series', term })} data-testid="palette-add-series">
-          <PlusIcon />
-          <span className="truncate">{t('palette.content.addSeries', { term })}</span>
-        </CommandItem>
-      </CommandGroup>
     </>
+  )
+}
+
+/** "Add the movie '…'": opens the add pages on the query. Rendered last, below anything else that matched. */
+export function AddGroup({ query, onSelect }: { query: string; onSelect: (target: PaletteTarget) => void }) {
+  const { t } = useTranslation()
+  const term = query.trim()
+  if (term.length < minContentTerm) return null
+  return (
+    <CommandGroup heading={t('palette.content.add')}>
+      <CommandItem value="add:movie" onSelect={() => onSelect({ kind: 'add', media: 'movie', term })} data-testid="palette-add-movie">
+        <PlusIcon />
+        <span className="truncate">{t('palette.content.addMovie', { term })}</span>
+      </CommandItem>
+      <CommandItem value="add:series" onSelect={() => onSelect({ kind: 'add', media: 'series', term })} data-testid="palette-add-series">
+        <PlusIcon />
+        <span className="truncate">{t('palette.content.addSeries', { term })}</span>
+      </CommandItem>
+    </CommandGroup>
   )
 }
 
