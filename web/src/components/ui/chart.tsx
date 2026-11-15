@@ -2,7 +2,7 @@ import * as React from "react"
 import { cn } from "cn"
 import * as RechartsPrimitive from "recharts"
 import type { TooltipValueType } from "recharts"
-import { formatShare } from "@/i18n"
+import { formatShares } from "@/i18n"
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const
@@ -191,6 +191,7 @@ function ChartTooltipContent({
   const shared = payload.filter((item) => item.type !== "none")
   const total = shared.reduce((sum, item) => sum + (typeof item.value === "number" ? item.value : 0), 0)
   const withShare = showShare && shared.length > 1 && total > 0
+  const shares = withShare ? formatShares(shared.map((item) => (typeof item.value === "number" ? item.value : 0))) : []
 
   return (
     <div
@@ -263,7 +264,7 @@ function ChartTooltipContent({
                             : String(item.value)}
                           {withShare && typeof item.value === "number" && (
                             <span className="ml-1 inline-block min-w-[5ch] text-right font-normal text-muted-foreground">
-                              ({formatShare(item.value, total)})
+                              ({shares[shared.indexOf(item)]})
                             </span>
                           )}
                         </span>
