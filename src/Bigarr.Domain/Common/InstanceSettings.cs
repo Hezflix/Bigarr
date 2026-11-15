@@ -18,7 +18,7 @@ public sealed class InstanceSettings
 
     /// <summary>
     /// Whether a Plex account linked to no user may sign in, creating its user, when it has access to a Plex server
-    /// set up in Bigarr. Off: only accounts already linked to a user sign in.
+    /// set up in Bigarr. On unless the admin turns it off; off: only accounts already linked to a user sign in.
     /// </summary>
-    public bool PlexNewAccounts { get; set; }
+    public bool PlexNewAccounts { get; set; } = true;
 }

@@ -34,7 +34,9 @@ public sealed class PlexSignInTests
         Assert.Equal(JsonValueKind.Null, settings.GetProperty("link").ValueKind);
 
         await EnableAsync(session, true);
-        Assert.Empty(await ProvidersAsync(factory.CreateAnonymousClient())); // on, but linked to no one yet
+        Assert.Single(await ProvidersAsync(factory.CreateAnonymousClient())); // on, and open to new accounts by default
+        await NewAccountsAsync(session, false);
+        Assert.Empty(await ProvidersAsync(factory.CreateAnonymousClient())); // on, closed to new accounts, linked to no one yet
 
         var link = await StartAsync(session, "/api/v1/auth/external/plex/link");
         var authUrl = link.GetProperty("authUrl").GetString()!;
@@ -98,8 +100,15 @@ public sealed class PlexSignInTests
         plexTv.Approve(plexTv.LastPinId, FakePlexTvSignIn.Stranger);
         var refused = await PollResponseAsync(browser, login);
 
-        Assert.Equal("unknownAccount", refused.GetProperty("status").GetString());
+        // New accounts are let in by default, but only with access to a Plex server: none is set up here.
+        Assert.Equal("noServerAccess", refused.GetProperty("status").GetString());
         Assert.Equal("demo-stranger", refused.GetProperty("account").GetString());
+
+        // Closed to new accounts: refused before any access check.
+        await NewAccountsAsync(session, false);
+        var closed = await StartAsync(browser, "/api/v1/auth/external/plex/login");
+        plexTv.Approve(plexTv.LastPinId, FakePlexTvSignIn.Stranger);
+        Assert.Equal("unknownAccount", await PollAsync(browser, closed));
         Assert.Equal(HttpStatusCode.Unauthorized, (await browser.GetAsync("/api/v1/auth/me")).StatusCode);
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
@@ -182,6 +191,7 @@ public sealed class PlexSignInTests
         await using var plexTv = await FakePlexTvSignIn.StartAsync();
         await using var factory = new Factory(plexTv.Url);
         var session = await CompatTestHelpers.SessionAsync(factory);
+        await NewAccountsAsync(session, false); // only the linked account signs in
         await LinkAsync(session, plexTv, FakePlexTvSignIn.Owner);
         await EnableAsync(session, true);
 
@@ -330,6 +340,16 @@ public sealed class PlexSignInTests
         var link = await StartAsync(session, "/api/v1/auth/external/plex/link");
         plexTv.Approve(plexTv.LastPinId, account);
         Assert.Equal("linked", await PollAsync(session, link));
+    }
+
+    private static async Task NewAccountsAsync(HttpClient session, bool open)
+    {
+        var response = await session.PutAsJsonAsync("/api/v1/users/settings", new
+        {
+            plexNewAccounts = open,
+            defaultPermissions = Features.Users.PermissionsDto.From(UserPermissions.Defaults()),
+        });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     private static async Task EnableAsync(HttpClient session, bool enabled)

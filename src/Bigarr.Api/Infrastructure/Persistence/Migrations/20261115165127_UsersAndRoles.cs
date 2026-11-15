@@ -11,8 +11,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // An install that already has its settings row starts with UserPermissions.Defaults(): request films and
-            // series, report issues. Existing users (the admin) keep every permission through their role.
+            // An install that already has its settings row starts like a new one: UserPermissions.Defaults() (request
+            // films and series, report issues), and new Plex accounts with access to the Plex server may sign in.
+            // Existing users (the admin) keep every permission through their role.
             migrationBuilder.AddColumn<DateTime>(
                 name: "DisabledAt",
                 table: "Users",
@@ -108,7 +109,7 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                 table: "InstanceSettings",
                 type: "INTEGER",
                 nullable: false,
-                defaultValue: false);
+                defaultValue: true);
         }
 
         /// <inheritdoc />

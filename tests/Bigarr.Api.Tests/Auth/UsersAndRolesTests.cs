@@ -86,22 +86,27 @@ public sealed class UsersAndRolesTests
     }
 
     [Fact]
-    public async Task New_accounts_stay_out_until_the_admin_lets_them_in()
+    public async Task New_accounts_are_let_in_by_default_and_stay_out_once_the_admin_turns_it_off()
     {
         await using var env = await Env.StartAsync();
-        await env.EnablePlexAsync();
-        env.PlexTv.Share(FakePlexTvSignIn.Friend, FakePlex.MachineIdentifier);
+        var settings = await env.Admin.GetFromJsonAsync<UserSettingsResponse>("/api/v1/users/settings");
+        Assert.True(settings!.PlexNewAccounts);
+        Assert.True(settings.PlexServerConfigured);
+        Assert.Equal(PermissionsDto.From(UserPermissions.Defaults()), settings.DefaultPermissions);
 
-        // On but closed to new accounts and linked to no one: nothing offered.
+        // Plex on: offered on the login page although no one is linked yet.
+        await env.EnablePlexAsync();
+        Assert.Single(await env.Factory.CreateAnonymousClient().GetFromJsonAsync<JsonElement[]>("/api/v1/auth/providers") ?? []);
+
+        var off = await env.Admin.PutAsJsonAsync("/api/v1/users/settings", new UpdateUserSettingsRequest(false, settings.DefaultPermissions));
+        Assert.Equal(HttpStatusCode.OK, off.StatusCode);
+
+        // Off and linked to no one: nothing offered; once the admin is linked, a friend with access is still refused.
         Assert.Empty(await env.Factory.CreateAnonymousClient().GetFromJsonAsync<JsonElement[]>("/api/v1/auth/providers") ?? []);
+        env.PlexTv.Share(FakePlexTvSignIn.Friend, FakePlex.MachineIdentifier);
         await env.LinkAdminAsync();
         Assert.Equal("unknownAccount", await env.SignInAsync(env.Factory.CreateClientWithCookies(), FakePlexTvSignIn.Friend));
         Assert.Single(await env.UsersAsync());
-
-        var settings = await env.Admin.GetFromJsonAsync<UserSettingsResponse>("/api/v1/users/settings");
-        Assert.False(settings!.PlexNewAccounts);
-        Assert.True(settings.PlexServerConfigured);
-        Assert.Equal(PermissionsDto.From(UserPermissions.Defaults()), settings.DefaultPermissions);
     }
 
     [Fact]
