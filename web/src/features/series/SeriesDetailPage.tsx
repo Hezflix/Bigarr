@@ -1,8 +1,9 @@
+import type { TFunction } from 'i18next'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { cn } from 'cn'
-import { BookmarkIcon, ChevronRightIcon, ClapperboardIcon, Columns3Icon, Link2Icon, FilePenLineIcon, FilterIcon, FolderInputIcon, FolderSearchIcon, ListChecksIcon, ListOrderedIcon, PlusIcon, RefreshCwIcon, StarIcon, Trash2Icon, WrenchIcon } from 'lucide-react'
+import { BookmarkIcon, ChevronRightIcon, ClapperboardIcon, Columns3Icon, Link2Icon, FilePenLineIcon, FilterIcon, FolderInputIcon, FolderSearchIcon, ListChecksIcon, ListOrderedIcon, PencilIcon, PlusIcon, RefreshCwIcon, StarIcon, TextSearchIcon, Trash2Icon, WrenchIcon, ZapIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { SeriesCompareSection } from '@/features/activity/SeriesCompare'
 import { toast } from 'sonner'
@@ -13,6 +14,7 @@ import {
   monitoringOptions,
   quality,
   series as seriesApi,
+  seriesWanted,
   seriesVersionName,
   type Episode,
   type EpisodeFile,
@@ -56,6 +58,7 @@ import { ariaSort, SortButton } from '@/features/library/SortButton'
 import { SeriesFilmsSection } from './SeriesFilmsSection'
 import { AutomaticSearchButton, InteractiveSearchButton } from '@/features/search/SearchButtons'
 import { SeriesSearchDialog, type SeriesSearchScope } from '@/features/search/SeriesInteractiveSearch'
+import { EditSeriesVersionDialog } from '@/features/series/EditSeriesVersionDialog'
 import { useEpisodeAutomaticSearch } from '@/features/series/useEpisodeAutomaticSearch'
 import { Checkbox } from '@/components/ui/checkbox'
 import { SeriesManualImportDialog } from '@/features/import/SeriesManualImportDialog'
@@ -63,6 +66,8 @@ import { HeldReleasesSection } from '@/features/activity/HeldPage'
 import { AssignUnmatchedDialog, DeleteFilesOption, EpisodeFileActions, RenameSeriesDialog } from './SeriesFiles'
 import { OrderUndoBanner, ReassignFileDialog, SeriesOrderDialog, orderLabel } from './SeriesOrderDialog'
 import { useRecordRecent } from '@/features/palette/recent'
+import { usePaletteActions } from '@/features/palette/actions'
+import { versionActions } from '@/features/palette/pageActions'
 
 const errorMessage = (error: unknown, fallback: string) => (error instanceof ApiError ? error.message : fallback)
 
@@ -81,6 +86,7 @@ export function SeriesDetailPage() {
   const [searchScope, setSearchScope] = useState<SeriesSearchScope | null>(null)
   const [renameOpen, setRenameOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
   const [deleteFiles, setDeleteFiles] = useState(false)
   const [orderOpen, setOrderOpen] = useState(false)
 
@@ -129,6 +135,30 @@ export function SeriesDetailPage() {
       void navigate({ to: '/series' })
     },
   })
+
+  // Cmd+K on this page: the header's buttons, and the shown version's folder and monitoring.
+  const loaded = detail.data
+  const shownVersion = loaded ? (loaded.versions.find((v) => v.id === chosenVersion) ?? loaded.versions.find((v) => v.isDefault) ?? loaded.versions[0]) : undefined
+  usePaletteActions(
+    loaded ? t('palette.page.series', { title: loaded.title }) : '',
+    loaded
+      ? [
+          { id: 'search-missing', label: t('palette.page.searchMissing'), icon: ZapIcon, keywords: ['automatic', 'wanted'], run: () => searchMissingEpisodes(t, id) },
+          {
+            id: 'interactive-search',
+            label: t('palette.page.interactiveSearch'),
+            icon: TextSearchIcon,
+            keywords: ['releases', 'manual'],
+            run: () => setSearchScope({ kind: 'series', label: loaded.title }),
+          },
+          { id: 'refresh', label: t('palette.page.refresh'), icon: RefreshCwIcon, keywords: ['tvdb', 'tmdb', 'metadata'], run: () => refresh.mutate() },
+          { id: 'rescan', label: t('palette.page.rescan'), icon: FolderSearchIcon, keywords: ['scan', 'disk'], run: () => rescan.mutate() },
+          { id: 'rename', label: t('palette.page.rename'), icon: FilePenLineIcon, keywords: ['files'], run: () => setRenameOpen(true) },
+          { id: 'manual-import', label: t('palette.page.manualImport'), icon: FolderInputIcon, keywords: ['import', 'files'], run: () => setImportOpen(true) },
+          ...versionActions(t, shownVersion, (monitored) => seriesApi.updateVersion(id, shownVersion?.id ?? 0, { monitored }), invalidate, () => setEditOpen(true)),
+        ]
+      : null,
+  )
 
   if (detail.isPending) {
     return (
@@ -254,7 +284,7 @@ export function SeriesDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {version && <VersionBar series={s} version={version} onChoose={setChosenVersion} onChanged={invalidate} />}
+      {version && <VersionBar series={s} version={version} onChoose={setChosenVersion} onChanged={invalidate} onEdit={() => setEditOpen(true)} />}
 
       {version && (
         <SeasonList
@@ -277,6 +307,7 @@ export function SeriesDetailPage() {
 
       {orderOpen && <SeriesOrderDialog series={s} onClose={() => setOrderOpen(false)} onDone={invalidate} />}
       {renameOpen && version && <RenameSeriesDialog series={s} versionId={version.id} onClose={() => setRenameOpen(false)} onDone={invalidate} />}
+      {editOpen && version && <EditSeriesVersionDialog key={version.id} series={s} version={version} onClose={() => setEditOpen(false)} onSaved={invalidate} />}
       {importOpen && <SeriesManualImportDialog seriesId={s.id} path={version?.path} onClose={() => { setImportOpen(false); invalidate() }} />}
 
       <SeriesCompareSection tvdbId={s.tvdbId} />
@@ -286,7 +317,7 @@ export function SeriesDetailPage() {
 
 // ---- versions -------------------------------------------------------------------------------------------------------
 
-function VersionBar({ series: s, version, onChoose, onChanged }: { series: Series; version: SeriesVersion; onChoose: (id: number) => void; onChanged: () => void }) {
+function VersionBar({ series: s, version, onChoose, onChanged, onEdit }: { series: Series; version: SeriesVersion; onChoose: (id: number) => void; onChanged: () => void; onEdit: () => void }) {
   const { t } = useTranslation()
   const [monitoringOpen, setMonitoringOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
@@ -360,6 +391,10 @@ function VersionBar({ series: s, version, onChoose, onChanged }: { series: Serie
         <EpisodeProgress statistics={version.statistics} monitored={version.monitored} className="w-48" />
         <ConstraintsSummary version={version} />
         <div className="ml-auto flex gap-2">
+          <Button type="button" size="sm" variant="ghost" onClick={onEdit} data-testid="version-edit">
+            <PencilIcon />
+            {t('versions.edit')}
+          </Button>
           <Button type="button" size="sm" variant="ghost" onClick={() => setConstraintsOpen(true)} data-testid="version-constraints">
             <FilterIcon />
             {t('seriesDetail.constraints')}
@@ -1295,4 +1330,25 @@ function MonitorToggle({ monitored, label, onToggle, disabled, size = 'md' }: { 
       <BookmarkIcon className={cn(size === 'sm' ? 'size-4' : 'size-5', monitored && 'fill-current')} />
     </button>
   )
+}
+
+/** The automatic search of the series' missing episodes: the rows Series wanted lists for it, queued in one go. */
+async function searchMissingEpisodes(t: TFunction, seriesId: number) {
+  try {
+    const targetIds: number[] = []
+    // Wanted pages hold 200 rows at most.
+    for (let page = 1; ; page++) {
+      const rows = await seriesWanted.list('missing', page, 200, seriesId)
+      targetIds.push(...rows.items.map((item) => item.targetId))
+      if (rows.items.length === 0 || targetIds.length >= rows.total) break
+    }
+    if (targetIds.length === 0) {
+      toast.info(t('palette.page.nothingMissing'))
+      return
+    }
+    const result = await seriesWanted.search(targetIds)
+    toast.success(t('wanted.queued', { count: result.queued }))
+  } catch (error) {
+    toast.error(errorMessage(error, t('common.unexpectedError')))
+  }
 }

@@ -1,6 +1,7 @@
 import { useRouterState } from '@tanstack/react-router'
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { useNavSections } from '@/components/nav'
+import { type ContextRegistry, ContextRegistryContext, type PaletteContextActions } from './actions'
 import { CommandPalette } from './CommandPalette'
 import { isPaletteShortcut, isSearchShortcut } from './keys'
 import { recordRecent } from './recent'
@@ -15,6 +16,12 @@ const PaletteContext = createContext<PaletteContextValue | null>(null)
 /** The command palette of the shell: its open state, the global shortcuts, and the pages it remembers. */
 export function PaletteProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
+  const [contextual, setContextual] = useState<PaletteContextActions | null>(null)
+  // The last page to register wins; leaving it removes its actions, unless another page already took over.
+  const register = useCallback<ContextRegistry>((entry) => {
+    setContextual(entry)
+    return () => setContextual((current) => (current === entry ? null : current))
+  }, [])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -41,8 +48,10 @@ export function PaletteProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(() => ({ open, setOpen }), [open])
   return (
     <PaletteContext.Provider value={value}>
-      {children}
-      <CommandPalette open={open} onOpenChange={setOpen} />
+      <ContextRegistryContext.Provider value={register}>
+        {children}
+        <CommandPalette open={open} onOpenChange={setOpen} contextual={contextual} />
+      </ContextRegistryContext.Provider>
     </PaletteContext.Provider>
   )
 }
