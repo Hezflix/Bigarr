@@ -273,12 +273,12 @@ function DownloadClientDialog({ client, onClose, onSaved }: { client: DownloadCl
           </DialogHeader>
 
           <div className="my-6 grid gap-4 sm:grid-cols-2">
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 content-start gap-2">
               <Label htmlFor="dc-name">{t('downloadClients.name')}</Label>
               <Input id="dc-name" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="qBittorrent" autoFocus />
             </div>
 
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 content-start gap-2">
               <Label htmlFor="dc-implementation">{t('downloadClients.implementation')}</Label>
               <Select value={form.implementation} onValueChange={(value) => set('implementation', value as DownloadClientImplementation)}>
                 <SelectTrigger id="dc-implementation" className="w-full">
@@ -297,26 +297,26 @@ function DownloadClientDialog({ client, onClose, onSaved }: { client: DownloadCl
 
             {isQbt && (
               <>
-                <div className="grid grid-cols-1 gap-2">
+                <div className="grid grid-cols-1 content-start gap-2">
                   <Label htmlFor="dc-host">{t('downloadClients.host')}</Label>
                   <Input id="dc-host" value={form.host ?? ''} onChange={(e) => set('host', e.target.value)} placeholder="qbittorrent" />
                   <p className="text-xs text-muted-foreground">{t('downloadClients.hostHint')}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="grid grid-cols-1 gap-2">
+                  <div className="grid grid-cols-1 content-start gap-2">
                     <Label htmlFor="dc-port">{t('downloadClients.port')}</Label>
                     <Input id="dc-port" type="number" min={1} max={65535} value={form.port} onChange={(e) => set('port', number(e.target.value, 8080))} />
                   </div>
-                  <div className="grid grid-cols-1 gap-2">
+                  <div className="grid grid-cols-1 content-start gap-2">
                     <Label htmlFor="dc-urlbase">{t('downloadClients.urlBase')}</Label>
                     <Input id="dc-urlbase" value={form.urlBase ?? ''} onChange={(e) => set('urlBase', e.target.value)} placeholder="/qbittorrent" />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 gap-2">
+                <div className="grid grid-cols-1 content-start gap-2">
                   <Label htmlFor="dc-username">{t('downloadClients.username')}</Label>
                   <Input id="dc-username" value={form.username ?? ''} onChange={(e) => set('username', e.target.value)} autoComplete="off" />
                 </div>
-                <div className="grid grid-cols-1 gap-2">
+                <div className="grid grid-cols-1 content-start gap-2">
                   <Label htmlFor="dc-password">{t('downloadClients.password')}</Label>
                   <Input id="dc-password" type="password" value={form.password ?? ''} onChange={(e) => set('password', e.target.value)} autoComplete="new-password" />
                   <p className="text-xs text-muted-foreground">{t('downloadClients.passwordHint')}</p>
@@ -324,19 +324,19 @@ function DownloadClientDialog({ client, onClose, onSaved }: { client: DownloadCl
               </>
             )}
 
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 content-start gap-2">
               <Label htmlFor="dc-category">{t('downloadClients.category')}</Label>
               <Input id="dc-category" value={form.category} onChange={(e) => set('category', e.target.value)} placeholder="bigarr-movies" />
               <p className="text-xs text-muted-foreground">{t('downloadClients.categoryHint')}</p>
             </div>
 
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 content-start gap-2">
               <Label htmlFor="dc-series-category">{t('downloadClients.seriesCategory')}</Label>
               <Input id="dc-series-category" value={form.seriesCategory} onChange={(e) => set('seriesCategory', e.target.value)} placeholder="bigarr-tv" />
               <p className="text-xs text-muted-foreground">{t('downloadClients.seriesCategoryHint')}</p>
             </div>
 
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 content-start gap-2">
               <Label htmlFor="dc-priority">{t('downloadClients.priority')}</Label>
               <Input id="dc-priority" type="number" min={1} max={50} value={form.priority} onChange={(e) => set('priority', number(e.target.value, 1))} />
               <p className="text-xs text-muted-foreground">{t('downloadClients.priorityHint')}</p>

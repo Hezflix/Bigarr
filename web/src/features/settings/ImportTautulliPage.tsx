@@ -138,7 +138,7 @@ function SourceStep({
 
   return (
     <form className="flex max-w-xl flex-col gap-5" onSubmit={submit} data-testid="tautulli-source-form">
-      <div className="grid grid-cols-1 gap-2">
+      <div className="grid grid-cols-1 content-start gap-2">
         <Label htmlFor="tautulli-server">{t('importTautulli.server')}</Label>
         <Select value={serverId !== null ? String(serverId) : ''} onValueChange={(value) => onServer(Number(value))}>
           <SelectTrigger id="tautulli-server" className="w-full">
@@ -155,7 +155,7 @@ function SourceStep({
         <p className="text-xs text-muted-foreground">{t('importTautulli.serverHint')}</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-2">
+      <div className="grid grid-cols-1 content-start gap-2">
         <Label htmlFor="tautulli-path">{t('importTautulli.path')}</Label>
         <PathPicker id="tautulli-path" value={path} onChange={onPath} placeholder="/config/tautulli.db" testId="tautulli-path" />
         <p className="text-xs text-muted-foreground">{t('importTautulli.pathHint')}</p>

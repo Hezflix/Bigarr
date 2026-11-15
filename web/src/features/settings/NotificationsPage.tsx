@@ -438,11 +438,11 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
           </DialogHeader>
 
           <div className="my-6 grid gap-4 sm:grid-cols-2">
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 content-start gap-2">
               <Label htmlFor="nt-name">{t('notifications.name')}</Label>
               <Input id="nt-name" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Home Assistant" autoFocus />
             </div>
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 content-start gap-2">
               <Label htmlFor="nt-url">{t('notifications.url')}</Label>
               <Input
                 id="nt-url"
@@ -463,7 +463,7 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
               </Alert>
             )}
             {!discord && (
-              <div className="grid grid-cols-1 gap-2 sm:col-span-2">
+              <div className="grid grid-cols-1 content-start gap-2 sm:col-span-2">
                 <Label htmlFor="nt-secret">{t('notifications.secret')}</Label>
                 <Input id="nt-secret" type="password" value={form.secret} onChange={(e) => set('secret', e.target.value)} autoComplete="new-password" />
                 <p className="text-xs text-muted-foreground">{endpoint?.hasSecret ? t('notifications.secretKeepHint') : t('notifications.secretHint')}</p>
@@ -476,7 +476,7 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
               </Label>
             </div>
 
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 content-start gap-2">
               <Label htmlFor="nt-format">{t('notifications.format')}</Label>
               <Select value={form.format} onValueChange={(value) => setFormat(value as WebhookFormat)}>
                 <SelectTrigger id="nt-format" className="w-full" data-testid="notification-format">
@@ -491,7 +491,7 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
               </Select>
             </div>
             {hasView(form.format) && (
-              <div className="grid grid-cols-1 gap-2">
+              <div className="grid grid-cols-1 content-start gap-2">
                 <Label htmlFor="nt-view">{t('notifications.view')}</Label>
                 <Select value={form.viewKind} onValueChange={(value) => set('viewKind', value as ViewKind)}>
                   <SelectTrigger id="nt-view" className="w-full" data-testid="notification-view">
@@ -515,7 +515,7 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
                     : t('notifications.formatBigarrHint')}
             </p>
             {hasView(form.format) && form.viewKind === 'version' && (
-              <div className="grid grid-cols-1 gap-2 sm:col-span-2">
+              <div className="grid grid-cols-1 content-start gap-2 sm:col-span-2">
                 <Label htmlFor="nt-version">{t('connect.versionName')}</Label>
                 <Input id="nt-version" value={form.versionName} onChange={(e) => set('versionName', e.target.value)} placeholder={t('connect.versionNamePlaceholder')} />
                 <p className="text-xs text-muted-foreground">
@@ -526,17 +526,17 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
 
             {discord && (
               <>
-                <div className="grid grid-cols-1 gap-2">
+                <div className="grid grid-cols-1 content-start gap-2">
                   <Label htmlFor="nt-discord-username">{t('notifications.discordUsername')}</Label>
                   <Input id="nt-discord-username" value={form.discord.username} onChange={(e) => setDiscord('username', e.target.value)} placeholder="Bigarr" />
                   <p className="text-xs text-muted-foreground">{t('notifications.discordUsernameHint')}</p>
                 </div>
-                <div className="grid grid-cols-1 gap-2">
+                <div className="grid grid-cols-1 content-start gap-2">
                   <Label htmlFor="nt-discord-author">{t('notifications.discordAuthor')}</Label>
                   <Input id="nt-discord-author" value={form.discord.author} onChange={(e) => setDiscord('author', e.target.value)} placeholder="Bigarr" />
                   <p className="text-xs text-muted-foreground">{t('notifications.discordAuthorHint')}</p>
                 </div>
-                <div className="grid grid-cols-1 gap-2 sm:col-span-2">
+                <div className="grid grid-cols-1 content-start gap-2 sm:col-span-2">
                   <Label htmlFor="nt-discord-avatar">{t('notifications.discordAvatar')}</Label>
                   <Input id="nt-discord-avatar" value={form.discord.avatar} onChange={(e) => setDiscord('avatar', e.target.value)} placeholder="https://example.org/avatar.png" />
                   <p className="text-xs text-muted-foreground">{t('notifications.discordAvatarHint')}</p>
@@ -566,7 +566,7 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
               </>
             )}
 
-            <fieldset className="grid grid-cols-1 gap-2 sm:col-span-2">
+            <fieldset className="grid grid-cols-1 content-start gap-2 sm:col-span-2">
               <legend className="text-sm font-medium">{t('notifications.tagsLegend')}</legend>
               <p className="text-xs text-muted-foreground">{form.tags.length === 0 ? t('notifications.allFilmsHint') : t('notifications.someTagsHint')}</p>
               {allTags.data?.length === 0 && <p className="text-xs text-muted-foreground">{t('notifications.noTags')}</p>}
@@ -580,7 +580,7 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
               </div>
             </fieldset>
 
-            <fieldset className="grid grid-cols-1 gap-2 sm:col-span-2">
+            <fieldset className="grid grid-cols-1 content-start gap-2 sm:col-span-2">
               <legend className="text-sm font-medium">{t('notifications.eventsLegend')}</legend>
               <p className="text-xs text-muted-foreground">
                 {form.events.length === 0 ? t('notifications.allEventsHint') : t('notifications.someEventsHint', { count: form.events.length })}
@@ -649,7 +649,7 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
 function DiscordFieldSet<T extends DiscordGrabField | DiscordImportField | DiscordManualInteractionField>({ legend, options, chosen, onToggle }: { legend: string; options: readonly T[]; chosen: T[]; onToggle: (field: T) => void }) {
   const { t } = useTranslation()
   return (
-    <fieldset className="mt-3 grid grid-cols-1 gap-2">
+    <fieldset className="mt-3 grid grid-cols-1 content-start gap-2">
       <legend className="text-sm">{legend}</legend>
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
         {options.map((field) => (

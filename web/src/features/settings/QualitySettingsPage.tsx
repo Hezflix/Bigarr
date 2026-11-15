@@ -260,11 +260,11 @@ function ProfileDialog({ profileId, onClose, onSaved }: { profileId: number | nu
 
           {form && (
             <div className="my-6 grid gap-4 sm:grid-cols-2">
-              <div className="grid grid-cols-1 gap-2">
+              <div className="grid grid-cols-1 content-start gap-2">
                 <Label htmlFor="profile-name">{t('quality.name')}</Label>
                 <Input id="profile-name" value={form.name} onChange={(e) => set('name', e.target.value)} autoFocus />
               </div>
-              <div className="grid grid-cols-1 gap-2">
+              <div className="grid grid-cols-1 content-start gap-2">
                 <Label htmlFor="profile-kind">{t('quality.kind')}</Label>
                 <Select value={form.kind} onValueChange={(value) => set('kind', value as ProfileKind)}>
                   <SelectTrigger id="profile-kind" className="w-full" data-testid="profile-kind">
@@ -282,13 +282,13 @@ function ProfileDialog({ profileId, onClose, onSaved }: { profileId: number | nu
                   {source.data && source.data.id > 0 ? t('quality.kindInUse', { films: source.data.versionCount, series: source.data.seriesVersionCount }) : t('quality.kindHint')}
                 </p>
               </div>
-              <div className="grid grid-cols-1 gap-2">
+              <div className="grid grid-cols-1 content-start gap-2">
                 <Label htmlFor="profile-language">{t('quality.language')}</Label>
                 <Input id="profile-language" value={form.preferredLanguage} onChange={(e) => set('preferredLanguage', e.target.value)} placeholder="en" maxLength={8} />
                 <p className="text-xs text-muted-foreground">{t('quality.languageHint')}</p>
               </div>
 
-              <div className="grid grid-cols-1 gap-2 sm:col-span-2">
+              <div className="grid grid-cols-1 content-start gap-2 sm:col-span-2">
                 <Label>{t('quality.qualities')}</Label>
                 <p className="text-xs text-muted-foreground">{t('quality.qualitiesHint')}</p>
                 <ul className="divide-y rounded-md border" data-testid="profile-items">
@@ -318,7 +318,7 @@ function ProfileDialog({ profileId, onClose, onSaved }: { profileId: number | nu
                 </ul>
               </div>
 
-              <div className="grid grid-cols-1 gap-2">
+              <div className="grid grid-cols-1 content-start gap-2">
                 <Label htmlFor="profile-cutoff">{t('quality.cutoff')}</Label>
                 <Select value={cutoffValid ? String(form.cutoff) : ''} onValueChange={(value) => set('cutoff', Number(value))}>
                   <SelectTrigger id="profile-cutoff" className="w-full">
@@ -344,23 +344,23 @@ function ProfileDialog({ profileId, onClose, onSaved }: { profileId: number | nu
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-2">
+              <div className="grid grid-cols-1 content-start gap-2">
                 <Label htmlFor="profile-min-score">{t('quality.minFormatScore')}</Label>
                 <Input id="profile-min-score" type="number" value={form.minFormatScore} onChange={(e) => set('minFormatScore', number(e.target.value, 0))} />
                 <p className="text-xs text-muted-foreground">{t('quality.minFormatScoreHint')}</p>
               </div>
-              <div className="grid grid-cols-1 gap-2">
+              <div className="grid grid-cols-1 content-start gap-2">
                 <Label htmlFor="profile-cutoff-score">{t('quality.cutoffFormatScore')}</Label>
                 <Input id="profile-cutoff-score" type="number" value={form.cutoffFormatScore} onChange={(e) => set('cutoffFormatScore', number(e.target.value, 0))} />
                 <p className="text-xs text-muted-foreground">{t('quality.cutoffFormatScoreHint')}</p>
               </div>
-              <div className="grid grid-cols-1 gap-2">
+              <div className="grid grid-cols-1 content-start gap-2">
                 <Label htmlFor="profile-upgrade-score">{t('quality.minUpgradeFormatScore')}</Label>
                 <Input id="profile-upgrade-score" type="number" min={0} value={form.minUpgradeFormatScore} onChange={(e) => set('minUpgradeFormatScore', number(e.target.value, 0))} />
                 <p className="text-xs text-muted-foreground">{t('quality.minUpgradeFormatScoreHint')}</p>
               </div>
 
-              <div className="grid grid-cols-1 gap-2 sm:col-span-2">
+              <div className="grid grid-cols-1 content-start gap-2 sm:col-span-2">
                 <Label>{t('quality.formatScores')}</Label>
                 <p className="text-xs text-muted-foreground">{t('quality.formatScoresHint')}</p>
                 {formats.data?.length === 0 && <p className="text-sm text-muted-foreground">{t('quality.noFormats')}</p>}
