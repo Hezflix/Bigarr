@@ -174,9 +174,12 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
 
         var query = Filter(db.Plays.AsNoTracking(), db.PlayStreams.AsNoTracking(), filter);
         var total = await query.CountAsync(ct);
-        var records = await Order(query, sort, ascending)
+        var rows = await Order(query, sort, ascending)
             .Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(p => new PlayResponse(
+            .Select(p => new
+            {
+                Show = new ShowIds(p.Item.ShowTvdbId, p.Item.ShowTmdbId, p.Item.ShowImdbId),
+                Response = new PlayResponse(
                 p.Id,
                 new PlaybackUserRef(p.User.Id, p.User.DisplayName ?? p.User.Name, p.User.ThumbUrl),
                 new PlaybackItemRef(p.Item.Id, p.Item.Kind, p.Movie != null ? p.Movie.Title : p.Item.Movie != null ? p.Item.Movie.Title : p.Item.Title, p.Movie != null ? p.Movie.Year : p.Item.Movie != null ? p.Item.Movie.Year : p.Item.Year, p.Item.ShowTitle, p.Item.SeasonNumber, p.Item.EpisodeNumber, p.Item.DurationMs, p.Item.LibrarySectionTitle, p.Item.MovieId, p.Item.Title, p.Item.LinkedByHand),
@@ -195,8 +198,15 @@ public sealed class PlaybackService(BigarrDbContext db, PlaybackMonitor monitor,
                 p.Streams.Max(s => s.Details.Decision),
                 p.Streams.OrderByDescending(s => s.StoppedAt).Select(s => s.Details.PlayerTitle ?? s.Details.PlayerProduct).FirstOrDefault(),
                 p.Streams.OrderByDescending(s => s.StoppedAt).Select(s => s.Details.PlayerPlatform).FirstOrDefault(),
-                p.Streams.OrderByDescending(s => s.StoppedAt).Select(s => s.Details.Local).FirstOrDefault()))
+                p.Streams.OrderByDescending(s => s.StoppedAt).Select(s => s.Details.Local).FirstOrDefault())
+            })
             .ToListAsync(ct);
+
+        // An episode links to the series of Bigarr its show is, matched like Now playing's artwork and the top shows.
+        var shows = await SeriesArtworkAsync(rows.Where(r => r.Response.Item.Kind == MediaItemKind.Episode).Select(r => r.Show), ct);
+        var records = rows
+            .Select(r => r.Response.Item.Kind == MediaItemKind.Episode && shows.Match(r.Show) is { } series ? r.Response with { SeriesId = series.Id } : r.Response)
+            .ToList();
         return new PlaysPageResponse(page, pageSize, total, records);
     }
 

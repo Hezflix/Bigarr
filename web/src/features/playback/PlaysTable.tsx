@@ -13,7 +13,8 @@ import { LinkFilmDialog } from './LinkFilmDialog'
 export type PlaySort = { key: PlaySortKey; direction: 'asc' | 'desc' }
 
 /**
- * Plays, one row each. With a sort the headers sort; a click on a row opens its streams. `showUser` is off on one user's
+ * Plays, one row each. The user links to their page, a film to its page and an episode to its series' when Bigarr follows
+ * the show. With a sort the headers sort; a click on a row opens its streams. `showUser` is off on one user's
  * page and `showItem` on one film's: a column that always says the same is left out.
  */
 export function PlaysTable({
@@ -68,11 +69,22 @@ export function PlaysTable({
                 onClick={onSelect ? (e) => !(e.target as HTMLElement).closest('a, button') && onSelect(play) : undefined}
               >
                 <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(play.startedAt)}</TableCell>
-                {showUser && <TableCell className="whitespace-nowrap">{play.user.name}</TableCell>}
+                {showUser && (
+                  <TableCell className="whitespace-nowrap">
+                    <Link to="/playback/users/$userId" params={{ userId: String(play.user.id) }} className="underline-offset-4 hover:underline" data-testid="play-user">
+                      {play.user.name}
+                    </Link>
+                  </TableCell>
+                )}
                 {showItem && (
                   <TableCell className="min-w-[14rem] whitespace-normal">
                     {play.movieId ? (
                       <Link to="/movies/$movieId" params={{ movieId: String(play.movieId) }} className="font-medium underline-offset-4 hover:underline">
+                        {itemLabel(play.item)}
+                      </Link>
+                    ) : play.seriesId ? (
+                      // The page of the series; there is no page of its own for an episode.
+                      <Link to="/series/$seriesId" params={{ seriesId: String(play.seriesId) }} className="font-medium underline-offset-4 hover:underline" data-testid="play-series">
                         {itemLabel(play.item)}
                       </Link>
                     ) : (
