@@ -51,7 +51,11 @@ const libraryRoute = createRoute({
   }),
   component: lazyRouteComponent(() => import('./features/library/LibraryPage'), 'LibraryPage'),
 })
-const addRoute = createRoute({ getParentRoute: () => appRoute, path: '/add', component: lazyRouteComponent(() => import('./features/movies/AddMoviePage'), 'AddMoviePage') })
+// `?term=alien`: the lookup to open on, as the command palette's "Add" entry sends it.
+const termSearch = (search: Record<string, unknown>): { term?: string } => ({
+  term: typeof search.term === 'string' && search.term.trim() ? search.term : undefined,
+})
+const addRoute = createRoute({ getParentRoute: () => appRoute, path: '/add', validateSearch: termSearch, component: lazyRouteComponent(() => import('./features/movies/AddMoviePage'), 'AddMoviePage') })
 const movieRoute = createRoute({ getParentRoute: () => appRoute, path: '/movies/$movieId', component: lazyRouteComponent(() => import('./features/movies/MovieDetailPage'), 'MovieDetailPage') })
 const seriesLibraryRoute = createRoute({
   getParentRoute: () => appRoute,
@@ -73,7 +77,7 @@ const specialsFilmsRoute = createRoute({
   }),
   component: lazyRouteComponent(() => import('./features/series/SpecialsFilmsPage'), 'SpecialsFilmsPage'),
 })
-const addSeriesRoute = createRoute({ getParentRoute: () => appRoute, path: '/series/add', component: lazyRouteComponent(() => import('./features/series/AddSeriesPage'), 'AddSeriesPage') })
+const addSeriesRoute = createRoute({ getParentRoute: () => appRoute, path: '/series/add', validateSearch: termSearch, component: lazyRouteComponent(() => import('./features/series/AddSeriesPage'), 'AddSeriesPage') })
 const seriesRoute = createRoute({ getParentRoute: () => appRoute, path: '/series/$seriesId', component: lazyRouteComponent(() => import('./features/series/SeriesDetailPage'), 'SeriesDetailPage') })
 const queueRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/queue', component: lazyRouteComponent(() => import('./features/activity/QueuePage'), 'QueuePage') })
 const releasesRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/releases', component: lazyRouteComponent(() => import('./features/activity/ReleasesPage'), 'ReleasesPage') })

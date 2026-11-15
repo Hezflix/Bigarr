@@ -2934,8 +2934,8 @@
   },
   "palette": {
     "title": "Command palette",
-    "description": "Go to any page of Bigarr.",
-    "placeholder": "Go to a page…",
+    "description": "Go to a page, or find a movie or a series of the library.",
+    "placeholder": "Go to a page, find a movie or a series…",
     "trigger": "Search…",
     "open": "Open the command palette",
     "empty": "Nothing matches.",
@@ -2946,6 +2946,15 @@
       "move": "to move",
       "open": "to open",
       "close": "to close"
+    },
+    "content": {
+      "movies": "Movies",
+      "series": "Series",
+      "add": "Add to the library",
+      "addMovie": "Add the movie “{{term}}”…",
+      "addSeries": "Add the series “{{term}}”…",
+      "searching": "Searching the library…",
+      "alsoKnownAs": "Also known as {{title}}"
     }
   }
 }

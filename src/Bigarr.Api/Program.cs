@@ -291,6 +291,7 @@ app.MapMovieCalendar();
 app.MapCalendarFeed();
 app.MapQuality();
 app.MapRootFolders();
+app.MapLibrarySearch();
 app.MapFileSystem();
 app.MapIndexers();
 app.MapSearch();

@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { Trans, useTranslation } from 'react-i18next'
 import { movies, slugify, type MinimumAvailability, type MovieLookupResult } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -17,8 +17,16 @@ const availabilities: MinimumAvailability[] = ['announced', 'inCinemas', 'releas
 export function AddMoviePage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const [term, setTerm] = useState('')
+  const { term: askedTerm } = useSearch({ strict: false })
+  const [term, setTerm] = useState(askedTerm ?? '')
   const [selected, setSelected] = useState<MovieLookupResult | null>(null)
+  // The palette's "Add '…'" entry can land here while the page is already open.
+  useEffect(() => {
+    if (askedTerm) {
+      setTerm(askedTerm)
+      setSelected(null)
+    }
+  }, [askedTerm])
 
   const debounced = useDebounced(term.trim(), 400)
 

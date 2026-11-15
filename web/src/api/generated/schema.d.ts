@@ -81,6 +81,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/library/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    term?: string;
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LibrarySearchResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/series/{id}/search": {
         parameters: {
             query?: never;
@@ -10066,6 +10104,22 @@ export interface components {
             plays: number;
         };
         JsonElement: unknown;
+        /** @enum {unknown} */
+        LibraryItemKind: "movie" | "series";
+        LibrarySearchResponse: {
+            movies: components["schemas"]["LibrarySearchResult"][];
+            series: components["schemas"]["LibrarySearchResult"][];
+        };
+        LibrarySearchResult: {
+            kind: components["schemas"]["LibraryItemKind"];
+            /** Format: int32 */
+            id: number;
+            title: string;
+            /** Format: int32 */
+            year: null | number;
+            posterUrl: null | string;
+            matchedTitle: null | string;
+        };
         LinkItemRequest: {
             /** Format: int32 */
             movieId: null | number;
