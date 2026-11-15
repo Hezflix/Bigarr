@@ -40,7 +40,8 @@ public sealed class ApiKeyAuthenticationHandler(
         var key = await db.ApiKeys
             .AsNoTracking()
             .Include(k => k.User)
-            .FirstOrDefaultAsync(k => k.KeyHash == hash && k.RevokedAt == null, Context.RequestAborted);
+            // A disabled user's keys stop working with their sessions.
+            .FirstOrDefaultAsync(k => k.KeyHash == hash && k.RevokedAt == null && k.User.DisabledAt == null, Context.RequestAborted);
 
         if (key is null)
         {

@@ -12,4 +12,13 @@ public sealed class InstanceSettings
     /// use and kept, as Radarr and Sonarr do. plex.tv lists each install as its own device under it.
     /// </summary>
     public string? PlexClientIdentifier { get; set; }
+
+    /// <summary>The permissions a new user starts with (first Plex sign-in); the admin changes them in Settings → Users.</summary>
+    public Auth.UserPermissions DefaultPermissions { get; set; } = Auth.UserPermissions.Defaults();
+
+    /// <summary>
+    /// Whether a Plex account linked to no user may sign in, creating its user, when it has access to a Plex server
+    /// set up in Bigarr. Off: only accounts already linked to a user sign in.
+    /// </summary>
+    public bool PlexNewAccounts { get; set; }
 }

@@ -2,9 +2,11 @@ namespace Bigarr.Api.Infrastructure.Auth.External;
 
 /// <summary>
 /// The person's account at a provider, as the provider vouches for it: an identity, never a role.
-/// <c>ExternalId</c> is the only field matched on; the others are shown.
+/// <c>ExternalId</c> is the only field matched on; the others are shown. <c>ServerAccess</c> says whether the account
+/// may use the media server set up in Bigarr (for Plex: plex.tv lists that server among the account's), checked with the
+/// person's own token while the provider holds it; null when the provider could not tell.
 /// </summary>
-public sealed record ExternalIdentity(string ExternalId, string Username, string? Email, string? ThumbUrl);
+public sealed record ExternalIdentity(string ExternalId, string Username, string? Email, string? ThumbUrl, bool? ServerAccess = null);
 
 /// <summary>
 /// A sign-in started at the provider. The browser opens <c>AuthUrl</c> (or shows <c>UserCode</c> for a provider whose

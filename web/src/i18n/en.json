@@ -44,7 +44,8 @@
     "calendar": "Calendar",
     "seriesWanted": "Wanted",
     "held": "Held for review",
-    "settingsSecurity": "Security"
+    "settingsSecurity": "Security",
+    "settingsUsers": "Users"
   },
   "theme": {
     "label": "Theme",
@@ -2908,10 +2909,13 @@
     "closed": "The {{provider}} window was closed before signing in.",
     "expired": "The sign-in took too long. Try again.",
     "denied": "{{provider}} did not confirm the sign-in. Try again.",
-    "unknownAccount": "The {{provider}} account {{account}} is not linked to any Bigarr user. Sign in with your password, then link it in Settings → Security.",
+    "unknownAccount": "The {{provider}} account {{account}} is not linked to any Bigarr user. If this Bigarr is yours, sign in with your password and link it in Settings → Security; otherwise ask its admin to let you in.",
     "linkedElsewhere": "The {{provider}} account {{account}} is already linked to another Bigarr user.",
     "disabled": "Signing in with {{provider}} was turned off.",
-    "unreachable": "{{provider}} could not be reached. Sign in with your password instead."
+    "unreachable": "{{provider}} could not be reached. Sign in with your password instead.",
+    "noServerAccess": "The {{provider}} account {{account}} has no access to this Plex server, so it cannot sign in here. Ask the server's owner to share the server with you.",
+    "accessUnknown": "Bigarr could not check whether {{account}} has access to its Plex server. Try again in a moment.",
+    "userDisabled": "The Bigarr account of {{account}} is disabled. Ask the admin to turn it back on."
   },
   "security": {
     "title": "Security",
@@ -2948,7 +2952,7 @@
       "move": "to move",
       "open": "to choose",
       "close": "to close",
-        "back": "back"
+      "back": "back"
     },
     "content": {
       "movies": "Movies",
@@ -3025,6 +3029,72 @@
       "episodeCount_one": "{{count}} episode",
       "episodeCount_other": "{{count}} episodes",
       "typeForEpisodes": "Type s2e5, 2x05 or a title to find an episode."
+    }
+  },
+  "signedIn": {
+    "as": "Signed in as {{name}}",
+    "soon": "Requests and issue reports open here soon. Until then there is nothing else to see with your account.",
+    "youMay": "Your account will let you:",
+    "signOut": "Sign out"
+  },
+  "users": {
+    "title": "Users",
+    "hint": "Who signs in to Bigarr and what they may do. Only admins reach Bigarr's own pages; other users will use the request pages.",
+    "newTitle": "New users",
+    "newHint": "People who share your Plex server can sign in with Plex. Their user is created on their first sign-in, with the permissions below.",
+    "plexNewAccounts": "Let new Plex accounts sign in",
+    "plexNewAccountsHint": "Only accounts with access to the Plex server set up in Media servers get in; any other account is refused. Their Plex token is used for that check and never kept.",
+    "noPlexServer": "No Plex server is set up, so no new account can get in. Add one in",
+    "signInButtonNote": "The “Sign in with Plex” button itself is turned on in",
+    "defaultPermissions": "Permissions a new user starts with",
+    "listTitle": "Users",
+    "listHint": "Change a user's role and permissions, or disable them: a disabled user is signed out everywhere and cannot sign in again until enabled.",
+    "user": "User",
+    "role": "Role",
+    "signsInWith": "Signs in with",
+    "lastLogin": "Last sign-in",
+    "actions": "Actions",
+    "never": "Never",
+    "you": "You",
+    "disabled": "Disabled",
+    "password": "Password",
+    "plexAccount": "Plex · {{account}}",
+    "edit": "Edit",
+    "disable": "Disable",
+    "enable": "Enable",
+    "editTitle": "Edit {{name}}",
+    "editHint": "The change applies to their open sessions on their next click.",
+    "ownRole": "You cannot change your own role: another admin can.",
+    "permissionsTitle": "Permissions",
+    "adminHasAll": "An admin may do everything.",
+    "saved": "{{name}} saved.",
+    "disableTitle": "Disable {{name}}?",
+    "disableBody": "They are signed out everywhere, their API keys stop working, and they cannot sign in until you enable them again. Nothing they did is removed.",
+    "roles": {
+      "admin": "Admin",
+      "requestManager": "Request manager",
+      "user": "User"
+    },
+    "roleHints": {
+      "admin": "Runs Bigarr: every page, every setting, every permission.",
+      "requestManager": "Approves or declines other people's requests and handles issues, once requests arrive. Their own requests follow the permissions below.",
+      "user": "Asks for films and series and reports issues, as the permissions below allow."
+    },
+    "permissions": {
+      "requestFilms": "Request films",
+      "requestSeries": "Request series",
+      "request4K": "Request 4K",
+      "autoApproveFilms": "Auto-approve films",
+      "autoApproveSeries": "Auto-approve series",
+      "reportIssues": "Report issues"
+    },
+    "permissionHints": {
+      "requestFilms": "Ask for a film to be added.",
+      "requestSeries": "Ask for a series or some of its seasons.",
+      "request4K": "Ask for the 4K version too.",
+      "autoApproveFilms": "Their film requests skip approval.",
+      "autoApproveSeries": "Their series requests skip approval.",
+      "reportIssues": "Report a problem with a file: video, audio, subtitles."
     }
   }
 }

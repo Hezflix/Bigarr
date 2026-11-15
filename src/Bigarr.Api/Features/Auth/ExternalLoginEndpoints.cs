@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Bigarr.Api.Features.Users;
 using Bigarr.Api.Infrastructure.Auth;
 using Bigarr.Api.Infrastructure.Auth.External;
 using Bigarr.Api.Infrastructure.Persistence;
@@ -12,8 +13,10 @@ namespace Bigarr.Api.Features.Auth;
 /// <summary>
 /// Signing in with an outside account (Plex…), beside the password, never instead of it: the local login always works,
 /// even with every provider on and the provider unreachable. A provider gives an identity, not a role: an account signs
-/// in only the user it was linked to, from Settings, while signed in with the password. An account linked to no one
-/// is refused; no user is created.
+/// in the user it is linked to (linked from Settings by the admin, or created by its first sign-in). An account linked
+/// to no one creates its user, with the default role and permissions, only when Settings → Users lets new accounts in
+/// and the account has access to a Plex server set up in Bigarr; otherwise it is refused. A user other than an admin
+/// must still have that access at every sign-in; a disabled user never signs in.
 /// </summary>
 public static class ExternalLoginEndpoints
 {
@@ -244,10 +247,48 @@ public static class ExternalLoginEndpoints
 
         if (link is null)
         {
+            if (!await NewAccountsAllowedAsync(provider, db, ct))
+            {
+                logger.LogWarning(
+                    "Sign-in with {Provider} refused: account {Account} is linked to no user (from {RemoteIp})",
+                    provider.DisplayName, identity.Username, http.Connection.RemoteIpAddress);
+                return Ended(http, flows, flow, new ExternalFlowPollResponse(ExternalFlowStatus.UnknownAccount, identity.Username));
+            }
+
+            if (Refused(identity) is { } refusal)
+            {
+                logger.LogWarning(
+                    "Sign-in with {Provider} refused: account {Account} {Reason} (from {RemoteIp})",
+                    provider.DisplayName, identity.Username, Reason(refusal), http.Connection.RemoteIpAddress);
+                return Ended(http, flows, flow, new ExternalFlowPollResponse(refusal, identity.Username));
+            }
+
+            var settings = await UserSettings.ReadAsync(db, ct);
+            var created = new User
+            {
+                Username = await UniqueUsernameAsync(db, identity.Username, ct),
+                PasswordHash = string.Empty,
+                Role = UserRole.User,
+                Permissions = settings.DefaultPermissions.Copy(),
+            };
+            link = new ExternalLogin { Provider = provider.Key, ExternalId = identity.ExternalId, User = created };
+            db.ExternalLogins.Add(link);
+            logger.LogInformation("{Provider} account {Account} signed in for the first time: user {Username} created", provider.DisplayName, identity.Username, created.Username);
+        }
+        else if (link.User.IsDisabled)
+        {
             logger.LogWarning(
-                "Sign-in with {Provider} refused: account {Account} is linked to no user (from {RemoteIp})",
-                provider.DisplayName, identity.Username, http.Connection.RemoteIpAddress);
-            return Ended(http, flows, flow, new ExternalFlowPollResponse(ExternalFlowStatus.UnknownAccount, identity.Username));
+                "Sign-in with {Provider} refused: user {Username} is disabled (from {RemoteIp})",
+                provider.DisplayName, link.User.Username, http.Connection.RemoteIpAddress);
+            return Ended(http, flows, flow, new ExternalFlowPollResponse(ExternalFlowStatus.UserDisabled, identity.Username));
+        }
+        else if (link.User.Role != UserRole.Admin && Refused(identity) is { } refusal)
+        {
+            // Removed from the Plex server since: no more sign-ins. The admin signs in whatever the server says.
+            logger.LogWarning(
+                "Sign-in with {Provider} refused: user {Username} {Reason} (from {RemoteIp})",
+                provider.DisplayName, link.User.Username, Reason(refusal), http.Connection.RemoteIpAddress);
+            return Ended(http, flows, flow, new ExternalFlowPollResponse(refusal, identity.Username));
         }
 
         Refresh(link, identity);
@@ -306,13 +347,44 @@ public static class ExternalLoginEndpoints
     private static IExternalIdentityProvider? Find(IEnumerable<IExternalIdentityProvider> providers, string key) =>
         providers.FirstOrDefault(p => string.Equals(p.Key, key, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>Providers the login page offers: turned on, and linked to at least one user.</summary>
+    /// <summary>Providers the login page offers: turned on, and linked to at least one user or open to new accounts.</summary>
     private static async Task<HashSet<string>> OfferedAsync(BigarrDbContext db, CancellationToken ct)
     {
+        var plexNewAccounts = (await UserSettings.ReadAsync(db, ct)).PlexNewAccounts;
         var offered = await db.ExternalLoginProviders.AsNoTracking()
-            .Where(p => p.Enabled && db.ExternalLogins.Any(l => l.Provider == p.Provider))
+            .Where(p => p.Enabled && (db.ExternalLogins.Any(l => l.Provider == p.Provider) || (plexNewAccounts && p.Provider == PlexIdentityProvider.ProviderKey)))
             .Select(p => p.Provider)
             .ToListAsync(ct);
         return offered.ToHashSet(StringComparer.Ordinal);
+    }
+
+    /// <summary>Whether an account linked to no one may create its user. Plex only, for now: it is the provider whose server access can be checked.</summary>
+    private static async Task<bool> NewAccountsAllowedAsync(IExternalIdentityProvider provider, BigarrDbContext db, CancellationToken ct) =>
+        provider.Key == PlexIdentityProvider.ProviderKey && (await UserSettings.ReadAsync(db, ct)).PlexNewAccounts;
+
+    /// <summary>Why an account without the server access is refused; null when it has it.</summary>
+    private static ExternalFlowStatus? Refused(ExternalIdentity identity) => identity.ServerAccess switch
+    {
+        true => null,
+        false => ExternalFlowStatus.NoServerAccess,
+        null => ExternalFlowStatus.AccessUnknown,
+    };
+
+    private static string Reason(ExternalFlowStatus refusal) =>
+        refusal == ExternalFlowStatus.NoServerAccess ? "has no access to the Plex server" : "could not be checked against the Plex server";
+
+    /// <summary>The account's name at the provider, made unique among the users (<c>name</c>, <c>name-2</c>…).</summary>
+    private static async Task<string> UniqueUsernameAsync(BigarrDbContext db, string wanted, CancellationToken ct)
+    {
+        var name = Truncate(string.IsNullOrWhiteSpace(wanted) ? "user" : wanted.Trim(), 60);
+        var taken = (await db.Users.AsNoTracking().Where(u => u.Username.StartsWith(name)).Select(u => u.Username).ToListAsync(ct))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var candidate = name;
+        for (var n = 2; taken.Contains(candidate); n++)
+        {
+            candidate = $"{name}-{n.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+        }
+
+        return candidate;
     }
 }

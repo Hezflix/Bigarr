@@ -22,6 +22,12 @@ export function externalSignInMessage(t: TFunction, result: ExternalSignInResult
       return t('externalLogin.linkedElsewhere', { provider, account })
     case 'disabled':
       return t('externalLogin.disabled', { provider })
+    case 'noServerAccess':
+      return t('externalLogin.noServerAccess', { provider, account })
+    case 'accessUnknown':
+      return t('externalLogin.accessUnknown', { provider, account })
+    case 'userDisabled':
+      return t('externalLogin.userDisabled', { account })
     default:
       return t('auth.unexpectedError')
   }

@@ -315,6 +315,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("DisabledAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("LastLoginAt")
                         .HasColumnType("TEXT");
 
@@ -330,6 +333,29 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Permissions", "Bigarr.Domain.Auth.User.Permissions#UserPermissions", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<bool>("AutoApproveFilms")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<bool>("AutoApproveSeries")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<bool>("ReportIssues")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<bool>("Request4K")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<bool>("RequestFilms")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<bool>("RequestSeries")
+                                .HasColumnType("INTEGER");
+                        });
 
                     b.HasKey("Id");
 
@@ -347,6 +373,32 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<string>("PlexClientIdentifier")
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("PlexNewAccounts")
+                        .HasColumnType("INTEGER");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "DefaultPermissions", "Bigarr.Domain.Common.InstanceSettings.DefaultPermissions#UserPermissions", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<bool>("AutoApproveFilms")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<bool>("AutoApproveSeries")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<bool>("ReportIssues")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<bool>("Request4K")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<bool>("RequestFilms")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<bool>("RequestSeries")
+                                .HasColumnType("INTEGER");
+                        });
 
                     b.HasKey("Id");
 
