@@ -14,9 +14,10 @@ public sealed class DiscoverOptions
     /// <summary>
     /// How long a TMDB answer (a list page, a title page, a genre list) is reused before TMDB is asked again. Many people
     /// browsing the same rows cost one request per row and page in this window. Availability is never cached: it is read
-    /// from the library on every request.
+    /// from the library on every request. Six hours by default: TMDB's lists move daily at most (trending is weekly),
+    /// so a shorter window only spends quota.
     /// </summary>
-    public int CacheMinutes { get; set; } = 15;
+    public int CacheMinutes { get; set; } = 360;
 }
 
 /// <summary>
