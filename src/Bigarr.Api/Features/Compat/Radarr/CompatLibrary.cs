@@ -52,11 +52,20 @@ public sealed class CompatLibrary(MovieService movies)
     };
 
     /// <summary>Every line of the view, films sorted by title.</summary>
-    public async Task<List<CompatRow>> RowsAsync(CompatView view, CancellationToken ct)
+    public Task<List<CompatRow>> RowsAsync(CompatView view, CancellationToken ct) => RowsAsync(view, null, ct);
+
+    /// <summary>The lines of the view whose film matches <paramref name="films"/>, evaluated by the database.</summary>
+    public async Task<List<CompatRow>> RowsAsync(CompatView view, Expression<Func<Movie, bool>>? films, CancellationToken ct)
     {
         var predicate = Predicate(view);
-        var films = await movies.WithGraph().Where(m => m.Versions.AsQueryable().Any(predicate)).OrderBy(m => m.SortTitle).ThenBy(m => m.Year).ToListAsync(ct);
-        return films.SelectMany(m => m.Versions.Where(v => Sees(view, v)).OrderByDescending(v => v.IsDefault).ThenBy(v => v.Id).Select(v => new CompatRow(m, v))).ToList();
+        var query = movies.WithGraph().Where(m => m.Versions.AsQueryable().Any(predicate));
+        if (films is not null)
+        {
+            query = query.Where(films);
+        }
+
+        var found = await query.OrderBy(m => m.SortTitle).ThenBy(m => m.Year).ToListAsync(ct);
+        return found.SelectMany(m => m.Versions.Where(v => Sees(view, v)).OrderByDescending(v => v.IsDefault).ThenBy(v => v.Id).Select(v => new CompatRow(m, v))).ToList();
     }
 
     /// <summary>The line behind a compat id, or null when the version is unknown or outside the view.</summary>

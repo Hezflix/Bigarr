@@ -30,6 +30,7 @@ public static class CompatEndpoints
         group.MapCompatRootFolders();
         group.MapCompatTags();
         group.MapCompatMovies();
+        group.MapCompatCalendar();
         group.MapCompatCommands();
         group.MapCompatQueue();
         group.MapCompatHistory();
