@@ -1,6 +1,8 @@
 namespace Bigarr.Api.Features.Movies;
 
+using Bigarr.Api.Infrastructure.Decision;
 using Bigarr.Api.Infrastructure.Persistence;
+using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Movies;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,6 +17,7 @@ public enum ReleaseType
 /// <summary>
 /// One release date of one version. <see cref="Status"/> is the library's verdict for the version today (the chip colour
 /// of the library list), not a status of the date itself: a film already on disk shows its later Blu-ray date as available.
+/// <see cref="CutoffMet"/> is the library's too: null without a file or for a one-shot version, false below the cutoff.
 /// </summary>
 public sealed record CalendarMovieResponse(
     int MovieId,
@@ -29,6 +32,7 @@ public sealed record CalendarMovieResponse(
     bool Monitored,
     bool HasFile,
     string? Quality,
+    bool? CutoffMet,
     VersionStatus Status);
 
 /// <summary>
@@ -36,7 +40,7 @@ public sealed record CalendarMovieResponse(
 /// one entry per (version, date), monitored versions only unless asked. The dates are the ones the metadata refresh
 /// already keeps current; nothing is fetched here. The range is bounded like the episodes' calendar.
 /// </summary>
-public sealed class MovieCalendarService(BigarrDbContext db, TimeProvider time)
+public sealed class MovieCalendarService(BigarrDbContext db, CustomFormatScorer scorer, FileFormatMatches matches, TimeProvider time)
 {
     public const int MaxRangeDays = 62;
 
@@ -84,11 +88,36 @@ public sealed class MovieCalendarService(BigarrDbContext db, TimeProvider time)
                 v.IsDefault,
                 v.Monitored,
                 v.MinimumAvailability,
+                v.Mode,
+                v.QualityProfileId,
                 HasFile = v.File != null,
                 Quality = v.File == null ? null : v.File.Quality.Name,
+                FileId = v.File == null ? (int?)null : v.File.Id,
+                FileInput = v.File == null
+                    ? null
+                    : new FileFormatInput(
+                        v.File.OriginalReleaseTitle,
+                        v.File.RelativePath,
+                        v.File.Size,
+                        v.File.IndexerFlags,
+                        v.File.QualityId,
+                        v.File.Languages,
+                        v.File.Edition,
+                        v.File.ReleaseGroup,
+                        v.Movie.Year,
+                        v.Movie.OriginalLanguage),
                 Downloading = db.GrabTargets.Any(g => g.Active && g.TargetId == v.Id),
             })
             .ToListAsync(ct);
+
+        // The library list's cutoff verdict, custom formats included; the formats are read only when a file is listed.
+        var profiles = await db.QualityProfiles.AsNoTracking().Include(p => p.FormatScores).ToDictionaryAsync(p => p.Id, ct);
+        var qualities = await db.QualityDefinitions.AsNoTracking().ToDictionaryAsync(q => q.Id, ct);
+        var formats = rows.Any(r => r.HasFile) ? (await scorer.CalculatorAsync(ct), await scorer.SignatureAsync(ct)) : default;
+        bool? CutoffMet(int? fileId, FileFormatInput? input, VersionMode mode, int profileId) =>
+            fileId is { } id && input is not null && mode == VersionMode.Managed && profiles.TryGetValue(profileId, out var profile)
+                ? matches.CutoffMet(profile, id, input, qualities.GetValueOrDefault(input.QualityId), () => formats)
+                : null;
 
         var today = DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime);
         return rows
@@ -106,9 +135,10 @@ public sealed class MovieCalendarService(BigarrDbContext db, TimeProvider time)
                 };
                 var status = Availability.StatusOf(movie, r.MinimumAvailability, r.HasFile, r.Downloading, today);
                 var poster = r.Images.FirstOrDefault(i => i.Type == ImageType.Poster)?.RemoteUrl;
+                var cutoffMet = CutoffMet(r.FileId, r.FileInput, r.Mode, r.QualityProfileId);
                 return Dates(r.InCinemasDate, r.DigitalReleaseDate, r.PhysicalReleaseDate)
                     .Where(d => d.Date >= start && d.Date < end)
-                    .Select(d => new CalendarMovieResponse(r.MovieId, r.Title, r.Year, poster, r.VersionId, r.VersionName, r.IsDefault, d.Type, d.Date, r.Monitored, r.HasFile, r.Quality, status));
+                    .Select(d => new CalendarMovieResponse(r.MovieId, r.Title, r.Year, poster, r.VersionId, r.VersionName, r.IsDefault, d.Type, d.Date, r.Monitored, r.HasFile, r.Quality, cutoffMet, status));
             })
             .OrderBy(e => e.Date).ThenBy(e => e.ReleaseType).ThenBy(e => e.Title, StringComparer.OrdinalIgnoreCase).ThenByDescending(e => e.IsDefaultVersion).ThenBy(e => e.VersionId)
             .ToList();

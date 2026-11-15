@@ -46,6 +46,10 @@ public sealed class MovieCalendarTests : IDisposable
         var onDisk = week.Single(e => e.Title == "Digital Film");
         Assert.True(onDisk.HasFile);
         Assert.Equal("HDTV-720p", onDisk.Quality);
+
+        // Below the profile's Bluray-1080p cutoff: the library's violet chip. No file, no verdict.
+        Assert.False(onDisk.CutoffMet);
+        Assert.True(week.Where(e => !e.HasFile).All(e => e.CutoffMet is null));
         Assert.True(week.All(e => e.IsDefaultVersion && e.Monitored));
 
         // The unmonitored 4K version of the film in cinemas shows only when asked, after the default version.
@@ -77,6 +81,26 @@ public sealed class MovieCalendarTests : IDisposable
         var week = await client.GetFromJsonAsync<List<RadarrCalendarMovie>>("/radarr/api/v3/calendar?start=2026-11-09&end=2026-11-15", Json);
         Assert.Equal(["Cinema Film", "Digital Film", "Grabbed Film", "Missing Film"], week!.Select(f => f.Title).ToList());
         Assert.Equal(new DateTime(2026, 11, 11, 0, 0, 0, DateTimeKind.Utc), week!.Single(f => f.Title == "Cinema Film").InCinemas);
+    }
+
+    [Fact]
+    public async Task The_ical_feed_has_an_all_day_event_per_film_release_date()
+    {
+        var session = await SessionAsync(_factory);
+        await SeedAsync();
+
+        // 8 November to 13 December by default (7 days back, 28 ahead): one all-day event per film and date, the
+        // unmonitored 4K version folded into its film, confirmed once the file is on disk.
+        var ics = await session.GetStringAsync("/api/v1/calendar/bigarr.ics?unmonitored=true");
+        var cinema = "SUMMARY:Cinema Film (2026) - In cinemas\r\nSTATUS:TENTATIVE";
+        Assert.Contains(cinema, ics, StringComparison.Ordinal);
+        Assert.Equal(1, ics.Split(cinema).Length - 1);
+        Assert.Contains("DTSTART;VALUE=DATE:20261111\r\nDTEND;VALUE=DATE:20261112\r\n", ics, StringComparison.Ordinal);
+        Assert.Contains("SUMMARY:Digital Film (2026) - Digital release\r\nSTATUS:CONFIRMED", ics, StringComparison.Ordinal);
+        Assert.Contains("SUMMARY:Digital Film (2026) - Physical release", ics, StringComparison.Ordinal);
+        Assert.Contains("UID:bigarr-movie-", ics, StringComparison.Ordinal);
+        Assert.DoesNotContain("Cinema Film (2026) - Digital release", ics, StringComparison.Ordinal);
+        Assert.DoesNotContain("Old Film", ics, StringComparison.Ordinal);
     }
 
     private static async Task<List<CalendarMovieResponse>> ListAsync(HttpClient client, string query) =>

@@ -44,6 +44,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/calendar/bigarr.ics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    pastDays?: number;
+                    futureDays?: number;
+                    unmonitored?: boolean;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/series/{id}/search": {
         parameters: {
             query?: never;
@@ -3111,43 +3148,6 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["CalendarEpisodeResponse"][];
                     };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/calendar/bigarr.ics": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: {
-                    pastDays?: number;
-                    futureDays?: number;
-                    unmonitored?: boolean;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
                 };
             };
         };
@@ -9044,6 +9044,7 @@ export interface components {
             monitored: boolean;
             hasFile: boolean;
             quality: null | string;
+            cutoffMet: null | boolean;
             status: components["schemas"]["CalendarStatus"];
         };
         CalendarMovieResponse: {
@@ -9063,6 +9064,7 @@ export interface components {
             monitored: boolean;
             hasFile: boolean;
             quality: null | string;
+            cutoffMet: null | boolean;
             status: components["schemas"]["VersionStatus"];
         };
         /** @enum {unknown} */

@@ -4,27 +4,38 @@ import { Link } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon, Disc3Icon, MonitorPlayIcon, TicketIcon, type LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { auth, calendar, type CalendarEpisode, type CalendarMovie, type ReleaseType, type VersionStatus } from '@/api/client'
+import { auth, calendar, type CalendarEpisode, type CalendarMovie, type ReleaseType } from '@/api/client'
 import { Button } from '@/components/ui/button'
+import { Poster } from '@/components/Poster'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ToneDot } from '@/features/library/VersionChip'
+import { type ChipTone, ToneDot } from '@/features/library/VersionChip'
 import { formatTime } from '@/i18n'
-import { type CalendarEntry, type CalendarView, calendarKinds, entriesByDay, localDay, useCalendarPrefs } from './calendarModel'
+import { type CalendarDensity, type CalendarEntry, type CalendarView, calendarDensities, calendarKinds, entriesByDay, filmTone, localDay, useCalendarPrefs } from './calendarModel'
 
-/** The library legend's colours as a left bar and a tint: the same green, amber, blue and grey as the chips. */
-const toneStyles: Record<VersionStatus, string> = {
+/** The library legend's colours as a left bar and a tint: the same green, violet, amber, blue and grey as the chips. */
+const toneStyles: Record<ChipTone, string> = {
   available: 'border-l-emerald-500 bg-emerald-500/10',
+  cutoffUnmet: 'border-l-violet-500 bg-violet-500/10',
   missing: 'border-l-amber-500 bg-amber-500/10',
   downloading: 'border-l-blue-500 bg-blue-500/10',
   pending: 'border-l-zinc-400 bg-muted/70 dark:border-l-zinc-500',
 }
 
-const tones: VersionStatus[] = ['pending', 'missing', 'downloading', 'available']
+const tones: ChipTone[] = ['available', 'cutoffUnmet', 'missing', 'downloading', 'pending']
 
 /** An unmonitored entry reads as "left alone", like an unmonitored chip in the library. */
-const entryClass = (entry: CalendarEntry) => cn('rounded-sm border-l-4 px-1.5 py-1 text-xs leading-tight hover:brightness-95', toneStyles[entry.tone], !entry.monitored && 'border-dashed opacity-60')
+const entryClass = (entry: CalendarEntry) =>
+  cn('flex min-w-0 items-start gap-1.5 rounded-sm border-l-4 px-1.5 py-1 text-xs leading-tight hover:brightness-95', toneStyles[entry.tone], !entry.monitored && 'border-dashed opacity-60')
+
+/**
+ * Comfortable entries carry the poster and their titles wrap onto two lines, between words: beside a poster, a seventh
+ * of the page is too narrow for one. Compact ones are text only and truncate.
+ */
+type Look = { density: CalendarDensity }
+
+const titleClass = (look: Look) => (look.density === 'comfortable' ? 'line-clamp-2 min-w-0' : 'truncate')
 
 export const releaseIcons: Record<ReleaseType, LucideIcon> = { inCinemas: TicketIcon, digital: MonitorPlayIcon, physical: Disc3Icon }
 
@@ -72,7 +83,8 @@ export function CalendarPage() {
   const { t, i18n } = useTranslation()
   const me = useQuery({ queryKey: ['me'], queryFn: auth.me })
   const [prefs, updatePrefs] = useCalendarPrefs(me.data?.id)
-  const { kind, view, unmonitored } = prefs
+  const { kind, view, density, unmonitored } = prefs
+  const look: Look = { density }
   const [anchor, setAnchor] = useState(() => new Date())
   const days = useMemo(() => range(view, anchor), [view, anchor])
   const start = days[0]
@@ -135,6 +147,13 @@ export function CalendarPage() {
               </Button>
             ))}
           </div>
+          <div className="flex rounded-md border p-0.5" role="tablist" aria-label={t('library.view.density')}>
+            {calendarDensities.map((value) => (
+              <Button key={value} type="button" role="tab" aria-selected={density === value} variant={density === value ? 'secondary' : 'ghost'} size="sm" onClick={() => updatePrefs({ density: value })} data-testid={`calendar-density-${value}`}>
+                {t(`library.view.densities.${value}`)}
+              </Button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -193,7 +212,7 @@ export function CalendarPage() {
                   <span>{weekday.format(day)}</span>
                   <span className={cn('tabular-nums', key === today && 'rounded bg-primary px-1 text-primary-foreground')}>{day.getDate()}</span>
                 </div>
-                <DayEntries entries={entries} />
+                <DayEntries entries={entries} look={look} />
               </div>
             )
           })}
@@ -207,56 +226,67 @@ export function CalendarPage() {
 }
 
 /** The films first, like all-day events, then the episodes by air time. */
-function DayEntries({ entries }: { entries: CalendarEntry[] }) {
-  return entries.map((entry) => (entry.kind === 'film' ? <FilmCard key={entry.key} entry={entry} film={entry.film} /> : <EpisodeCard key={entry.key} entry={entry} episode={entry.episode} />))
+function DayEntries({ entries, look }: { entries: CalendarEntry[]; look: Look }) {
+  return entries.map((entry) =>
+    entry.kind === 'film' ? <FilmCard key={entry.key} entry={entry} film={entry.film} look={look} /> : <EpisodeCard key={entry.key} entry={entry} episode={entry.episode} look={look} />,
+  )
 }
 
 function useFilmTitle(film: CalendarMovie) {
   const { t } = useTranslation()
-  return `${film.title}${film.year ? ` (${film.year})` : ''} – ${t(`calendar.release.${film.releaseType}`)} · ${film.versionName} · ${t(`library.legend.${film.status}.label`)}${film.quality ? ` · ${film.quality}` : ''}${film.monitored ? '' : ` · ${t('library.legend.unmonitored.label')}`}`
+  return `${film.title}${film.year ? ` (${film.year})` : ''} – ${t(`calendar.release.${film.releaseType}`)} · ${film.versionName} · ${t(`library.legend.${filmTone(film)}.label`)}${film.quality ? ` · ${film.quality}` : ''}${film.monitored ? '' : ` · ${t('library.legend.unmonitored.label')}`}`
 }
 
 /** The icon and the second line say which date it is, the colour where the version stands. */
-function FilmCard({ entry, film }: { entry: CalendarEntry; film: CalendarMovie }) {
+function FilmCard({ entry, film, look }: { entry: CalendarEntry; film: CalendarMovie; look: Look }) {
   const { t } = useTranslation()
   const Icon = releaseIcons[film.releaseType]
   return (
     <Link
       to="/movies/$movieId"
       params={{ movieId: String(film.movieId) }}
-      className={cn(entryClass(entry), 'flex flex-col')}
+      className={entryClass(entry)}
       title={useFilmTitle(film)}
       data-testid={`calendar-film-${film.versionId}-${film.releaseType}`}
     >
-      <span className="flex items-baseline gap-1">
-        <Icon className="size-3 shrink-0 translate-y-0.5" aria-hidden="true" />
-        <span className="truncate font-medium">{film.title}</span>
+      {look.density === 'comfortable' && <Poster url={film.posterUrl ?? null} title={film.title} size="calendar" className="rounded-sm" />}
+      <span className="flex min-w-0 flex-col">
+        <span className="flex items-baseline gap-1">
+          <Icon className="size-3 shrink-0 translate-y-0.5" aria-hidden="true" />
+          <span className={cn(titleClass(look), 'font-medium')}>{film.title}</span>
+        </span>
+        <span className="truncate text-muted-foreground">{t(`calendar.release.${film.releaseType}`)}</span>
+        {!film.isDefaultVersion && <span className="block text-[10px] text-muted-foreground">{film.versionName}</span>}
       </span>
-      <span className="truncate text-muted-foreground">{t(`calendar.release.${film.releaseType}`)}</span>
-      {!film.isDefaultVersion && <span className="block text-[10px] text-muted-foreground">{film.versionName}</span>}
     </Link>
   )
 }
 
-function EpisodeCard({ entry, episode }: { entry: CalendarEntry; episode: CalendarEpisode }) {
+function EpisodeCard({ entry, episode, look }: { entry: CalendarEntry; episode: CalendarEpisode; look: Look }) {
   const { t } = useTranslation()
+  const time = episode.airDateUtc ? formatTime(episode.airDateUtc) : ''
   return (
     <Link
       to="/series/$seriesId"
       params={{ seriesId: String(episode.seriesId) }}
       className={entryClass(entry)}
-      title={`${episode.seriesTitle} ${code(episode)} – ${episode.title} · ${t(`calendar.status.${episode.status}`)}${episode.quality ? ` · ${episode.quality}` : ''}`}
+      title={`${episode.seriesTitle} ${code(episode)} – ${episode.title} · ${t(`calendar.status.${episode.status}`)}${entry.tone === 'cutoffUnmet' ? ` · ${t('library.legend.cutoffUnmet.label')}` : ''}${episode.quality ? ` · ${episode.quality}` : ''}`}
       data-testid={`calendar-episode-${episode.versionId}-${episode.episodeId}`}
     >
-      <span className="flex items-baseline justify-between gap-1">
-        <span className="truncate font-medium">{episode.seriesTitle}</span>
-        <span className="shrink-0 text-muted-foreground tabular-nums">{episode.airDateUtc ? formatTime(episode.airDateUtc) : ''}</span>
+      {look.density === 'comfortable' && <Poster url={episode.posterUrl ?? null} title={episode.seriesTitle} size="calendar" className="rounded-sm" />}
+      <span className="flex min-w-0 flex-1 flex-col">
+        {/* Beside a poster the time goes under the title, which needs the whole width. */}
+        <span className="flex items-baseline justify-between gap-1">
+          <span className={cn(titleClass(look), 'font-medium')}>{episode.seriesTitle}</span>
+          {look.density === 'compact' && time && <span className="shrink-0 text-muted-foreground tabular-nums">{time}</span>}
+        </span>
+        {look.density === 'comfortable' && time && <span className="text-muted-foreground tabular-nums">{time}</span>}
+        <span className="flex items-baseline gap-1">
+          {code(episode) && <span className="shrink-0 tabular-nums">{code(episode)}</span>}
+          <span className="truncate text-muted-foreground">{episode.title}</span>
+        </span>
+        {!episode.isDefaultVersion && <span className="block text-[10px] text-muted-foreground">{episode.versionName}</span>}
       </span>
-      <span className="flex items-baseline gap-1">
-        {code(episode) && <span className="shrink-0 tabular-nums">{code(episode)}</span>}
-        <span className="truncate text-muted-foreground">{episode.title}</span>
-      </span>
-      {!episode.isDefaultVersion && <span className="block text-[10px] text-muted-foreground">{episode.versionName}</span>}
     </Link>
   )
 }

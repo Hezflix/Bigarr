@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { CalendarEpisode, CalendarMovie } from '../src/api/client'
-import { defaultCalendarPrefs, entriesByDay, episodeTone, localDay, readCalendarPrefs } from '../src/features/calendar/calendarModel'
+import { defaultCalendarPrefs, entriesByDay, episodeTone, filmTone, localDay, readCalendarPrefs } from '../src/features/calendar/calendarModel'
 
 const film = (versionId: number, title: string, releaseType: CalendarMovie['releaseType'], date: string, isDefaultVersion = true) =>
   ({ movieId: versionId, versionId, title, releaseType, date, isDefaultVersion, status: 'pending', monitored: true }) as CalendarMovie
@@ -10,8 +10,9 @@ const episode = (episodeId: number, airDateUtc: string | null, status: CalendarE
 
 describe('readCalendarPrefs', () => {
   test('keeps what it knows, fills the rest', () => {
-    expect(readCalendarPrefs({ kind: 'films', view: 'month', unmonitored: true })).toEqual({ kind: 'films', view: 'month', unmonitored: true })
-    expect(readCalendarPrefs({ kind: 'books', view: 'year', unmonitored: 'yes' })).toEqual(defaultCalendarPrefs)
+    expect(readCalendarPrefs({ kind: 'films', view: 'month', density: 'compact', unmonitored: true })).toEqual({ kind: 'films', view: 'month', density: 'compact', unmonitored: true })
+    expect(readCalendarPrefs({ kind: 'series' })).toEqual({ ...defaultCalendarPrefs, kind: 'series' })
+    expect(readCalendarPrefs({ kind: 'books', view: 'year', density: 'cosy', unmonitored: 'yes' })).toEqual(defaultCalendarPrefs)
     expect(readCalendarPrefs(null)).toEqual(defaultCalendarPrefs)
   })
 })
@@ -19,11 +20,23 @@ describe('readCalendarPrefs', () => {
 describe('episodeTone', () => {
   test('maps the episode statuses onto the library legend', () => {
     expect(episodeTone('downloaded')).toBe('available')
+    expect(episodeTone('downloaded', true)).toBe('available')
+    expect(episodeTone('downloaded', false)).toBe('cutoffUnmet')
     expect(episodeTone('downloading')).toBe('downloading')
     expect(episodeTone('missing')).toBe('missing')
     expect(episodeTone('unmonitored')).toBe('missing')
     expect(episodeTone('unaired')).toBe('pending')
     expect(episodeTone('onAir')).toBe('pending')
+  })
+})
+
+describe('filmTone', () => {
+  test('a file below the cutoff is violet, like its library chip', () => {
+    const onDisk = { ...film(1, 'Alpha', 'digital', '2026-11-12'), status: 'available' } as CalendarMovie
+    expect(filmTone({ ...onDisk, cutoffMet: false })).toBe('cutoffUnmet')
+    expect(filmTone({ ...onDisk, cutoffMet: true })).toBe('available')
+    expect(filmTone({ ...onDisk, cutoffMet: null })).toBe('available')
+    expect(filmTone(film(2, 'Beta', 'physical', '2026-11-12'))).toBe('pending')
   })
 })
 

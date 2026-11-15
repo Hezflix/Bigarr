@@ -2712,7 +2712,7 @@
       "downloaded": "Downloaded",
       "unmonitored": "Unmonitored"
     },
-    "icalHint": "Subscribe to the episodes from a calendar app with an API key (Settings → Connect):",
+    "icalHint": "Subscribe to the episodes and the film release dates from a calendar app with an API key (Settings → Connect):",
     "release": {
       "inCinemas": "In cinemas",
       "digital": "Digital release",
