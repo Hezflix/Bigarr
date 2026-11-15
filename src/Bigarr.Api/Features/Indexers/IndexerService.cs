@@ -217,7 +217,8 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
             new IndexerStatusResponse(status.Healthy, status.Failures, status.DisabledUntil, status.LastError, status.LastFailureAt, status.LastSuccessAt),
             indexer.CreatedAt,
             indexer.TvCategories,
-            indexer.AnimeCategories);
+            indexer.AnimeCategories,
+            indexer.SeasonPackSeedTimeMinutes);
     }
 
     public static Failure? Validate(IndexerRequest request)
@@ -269,6 +270,11 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
             return Failure.Invalid("Invalid seed ratio");
         }
 
+        if (request.SeasonPackSeedTimeMinutes is < 0)
+        {
+            return Failure.Invalid("Invalid season pack seed time", "Zero or more minutes.");
+        }
+
         if (request.SeedTimeMinutes is < 0)
         {
             return Failure.Invalid("Invalid seed time");
@@ -318,6 +324,11 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
         if (request.AnimeCategories is not null)
         {
             indexer.AnimeCategories = request.AnimeCategories.Distinct().Order().ToList();
+        }
+
+        if (request.SeasonPackSeedTimeMinutes is { } packMinutes)
+        {
+            indexer.SeasonPackSeedTimeMinutes = packMinutes > 0 ? packMinutes : null;
         }
     }
 }

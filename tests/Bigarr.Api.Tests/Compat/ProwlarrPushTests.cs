@@ -17,7 +17,7 @@ public sealed class ProwlarrPushTests(BigarrApiFactory factory) : IClassFixture<
         var session = await SessionAsync(factory);
         var (prowlarr, _) = await KeyClientAsync(factory, session, "prowlarr", "default", header: true);
 
-        var schemaResponse = await prowlarr.GetAsync("/api/v3/indexer/schema");
+        var schemaResponse = await prowlarr.GetAsync("/radarr/api/v3/indexer/schema");
         Assert.Equal(HttpStatusCode.OK, schemaResponse.StatusCode);
         Assert.Equal(RadarrCompat.ApplicationVersion, schemaResponse.Headers.GetValues(RadarrCompat.VersionHeader).Single());
         var schema = await schemaResponse.ReadJsonAsync();
@@ -53,7 +53,7 @@ public sealed class ProwlarrPushTests(BigarrApiFactory factory) : IClassFixture<
                 new { name = "rejectBlocklistedTorrentHashesWhileGrabbing", value = false },
             },
         };
-        var created = await prowlarr.PostAsJsonAsync("/api/v3/indexer", body);
+        var created = await prowlarr.PostAsJsonAsync("/radarr/api/v3/indexer", body);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var resource = await created.ReadJsonAsync();
         var id = resource.GetProperty("id").GetInt32();
@@ -72,7 +72,7 @@ public sealed class ProwlarrPushTests(BigarrApiFactory factory) : IClassFixture<
         Assert.Equal(7, stored.ProwlarrId);
 
         // Prowlarr reads them back and matches on apiKey and the /{id}/ in baseUrl.
-        var list = await (await prowlarr.GetAsync("/api/v3/indexer")).ReadJsonAsync();
+        var list = await (await prowlarr.GetAsync("/radarr/api/v3/indexer")).ReadJsonAsync();
         var mine = list.EnumerateArray().Single(i => i.GetProperty("id").GetInt32() == id);
         var fields = mine.GetProperty("fields").EnumerateArray().ToDictionary(f => f.GetProperty("name").GetString()!, f => f);
         Assert.Equal("http://prowlarr:9696/7/", fields["baseUrl"].GetProperty("value").GetString());
@@ -80,9 +80,9 @@ public sealed class ProwlarrPushTests(BigarrApiFactory factory) : IClassFixture<
         Assert.Equal(2, fields["minimumSeeders"].GetProperty("value").GetInt32());
         Assert.Equal(1.5, fields["seedCriteria.seedRatio"].GetProperty("value").GetDouble());
         Assert.Equal([2000, 2010, 2040], fields["categories"].GetProperty("value").EnumerateArray().Select(c => c.GetInt32()));
-        Assert.Equal(HttpStatusCode.OK, (await prowlarr.GetAsync($"/api/v3/indexer/{id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await prowlarr.GetAsync($"/radarr/api/v3/indexer/{id}")).StatusCode);
 
-        var updated = await prowlarr.PutAsJsonAsync($"/api/v3/indexer/{id}?forceSave=true", new
+        var updated = await prowlarr.PutAsJsonAsync($"/radarr/api/v3/indexer/{id}?forceSave=true", new
         {
             body.id,
             body.name,
@@ -102,20 +102,20 @@ public sealed class ProwlarrPushTests(BigarrApiFactory factory) : IClassFixture<
         Assert.Equal(5, stored.Priority);
 
         // Usenet is refused with Radarr's validation shape; Prowlarr retries with forceSave and gets the same answer.
-        var usenet = await prowlarr.PostAsJsonAsync("/api/v3/indexer?forceSave=true", new { body.id, name = "NZBgeek (Prowlarr)", implementation = "Newznab", configContract = "NewznabSettings", body.fields });
+        var usenet = await prowlarr.PostAsJsonAsync("/radarr/api/v3/indexer?forceSave=true", new { body.id, name = "NZBgeek (Prowlarr)", implementation = "Newznab", configContract = "NewznabSettings", body.fields });
         Assert.Equal(HttpStatusCode.BadRequest, usenet.StatusCode);
         Assert.Equal("Implementation", (await usenet.ReadJsonAsync())[0].GetProperty("propertyName").GetString());
 
         // The application test posts a Newznab indexer aimed at Prowlarr's aggregate endpoint; unreachable here → 400, header still there.
-        var test = await prowlarr.PostAsJsonAsync("/api/v3/indexer/test", new { body.id, name = "Test", implementation = "Newznab", configContract = "NewznabSettings", fields = new object[] { new { name = "baseUrl", value = "http://127.0.0.1:1/0/" }, new { name = "apiPath", value = "/api" }, new { name = "apiKey", value = "k" }, new { name = "categories", value = new[] { 2000 } } } });
+        var test = await prowlarr.PostAsJsonAsync("/radarr/api/v3/indexer/test", new { body.id, name = "Test", implementation = "Newznab", configContract = "NewznabSettings", fields = new object[] { new { name = "baseUrl", value = "http://127.0.0.1:1/0/" }, new { name = "apiPath", value = "/api" }, new { name = "apiKey", value = "k" }, new { name = "categories", value = new[] { 2000 } } } });
         Assert.Equal(HttpStatusCode.BadRequest, test.StatusCode);
         Assert.Equal(RadarrCompat.ApplicationVersion, test.Headers.GetValues(RadarrCompat.VersionHeader).Single());
 
-        Assert.Equal(HttpStatusCode.OK, (await prowlarr.DeleteAsync($"/api/v3/indexer/{id}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await prowlarr.GetAsync($"/api/v3/indexer/{id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await prowlarr.DeleteAsync($"/radarr/api/v3/indexer/{id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await prowlarr.GetAsync($"/radarr/api/v3/indexer/{id}")).StatusCode);
 
         // Like Radarr, a second delete still answers 200: Prowlarr only forgets its mapping on success.
-        Assert.Equal(HttpStatusCode.OK, (await prowlarr.DeleteAsync($"/api/v3/indexer/{id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await prowlarr.DeleteAsync($"/radarr/api/v3/indexer/{id}")).StatusCode);
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public sealed class ProwlarrPushTests(BigarrApiFactory factory) : IClassFixture<
             },
         };
 
-        var adopted = await prowlarr.PostAsJsonAsync("/api/v3/indexer", Add(7, "Nyaa.si (Prowlarr)"));
+        var adopted = await prowlarr.PostAsJsonAsync("/radarr/api/v3/indexer", Add(7, "Nyaa.si (Prowlarr)"));
         Assert.Equal(HttpStatusCode.Created, adopted.StatusCode);
         Assert.Equal(pulledId, (await adopted.ReadJsonAsync()).GetProperty("id").GetInt32());
 
@@ -169,20 +169,20 @@ public sealed class ProwlarrPushTests(BigarrApiFactory factory) : IClassFixture<
         Assert.Equal(10, row.RateLimitSeconds); // Prowlarr does not send it: the tuned value stays
 
         // Prowlarr lost its mapping and adds it once more: still the same row.
-        var again = await prowlarr.PostAsJsonAsync("/api/v3/indexer?forceSave=true", Add(7, "Nyaa.si (Prowlarr)"));
+        var again = await prowlarr.PostAsJsonAsync("/radarr/api/v3/indexer?forceSave=true", Add(7, "Nyaa.si (Prowlarr)"));
         Assert.Equal(HttpStatusCode.Created, again.StatusCode);
         Assert.Equal(pulledId, (await again.ReadJsonAsync()).GetProperty("id").GetInt32());
         Assert.Single((await session.GetFromJsonAsync<List<IndexerResponse>>("/api/v1/indexers", Json))!, i => i.ProwlarrId == 7);
 
         // Pointing another row at indexer 7 is refused with Radarr's validation shape, not a database error.
-        var other = await prowlarr.PostAsJsonAsync("/api/v3/indexer", Add(8, "Torr9 (Prowlarr)"));
+        var other = await prowlarr.PostAsJsonAsync("/radarr/api/v3/indexer", Add(8, "Torr9 (Prowlarr)"));
         Assert.Equal(HttpStatusCode.Created, other.StatusCode);
         var otherId = (await other.ReadJsonAsync()).GetProperty("id").GetInt32();
-        var clash = await prowlarr.PutAsJsonAsync($"/api/v3/indexer/{otherId}", Add(7, "Torr9 (Prowlarr)"));
+        var clash = await prowlarr.PutAsJsonAsync($"/radarr/api/v3/indexer/{otherId}", Add(7, "Torr9 (Prowlarr)"));
         Assert.Equal(HttpStatusCode.BadRequest, clash.StatusCode);
         Assert.Contains("Prowlarr indexer 7", (await clash.ReadJsonAsync())[0].GetProperty("errorMessage").GetString());
 
-        Assert.Equal(HttpStatusCode.OK, (await prowlarr.DeleteAsync($"/api/v3/indexer/{pulledId}")).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await prowlarr.DeleteAsync($"/api/v3/indexer/{otherId}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await prowlarr.DeleteAsync($"/radarr/api/v3/indexer/{pulledId}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await prowlarr.DeleteAsync($"/radarr/api/v3/indexer/{otherId}")).StatusCode);
     }
 }

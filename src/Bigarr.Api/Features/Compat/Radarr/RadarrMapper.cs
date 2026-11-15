@@ -170,12 +170,12 @@ public static class RadarrMapper
         var images = new List<RadarrImage>();
         if (movie.Images.FirstOrDefault(i => i.Type == ImageType.Poster) is { } poster)
         {
-            images.Add(new RadarrImage("poster", $"/MediaCover/{versionId}/poster.jpg", poster.RemoteUrl));
+            images.Add(new RadarrImage("poster", $"{RadarrCompat.UrlBase}/MediaCover/{versionId}/poster.jpg", poster.RemoteUrl));
         }
 
         if (movie.Images.FirstOrDefault(i => i.Type == ImageType.Fanart) is { } fanart)
         {
-            images.Add(new RadarrImage("fanart", $"/MediaCover/{versionId}/fanart.jpg", fanart.RemoteUrl));
+            images.Add(new RadarrImage("fanart", $"{RadarrCompat.UrlBase}/MediaCover/{versionId}/fanart.jpg", fanart.RemoteUrl));
         }
 
         return images;

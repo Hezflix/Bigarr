@@ -12,10 +12,15 @@ using Bigarr.Domain.Tv;
 public sealed record SonarrRow(Series Series, SeriesVersion Version);
 
 /// <summary>Sonarr's statistics of one season, for one version: files and monitoring are the version's, the episode list is the show's.</summary>
-public sealed record SeasonFigures(int EpisodeFileCount, int EpisodeCount, int TotalEpisodeCount, long SizeOnDisk, List<string> ReleaseGroups)
+/// <param name="NextAiring">The first monitored episode airing from now on, in UTC (Sonarr's rule).</param>
+/// <param name="PreviousAiring">The last monitored episode that has aired.</param>
+public sealed record SeasonFigures(int EpisodeFileCount, int EpisodeCount, int TotalEpisodeCount, long SizeOnDisk, List<string> ReleaseGroups, DateTime? NextAiring = null, DateTime? PreviousAiring = null)
 {
     public static readonly SeasonFigures Empty = new(0, 0, 0, 0, []);
 }
+
+/// <summary>What Sonarr says of an episode file against its version's profile: matched custom formats, their score, the cutoff.</summary>
+public sealed record FileFormats(List<Radarr.RadarrCustomFormat> CustomFormats, int CustomFormatScore, bool QualityCutoffNotMet);
 
 /// <summary>
 /// The API key's view over the series library, the twin of <see cref="Radarr.CompatLibrary"/>: <c>default</c> shows a
@@ -23,7 +28,7 @@ public sealed record SeasonFigures(int EpisodeFileCount, int EpisodeCount, int T
 /// name. A show without a TVDB id is left out entirely: Seerr keys its library on <c>tvdbId</c> and Bazarr does
 /// <c>int(tvdbId)</c> on every row, so a 0 would alias every such show into one.
 /// </summary>
-public sealed class SonarrLibrary(SeriesService series, BigarrDbContext db, TimeProvider time)
+public sealed class SonarrLibrary(SeriesService series, BigarrDbContext db, Infrastructure.Decision.CustomFormatScorer scorer, Search.EpisodeFileFormatMatches matches, TimeProvider time)
 {
     public DateTime Now => time.GetUtcNow().UtcDateTime;
 
@@ -138,6 +143,8 @@ public sealed class SonarrLibrary(SeriesService series, BigarrDbContext db, Time
                 Total = g.Count(),
                 Files = g.Count(t => t.EpisodeFileId != null),
                 Counted = g.Count(t => t.EpisodeFileId != null || (t.Monitored && t.Episode.AirDateUtc != null && t.Episode.AirDateUtc <= now)),
+                Next = g.Where(t => t.Monitored && t.Episode.AirDateUtc != null && t.Episode.AirDateUtc >= now).Min(t => t.Episode.AirDateUtc),
+                Previous = g.Where(t => t.Monitored && t.Episode.AirDateUtc != null && t.Episode.AirDateUtc <= now).Max(t => t.Episode.AirDateUtc),
             })
             .ToListAsync(ct);
         var files = (await db.EpisodeFiles.AsNoTracking()
@@ -151,11 +158,41 @@ public sealed class SonarrLibrary(SeriesService series, BigarrDbContext db, Time
         {
             var mine = files[(c.VersionId, c.SeasonNumber)].ToList();
             var groups = mine.Select(f => f.ReleaseGroup).OfType<string>().Where(g => g.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToList();
-            result[(c.VersionId, c.SeasonNumber)] = new SeasonFigures(c.Files, c.Counted, c.Total, mine.Sum(f => f.Size), groups);
+            result[(c.VersionId, c.SeasonNumber)] = new SeasonFigures(c.Files, c.Counted, c.Total, mine.Sum(f => f.Size), groups, Utc(c.Next), Utc(c.Previous));
         }
 
         return result;
     }
+
+    /// <summary>
+    /// Judges a version's episode files as Sonarr does: the custom formats Bigarr matches on the file, their score in the
+    /// version's profile, and the cutoff not met when the quality is below the profile's cutoff or the score below its
+    /// custom format cutoff. Formats and profile are loaded once per call.
+    /// </summary>
+    public async Task<Func<EpisodeFile, FileFormats>> AssessorAsync(SonarrRow row, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        var calculator = await scorer.CalculatorAsync(ct);
+        var signature = await scorer.SignatureAsync(ct);
+        var names = await scorer.NamesAsync(ct);
+        var profile = await db.QualityProfiles.AsNoTracking().Include(p => p.FormatScores).FirstOrDefaultAsync(p => p.Id == row.Version.QualityProfileId, ct);
+        return file =>
+        {
+            var input = new Search.EpisodeFileRow(file.Id, file.QualityId, file.OriginalReleaseTitle, file.RelativePath, file.Size, file.IndexerFlags, file.Languages, file.ReleaseGroup, row.Series.Year, row.Series.OriginalLanguage);
+            var ids = matches.Match(input, file.Quality, calculator, signature);
+            var formats = ids.Select(i => new Radarr.RadarrCustomFormat(i, names.GetValueOrDefault(i) ?? $"#{i}")).ToList();
+            if (profile is null)
+            {
+                return new FileFormats(formats, 0, false);
+            }
+
+            var score = Bigarr.Decision.ProfileRanking.FormatScore(profile, ids);
+            var cutoffNotMet = !Bigarr.Decision.ProfileRanking.CutoffMet(profile, file.QualityId) || score < profile.CutoffFormatScore;
+            return new FileFormats(formats, score, cutoffNotMet);
+        };
+    }
+
+    private static DateTime? Utc(DateTime? value) => value is { } v ? DateTime.SpecifyKind(v, DateTimeKind.Utc) : null;
 
     /// <summary>The version's (version, episode) pairs with their episode and file, in TVDB order.</summary>
     public Task<List<EpisodeTarget>> EpisodesAsync(int versionId, CancellationToken ct) =>

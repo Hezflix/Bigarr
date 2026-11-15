@@ -11,7 +11,7 @@ namespace Bigarr.Api.Features.Notifications.Radarr;
 /// <summary>
 /// Bigarr events as Radarr's webhook sends them (<c>WebhookBase</c>), so a tool written for Radarr's webhook reads them
 /// unchanged. Built from the event's snapshot only, the same data the Bigarr format carries, so both describe the
-/// moment of the event. The <c>movie</c> is the compat line: its id is the version's, as on <c>/api/v3/movie</c>.
+/// moment of the event. The <c>movie</c> is the compat line: its id is the version's, as on <c>/radarr/api/v3/movie</c>.
 /// </summary>
 public static class RadarrWebhook
 {
@@ -286,7 +286,7 @@ public static class RadarrWebhook
             if (movie.Images?.FirstOrDefault(i => i.CoverType == type) is { } image)
             {
                 var name = RadarrMapper.Camel(type.ToString());
-                images.Add(new RadarrImage(name, $"/MediaCover/{versionId}/{name}.jpg", image.RemoteUrl));
+                images.Add(new RadarrImage(name, $"{Compat.Radarr.RadarrCompat.UrlBase}/MediaCover/{versionId}/{name}.jpg", image.RemoteUrl));
             }
         }
 

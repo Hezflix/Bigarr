@@ -179,6 +179,7 @@ public static partial class IndexersEndpoints
             "minimumSeeders" => f with { Value = Element(indexer.MinimumSeeders) },
             "seedCriteria.seedRatio" => f with { Value = indexer.SeedRatio is { } ratio ? Element(ratio) : null },
             "seedCriteria.seedTime" => f with { Value = indexer.SeedTimeMinutes is { } minutes ? Element(minutes) : null },
+            "seedCriteria.seasonPackSeedTime" => f with { Value = indexer.SeasonPackSeedTimeMinutes is { } packMinutes ? Element(packMinutes) : null },
             _ => f,
         }).ToList();
 
@@ -249,7 +250,8 @@ public static partial class IndexersEndpoints
             seedTime is { } t && t > 0 ? t : null,
             ProwlarrId: prowlarrId,
             TvCategories: series ? categories ?? [] : null,
-            AnimeCategories: series ? Field(resource, "animeCategories").Ints() ?? [] : null);
+            AnimeCategories: series ? Field(resource, "animeCategories").Ints() ?? [] : null,
+            SeasonPackSeedTimeMinutes: series ? Math.Max(0, Field(resource, "seedCriteria.seasonPackSeedTime").Int() ?? 0) : null);
     }
 
     private static JsonElement? Field(RadarrIndexer resource, string name) =>

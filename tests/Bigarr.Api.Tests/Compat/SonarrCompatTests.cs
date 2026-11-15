@@ -58,7 +58,7 @@ public sealed class SonarrCompatTests(SeriesApiFactory factory) : IClassFixture<
         Assert.Equal(HttpStatusCode.Unauthorized, (await session.GetAsync($"{Api}/system/status")).StatusCode);
 
         // The Radarr surface keeps its own version.
-        var radarr = await seerr.GetAsync("/api/v3/system/status");
+        var radarr = await seerr.GetAsync("/radarr/api/v3/system/status");
         Assert.Equal(RadarrCompat.ApplicationVersion, (await radarr.ReadJsonAsync()).GetProperty("version").GetString());
 
         // Profiles and root folders a series version can take, under both spellings Seerr and Bazarr use.
@@ -70,7 +70,7 @@ public sealed class SonarrCompatTests(SeriesApiFactory factory) : IClassFixture<
         Assert.Equal(names, (await (await seerr.GetAsync($"{Api}/qualityprofile")).ReadJsonAsync()).EnumerateArray().Select(p => p.GetProperty("name").GetString()));
         var roots = await (await seerr.GetAsync($"{Api}/rootfolder")).ReadJsonAsync();
         Assert.Equal([root.Path], roots.EnumerateArray().Select(r => r.GetProperty("path").GetString()));
-        Assert.DoesNotContain(root.Path, (await (await seerr.GetAsync("/api/v3/rootfolder")).ReadJsonAsync()).EnumerateArray().Select(r => r.GetProperty("path").GetString()));
+        Assert.DoesNotContain(root.Path, (await (await seerr.GetAsync("/radarr/api/v3/rootfolder")).ReadJsonAsync()).EnumerateArray().Select(r => r.GetProperty("path").GetString()));
 
         // Seerr's per-user tags.
         var tag = await seerr.PostAsJsonAsync($"{Api}/tag", new { label = "1-alice" });
@@ -81,7 +81,7 @@ public sealed class SonarrCompatTests(SeriesApiFactory factory) : IClassFixture<
         Assert.Contains((await (await seerr.GetAsync($"{Api}/tag")).ReadJsonAsync()).EnumerateArray(), t => t.GetProperty("label").GetString() == "1-alice-renamed");
 
         // Unknown parameters are ignored; an empty library is an empty list (Seerr then skips its orphan cleanup).
-        var films = await (await seerr.GetAsync("/api/v3/movie?tmdbId=999999")).ReadJsonAsync();
+        var films = await (await seerr.GetAsync("/radarr/api/v3/movie?tmdbId=999999")).ReadJsonAsync();
         Assert.Equal(JsonValueKind.Array, films.ValueKind); // §7b.6 point 15: Seerr's Radarr orphan check is served
         Assert.Empty(films.EnumerateArray());
         var (empty, _) = await KeyClientAsync(factory, session, "seerr-empty", "version:nothing-here");
@@ -126,6 +126,13 @@ public sealed class SonarrCompatTests(SeriesApiFactory factory) : IClassFixture<
         var season1 = hd.GetProperty("seasons").EnumerateArray().Single(s => s.GetProperty("seasonNumber").GetInt32() == 1).GetProperty("statistics");
         Assert.Equal(episodes.Count(e => e.Season == 1), season1.GetProperty("totalEpisodeCount").GetInt32());
         Assert.Equal(0, season1.GetProperty("episodeFileCount").GetInt32());
+
+        // Air dates as Sonarr gives them: the last aired monitored episode of season 1; season 2 is not monitored here.
+        var aired = episodes.Count(e => e.Season == 1) > 0 ? season1.GetProperty("previousAiring").GetDateTime() : default;
+        Assert.True(aired < SeriesEndpointsTests.Now.UtcDateTime && aired.Year >= 2019);
+        Assert.False(season1.TryGetProperty("nextAiring", out _)); // everything has aired by the fixed clock
+        Assert.False(hd.GetProperty("seasons").EnumerateArray().Single(s => s.GetProperty("seasonNumber").GetInt32() == 2).GetProperty("statistics").TryGetProperty("previousAiring", out _));
+        Assert.Equal(aired, hd.GetProperty("previousAiring").GetDateTime());
         Assert.Equal(0, hd.GetProperty("statistics").GetProperty("episodeFileCount").GetInt32());
 
         // The 1080p entry now finds it; the 4K entry does not, and POSTs, which creates the 4K version of the same show.
@@ -222,6 +229,12 @@ public sealed class SonarrCompatTests(SeriesApiFactory factory) : IClassFixture<
         var (all, _) = await KeyClientAsync(factory, client, "bazarr-sonarr-every", "all");
         var (other, _) = await KeyClientAsync(factory, client, "bazarr-sonarr-4k", "version:4k");
 
+        // A custom format the series profiles score, to read back on the episode files.
+        var profiles = (await client.GetFromJsonAsync<List<QualityProfileSummary>>("/api/v1/qualityprofiles", Json))!;
+        var spec = new CustomFormatSpecificationDto("BluRay", "ReleaseTitleSpecification", false, true, new Dictionary<string, JsonElement> { ["value"] = JsonSerializer.SerializeToElement(@"\bBlu-?Ray\b") });
+        var format = await client.PostAsJsonAsync("/api/v1/customformats", new CustomFormatRequest("Sonarr compat BluRay", false, [spec], profiles.Where(p => p.Kind != Bigarr.Domain.Quality.ProfileKind.Movies).Select(p => new CustomFormatScoreRequest(p.Id, 40)).ToList()), Json);
+        Assert.Equal(HttpStatusCode.Created, format.StatusCode);
+
         try
         {
             var season = await SeriesSearchTests.SearchAsync(client, series.Id, "season=1");
@@ -297,6 +310,9 @@ public sealed class SonarrCompatTests(SeriesApiFactory factory) : IClassFixture<
             Assert.Equal(1080, file.GetProperty("quality").GetProperty("quality").GetProperty("resolution").GetInt32());
             Assert.Equal(JsonValueKind.Array, file.GetProperty("languages").ValueKind);
             Assert.Equal(version.Id, file.GetProperty("seriesId").GetInt32());
+            Assert.Contains("Sonarr compat BluRay", file.GetProperty("customFormats").EnumerateArray().Select(f => f.GetProperty("name").GetString()));
+            Assert.Equal(40, file.GetProperty("customFormatScore").GetInt32());
+            Assert.False(file.GetProperty("qualityCutoffNotMet").GetBoolean()); // Bluray-1080p is the profile's cutoff, the score clears its format cutoff
             Assert.False(withFiles.EnumerateArray().Single(e => e.GetProperty("seasonNumber").GetInt32() == 2 && e.GetProperty("episodeNumber").GetInt32() == 1).GetProperty("hasFile").GetBoolean());
 
             // Single syncs on SignalR events: /episode/{id} embeds the file, /episodefile/{id} answers for the key's view only.
@@ -386,10 +402,10 @@ public sealed class SonarrCompatTests(SeriesApiFactory factory) : IClassFixture<
         }
 
         // The same Prowlarr indexer pushed to the Radarr app, then to the Sonarr app: one row, each app's categories kept.
-        var radarr = await prowlarr.PostAsJsonAsync("/api/v3/indexer", Pushed(prowlarrId: 42, ("categories", new[] { 2000, 2040 })));
+        var radarr = await prowlarr.PostAsJsonAsync("/radarr/api/v3/indexer", Pushed(prowlarrId: 42, ("categories", new[] { 2000, 2040 })));
         Assert.Equal(HttpStatusCode.Created, radarr.StatusCode);
         var id = (await radarr.ReadJsonAsync()).GetProperty("id").GetInt32();
-        var sonarr = await prowlarr.PostAsJsonAsync($"{Api}/indexer", Pushed(prowlarrId: 42, ("categories", new[] { 5000, 5040 }), ("animeCategories", new[] { 5070 })));
+        var sonarr = await prowlarr.PostAsJsonAsync($"{Api}/indexer", Pushed(prowlarrId: 42, ("categories", new[] { 5000, 5040 }), ("animeCategories", new[] { 5070 }), ("seedCriteria.seasonPackSeedTime", 120)));
         Assert.Equal(HttpStatusCode.Created, sonarr.StatusCode);
         Assert.Equal(id, (await sonarr.ReadJsonAsync()).GetProperty("id").GetInt32());
 
@@ -397,15 +413,16 @@ public sealed class SonarrCompatTests(SeriesApiFactory factory) : IClassFixture<
         Assert.Equal([2000, 2040], stored.Categories);
         Assert.Equal([5000, 5040], stored.TvCategories);
         Assert.Equal([5070], stored.AnimeCategories);
+        Assert.Equal(120, stored.SeasonPackSeedTimeMinutes);
 
         // Each app reads back its own categories (Prowlarr compares them to decide whether to re-PUT), anime fields echoed.
         var asSonarr = Fields(await (await prowlarr.GetAsync($"{Api}/indexer/{id}")).ReadJsonAsync());
         Assert.Equal([5000, 5040], asSonarr["categories"].GetProperty("value").EnumerateArray().Select(c => c.GetInt32()));
         Assert.Equal([5070], asSonarr["animeCategories"].GetProperty("value").EnumerateArray().Select(c => c.GetInt32()));
         Assert.Equal("http://prowlarr:9696/42/", asSonarr["baseUrl"].GetProperty("value").GetString());
-        Assert.True(asSonarr.ContainsKey("seedCriteria.seasonPackSeedTime"));
+        Assert.Equal(120, asSonarr["seedCriteria.seasonPackSeedTime"].GetProperty("value").GetInt32());
         Assert.False(asSonarr["animeStandardFormatSearch"].GetProperty("value").GetBoolean());
-        var asRadarr = Fields(await (await prowlarr.GetAsync($"/api/v3/indexer/{id}")).ReadJsonAsync());
+        var asRadarr = Fields(await (await prowlarr.GetAsync($"/radarr/api/v3/indexer/{id}")).ReadJsonAsync());
         Assert.Equal([2000, 2040], asRadarr["categories"].GetProperty("value").EnumerateArray().Select(c => c.GetInt32()));
         Assert.False(asRadarr.ContainsKey("animeCategories"));
 
@@ -415,6 +432,15 @@ public sealed class SonarrCompatTests(SeriesApiFactory factory) : IClassFixture<
         Assert.Equal([2000, 2040], stored.Categories);
         Assert.Equal([5000], stored.TvCategories);
         Assert.Empty(stored.AnimeCategories!);
+        Assert.Null(stored.SeasonPackSeedTimeMinutes); // the re-PUT sent none: cleared, as Prowlarr's value is the truth
+
+        // A Radarr sync leaves the series fields alone.
+        Assert.Equal(HttpStatusCode.OK, (await prowlarr.PutAsJsonAsync($"{Api}/indexer/{id}", Pushed(prowlarrId: 42, ("categories", new[] { 5000 }), ("seedCriteria.seasonPackSeedTime", 90)))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await prowlarr.PutAsJsonAsync($"/radarr/api/v3/indexer/{id}", Pushed(prowlarrId: 42, ("categories", new[] { 2000 })))).StatusCode);
+        stored = (await session.GetFromJsonAsync<IndexerResponse>($"/api/v1/indexers/{id}", Json))!;
+        Assert.Equal([2000], stored.Categories);
+        Assert.Equal([5000], stored.TvCategories);
+        Assert.Equal(90, stored.SeasonPackSeedTimeMinutes);
 
         // The application test: unreachable here, so a 400, with the version header Prowlarr checks (≥ 3.0.5.0).
         var test = await prowlarr.PostAsJsonAsync($"{Api}/indexer/test", new { id = 0, name = "Test", implementation = "Newznab", configContract = "NewznabSettings", fields = new object[] { new { name = "baseUrl", value = "http://127.0.0.1:1/0/" }, new { name = "apiPath", value = "/api" }, new { name = "apiKey", value = "k" }, new { name = "categories", value = new[] { 5000 } } } });
@@ -453,6 +479,17 @@ public sealed class SonarrCompatTests(SeriesApiFactory factory) : IClassFixture<
         Assert.Equal("/library/tv/Bare/Season 1/Bare - S01E01.mkv", fileJson.GetProperty("path").GetString());
         Assert.Equal(30_000, fileJson.GetProperty("size").GetInt64());
         Assert.Equal(9, fileJson.GetProperty("id").GetInt32());
+    }
+
+    [Fact]
+    public void A_full_season_pack_seeds_for_the_season_pack_seed_time()
+    {
+        var indexer = new Bigarr.Domain.Indexers.Indexer { Name = "x", SeedTimeMinutes = 60, SeasonPackSeedTimeMinutes = 600 };
+        Assert.Equal(TimeSpan.FromMinutes(600), GrabService.SeriesSeedTime(indexer, "Breaking.Bad.S01.1080p.BluRay.x264-DEMAND"));
+        Assert.Equal(TimeSpan.FromMinutes(60), GrabService.SeriesSeedTime(indexer, "Breaking.Bad.S01E01.1080p.BluRay.x264-DEMAND"));
+        indexer.SeasonPackSeedTimeMinutes = null;
+        Assert.Equal(TimeSpan.FromMinutes(60), GrabService.SeriesSeedTime(indexer, "Breaking.Bad.S01.1080p.BluRay.x264-DEMAND"));
+        Assert.Null(GrabService.SeriesSeedTime(null, "Breaking.Bad.S01.1080p.BluRay.x264-DEMAND"));
     }
 
     [Fact]
@@ -496,7 +533,7 @@ public sealed class SonarrCompatTests(SeriesApiFactory factory) : IClassFixture<
         return body;
     }
 
-    private static object Pushed(int prowlarrId, params (string Name, int[] Value)[] categories) => new
+    private static object Pushed(int prowlarrId, params (string Name, object Value)[] categories) => new
     {
         id = 0,
         name = "Nyaa.si (Prowlarr)",

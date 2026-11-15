@@ -44,8 +44,8 @@ public sealed class ResponseCompressionTests(BigarrApiFactory factory) : IClassF
         var session = await SessionAsync(factory);
         var (seerr, _) = await KeyClientAsync(factory, session, "compression-seerr", "default");
 
-        var plain = await GetRawAsync(seerr, "/api/v3/movie", null);
-        var gzip = await GetRawAsync(seerr, "/api/v3/movie", "gzip");
+        var plain = await GetRawAsync(seerr, "/radarr/api/v3/movie", null);
+        var gzip = await GetRawAsync(seerr, "/radarr/api/v3/movie", "gzip");
 
         Assert.Empty(plain.Content.Headers.ContentEncoding);
         Assert.Equal("gzip", Assert.Single(gzip.Content.Headers.ContentEncoding));

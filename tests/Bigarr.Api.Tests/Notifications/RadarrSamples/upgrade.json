@@ -15,12 +15,12 @@
     "images": [
       {
         "coverType": "poster",
-        "url": "/MediaCover/42/poster.jpg",
+        "url": "/radarr/MediaCover/42/poster.jpg",
         "remoteUrl": "https://image.tmdb.org/t/p/original/poster.jpg"
       },
       {
         "coverType": "fanart",
-        "url": "/MediaCover/42/fanart.jpg",
+        "url": "/radarr/MediaCover/42/fanart.jpg",
         "remoteUrl": "https://image.tmdb.org/t/p/original/fanart.jpg"
       }
     ],

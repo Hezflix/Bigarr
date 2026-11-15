@@ -135,7 +135,7 @@ public sealed class WebhookFilteringTests
 
         // Same id, same film on the v3 API with a key of the same view.
         var (v3, _) = await CompatTestHelpers.KeyClientAsync(factory, client, "4K Seerr", "version:4k");
-        using (var doc = JsonDocument.Parse(await v3.GetStringAsync($"/api/v3/movie/{compatId}")))
+        using (var doc = JsonDocument.Parse(await v3.GetStringAsync($"/radarr/api/v3/movie/{compatId}")))
         {
             Assert.Equal(603, doc.RootElement.GetProperty("tmdbId").GetInt32());
         }

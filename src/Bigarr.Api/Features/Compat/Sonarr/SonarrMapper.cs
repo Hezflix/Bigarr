@@ -1,7 +1,6 @@
 using System.Globalization;
 using Bigarr.Api.Features.Compat.Radarr;
 using Bigarr.Api.Features.Series;
-using Bigarr.Decision;
 using Bigarr.Domain.Metadata;
 using Bigarr.Domain.Movies;
 using Bigarr.Parsing.Episodes;
@@ -44,6 +43,8 @@ public static class SonarrMapper
         return Base(show) with
         {
             Id = version.Id,
+            NextAiring = all.Select(f => f.NextAiring).OfType<DateTime>().Order().Cast<DateTime?>().FirstOrDefault(),
+            PreviousAiring = all.Select(f => f.PreviousAiring).OfType<DateTime>().OrderDescending().Cast<DateTime?>().FirstOrDefault(),
             Images = Images(show, version.Id),
             Seasons = seasons,
             Path = path,
@@ -168,7 +169,7 @@ public static class SonarrMapper
     public static SonarrSeasonStatistics SeasonStatistics(SeasonFigures figures)
     {
         ArgumentNullException.ThrowIfNull(figures);
-        return new SonarrSeasonStatistics(null, null, figures.EpisodeFileCount, figures.EpisodeCount, figures.TotalEpisodeCount, figures.SizeOnDisk, figures.ReleaseGroups, Percent(figures.EpisodeFileCount, figures.EpisodeCount));
+        return new SonarrSeasonStatistics(figures.NextAiring, figures.PreviousAiring, figures.EpisodeFileCount, figures.EpisodeCount, figures.TotalEpisodeCount, figures.SizeOnDisk, figures.ReleaseGroups, Percent(figures.EpisodeFileCount, figures.EpisodeCount));
     }
 
     private static double Percent(int files, int episodes) => episodes == 0 ? 0 : Math.Round(files * 100.0 / episodes, 2);
@@ -200,7 +201,7 @@ public static class SonarrMapper
             .Select(i => new SonarrImage(i.Type == ImageType.Poster ? "poster" : "fanart", i.RemoteUrl, i.RemoteUrl))
             .ToList();
 
-    public static SonarrEpisode ToEpisode(EpisodeTarget target, string seriesPath, bool withFile)
+    public static SonarrEpisode ToEpisode(EpisodeTarget target, string seriesPath, bool withFile, Func<EpisodeFile, FileFormats>? assess = null)
     {
         ArgumentNullException.ThrowIfNull(target);
 
@@ -219,7 +220,7 @@ public static class SonarrMapper
             AirDateUtc = episode.AirDateUtc is { } utc ? DateTime.SpecifyKind(utc, DateTimeKind.Utc) : null,
             Runtime = episode.Runtime ?? 0,
             Overview = episode.Overview,
-            EpisodeFile = withFile && file is not null ? ToEpisodeFile(file, target.Version?.QualityProfile, seriesPath) : null,
+            EpisodeFile = withFile && file is not null ? ToEpisodeFile(file, assess?.Invoke(file), seriesPath) : null,
             HasFile = file is not null,
             Monitored = target.Monitored,
             AbsoluteEpisodeNumber = episode.AbsoluteEpisodeNumber,
@@ -236,7 +237,7 @@ public static class SonarrMapper
     /// Every member Bazarr reads is set: <c>id</c>, an absolute <c>path</c> (its path mapping source), <c>size</c>, and a
     /// Sonarr-style <c>quality.quality.name</c> (<c>WEBDL-1080p</c>, split on the dash into source and resolution).
     /// </summary>
-    public static SonarrEpisodeFile ToEpisodeFile(EpisodeFile file, Bigarr.Domain.Quality.QualityProfile? profile, string seriesPath)
+    public static SonarrEpisodeFile ToEpisodeFile(EpisodeFile file, FileFormats? formats, string seriesPath)
     {
         ArgumentNullException.ThrowIfNull(file);
 
@@ -252,12 +253,12 @@ public static class SonarrMapper
             file.ReleaseGroup,
             RadarrMapper.Languages(file.Languages),
             RadarrMapper.ToQuality(file.Quality, file.Revision),
-            [],
-            0,
+            formats?.CustomFormats ?? [],
+            formats?.CustomFormatScore ?? 0,
             (int)file.IndexerFlags,
             file.Episodes.Count > 1 ? "multiEpisode" : "singleEpisode",
             file.MediaInfo is null ? null : RadarrMapper.ToMediaInfo(file.MediaInfo),
-            profile is not null && !ProfileRanking.CutoffMet(profile, file.QualityId));
+            formats?.QualityCutoffNotMet ?? false);
     }
 
     public static string Status(SeriesStatus status) => status switch

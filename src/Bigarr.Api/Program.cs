@@ -161,7 +161,7 @@ builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(Backu
 builder.Services.AddScoped<BackupService>();
 builder.Services.AddScoped<IScheduledJob, BackupJob>();
 
-// The Radarr-compatible surface: /api/v3 behind API keys, /signalr/messages, /MediaCover.
+// The Radarr-compatible surface, under its own URL base (/radarr/api/v3, /radarr/MediaCover), and /signalr/messages.
 builder.Services.AddRadarrCompat();
 
 // The Sonarr-compatible surface, under its own URL base (/sonarr/api/v3, /sonarr/MediaCover).
@@ -308,7 +308,7 @@ app.MapRadarrCompat();
 app.MapSonarrCompat();
 
 // The SPA is built into wwwroot by `bun run build`; anything that is not API falls back to index.html.
-app.MapFallbackToFile("{*path:regex(^(?!api/|health$|openapi/|signalr/|MediaCover/|sonarr/).*$)}", "index.html", PrecompressedStaticFiles.Options);
+app.MapFallbackToFile("{*path:regex(^(?!api/|health$|openapi/|signalr/|radarr/|sonarr/).*$)}", "index.html", PrecompressedStaticFiles.Options);
 
 app.Run();
 

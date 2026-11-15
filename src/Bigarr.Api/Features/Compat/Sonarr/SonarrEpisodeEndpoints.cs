@@ -45,9 +45,10 @@ public static class SonarrEpisodeEndpoints
 
             var targets = await library.EpisodesAsync(versionId, ct);
             var path = PathOf(row);
+            var assess = includeEpisodeFile ? await library.AssessorAsync(row, ct) : null;
             return SonarrCompat.Ok(targets
                 .Where(t => seasonNumber is null || t.Episode.SeasonNumber == seasonNumber)
-                .Select(t => SonarrMapper.ToEpisode(WithVersion(t, row.Version), path, includeEpisodeFile))
+                .Select(t => SonarrMapper.ToEpisode(WithVersion(t, row.Version), path, includeEpisodeFile, assess))
                 .ToList());
         }
 
@@ -69,7 +70,8 @@ public static class SonarrEpisodeEndpoints
 
             var row = new SonarrRow(show, version);
             var path = PathOf(row);
-            result.AddRange((await library.EpisodesAsync(version.Id, episodeIds, ct)).Select(t => SonarrMapper.ToEpisode(WithVersion(t, version), path, includeEpisodeFile)));
+            var assess = includeEpisodeFile ? await library.AssessorAsync(row, ct) : null;
+            result.AddRange((await library.EpisodesAsync(version.Id, episodeIds, ct)).Select(t => SonarrMapper.ToEpisode(WithVersion(t, version), path, includeEpisodeFile, assess)));
         }
 
         return SonarrCompat.Ok(result);
@@ -79,7 +81,7 @@ public static class SonarrEpisodeEndpoints
     private static async Task<Results<JsonHttpResult<SonarrEpisode>, NotFound>> GetAsync(int id, ClaimsPrincipal user, SonarrLibrary library, CancellationToken ct)
     {
         var read = await ReadAsync(user.CompatView(), id, library, ct);
-        return read is null ? TypedResults.NotFound() : SonarrCompat.Ok(SonarrMapper.ToEpisode(read.Value.Target, PathOf(read.Value.Row), withFile: true));
+        return read is null ? TypedResults.NotFound() : SonarrCompat.Ok(SonarrMapper.ToEpisode(read.Value.Target, PathOf(read.Value.Row), withFile: true, await library.AssessorAsync(read.Value.Row, ct)));
     }
 
     /// <summary>Seerr's <c>{episodeIds, monitored}</c> after re-requesting seasons. The episodes may span shows; each is set in the version the key designates there.</summary>
@@ -147,7 +149,7 @@ public static class SonarrEpisodeEndpoints
         }
 
         var fresh = await ReadAsync(view, id, library, ct);
-        return SonarrCompat.Accepted(SonarrMapper.ToEpisode(fresh!.Value.Target, PathOf(fresh.Value.Row), withFile: true));
+        return SonarrCompat.Accepted(SonarrMapper.ToEpisode(fresh!.Value.Target, PathOf(fresh.Value.Row), withFile: true, await library.AssessorAsync(fresh.Value.Row, ct)));
     }
 
     private static async Task<Results<JsonHttpResult<List<SonarrEpisodeFile>>, NotFound, JsonHttpResult<List<RadarrValidationFailure>>>> FilesAsync(
@@ -163,7 +165,8 @@ public static class SonarrEpisodeEndpoints
             }
 
             var path = PathOf(row);
-            return SonarrCompat.Ok((await library.FilesAsync(versionId, ct)).Select(f => SonarrMapper.ToEpisodeFile(f, row.Version.QualityProfile, path)).ToList());
+            var assess = await library.AssessorAsync(row, ct);
+            return SonarrCompat.Ok((await library.FilesAsync(versionId, ct)).Select(f => SonarrMapper.ToEpisodeFile(f, assess(f), path)).ToList());
         }
 
         var ids = Ints(http.Query["episodeFileIds"]).Distinct().ToList();
@@ -177,7 +180,7 @@ public static class SonarrEpisodeEndpoints
         {
             if (await library.FindAsync(view, file.VersionId, ct) is { } row)
             {
-                result.Add(SonarrMapper.ToEpisodeFile(file, row.Version.QualityProfile, PathOf(row)));
+                result.Add(SonarrMapper.ToEpisodeFile(file, (await library.AssessorAsync(row, ct))(file), PathOf(row)));
             }
         }
 
@@ -189,7 +192,7 @@ public static class SonarrEpisodeEndpoints
     {
         var file = await library.FileAsync(id, ct);
         var row = file is null ? null : await library.FindAsync(user.CompatView(), file.VersionId, ct);
-        return file is null || row is null ? TypedResults.NotFound() : SonarrCompat.Ok(SonarrMapper.ToEpisodeFile(file, row.Version.QualityProfile, PathOf(row)));
+        return file is null || row is null ? TypedResults.NotFound() : SonarrCompat.Ok(SonarrMapper.ToEpisodeFile(file, (await library.AssessorAsync(row, ct))(file), PathOf(row)));
     }
 
     /// <summary>The episode read through the version the view designates in its show (the default one for <c>all</c>), or null.</summary>

@@ -34,11 +34,12 @@ public static class ResponseCompressionExtensions
     }
 
     /// <summary>
-    /// Compresses <c>GET</c> responses under <c>/api/</c> (the SPA's API and the Radarr-compatible <c>/api/v3</c>).
+    /// Compresses <c>GET</c> responses under <c>/api/</c> (the SPA's API) and the compatible APIs (<c>/radarr/api</c>, <c>/sonarr/api</c>).
     /// Everything else (SignalR, covers, backups, the event streams' mime types) stays as it is.
     /// </summary>
     public static IApplicationBuilder UseBigarrResponseCompression(this IApplicationBuilder app) =>
         app.UseWhen(
-            ctx => HttpMethods.IsGet(ctx.Request.Method) && ctx.Request.Path.StartsWithSegments("/api"),
+            ctx => HttpMethods.IsGet(ctx.Request.Method)
+                && (ctx.Request.Path.StartsWithSegments("/api") || ctx.Request.Path.StartsWithSegments("/radarr/api") || ctx.Request.Path.StartsWithSegments("/sonarr/api")),
             branch => branch.UseResponseCompression());
 }

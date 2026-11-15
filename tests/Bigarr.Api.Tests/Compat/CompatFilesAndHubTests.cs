@@ -50,7 +50,7 @@ public sealed class CompatFilesAndHubTests(BigarrApiFactory factory) : IClassFix
         await RefreshAsync(session);
 
         // While it downloads: one queue record, keyed by the version id, in Radarr's states.
-        var queue = await (await bazarr.GetAsync("/api/v3/queue?page=1&pageSize=50")).ReadJsonAsync();
+        var queue = await (await bazarr.GetAsync("/radarr/api/v3/queue?page=1&pageSize=50")).ReadJsonAsync();
         var record = queue.GetProperty("records").EnumerateArray().Single(r => r.GetProperty("movieId").GetInt32() == version.Id);
         Assert.Equal(grab.GrabId, record.GetProperty("id").GetInt32());
         Assert.Equal(release.Title, record.GetProperty("title").GetString());
@@ -64,7 +64,7 @@ public sealed class CompatFilesAndHubTests(BigarrApiFactory factory) : IClassFix
         await RefreshAsync(session);
         var imported = await WaitForFileAsync(session, movie.Id, version.Id);
 
-        var row = await (await bazarr.GetAsync($"/api/v3/movie/{version.Id}")).ReadJsonAsync();
+        var row = await (await bazarr.GetAsync($"/radarr/api/v3/movie/{version.Id}")).ReadJsonAsync();
         Assert.True(row.GetProperty("hasFile").GetBoolean());
         Assert.Equal(imported.File!.Size, row.GetProperty("sizeOnDisk").GetInt64());
         var file = row.GetProperty("movieFile");
@@ -84,25 +84,58 @@ public sealed class CompatFilesAndHubTests(BigarrApiFactory factory) : IClassFix
         }
 
         // The journal in Radarr's vocabulary: eventType=1 keeps only the grab, whose data names the indexer and the group.
-        var grabbed = await (await bazarr.GetAsync($"/api/v3/history?eventType=1&movieIds={version.Id}")).ReadJsonAsync();
+        var grabbed = await (await bazarr.GetAsync($"/radarr/api/v3/history?eventType=1&movieIds={version.Id}")).ReadJsonAsync();
         var entry = Assert.Single(grabbed.GetProperty("records").EnumerateArray());
         Assert.Equal("grabbed", entry.GetProperty("eventType").GetString());
         Assert.Equal(version.Id, entry.GetProperty("movieId").GetInt32());
         Assert.Equal(release.Title, entry.GetProperty("sourceTitle").GetString());
         Assert.Equal("Mock compat idx", entry.GetProperty("data").GetProperty("indexer").GetString());
-        var everything = await (await bazarr.GetAsync($"/api/v3/history?movieIds={version.Id}&pageSize=10")).ReadJsonAsync();
+        var everything = await (await bazarr.GetAsync($"/radarr/api/v3/history?movieIds={version.Id}&pageSize=10")).ReadJsonAsync();
         Assert.Contains(everything.GetProperty("records").EnumerateArray(), r => r.GetProperty("eventType").GetString() == "downloadFolderImported");
-        var perMovie = await (await bazarr.GetAsync($"/api/v3/history/movie?movieId={version.Id}&eventType=grabbed")).ReadJsonAsync();
+        var perMovie = await (await bazarr.GetAsync($"/radarr/api/v3/history/movie?movieId={version.Id}&eventType=grabbed")).ReadJsonAsync();
         Assert.Single(perMovie.EnumerateArray());
 
         // Media covers: the fixture film has no artwork, so the relative URL answers 404 rather than an HTML page.
         Assert.Empty(row.GetProperty("images").EnumerateArray());
-        var cover = await bazarr.GetAsync($"/MediaCover/{version.Id}/poster-500.jpg");
+        var cover = await bazarr.GetAsync($"/radarr/MediaCover/{version.Id}/poster-500.jpg");
         Assert.Equal(HttpStatusCode.NotFound, cover.StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await bazarr.GetAsync($"/api/v3/MediaCover/{version.Id}/fanart.jpg")).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await factory.CreateAnonymousClient().GetAsync($"/MediaCover/{version.Id}/poster.jpg")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await bazarr.GetAsync($"/radarr/api/v3/MediaCover/{version.Id}/fanart.jpg")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await factory.CreateAnonymousClient().GetAsync($"/radarr/MediaCover/{version.Id}/poster.jpg")).StatusCode);
         Assert.Equal("https://image.tmdb.org/t/p/w500/abc.jpg", MediaCoverEndpoints.Sized("https://image.tmdb.org/t/p/original/abc.jpg", ImageType.Poster, 500));
         Assert.Equal("https://image.tmdb.org/t/p/w780/abc.jpg", MediaCoverEndpoints.Sized("https://image.tmdb.org/t/p/original/abc.jpg", ImageType.Fanart, 360));
+    }
+
+    [Fact]
+    public async Task RescanMovie_rescans_the_version_folder()
+    {
+        var session = await SessionAsync(factory);
+        var (hd, _) = await ProfilesAsync(session);
+        var root = await AddRootAsync(session, _root);
+        var (bazarr, _) = await KeyClientAsync(factory, session, "bazarr-rescan", "default");
+        var movie = await AddMovieAsync(session, 27205, hd, root.Id);
+        var version = movie.Versions.Single();
+        Assert.Null(version.File);
+
+        // A file lands in the version's folder behind Bigarr's back (Bazarr has just written a subtitle beside it).
+        var folder = Directory.CreateDirectory(Path.Combine(version.RootFolderPath, version.FolderName)).FullName;
+        await File.WriteAllBytesAsync(Path.Combine(folder, "Inception.2010.1080p.BluRay.x264-GRP.mkv"), new byte[4096]);
+        await File.WriteAllTextAsync(Path.Combine(folder, "Inception.2010.1080p.BluRay.x264-GRP.en.srt"), "1");
+
+        var rescan = await bazarr.PostAsJsonAsync("/radarr/api/v3/command", new { name = "RescanMovie", movieId = version.Id });
+        Assert.Equal(HttpStatusCode.Created, rescan.StatusCode);
+        Assert.Equal("completed", (await rescan.ReadJsonAsync()).GetProperty("status").GetString());
+
+        var row = await (await bazarr.GetAsync($"/radarr/api/v3/movie/{version.Id}")).ReadJsonAsync();
+        Assert.True(row.GetProperty("hasFile").GetBoolean());
+        Assert.Equal("Inception.2010.1080p.BluRay.x264-GRP.mkv", row.GetProperty("movieFile").GetProperty("relativePath").GetString());
+        Assert.Equal(4096, row.GetProperty("movieFile").GetProperty("size").GetInt64());
+        Assert.Equal("Bluray-1080p", row.GetProperty("movieFile").GetProperty("quality").GetProperty("quality").GetProperty("name").GetString());
+
+        // A second rescan reads the size again and keeps the file.
+        await File.WriteAllBytesAsync(Path.Combine(folder, "Inception.2010.1080p.BluRay.x264-GRP.mkv"), new byte[8192]);
+        await bazarr.PostAsJsonAsync("/radarr/api/v3/command", new { name = "RescanMovie", movieId = version.Id });
+        row = await (await bazarr.GetAsync($"/radarr/api/v3/movie/{version.Id}")).ReadJsonAsync();
+        Assert.Equal(8192, row.GetProperty("movieFile").GetProperty("size").GetInt64());
     }
 
     [Fact]

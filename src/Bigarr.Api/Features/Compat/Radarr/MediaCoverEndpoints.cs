@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 namespace Bigarr.Api.Features.Compat.Radarr;
 
 /// <summary>
-/// <c>/MediaCover/{id}/poster-500.jpg</c>: Bazarr shows Radarr's posters through Radarr, so the relative URLs in
+/// <c>/radarr/MediaCover/{id}/poster-500.jpg</c>: Bazarr shows Radarr's posters through Radarr, so the relative URLs in
 /// <c>images[]</c> must answer. The id is the compat id (a version), the cache is per film in the config directory, the
 /// bytes come from TMDB once. Size suffixes map to TMDB's own sizes instead of resizing anything here.
 /// </summary>
@@ -19,7 +19,7 @@ public static partial class MediaCoverEndpoints
     public static IEndpointRouteBuilder MapMediaCover(this IEndpointRouteBuilder app)
     {
         // Radarr serves both paths; Bazarr's proxy uses the API one, its UI the plain one. Either key placement works.
-        app.MapGet("/MediaCover/{id:int}/{file}", GetAsync).WithTags("Compat").RequireAuthorization(AuthPolicies.Api);
+        app.MapGet(RadarrCompat.UrlBase + "/MediaCover/{id:int}/{file}", GetAsync).WithTags("Compat").RequireAuthorization(AuthPolicies.Api);
         app.MapGet(RadarrCompat.RoutePrefix + "/MediaCover/{id:int}/{file}", GetAsync).WithTags("Compat").RequireAuthorization(AuthPolicies.ApiKey);
         return app;
     }

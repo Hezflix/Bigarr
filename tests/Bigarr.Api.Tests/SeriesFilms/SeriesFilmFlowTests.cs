@@ -122,7 +122,7 @@ public sealed class SeriesFilmFlowTests(BigarrApiFactory factory) : IClassFixtur
 
             // Radarr compat sees a normal film with its file.
             var (compat, _) = await CompatTestHelpers.KeyClientAsync(factory, client, "films-compat", "default");
-            var radarr = JsonDocument.Parse(await compat.GetStringAsync("/api/v3/movie")).RootElement.EnumerateArray().Single(m => m.GetProperty("tmdbId").GetInt32() == MugenTrain);
+            var radarr = JsonDocument.Parse(await compat.GetStringAsync("/radarr/api/v3/movie")).RootElement.EnumerateArray().Single(m => m.GetProperty("tmdbId").GetInt32() == MugenTrain);
             Assert.True(radarr.GetProperty("hasFile").GetBoolean());
 
             // An upgrade by the film engine re-creates the special on the new file; the old name is gone.

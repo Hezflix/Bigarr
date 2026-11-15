@@ -29,8 +29,9 @@ import { formatAge, formatDateTime } from '@/i18n'
 type ViewKind = 'default' | 'all' | 'version'
 
 const RADARR_VERSION = '5.99.0.0'
+/** The Radarr surface's URL base: Radarr and Sonarr share their routes, so each has its own base on one Bigarr. */
+const RADARR_URL_BASE = '/radarr'
 const SONARR_VERSION = '4.99.0.0'
-/** The Sonarr surface's URL base: Sonarr and Radarr share their routes, so each needs its own base on one Bigarr. */
 const SONARR_URL_BASE = '/sonarr'
 
 /** `version:4k` → kind + name, so the table can label a key without parsing in the template. */
@@ -61,6 +62,7 @@ export function ConnectPage() {
   const [created, setCreated] = useState<ApiKeyCreated | null>(null)
   const [pendingRevoke, setPendingRevoke] = useState<ApiKey | null>(null)
   const baseUrl = typeof window === 'undefined' ? '' : window.location.origin
+  const radarrUrl = baseUrl + RADARR_URL_BASE
   const sonarrUrl = baseUrl + SONARR_URL_BASE
 
   const compatView = kind === 'version' ? `version:${slugify(versionName)}` : kind
@@ -246,11 +248,11 @@ export function ConnectPage() {
         <h2 className="text-xl font-semibold tracking-tight">{t('connect.howTo')}</h2>
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted-foreground">{t('connect.url')}</span>
-          <code className="rounded bg-muted px-2 py-1 font-mono select-all">{baseUrl}</code>
-          <Button type="button" size="sm" variant="ghost" onClick={() => void copyToClipboard(baseUrl)} aria-label={t('connect.copy')}>
+          <code className="rounded bg-muted px-2 py-1 font-mono select-all">{radarrUrl}</code>
+          <Button type="button" size="sm" variant="ghost" onClick={() => void copyToClipboard(radarrUrl)} aria-label={t('connect.copy')}>
             <CopyIcon />
           </Button>
-          {status.data && <span className="text-xs text-muted-foreground">{t('connect.legacyHint', { version: RADARR_VERSION })}</span>}
+          {status.data && <span className="text-xs text-muted-foreground">{t('connect.legacyHint', { version: RADARR_VERSION, base: RADARR_URL_BASE })}</span>}
         </div>
         <div className="grid gap-3 md:grid-cols-3">
           <Card>

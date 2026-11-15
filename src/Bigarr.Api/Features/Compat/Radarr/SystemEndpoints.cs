@@ -6,8 +6,8 @@ using Microsoft.Extensions.Options;
 namespace Bigarr.Api.Features.Compat.Radarr;
 
 /// <summary>
-/// <c>GET /api/v3/system/status</c>: Seerr reads <c>urlBase</c>, Bazarr reads <c>version</c>, Prowlarr reads the
-/// version too. The legacy <c>GET /api/system/status</c> Bazarr probes first is simply not mapped: its 404 is the signal.
+/// <c>GET /radarr/api/v3/system/status</c>: Seerr reads <c>urlBase</c>, Bazarr reads <c>version</c>, Prowlarr reads the
+/// version too. The legacy <c>GET /radarr/api/system/status</c> Bazarr probes first is simply not mapped: its 404 is the signal.
 /// </summary>
 public static class SystemEndpoints
 {
@@ -49,7 +49,7 @@ public static class SystemEndpoints
             DatabaseVersion: "3",
             Authentication: "external",
             MigrationVersion: 0,
-            UrlBase: string.Empty,
+            UrlBase: RadarrCompat.UrlBase,
             RuntimeVersion: Environment.Version.ToString(),
             RuntimeName: "netCore",
             StartTime: start.At,
