@@ -101,7 +101,15 @@ const calendarRoute = createRoute({ getParentRoute: () => appRoute, path: '/cale
 const heldRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/held', component: lazyRouteComponent(() => import('./features/activity/HeldPage'), 'HeldPage') })
 const systemRoute = createRoute({ getParentRoute: () => appRoute, path: '/system/status', component: lazyRouteComponent(() => import('./features/system/SystemPage'), 'SystemPage') })
 const librarySettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/library', component: lazyRouteComponent(() => import('./features/settings/LibrarySettingsPage'), 'LibrarySettingsPage') })
-const mediaManagementRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/mediamanagement', component: lazyRouteComponent(() => import('./features/settings/MediaManagementPage'), 'MediaManagementPage') })
+const mediaManagementRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/settings/mediamanagement',
+  // `?tab=series`: the tab to open on (films when absent). The page keeps it in the URL as you switch tabs.
+  validateSearch: (search: Record<string, unknown>): { tab?: 'films' | 'series' | 'both' } => ({
+    tab: search.tab === 'films' || search.tab === 'series' || search.tab === 'both' ? search.tab : undefined,
+  }),
+  component: lazyRouteComponent(() => import('./features/settings/MediaManagementPage'), 'MediaManagementPage'),
+})
 const indexersSettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/indexers', component: lazyRouteComponent(() => import('./features/settings/IndexersSettingsPage'), 'IndexersSettingsPage') })
 const qualitySettingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/quality', component: lazyRouteComponent(() => import('./features/settings/QualitySettingsPage'), 'QualitySettingsPage') })
 const customFormatsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/customformats', component: lazyRouteComponent(() => import('./features/settings/CustomFormatsPage'), 'CustomFormatsPage') })
