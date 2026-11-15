@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type NavItem, useNavSections } from '@/components/nav'
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import type { PaletteAction, PaletteContextActions } from './actions'
+import type { PaletteAction, PaletteContextActions, PaletteParamOption } from './actions'
 import { AddGroup, ContentGroups } from './ContentGroups'
 import { paletteFilter } from './filter'
 import { Kbd } from './Kbd'
@@ -30,6 +30,8 @@ export function CommandPalette({ open, onOpenChange, contextual }: Props) {
   const [selected, setSelected] = useState('')
   // A heavy action waiting for a yes: the list gives way to the question.
   const [confirming, setConfirming] = useState<PaletteAction | null>(null)
+  // Tab on an action that takes a parameter: the list gives way to its values; `query` is what to restore on the way back.
+  const [param, setParam] = useState<{ action: PaletteAction & { param: NonNullable<PaletteAction['param']> }; query: string } | null>(null)
   const globalActions = useGlobalActions()
   const pageActions = open && contextual ? contextual.get() : []
 
@@ -45,6 +47,33 @@ export function CommandPalette({ open, onOpenChange, contextual }: Props) {
     setQuery('')
     setSelected('')
     setConfirming(null)
+    setParam(null)
+  }
+  const leaveParam = () => {
+    if (!param) return
+    setQuery(param.query)
+    setSelected(`action:${param.action.id}`)
+    setParam(null)
+  }
+  const onInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (param) {
+      if (e.key === 'Backspace' && query === '') {
+        e.preventDefault()
+        leaveParam()
+      }
+      return
+    }
+    if (e.key !== 'Tab' || e.shiftKey) return
+    const action = [...pageActions, ...globalActions].find((a) => `action:${a.id}` === selected)
+    if (!action?.param) return
+    e.preventDefault()
+    enterParam(action)
+  }
+  function enterParam(action: PaletteAction) {
+    if (!action.param) return
+    setParam({ action: { ...action, param: action.param }, query })
+    setQuery('')
+    setSelected('')
   }
   const go = (target: PaletteTarget) => {
     close()
@@ -66,6 +95,7 @@ export function CommandPalette({ open, onOpenChange, contextual }: Props) {
       keywords={[action.label, ...(action.keywords ?? [])]}
       onSelect={() => run(action)}
       data-testid={`palette-action-${action.id}`}
+      className="group"
     >
       <action.icon />
       <span className="truncate">
@@ -73,6 +103,7 @@ export function CommandPalette({ open, onOpenChange, contextual }: Props) {
         {/* The ellipsis says a question comes before anything runs. */}
         {action.confirm && '…'}
       </span>
+      {action.param && <ParamHint hint={action.param.hint} onOpen={() => enterParam(action)} />}
     </CommandItem>
   )
 
@@ -86,7 +117,7 @@ export function CommandPalette({ open, onOpenChange, contextual }: Props) {
     <CommandDialog
       open={open}
       // Esc or a click outside while asking only steps back to the list.
-      onOpenChange={(next) => (next ? onOpenChange(true) : confirming ? setConfirming(null) : close())}
+      onOpenChange={(next) => (next ? onOpenChange(true) : confirming ? setConfirming(null) : param ? leaveParam() : close())}
       title={t('palette.title')}
       description={t('palette.description')}
       showCloseButton={false}
@@ -95,12 +126,24 @@ export function CommandPalette({ open, onOpenChange, contextual }: Props) {
     >
       {confirming ? (
         <ConfirmView action={confirming} onRun={() => run(confirming)} onCancel={() => setConfirming(null)} />
+      ) : param ? (
+        <ParamView
+          action={param.action}
+          query={query}
+          onQueryChange={setQuery}
+          onKeyDown={onInputKeyDown}
+          onRun={(option) => {
+            close()
+            param.action.param.run(option)
+          }}
+        />
       ) : (
         <>
           <CommandInput
             placeholder={t('palette.placeholder')}
             value={query}
             onValueChange={setQuery}
+            onKeyDown={onInputKeyDown}
             // Back from a question, the input is mounted again and takes the focus back.
             autoFocus
             data-testid="palette-input"
@@ -152,7 +195,7 @@ export function CommandPalette({ open, onOpenChange, contextual }: Props) {
           </CommandList>
         </>
       )}
-      <PaletteFooter />
+      <PaletteFooter param={param !== null} />
     </CommandDialog>
   )
 }
@@ -208,8 +251,93 @@ function ConfirmView({ action, onRun, onCancel }: { action: PaletteAction; onRun
   )
 }
 
+/**
+ * Raycast's argument placeholder: a dashed field after the label naming what Tab asks for, and the Tab key on the row
+ * the arrows are on.
+ */
+function ParamHint({ hint, onOpen }: { hint: string; onOpen: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <>
+      {/* A button too: touch screens have no Tab key, and a mouse may prefer to click. */}
+      <button
+        type="button"
+        // Handled here, not by the row: a click on the row runs the action on the whole series.
+        onClick={(e) => {
+          e.stopPropagation()
+          onOpen()
+        }}
+        onPointerDown={(e) => e.preventDefault()}
+        className="-my-0.5 min-w-0 shrink truncate rounded-md border border-dashed border-muted-foreground/40 px-2 py-0.5 text-xs text-muted-foreground hover:border-foreground/50 hover:text-foreground"
+        aria-label={t('palette.param.choose', { hint })}
+        data-testid="palette-param-hint"
+      >
+        {hint}
+      </button>
+      <Kbd className="ml-auto hidden group-data-[selected=true]:sm:inline-flex" aria-hidden="true">
+        Tab
+      </Kbd>
+    </>
+  )
+}
+
+/** The values of an action's parameter, behind a chip naming the action. Backspace on an empty field or Esc goes back. */
+function ParamView({
+  action,
+  query,
+  onQueryChange,
+  onKeyDown,
+  onRun,
+}: {
+  action: PaletteAction & { param: NonNullable<PaletteAction['param']> }
+  query: string
+  onQueryChange: (query: string) => void
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
+  onRun: (option: PaletteParamOption) => void
+}) {
+  const { t } = useTranslation()
+  const options = useMemo(() => action.param.options(), [action])
+  const shown = query === '' ? options.filter((o) => !o.onlyWhenTyping) : options
+  const groups = [...new Set(shown.map((o) => o.group))]
+  const hidden = query === '' && shown.length < options.length
+  return (
+    <>
+      <CommandInput
+        before={
+          <span className="flex max-w-[55%] shrink-0 items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium" data-testid="palette-param-chip">
+            <action.icon className="size-3.5 shrink-0" />
+            <span className="truncate">{action.label}</span>
+          </span>
+        }
+        placeholder={action.param.hint}
+        value={query}
+        onValueChange={onQueryChange}
+        onKeyDown={onKeyDown}
+        autoFocus
+        data-testid="palette-input"
+      />
+      <CommandList className="max-h-[min(60vh,28rem)]" data-testid="palette-list">
+        <CommandEmpty>{t('palette.empty')}</CommandEmpty>
+        {groups.map((group) => (
+          <CommandGroup key={group} heading={group}>
+            {shown
+              .filter((o) => o.group === group)
+              .map((o) => (
+                <CommandItem key={o.id} value={`param:${o.id}`} keywords={[o.label, ...(o.keywords ?? [])]} onSelect={() => onRun(o)} data-testid={`palette-param-${o.id}`}>
+                  <span className="truncate">{o.label}</span>
+                  {o.hint && <span className="ml-auto shrink-0 pl-2 text-xs text-muted-foreground tabular-nums">{o.hint}</span>}
+                </CommandItem>
+              ))}
+          </CommandGroup>
+        ))}
+        {hidden && <p className="px-3 py-2 text-xs text-muted-foreground">{t('palette.param.typeForEpisodes')}</p>}
+      </CommandList>
+    </>
+  )
+}
+
 /** The keys that drive the list; hidden on touch screens, where they mean nothing. */
-function PaletteFooter() {
+function PaletteFooter({ param }: { param: boolean }) {
   const { t } = useTranslation()
   return (
     <div className="hidden items-center gap-4 border-t px-3 py-2 text-xs text-muted-foreground sm:flex">
@@ -222,10 +350,17 @@ function PaletteFooter() {
         <Kbd>↵</Kbd>
         {t('palette.keys.open')}
       </span>
-      <span className="ml-auto flex items-center gap-1">
-        <Kbd>Esc</Kbd>
-        {t('palette.keys.close')}
-      </span>
+      {param ? (
+        <span className="ml-auto flex items-center gap-1">
+          <Kbd>⌫</Kbd>
+          {t('palette.keys.back')}
+        </span>
+      ) : (
+        <span className="ml-auto flex items-center gap-1">
+          <Kbd>Esc</Kbd>
+          {t('palette.keys.close')}
+        </span>
+      )}
     </div>
   )
 }

@@ -2947,7 +2947,8 @@
     "keys": {
       "move": "to move",
       "open": "to choose",
-      "close": "to close"
+      "close": "to close",
+        "back": "back"
     },
     "content": {
       "movies": "Movies",
@@ -3011,6 +3012,19 @@
       "monitored": "{{version}} is now monitored.",
       "unmonitored": "{{version}} is no longer monitored.",
       "nothingMissing": "No missing episode to search."
+    },
+    "param": {
+      "seriesHint": "Season or episode",
+      "choose": "Choose: {{hint}}",
+      "scopeGroup": "Scope",
+      "wholeSeries": "The whole series",
+      "seasonsGroup": "Seasons",
+      "episodesGroup": "Episodes",
+      "season": "Season {{number}}",
+      "specials": "Specials",
+      "episodeCount_one": "{{count}} episode",
+      "episodeCount_other": "{{count}} episodes",
+      "typeForEpisodes": "Type s2e5, 2x05 or a title to find an episode."
     }
   }
 }
