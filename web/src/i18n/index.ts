@@ -58,6 +58,39 @@ export function formatBytesShort(bytes: number): string {
   return `${new Intl.NumberFormat(i18n.language, { maximumFractionDigits: value >= 10 ? 0 : 1 }).format(value)} ${unit}`
 }
 
+/**
+ * A share as a percentage in the UI language: whole numbers from 1 % up, one decimal below ("0.4%"), "<0.1%" for a
+ * share too small to show and "0%" for none. `total` 0 has no share to say.
+ */
+export function formatShare(part: number, total: number): string {
+  const percent = (digits: number) => new Intl.NumberFormat(i18n.language, { style: 'percent', maximumFractionDigits: digits })
+  if (total <= 0 || part <= 0) return percent(0).format(0)
+  const share = (part / total) * 100
+  if (share >= 1) return percent(0).format(share / 100)
+  return share < 0.05 ? `<${percent(1).format(0.001)}` : percent(1).format(share / 100)
+}
+
+/**
+ * Shares of a whole, as whole percentages that add up to exactly 100 % (largest remainder: each share is floored,
+ * then the points left go to the largest remainders). Rounding each share on its own can show 99 % or 101 % in total.
+ * A non-zero part left at 0 shows "<1%"; a zero part "0%". All zero gives "0%" each.
+ */
+export function formatShares(parts: readonly number[]): string[] {
+  const percent = new Intl.NumberFormat(i18n.language, { style: 'percent', maximumFractionDigits: 0 })
+  const total = parts.reduce((sum, part) => sum + Math.max(part, 0), 0)
+  if (total <= 0) return parts.map(() => percent.format(0))
+  const exact = parts.map((part) => (Math.max(part, 0) / total) * 100)
+  const points = exact.map(Math.floor)
+  let left = 100 - points.reduce((sum, p) => sum + p, 0)
+  const byRemainder = exact.map((value, i) => ({ i, remainder: value - points[i] })).sort((a, b) => b.remainder - a.remainder || a.i - b.i)
+  for (const { i } of byRemainder) {
+    if (left <= 0) break
+    points[i] += 1
+    left -= 1
+  }
+  return points.map((p, i) => (p === 0 && parts[i] > 0 ? `<${percent.format(0.01)}` : percent.format(p / 100)))
+}
+
 /** "en" → "English" in the UI language; the code itself when the browser does not know it. */
 export function formatLanguage(code: string): string {
   try {

@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { formatDate, formatDateTime } from '@/i18n'
+import { formatDate, formatDateTime, formatShare } from '@/i18n'
 import { DecisionShare } from './DecisionShare'
 import { StackedBars, StackedRows, type ChartRow, type SeriesKey } from './StatsCharts'
 import { UserPicker } from './UserPicker'
@@ -324,7 +324,7 @@ function TranscodedUhd({ stats }: { stats: PlaybackStats }) {
             <TableCell>{v.versionName && <Badge variant="secondary">{v.versionName}</Badge>}</TableCell>
             <TableCell className="text-right tabular-nums">{v.plays}</TableCell>
             <TableCell className="text-right tabular-nums">
-              {v.transcodes} <span className="text-muted-foreground">({Math.round((v.transcodes / v.plays) * 100)} %)</span>
+              {v.transcodes} <span className="text-muted-foreground">({formatShare(v.transcodes, v.plays)})</span>
             </TableCell>
             <TableCell className="text-sm text-muted-foreground">{formatDate(v.lastPlayedAt)}</TableCell>
           </TableRow>

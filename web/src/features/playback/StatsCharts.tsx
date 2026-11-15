@@ -27,7 +27,7 @@ export function StackedBars({ rows, series, labels, height = 200 }: { rows: Char
         <CartesianGrid vertical={false} strokeDasharray="4 4" />
         <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={6} minTickGap={16} fontSize={11} />
         <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} allowDecimals={false} />
-        <ChartTooltip cursor={{ fill: 'var(--muted)' }} content={<ChartTooltipContent />} />
+        <ChartTooltip cursor={{ fill: 'var(--muted)' }} content={<ChartTooltipContent showShare />} />
         {series.length > 1 && <ChartLegend content={<ChartLegendContent />} />}
         {series.map((key, i) => (
           <Bar key={key} dataKey={key} stackId="stack" fill={`var(--color-${key})`} radius={i === series.length - 1 ? [3, 3, 0, 0] : 0} isAnimationActive={false} />
@@ -49,7 +49,7 @@ export function StackedRows({ rows, series, labels }: { rows: ChartRow[]; series
         <CartesianGrid horizontal={false} strokeDasharray="4 4" />
         <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} allowDecimals={false} />
         <YAxis type="category" dataKey="label" tickLine={false} axisLine={false} width={110} fontSize={12} />
-        <ChartTooltip cursor={{ fill: 'var(--muted)' }} content={<ChartTooltipContent />} />
+        <ChartTooltip cursor={{ fill: 'var(--muted)' }} content={<ChartTooltipContent showShare />} />
         <ChartLegend content={<ChartLegendContent />} />
         {series.map((key, i) => (
           <Bar key={key} dataKey={key} stackId="stack" fill={`var(--color-${key})`} radius={i === series.length - 1 ? [0, 3, 3, 0] : 0} isAnimationActive={false} />

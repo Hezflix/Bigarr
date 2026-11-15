@@ -2,6 +2,7 @@ import * as React from "react"
 import { cn } from "cn"
 import * as RechartsPrimitive from "recharts"
 import type { TooltipValueType } from "recharts"
+import { formatShares } from "@/i18n"
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const
@@ -127,9 +128,12 @@ function ChartTooltipContent({
   color,
   nameKey,
   labelKey,
+  showShare = false,
 }: React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
   React.ComponentProps<"div"> & {
     hideLabel?: boolean
+    /** Adds each count's share of the hovered bar's total: "Direct play 42 (63%)". Needs two entries to mean anything. */
+    showShare?: boolean
     hideIndicator?: boolean
     indicator?: "line" | "dot" | "dashed"
     nameKey?: string
@@ -184,6 +188,10 @@ function ChartTooltipContent({
   }
 
   const nestLabel = payload.length === 1 && indicator !== "dot"
+  const shared = payload.filter((item) => item.type !== "none")
+  const total = shared.reduce((sum, item) => sum + (typeof item.value === "number" ? item.value : 0), 0)
+  const withShare = showShare && shared.length > 1 && total > 0
+  const shares = withShare ? formatShares(shared.map((item) => (typeof item.value === "number" ? item.value : 0))) : []
 
   return (
     <div
@@ -239,7 +247,7 @@ function ChartTooltipContent({
                     )}
                     <div
                       className={cn(
-                        "flex flex-1 justify-between leading-none",
+                        "flex flex-1 justify-between gap-4 leading-none",
                         nestLabel ? "items-end" : "items-center"
                       )}
                     >
@@ -250,10 +258,15 @@ function ChartTooltipContent({
                         </span>
                       </div>
                       {item.value != null && (
-                        <span className="font-mono font-medium text-foreground tabular-nums">
+                        <span className="font-mono font-medium whitespace-nowrap text-foreground tabular-nums">
                           {typeof item.value === "number"
                             ? item.value.toLocaleString()
                             : String(item.value)}
+                          {withShare && typeof item.value === "number" && (
+                            <span className="ml-1 inline-block min-w-[5ch] text-right font-normal text-muted-foreground">
+                              ({shares[shared.indexOf(item)]})
+                            </span>
+                          )}
                         </span>
                       )}
                     </div>
