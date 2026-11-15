@@ -14,6 +14,9 @@ public sealed class User
     /// <summary>What the user may do beside their role; ignored for an admin, who may do everything.</summary>
     public UserPermissions Permissions { get; set; } = new();
 
+    /// <summary>How many films and seasons the user may request over a sliding window; unlimited by default. Ignored for an admin.</summary>
+    public Requests.RequestQuota Quota { get; set; } = new();
+
     /// <summary>When the admin turned the user off: no sign-in, and every session and API key of theirs stops working.</summary>
     public DateTime? DisabledAt { get; set; }
 

@@ -293,7 +293,7 @@ public sealed class UsersAndRolesTests
         var endpoints = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>();
 
         // What other people reach, by name: the login page and its flows, who-am-I, sign out, and Discover (TMDB's
-        // catalogue with availability states only; its row settings stay the admin's).
+        // catalogue with availability states only; its row settings stay the admin's), and requests.
         string[] open =
         [
             "GET /api/v1/auth/me",
@@ -306,6 +306,18 @@ public sealed class UsersAndRolesTests
             "GET /api/v1/discover/movies/{tmdbId:int}",
             "GET /api/v1/discover/series/{tmdbId:int}",
             "GET /api/v1/discover/people/{tmdbId:int}",
+
+            // Requests: everyone lists their own, asks and cancels; approvers (admin, request manager) decide.
+            "GET /api/v1/requests/",
+            "POST /api/v1/requests/",
+            "GET /api/v1/requests/quota",
+            "GET /api/v1/requests/{id:int}",
+            "DELETE /api/v1/requests/{id:int}",
+            "GET /api/v1/requests/count",
+            "GET /api/v1/requests/options",
+            "POST /api/v1/requests/{id:int}/approve",
+            "POST /api/v1/requests/{id:int}/decline",
+            "POST /api/v1/requests/{id:int}/retry",
         ];
         string[] adminPolicies = [AuthPolicies.Session, AuthPolicies.Api];
         var opened = new List<string>();

@@ -42,13 +42,13 @@ public sealed class LibraryAvailability(BigarrDbContext db, TimeProvider time)
 
         var fourK = await FourKVersionAsync(ct);
         var versions = await db.MovieVersions.AsNoTracking()
-            .Where(v => tmdbIds.Contains(v.Movie.TmdbId) && (v.IsDefault || v.Name == fourK))
-            .Select(v => new { v.Movie.TmdbId, v.MovieId, v.IsDefault, v.Name, v.Monitored, HasFile = v.File != null })
+            .Where(v => tmdbIds.Contains(v.Movie.TmdbId))
+            .Select(v => new { v.Id, v.Movie.TmdbId, v.MovieId, v.IsDefault, v.Name, v.Monitored, HasFile = v.File != null })
             .ToListAsync(ct);
 
         return versions.GroupBy(v => v.TmdbId).ToDictionary(g => g.Key, g =>
         {
-            var standard = g.FirstOrDefault(v => v.IsDefault);
+            var standard = StandardOf(g, v => v.IsDefault, v => v.Name, v => v.Id, fourK);
             var fourKVersion = fourK is null ? null : g.FirstOrDefault(v => v.Name == fourK);
             return new FilmMatch(
                 g.First().MovieId,
@@ -89,7 +89,8 @@ public sealed class LibraryAvailability(BigarrDbContext db, TimeProvider time)
         return (await MatchSeriesAsync([id.Value], ct)).GetValueOrDefault(id.Value);
     }
 
-    private async Task<Dictionary<int, SeriesMatch>> MatchSeriesAsync(List<int> seriesIds, CancellationToken ct)
+    /// <summary>Series by library id (a request knows the series it landed in, even one without a TMDB id).</summary>
+    public async Task<Dictionary<int, SeriesMatch>> MatchSeriesAsync(List<int> seriesIds, CancellationToken ct)
     {
         var result = new Dictionary<int, SeriesMatch>();
         if (seriesIds.Count == 0)
@@ -99,7 +100,7 @@ public sealed class LibraryAvailability(BigarrDbContext db, TimeProvider time)
 
         var fourK = await FourKVersionAsync(ct);
         var versions = await db.SeriesVersions.AsNoTracking()
-            .Where(v => seriesIds.Contains(v.SeriesId) && (v.IsDefault || v.Name == fourK))
+            .Where(v => seriesIds.Contains(v.SeriesId))
             .Select(v => new { v.Id, v.SeriesId, v.IsDefault, v.Name, v.Monitored })
             .ToListAsync(ct);
         var versionIds = versions.Select(v => v.Id).ToList();
@@ -121,7 +122,7 @@ public sealed class LibraryAvailability(BigarrDbContext db, TimeProvider time)
         foreach (var seriesId in seriesIds)
         {
             var mine = versions.Where(v => v.SeriesId == seriesId).ToList();
-            var standard = mine.FirstOrDefault(v => v.IsDefault);
+            var standard = StandardOf(mine, v => v.IsDefault, v => v.Name, v => v.Id, fourK);
             var fourKVersion = fourK is null ? null : mine.FirstOrDefault(v => v.Name == fourK);
 
             List<(int Season, EpisodeSlot Slot)> Slots(int? versionId, bool versionMonitored) => versionId is null
@@ -154,4 +155,15 @@ public sealed class LibraryAvailability(BigarrDbContext db, TimeProvider time)
 
         return result;
     }
+
+    /// <summary>
+    /// The version a title's "standard" slot stands for: its default version, unless the default is the 4K one (a title
+    /// first requested in 4K only); then its first other version. Null when it has only the 4K version.
+    /// </summary>
+    public static T? StandardOf<T>(IEnumerable<T> versions, Func<T, bool> isDefault, Func<T, string> name, Func<T, int> id, string? fourK)
+        where T : class =>
+        versions.Where(v => fourK is null || !string.Equals(name(v), fourK, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(isDefault)
+            .ThenBy(id)
+            .FirstOrDefault();
 }

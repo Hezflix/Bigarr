@@ -357,6 +357,23 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                                 .HasColumnType("INTEGER");
                         });
 
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Quota", "Bigarr.Domain.Auth.User.Quota#RequestQuota", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<int>("FilmDays")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<int?>("FilmLimit")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<int>("SeasonDays")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<int?>("SeasonLimit")
+                                .HasColumnType("INTEGER");
+                        });
+
                     b.HasKey("Id");
 
                     b.HasIndex("Username")
@@ -401,6 +418,52 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                                 .HasColumnType("INTEGER");
 
                             b1.Property<bool>("RequestSeries")
+                                .HasColumnType("INTEGER");
+                        });
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "DefaultQuota", "Bigarr.Domain.Common.InstanceSettings.DefaultQuota#RequestQuota", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<int>("FilmDays")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<int?>("FilmLimit")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<int>("SeasonDays")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<int?>("SeasonLimit")
+                                .HasColumnType("INTEGER");
+                        });
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "RequestDefaults", "Bigarr.Domain.Common.InstanceSettings.RequestDefaults#RequestDefaults", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<int?>("MovieFourKProfileId")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<int?>("MovieFourKRootFolderId")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<int?>("MovieProfileId")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<int?>("MovieRootFolderId")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<int?>("SeriesFourKProfileId")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<int?>("SeriesFourKRootFolderId")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<int?>("SeriesProfileId")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<int?>("SeriesRootFolderId")
                                 .HasColumnType("INTEGER");
                         });
 
@@ -2061,6 +2124,118 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("QualityProfiles", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Requests.MediaRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AllSeasons")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AutoApproved")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("AvailableAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DecidedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("DecidedById")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DeclineReason")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ForwardError")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ForwardStatus")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ForwardedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ForwardedTo")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("FourK")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MediaType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("MovieId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PosterUrl")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("QualityProfileId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RequestedById")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RootFolderId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Seasons")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("SeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TmdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("TvdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("VersionName")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("Year")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DecidedById");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("MediaType", "TmdbId");
+
+                    b.HasIndex("RequestedById", "CreatedAt");
+
+                    b.ToTable("MediaRequests", (string)null);
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Scheduling.ScheduledJob", b =>
@@ -4247,6 +4422,24 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("CustomFormat");
 
                     b.Navigation("QualityProfile");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Requests.MediaRequest", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Auth.User", "DecidedBy")
+                        .WithMany()
+                        .HasForeignKey("DecidedById")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Bigarr.Domain.Auth.User", "RequestedBy")
+                        .WithMany()
+                        .HasForeignKey("RequestedById")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("DecidedBy");
+
+                    b.Navigation("RequestedBy");
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Shadow.RadarrGrab", b =>

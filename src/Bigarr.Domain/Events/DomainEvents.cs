@@ -279,6 +279,11 @@ public static class DomainEventCatalog
         (typeof(EpisodeImportFailed), "episodeImportFailed", "A completed download of episodes could not be imported"),
         (typeof(HealthIssueRaised), "healthIssue", "A health check raised an issue"),
         (typeof(HealthIssueResolved), "healthRestored", "A health issue went away"),
+        (typeof(RequestCreated), "requestCreated", "A user requested a film or seasons of a series"),
+        (typeof(RequestApproved), "requestApproved", "A request was approved"),
+        (typeof(RequestDeclined), "requestDeclined", "A request was declined"),
+        (typeof(RequestAvailable), "requestAvailable", "Everything a request asked for is in the library"),
+        (typeof(RequestFailed), "requestFailed", "An approved request could not be added (library or forward)"),
         (typeof(TestEvent), "test", "Test notification"),
     ];
 

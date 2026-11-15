@@ -270,6 +270,7 @@ public static class ExternalLoginEndpoints
                 PasswordHash = string.Empty,
                 Role = UserRole.User,
                 Permissions = settings.DefaultPermissions.Copy(),
+                Quota = settings.DefaultQuota.Copy(),
             };
             link = new ExternalLogin { Provider = provider.Key, ExternalId = identity.ExternalId, User = created };
             db.ExternalLogins.Add(link);

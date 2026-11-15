@@ -115,6 +115,8 @@ public sealed class BigarrDbContext : DbContext
 
     public DbSet<Bigarr.Domain.Discover.DiscoverSlider> DiscoverSliders => Set<Bigarr.Domain.Discover.DiscoverSlider>();
 
+    public DbSet<Bigarr.Domain.Requests.MediaRequest> MediaRequests => Set<Bigarr.Domain.Requests.MediaRequest>();
+
     public DbSet<OutboxEvent> Outbox => Set<OutboxEvent>();
 
     public DbSet<NotificationEndpoint> NotificationEndpoints => Set<NotificationEndpoint>();

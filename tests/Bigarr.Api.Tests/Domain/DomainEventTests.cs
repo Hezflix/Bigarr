@@ -13,6 +13,8 @@ public sealed class DomainEventTests
 
     private static readonly EpisodeRef Pilot = new(6, 1, 1, "Pilot");
 
+    private static readonly RequestRef Request = new(1, Bigarr.Domain.Requests.RequestMediaType.Series, 1396, 81189, "Breaking Bad", 2008, null, false, [1, 2], "demo-friend", 3);
+
     [Fact]
     public void Every_event_type_is_in_the_catalogue_and_serializes_camel_case_without_the_type_property()
     {
@@ -48,6 +50,11 @@ public sealed class DomainEventTests
             new EpisodeFileDeleted(Show, ShowVersion, [Pilot], new FileRef(3, "/x", null, 1), "manual"),
             new EpisodeDownloadFailed(Show, ShowVersion, [Pilot], new ReleaseRef("t", null, null, 0), 7, "Stalled", true, true),
             new EpisodeImportFailed(Show, ShowVersion, [Pilot], new ReleaseRef("t", null, null, 0), 7, "No video"),
+            new RequestCreated(Request, AutoApproved: false),
+            new RequestApproved(Request, "demo-manager", AutoApproved: false),
+            new RequestDeclined(Request, "demo-manager", "Not now"),
+            new RequestAvailable(Request),
+            new RequestFailed(Request, "TMDB unavailable", Forward: false),
         ];
 
         foreach (var domainEvent in events)
