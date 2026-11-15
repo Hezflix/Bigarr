@@ -58,6 +58,18 @@ export function formatBytesShort(bytes: number): string {
   return `${new Intl.NumberFormat(i18n.language, { maximumFractionDigits: value >= 10 ? 0 : 1 }).format(value)} ${unit}`
 }
 
+/**
+ * A share as a percentage in the UI language: whole numbers from 1 % up, one decimal below ("0.4%"), "<0.1%" for a
+ * share too small to show and "0%" for none. `total` 0 has no share to say.
+ */
+export function formatShare(part: number, total: number): string {
+  const percent = (digits: number) => new Intl.NumberFormat(i18n.language, { style: 'percent', maximumFractionDigits: digits })
+  if (total <= 0 || part <= 0) return percent(0).format(0)
+  const share = (part / total) * 100
+  if (share >= 1) return percent(0).format(share / 100)
+  return share < 0.05 ? `<${percent(1).format(0.001)}` : percent(1).format(share / 100)
+}
+
 /** "en" → "English" in the UI language; the code itself when the browser does not know it. */
 export function formatLanguage(code: string): string {
   try {

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import type { DecisionCounts } from '@/api/client'
+import { formatShare } from '@/i18n'
 
 /** The colours of the decision badges, as fills. */
 export const decisionFills = {
@@ -23,7 +24,7 @@ export function DecisionShare({ decisions }: { decisions: DecisionCounts }) {
     <div className="flex flex-col gap-2" data-testid="decision-share">
       <div className="flex h-2.5 overflow-hidden rounded-full bg-muted">
         {keys.map((k) => (
-          <div key={k} className={decisionFills[k]} style={{ width: `${(decisions[k] / total) * 100}%` }} title={`${label(k)}: ${decisions[k]}`} />
+          <div key={k} className={decisionFills[k]} style={{ width: `${(decisions[k] / total) * 100}%` }} title={`${label(k)}: ${decisions[k]} (${formatShare(decisions[k], total)})`} />
         ))}
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
@@ -32,7 +33,7 @@ export function DecisionShare({ decisions }: { decisions: DecisionCounts }) {
             <span className={`size-2.5 rounded-sm ${decisionFills[k]}`} aria-hidden="true" />
             {label(k)}
             <span className="text-muted-foreground tabular-nums">
-              {Math.round((decisions[k] / total) * 100)} % · {decisions[k]}
+              {formatShare(decisions[k], total)} · {decisions[k]}
             </span>
           </span>
         ))}
