@@ -35,14 +35,14 @@ public sealed class CompatWantedSearchTests
         Assert.True(missing.Count > 200, $"the test needs more missing versions than a Wanted page holds, got {missing.Count}");
 
         var queue = factory.Services.GetRequiredService<SearchQueue>();
-        var response = await client.PostAsJsonAsync("/api/v3/command", new { name = "MissingMoviesSearch" });
+        var response = await client.PostAsJsonAsync("/radarr/api/v3/command", new { name = "MissingMoviesSearch" });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var command = await response.ReadJsonAsync();
         Assert.Equal("MissingMoviesSearch", command.GetProperty("name").GetString());
         Assert.Equal($"{missing.Count} version(s) queued for search", command.GetProperty("message").GetString());
         Assert.Equal(missing, Drain(queue));
 
-        var cutoff = await (await client.PostAsJsonAsync("/api/v3/command", new { name = "CutoffUnmetMoviesSearch" })).ReadJsonAsync();
+        var cutoff = await (await client.PostAsJsonAsync("/radarr/api/v3/command", new { name = "CutoffUnmetMoviesSearch" })).ReadJsonAsync();
         Assert.Equal("CutoffUnmetMoviesSearch", cutoff.GetProperty("name").GetString());
         Assert.Equal($"{cutoffUnmet.Count} version(s) queued for search", cutoff.GetProperty("message").GetString());
         Assert.Equal(cutoffUnmet, Drain(queue));

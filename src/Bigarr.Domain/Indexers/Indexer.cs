@@ -59,6 +59,9 @@ public sealed class Indexer
 
     public int? SeedTimeMinutes { get; set; }
 
+    /// <summary>Seed time for a full season pack (Sonarr's <c>SeasonPackSeedTime</c>); null falls back to <see cref="SeedTimeMinutes"/>.</summary>
+    public int? SeasonPackSeedTimeMinutes { get; set; }
+
     /// <summary>Minimum interval between two requests to this indexer. Backoff on 429 and 5xx is on top of it.</summary>
     public int RateLimitSeconds { get; set; } = 2;
 

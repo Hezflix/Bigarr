@@ -194,10 +194,10 @@ public sealed class SeriesLibraryScanTests(SeriesScanApiFactory factory) : IClas
         var key = await CompatKeyAsync(client);
         var compat = fresh.CreateAnonymousClient();
         compat.DefaultRequestHeaders.Add("X-Api-Key", key);
-        var radarrRoots = (await compat.GetFromJsonAsync<List<JsonElement>>("/api/v3/rootfolder"))!;
+        var radarrRoots = (await compat.GetFromJsonAsync<List<JsonElement>>("/radarr/api/v3/rootfolder"))!;
         Assert.Contains(radarrRoots, r => r.GetProperty("id").GetInt32() == films.Id);
         Assert.DoesNotContain(radarrRoots, r => r.GetProperty("id").GetInt32() == shows.Id);
-        Assert.Equal(HttpStatusCode.NotFound, (await compat.GetAsync($"/api/v3/rootfolder/{shows.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await compat.GetAsync($"/radarr/api/v3/rootfolder/{shows.Id}")).StatusCode);
 
         var deleted = await client.DeleteAsync($"/api/v1/series/{(await created.Content.ReadFromJsonAsync<SeriesResponse>(Json))!.Id}");
         Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);

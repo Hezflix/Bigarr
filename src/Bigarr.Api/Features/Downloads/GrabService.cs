@@ -245,7 +245,7 @@ public sealed class GrabService(
             request.InfoHash,
             request.Size,
             indexer?.SeedRatio,
-            indexer?.SeedTimeMinutes is { } minutes ? TimeSpan.FromMinutes(minutes) : null,
+            SeriesSeedTime(indexer, request.Title),
             client.SeriesCategory,
             labels), request.Title, ct);
         if (failure is not null)
@@ -281,6 +281,11 @@ public sealed class GrabService(
             history.Data["releaseGuid"] = request.Guid;
             history.Data["trigger"] = trigger;
             history.Data["numbering"] = NumberingName(grab.Numbering!.Value);
+            if (!string.IsNullOrWhiteSpace(request.InfoUrl))
+            {
+                history.Data["nzbInfoUrl"] = request.InfoUrl;
+            }
+
             if (ordered.Count > 1)
             {
                 history.Data["episodes"] = string.Join(", ", labels);
@@ -465,6 +470,11 @@ public sealed class GrabService(
             data["indexerFlags"] = request.Flags.ToString();
         }
 
+        if (!string.IsNullOrWhiteSpace(request.InfoUrl))
+        {
+            data["nzbInfoUrl"] = request.InfoUrl;
+        }
+
         var quality = QualityOf(request.Title);
         if (quality is not null)
         {
@@ -485,6 +495,30 @@ public sealed class GrabService(
             Data = data,
             CreatedAt = now,
         };
+    }
+
+    /// <summary>Sonarr's rule: a full season pack seeds for the indexer's season-pack seed time when it has one, anything else for its seed time.</summary>
+    public static TimeSpan? SeriesSeedTime(Bigarr.Domain.Indexers.Indexer? indexer, string releaseTitle)
+    {
+        if (indexer is null)
+        {
+            return null;
+        }
+
+        var minutes = indexer.SeasonPackSeedTimeMinutes is { } pack && IsSeasonPack(releaseTitle) ? pack : indexer.SeedTimeMinutes;
+        return minutes is { } m ? TimeSpan.FromMinutes(m) : null;
+    }
+
+    private static bool IsSeasonPack(string title)
+    {
+        try
+        {
+            return Bigarr.Parsing.Episodes.Parser.ParseTitle(title)?.FullSeason == true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     /// <summary>The quality the parser reads in a release title, for display; null when the title is not parsable.</summary>

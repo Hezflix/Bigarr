@@ -10,6 +10,7 @@ public sealed record IndexerRequest(
     string? BaseUrl = null,
     string? ApiPath = null,
     string? ApiKey = null,
+    /// <summary>Film categories; empty means Radarr's defaults, null keeps the current ones (the defaults on a new indexer): Prowlarr's Sonarr sync sends series categories only.</summary>
     List<int>? Categories = null,
     int Priority = 25,
     bool EnableRss = true,
@@ -25,7 +26,9 @@ public sealed record IndexerRequest(
     /// <summary>Series categories; null keeps the current ones (Prowlarr does not send them), empty means "from the capabilities".</summary>
     List<int>? TvCategories = null,
     /// <summary>Anime categories; null keeps the current ones, empty means "from the capabilities".</summary>
-    List<int>? AnimeCategories = null);
+    List<int>? AnimeCategories = null,
+    /// <summary>Seed time of full season packs in minutes; null keeps the current value (Prowlarr's Radarr sync does not send it), 0 clears it.</summary>
+    int? SeasonPackSeedTimeMinutes = null);
 
 public sealed record IndexerStatusResponse(
     bool Healthy,
@@ -58,7 +61,9 @@ public sealed record IndexerResponse(
     DateTime CreatedAt,
     /// <summary>Empty until filled from the capabilities (at the first series search or test).</summary>
     List<int>? TvCategories = null,
-    List<int>? AnimeCategories = null);
+    List<int>? AnimeCategories = null,
+    /// <summary>Seed time of full season packs; null uses the seed time.</summary>
+    int? SeasonPackSeedTimeMinutes = null);
 
 public sealed record IndexerTestResponse(
     bool SupportsMovieSearch,

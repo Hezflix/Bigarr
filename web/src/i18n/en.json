@@ -1566,7 +1566,7 @@
     "formatRadarr": "Radarr (compatible)",
     "formatDiscord": "Discord (channel webhook)",
     "formatBigarrHint": "Bigarr's own JSON, { eventType, eventId, occurredAt, instance, data }, with the full snapshot of the film, version, release and file.",
-    "formatRadarrHint": "The body Radarr's webhook sends, so tools written for Radarr (Notifiarr, autoscan, autopulse, a Discord bot that reads Radarr webhooks…) work unchanged. A Discord channel webhook URL cannot read it: use the Discord format for that. A Radarr movie is a version: its id is the one /api/v3/movie gives an API key of the same view.",
+    "formatRadarrHint": "The body Radarr's webhook sends, so tools written for Radarr (Notifiarr, autoscan, autopulse, a Discord bot that reads Radarr webhooks…) work unchanged. A Discord channel webhook URL cannot read it: use the Discord format for that. A Radarr movie is a version: its id is the one /radarr/api/v3/movie gives an API key of the same view.",
     "formatDiscordHint": "Messages for a Discord channel webhook (channel settings → Integrations → Webhooks → Copy Webhook URL), laid out like Radarr's Discord connection: the film and its version, quality, release, links and poster. The URL holds the webhook's token: keep it private.",
     "discordUrlDetected": "This is a Discord webhook URL. Discord only reads its own messages, not this format.",
     "useDiscordFormat": "Use the Discord format",
@@ -1670,7 +1670,7 @@
   },
   "connect": {
     "title": "Connect",
-    "hint": "Bigarr speaks Radarr v3 on /api/v3, so Seerr, Bazarr and Prowlarr plug in as if it were a Radarr. Each connected app gets its own key, and the key decides which version of each film it sees.",
+    "hint": "Bigarr speaks Radarr v3 under the URL base /radarr and Sonarr v3 under /sonarr, so Seerr, Bazarr and Prowlarr plug in as if it were a Radarr and a Sonarr. Each connected app gets its own key, and the key decides which version of each film or series it sees.",
     "keys": "API keys",
     "add": "New key",
     "name": "Name",
@@ -1707,12 +1707,16 @@
     "howTo": "How to connect",
     "url": "Radarr URL to enter in the app",
     "seerr": "Seerr",
-    "seerrHint": "One Seerr, two Radarr servers on this same URL: a standard server with a version:1080p key and a 4K server with a version:4k key. Each request creates or follows its own version of the film; both servers can share the root folder. Pick the matching quality profile on each.",
+    "seerrHint": "One Seerr, two Radarr servers on this same Bigarr, URL base /radarr: a standard server with a version:1080p key and a 4K server with a version:4k key. Each request creates or follows its own version of the film; both servers can share the root folder. Pick the matching quality profile on each.",
     "bazarr": "Bazarr",
-    "bazarrHint": "One Bazarr per version, like the usual Bazarr + Bazarr 4K pair: a version:1080p key on the first, a version:4k key on the second. Bazarr keeps one line per TMDB id, so a key with the all view would make it skip the second version of a film. Each instance follows its files live over SignalR at /signalr/messages.",
+    "bazarrHint": "One Bazarr per version, like the usual Bazarr + Bazarr 4K pair, Radarr Base URL /radarr: a version:1080p key on the first, a version:4k key on the second. Bazarr keeps one line per TMDB id, so a key with the all view would make it skip the second version of a film. Each instance follows its files live over SignalR.",
     "prowlarr": "Prowlarr",
-    "prowlarrHint": "In Prowlarr, Settings → Apps → + → Radarr: Prowlarr Server is Prowlarr's URL as Bigarr reaches it, Radarr Server is the URL above, API Key a key with the default view, sync level Full Sync. Prowlarr then pushes its torrent indexers here and keeps them in sync.",
-    "legacyHint": "Bigarr answers as Radarr {{version}}."
+    "prowlarrHint": "In Prowlarr, Settings → Apps → + → Radarr: Prowlarr Server is Prowlarr's URL as Bigarr reaches it, Radarr Server is the URL above (with /radarr), API Key a key with the default view, sync level Full Sync. Prowlarr then pushes its torrent indexers here and keeps them in sync.",
+    "legacyHint": "Bigarr answers as Radarr {{version}} under the URL base {{base}}.",
+    "sonarrUrl": "Sonarr URL to enter in the app",
+    "sonarrLegacyHint": "Bigarr answers as Sonarr {{version}} under the URL base {{base}}.",
+    "sonarr": "Seerr, Bazarr and Prowlarr for series",
+    "sonarrHint": "For series the same apps connect to Bigarr as to a Sonarr, under the URL base {{base}}. Seerr: two Sonarr servers, a standard one with a version:1080p key and a 4K one with a version:4k key, URL base {{base}}. Bazarr: one instance per version again, Base URL {{base}}. Prowlarr: a Sonarr app whose Sonarr Server is the URL above; an indexer it pushes to both apps stays one indexer here, with its film and series categories. Series need a series root folder and a series quality profile."
   },
   "backups": {
     "title": "Backups",

@@ -11,7 +11,13 @@ namespace Bigarr.Api.Features.Compat.Radarr;
 /// </summary>
 public static class RadarrCompat
 {
-    public const string RoutePrefix = "/api/v3";
+    /// <summary>
+    /// The URL base of the Radarr surface, announced in <c>/system/status</c> and carried by its image URLs. Radarr and
+    /// Sonarr share their routes, so each surface has its own base, as a Radarr behind a reverse proxy does.
+    /// </summary>
+    public const string UrlBase = "/radarr";
+
+    public const string RoutePrefix = UrlBase + "/api/v3";
 
     /// <summary>
     /// The Radarr version announced in <c>/system/status</c> and in the <see cref="VersionHeader"/> header. Bazarr treats
@@ -47,7 +53,7 @@ public static class RadarrCompat
     {
         app.Use(async (context, next) =>
         {
-            if (context.Request.Path.StartsWithSegments(RoutePrefix) || context.Request.Path.StartsWithSegments("/signalr"))
+            if (context.Request.Path.StartsWithSegments(UrlBase) || context.Request.Path.StartsWithSegments("/signalr"))
             {
                 context.Response.OnStarting(static state =>
                 {

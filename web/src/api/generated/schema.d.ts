@@ -218,7 +218,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/MediaCover/{id}/{file}": {
+    "/radarr/MediaCover/{id}/{file}": {
         parameters: {
             query?: never;
             header?: never;
@@ -254,7 +254,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v3/MediaCover/{id}/{file}": {
+    "/radarr/api/v3/MediaCover/{id}/{file}": {
         parameters: {
             query?: never;
             header?: never;
@@ -9732,6 +9732,7 @@ export interface components {
             publishDate?: null | string;
             episodeIds?: null | number[];
             numbering?: null | components["schemas"]["EpisodeNumbering"];
+            infoUrl?: null | string;
             isSeries?: boolean;
         };
         GrabResponse: {
@@ -9905,6 +9906,8 @@ export interface components {
             prowlarrId?: null | number;
             tvCategories?: null | number[];
             animeCategories?: null | number[];
+            /** Format: int32 */
+            seasonPackSeedTimeMinutes?: null | number;
         };
         IndexerRequestResponse: {
             step: string;
@@ -9955,6 +9958,8 @@ export interface components {
             createdAt: string;
             tvCategories: null | number[];
             animeCategories: null | number[];
+            /** Format: int32 */
+            seasonPackSeedTimeMinutes: null | number;
         };
         IndexerStatusResponse: {
             healthy: boolean;

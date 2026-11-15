@@ -584,6 +584,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int>("RateLimitSeconds")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("SeasonPackSeedTimeMinutes")
+                        .HasColumnType("INTEGER");
+
                     b.Property<double?>("SeedRatio")
                         .HasColumnType("REAL");
 

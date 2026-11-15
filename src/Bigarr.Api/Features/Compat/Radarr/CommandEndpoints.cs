@@ -90,7 +90,9 @@ public static class CommandEndpoints
         QueueState queue,
         TaskRunner tasks,
         CompatCommandLog log,
+        Library.LibraryScanRunner scans,
         TimeProvider time,
+        ILoggerFactory loggers,
         CancellationToken ct)
     {
         var name = request.Name?.Trim() ?? string.Empty;
@@ -141,8 +143,22 @@ public static class CommandEndpoints
                 }
 
             case "rescanmovie":
-                // Bazarr asks after writing a subtitle next to the file. Bigarr does not index subtitle files (yet): nothing to rescan.
-                return RadarrCompat.Created(log.Record("RescanMovie", body, "completed", null, now));
+                {
+                    // Bazarr asks after each subtitle it writes next to the file: Radarr rescans the film's folder, through
+                    // the scan queue like every other scan; the command is done once the queued rescans are.
+                    var scanned = new List<int>();
+                    foreach (var id in ids)
+                    {
+                        if (await library.FindAsync(view, id, ct) is { } row)
+                        {
+                            var versionId = row.Version.Id;
+                            scans.EnqueueMovie(row.Movie.Id, (services, progress, token) => services.GetRequiredService<Library.LibraryScanner>().ScanVersionAsync(versionId, progress, token));
+                            scanned.Add(row.Movie.Id);
+                        }
+                    }
+
+                    return RadarrCompat.Created(log.Record("RescanMovie", body, "queued", $"{scanned.Count} film(s) queued for a rescan", now, () => scanned.All(id => scans.MovieStatus(id).State is not (Library.ScanState.Queued or Library.ScanState.Running))));
+                }
 
             case "refreshmonitoreddownloads":
                 // Asking for a poll is the whole command: it is done once asked.
@@ -156,7 +172,9 @@ public static class CommandEndpoints
                 }
 
             default:
-                return RadarrCompat.BadRequest("Name", $"Unknown command '{name}'.");
+                // Other consumers send Radarr commands nobody here needs: accepted, recorded as done, nothing run.
+                loggers.CreateLogger("Bigarr.Compat.Radarr").LogInformation("Radarr command '{Name}' accepted and not run: Bigarr has no equivalent", name);
+                return RadarrCompat.Created(log.Record(name.Length == 0 ? "Unknown" : name, body, "completed", "Not supported by Bigarr: nothing was done.", now));
         }
 
         // Like Radarr's: every wanted version the key sees, the least recently searched first, with no cap. The runner

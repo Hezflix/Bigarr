@@ -66,11 +66,11 @@ public sealed class ProfileKindAndSeriesSizesTests(SeriesApiFactory factory) : I
 
         // The Radarr API lists the profiles a film version can take, and hides the others.
         var (radarr, _) = await CompatTestHelpers.KeyClientAsync(factory, client, "kind-check", "all");
-        var listed = JsonDocument.Parse(await radarr.GetStringAsync("/api/v3/qualityprofile")).RootElement.EnumerateArray().Select(p => p.GetProperty("name").GetString()).ToList();
+        var listed = JsonDocument.Parse(await radarr.GetStringAsync("/radarr/api/v3/qualityprofile")).RootElement.EnumerateArray().Select(p => p.GetProperty("name").GetString()).ToList();
         Assert.Contains(QualitySeeder.HdProfileName, listed);
         Assert.DoesNotContain(QualitySeeder.SeriesHdProfileName, listed);
         Assert.DoesNotContain("Shared", listed);
-        Assert.Equal(HttpStatusCode.NotFound, (await radarr.GetAsync($"/api/v3/qualityprofile/{seriesHd.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await radarr.GetAsync($"/radarr/api/v3/qualityprofile/{seriesHd.Id}")).StatusCode);
 
         // The Radarr import refuses a series profile in its mapping.
         var radarrImport = await client.PostAsJsonAsync("/api/v1/migration/radarr/import", new RadarrImportRequest("http://radarr.invalid", "key", "1080p", new() { [1] = seriesHd.Id }, new() { ["/movies"] = filmRoot.Id }), Json);

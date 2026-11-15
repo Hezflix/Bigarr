@@ -163,7 +163,7 @@ public sealed partial class LibraryScanner(BigarrDbContext db, IMetadataProvider
             }
 
             var parsedFile = TryParsePath(file.FullName);
-            var quality = parsedFile?.Quality ?? new QualityModel(Parsing.Qualities.Quality.Unknown);
+            var quality = QualityOf(parsedFile);
             var baseName = VersionNaming.FromQuality(quality.Quality.Resolution, quality.Quality.Name);
 
             // A fileless version created by hand for this very folder adopts the file; otherwise a new version is born.
@@ -188,23 +188,7 @@ public sealed partial class LibraryScanner(BigarrDbContext db, IMetadataProvider
                 progress.VersionAdded();
             }
 
-            target.File = new MediaFile
-            {
-                RelativePath = relativePath,
-                Size = file.Length,
-                DateAdded = time.GetUtcNow().UtcDateTime,
-                QualityId = quality.Quality.Id,
-                Revision = new Bigarr.Domain.Movies.Revision
-                {
-                    Version = quality.Revision?.Version ?? 1,
-                    Real = quality.Revision?.Real ?? 0,
-                    IsRepack = quality.Revision?.IsRepack ?? false,
-                },
-                Edition = string.IsNullOrWhiteSpace(parsedFile?.Edition) ? null : parsedFile!.Edition,
-                ReleaseGroup = string.IsNullOrWhiteSpace(parsedFile?.ReleaseGroup) ? null : parsedFile!.ReleaseGroup,
-                Languages = parsedFile?.Languages?.Select(l => l.Name).Where(n => n is not null).Cast<string>().ToList() ?? [],
-                OriginalReleaseTitle = Path.GetFileNameWithoutExtension(file.Name),
-            };
+            target.File = NewFile(file, relativePath, parsedFile, quality);
             progress.FileAdded();
         }
 
@@ -215,6 +199,87 @@ public sealed partial class LibraryScanner(BigarrDbContext db, IMetadataProvider
         await db.SaveChangesAsync(ct);
         db.ChangeTracker.Clear();
     }
+
+    /// <summary>
+    /// Rescans one version's folder, as Radarr's <c>RescanMovie</c> (Bazarr asks after each subtitle it writes; run by the
+    /// scan queue): the
+    /// file's size is read again, and a version without a file adopts the first video of its folder that no other
+    /// version sharing the folder holds. Like the series rescan, a vanished file is left to the root scan and the UI.
+    /// </summary>
+    public async Task ScanVersionAsync(int versionId, ScanProgress progress, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(progress);
+        var version = await db.MovieVersions
+            .Include(v => v.RootFolder)
+            .Include(v => v.File)
+            .Include(v => v.Movie).ThenInclude(m => m.Versions).ThenInclude(v => v.File)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(v => v.Id == versionId, ct);
+        if (version is null)
+        {
+            return;
+        }
+
+        var folder = new DirectoryInfo(Path.Combine(version.RootFolder.Path, version.FolderName));
+        progress.CurrentFolder = version.FolderName;
+        if (!folder.Exists)
+        {
+            logger.LogInformation("{Movie}: folder {Folder} of version {Version} is not on disk, rescan skipped", version.Movie.Title, folder.FullName, version.Name);
+            db.ChangeTracker.Clear();
+            return;
+        }
+
+        if (version.File is { } current)
+        {
+            var path = Path.Combine(folder.FullName, current.RelativePath);
+            if (File.Exists(path))
+            {
+                current.Size = new FileInfo(path).Length;
+            }
+        }
+        else
+        {
+            var taken = version.Movie.Versions
+                .Where(v => v.Id != versionId && v.RootFolderId == version.RootFolderId && v.FolderName == version.FolderName && v.File is not null)
+                .Select(v => v.File!.RelativePath)
+                .ToHashSet(StringComparer.Ordinal);
+            var found = EnumerateVideoFiles(folder)
+                .Select(f => (File: f, RelativePath: Path.GetRelativePath(folder.FullName, f.FullName)))
+                .Where(f => !taken.Contains(f.RelativePath))
+                .OrderBy(f => f.RelativePath, StringComparer.Ordinal)
+                .FirstOrDefault();
+            if (found.File is not null)
+            {
+                var parsed = TryParsePath(found.File.FullName);
+                version.File = NewFile(found.File, found.RelativePath, parsed, QualityOf(parsed));
+                progress.FileAdded();
+                logger.LogInformation("{Movie}: version {Version} adopted {Path} on a rescan", version.Movie.Title, version.Name, found.RelativePath);
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+        db.ChangeTracker.Clear();
+    }
+
+    private static QualityModel QualityOf(ParsedMovieInfo? parsed) => parsed?.Quality ?? new QualityModel(Parsing.Qualities.Quality.Unknown);
+
+    private MediaFile NewFile(FileInfo file, string relativePath, ParsedMovieInfo? parsedFile, QualityModel quality) => new()
+    {
+        RelativePath = relativePath,
+        Size = file.Length,
+        DateAdded = time.GetUtcNow().UtcDateTime,
+        QualityId = quality.Quality.Id,
+        Revision = new Bigarr.Domain.Movies.Revision
+        {
+            Version = quality.Revision?.Version ?? 1,
+            Real = quality.Revision?.Real ?? 0,
+            IsRepack = quality.Revision?.IsRepack ?? false,
+        },
+        Edition = string.IsNullOrWhiteSpace(parsedFile?.Edition) ? null : parsedFile!.Edition,
+        ReleaseGroup = string.IsNullOrWhiteSpace(parsedFile?.ReleaseGroup) ? null : parsedFile!.ReleaseGroup,
+        Languages = parsedFile?.Languages?.Select(l => l.Name).Where(n => n is not null).Cast<string>().ToList() ?? [],
+        OriginalReleaseTitle = Path.GetFileNameWithoutExtension(file.Name),
+    };
 
     private async Task<(MovieMetadata? Movie, UnmappedReason Reason, string? Detail)> ResolveAsync(ParsedMovieInfo parsed, string folderName, CancellationToken ct)
     {

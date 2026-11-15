@@ -266,7 +266,7 @@ public static partial class SonarrWebhook
             if (series.Images?.FirstOrDefault(i => i.CoverType == type) is { } image)
             {
                 var name = RadarrMapper.Camel(type.ToString());
-                images.Add(new RadarrImage(name, $"/MediaCover/{versionId}/{name}.jpg", image.RemoteUrl));
+                images.Add(new RadarrImage(name, $"{Compat.Sonarr.SonarrCompat.UrlBase}/MediaCover/{versionId}/{name}.jpg", image.RemoteUrl));
             }
         }
 

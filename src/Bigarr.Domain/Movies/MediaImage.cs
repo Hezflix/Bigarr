@@ -8,6 +8,6 @@ public enum ImageType
 
 /// <summary>
 /// Remote image only. The local cache path is deterministic from (MovieId, type, size) so the compat layer
-/// can serve <c>/MediaCover/{id}/poster-500.jpg</c> without storing anything.
+/// can serve <c>/radarr/MediaCover/{id}/poster-500.jpg</c> without storing anything.
 /// </summary>
 public sealed record MediaImage(ImageType Type, string RemoteUrl);

@@ -6,8 +6,8 @@ using Microsoft.Extensions.Options;
 namespace Bigarr.Api.Features.Compat.Radarr;
 
 /// <summary>
-/// <c>GET /api/v3/system/status</c>: Seerr reads <c>urlBase</c>, Bazarr reads <c>version</c>, Prowlarr reads the
-/// version too. The legacy <c>GET /api/system/status</c> Bazarr probes first is simply not mapped: its 404 is the signal.
+/// <c>GET /radarr/api/v3/system/status</c>: Seerr reads <c>urlBase</c>, Bazarr reads <c>version</c>, Prowlarr reads the
+/// version too. The legacy <c>GET /radarr/api/system/status</c> Bazarr probes first is simply not mapped: its 404 is the signal.
 /// </summary>
 public static class SystemEndpoints
 {
@@ -17,7 +17,15 @@ public static class SystemEndpoints
     }
 
     private static JsonHttpResult<RadarrSystemStatus> Status(IOptions<BigarrOptions> options, IHostEnvironment environment, Server.ProcessStart start) =>
-        RadarrCompat.Ok(new RadarrSystemStatus(
+        RadarrCompat.Ok(Describe(options, environment, start));
+
+    /// <summary>The status as Radarr words it; the Sonarr surface changes the app name, version and URL base.</summary>
+    public static RadarrSystemStatus Describe(IOptions<BigarrOptions> options, IHostEnvironment environment, Server.ProcessStart start)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(environment);
+        ArgumentNullException.ThrowIfNull(start);
+        return new RadarrSystemStatus(
             AppName: "Radarr",
             InstanceName: "Bigarr",
             Version: RadarrCompat.ApplicationVersion,
@@ -41,11 +49,12 @@ public static class SystemEndpoints
             DatabaseVersion: "3",
             Authentication: "external",
             MigrationVersion: 0,
-            UrlBase: string.Empty,
+            UrlBase: RadarrCompat.UrlBase,
             RuntimeVersion: Environment.Version.ToString(),
             RuntimeName: "netCore",
             StartTime: start.At,
             PackageVersion: Server.SystemEndpoints.Version,
             PackageAuthor: "Bigarr",
-            PackageUpdateMechanism: "docker"));
+            PackageUpdateMechanism: "docker");
+    }
 }

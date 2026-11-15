@@ -58,7 +58,7 @@ public sealed class CompatHistoryPagingTests(BigarrApiFactory factory) : IClassF
         {
             var all = ascending ? universe.OrderBy(s => s.At).ThenBy(s => s.Id).ToList() : universe.OrderByDescending(s => s.At).ThenByDescending(s => s.Id).ToList();
             var direction = ascending ? "ascending" : "descending";
-            var body = await (await client.GetAsync($"/api/v3/history?page={page}&pageSize={pageSize}&sortKey=date&sortDirection={direction}{query}")).ReadJsonAsync();
+            var body = await (await client.GetAsync($"/radarr/api/v3/history?page={page}&pageSize={pageSize}&sortKey=date&sortDirection={direction}{query}")).ReadJsonAsync();
             Assert.Equal(all.Count, body.GetProperty("totalRecords").GetInt32());
             Assert.Equal(page, body.GetProperty("page").GetInt32());
             Assert.Equal(pageSize, body.GetProperty("pageSize").GetInt32());
@@ -92,16 +92,16 @@ public sealed class CompatHistoryPagingTests(BigarrApiFactory factory) : IClassF
         await CheckAsync(plain, $"&movieIds={film1Uhd}", [], false, 1, 20);
 
         // A page past the end is empty but keeps the total; paging parameters are clamped.
-        var past = await (await bazarr.GetAsync("/api/v3/history?page=99&pageSize=25")).ReadJsonAsync();
+        var past = await (await bazarr.GetAsync("/radarr/api/v3/history?page=99&pageSize=25")).ReadJsonAsync();
         Assert.Equal(mine.Count, past.GetProperty("totalRecords").GetInt32());
         Assert.Empty(past.GetProperty("records").EnumerateArray());
-        var clamped = await (await bazarr.GetAsync("/api/v3/history?page=0&pageSize=5000")).ReadJsonAsync();
+        var clamped = await (await bazarr.GetAsync("/radarr/api/v3/history?page=0&pageSize=5000")).ReadJsonAsync();
         Assert.Equal(1, clamped.GetProperty("page").GetInt32());
         Assert.Equal(1000, clamped.GetProperty("pageSize").GetInt32());
         Assert.Equal(mine.Count, clamped.GetProperty("records").GetArrayLength());
 
         // The per-movie variant: newest first, type filter applied by the database.
-        var movie = await (await bazarr.GetAsync($"/api/v3/history/movie?movieId={film1Hd}&eventType=1")).ReadJsonAsync();
+        var movie = await (await bazarr.GetAsync($"/radarr/api/v3/history/movie?movieId={film1Hd}&eventType=1")).ReadJsonAsync();
         Assert.Equal(
             mine.Where(s => s.Target == film1Hd && s.Type == HistoryEventType.Grabbed).OrderByDescending(s => s.At).ThenByDescending(s => s.Id).Select(s => s.Id),
             movie.EnumerateArray().Select(r => r.GetProperty("id").GetInt32()));
@@ -117,14 +117,14 @@ public sealed class CompatHistoryPagingTests(BigarrApiFactory factory) : IClassF
         db.History.RemoveRange(db.History);
         await db.SaveChangesAsync();
 
-        var body = await (await bazarr.GetAsync("/api/v3/history?page=1&pageSize=20")).ReadJsonAsync();
+        var body = await (await bazarr.GetAsync("/radarr/api/v3/history?page=1&pageSize=20")).ReadJsonAsync();
         Assert.Equal(0, body.GetProperty("totalRecords").GetInt32());
         Assert.Empty(body.GetProperty("records").EnumerateArray());
     }
 
     private static async Task<int> AddAsync(HttpClient client, object body)
     {
-        var response = await client.PostAsJsonAsync("/api/v3/movie", body);
+        var response = await client.PostAsJsonAsync("/radarr/api/v3/movie", body);
         Assert.True(response.IsSuccessStatusCode);
         return (await response.ReadJsonAsync()).GetProperty("id").GetInt32();
     }

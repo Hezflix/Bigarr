@@ -95,7 +95,7 @@ public sealed class SonarrWebhookTests
         Assert.Equal(0, series.GetProperty("tvMazeId").GetInt32());
         Assert.Equal(["alice", "kids"], series.GetProperty("tags").EnumerateArray().Select(t => t.GetString()!).ToArray());
         Assert.Equal("English", series.GetProperty("originalLanguage").GetProperty("name").GetString());
-        Assert.Equal("/MediaCover/12/poster.jpg", series.GetProperty("images")[0].GetProperty("url").GetString());
+        Assert.Equal("/sonarr/MediaCover/12/poster.jpg", series.GetProperty("images")[0].GetProperty("url").GetString());
 
         var episode = root.GetProperty("episodes")[0];
         Assert.Equal("2008-01-20", episode.GetProperty("airDate").GetString());
