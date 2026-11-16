@@ -3447,7 +3447,7 @@
       "blocklist": "Blocklist the release",
       "deleteFile": "Delete the file",
       "managedShadow": "Shadow mode is on: the files belong to the followed Radarr/Sonarr, fix it there. Searching from here only records a pick.",
-      "managedBy": "{{name}} manages this version's files: fix it there. Searching from here stays possible.",
+      "managedBy": "{{name}} manages this version's files: fix it there. Search again records a pick here and sends the search to {{name}}.",
       "noRelease": "The release behind the file is unknown (scanned or imported): no blocklist, delete the file instead.",
       "notInLibrary": "The title or its version left the library.",
       "blocklistTitle": "Blocklist the release?",

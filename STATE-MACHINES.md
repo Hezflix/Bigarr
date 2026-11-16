@@ -440,13 +440,18 @@ Actions (`IssueActionService`, approvers only), each logged as an `Action` row: 
 
 | Action | Through | Guard |
 |---|---|---|
-| Search again | `AutomaticSearchService` (film version) / `SeriesAutomaticSearchService.SearchEpisodesAsync` (the episode, the season's or the series' episodes), trigger `User` | the title and version are still in the library |
+| Search again | `AutomaticSearchService` (film version) / `SeriesAutomaticSearchService.SearchEpisodesAsync` (the episode, the season's or the series' episodes), trigger `User`; then the followed app's search command, when one carries the version (below) | the title and version are still in the library |
 | Blocklist the release (and optionally delete the file), then search | `BlocklistService.BlockAsync` with the grab that produced the file (import line → download id → grab), or a stand-in grab carrying the file's release title | Bigarr owns the file (below); film or episode scope; a release is known |
 | Delete the file (then optionally search) | `MovieService.DeleteFileAsync` / `SeriesManualImportService.DeleteEpisodeFileAsync` (recycle bin, history, `fileDeleted` events) | Bigarr owns the file; film or episode scope; a file is there now |
 
 Ownership: while shadow mode is on, or while an enabled followed Radarr/Sonarr carries the issue's version name, the
 files are that app's. Blocklist and delete are refused (409) and not offered; the search stays and, in shadow mode,
-records a pick through the grab choke point like any other search. Nothing is sent to the followed app.
+records a pick through the grab choke point like any other search. When a followed app carries the version, the search
+is also sent there (`ArrForwarder.SearchMovieAsync` / `SearchSeriesAsync`, the same client as forward mode): Radarr
+`MoviesSearch` for the movie it has by TMDB id; Sonarr `SeriesSearch`, `SeasonSearch` or `EpisodeSearch` (its episode
+of the same numbers) for the series it has by TVDB id. A refusal or an unreachable app is written in the action's
+outcome and changes nothing else; nothing is retried. This search command is, with forward mode's adds, the only write
+Bigarr makes to a followed app.
 
 Invariants:
 

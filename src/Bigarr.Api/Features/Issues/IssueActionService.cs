@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Bigarr.Api.Features.Blocklist;
 using Bigarr.Api.Features.Import;
 using Bigarr.Api.Features.Movies;
+using Bigarr.Api.Features.Requests;
 using Bigarr.Api.Features.Search;
 using Bigarr.Api.Features.Shadow;
 using Bigarr.Api.Infrastructure;
@@ -10,6 +11,7 @@ using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Issues;
 using Bigarr.Domain.Requests;
+using Bigarr.Domain.Shadow;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -21,8 +23,9 @@ namespace Bigarr.Api.Features.Issues;
 /// line in the thread: an outcome every reader may see, and the release names and paths for the admin.
 /// <para>
 /// While shadow mode is on, or while a followed Radarr/Sonarr carries the issue's version, the files are that app's:
-/// Bigarr never deletes nor blocklists them (its library folders are not its to write). The search stays, and records a
-/// pick in shadow mode like every other search. Nothing is sent to the followed app: the fix is made there.
+/// Bigarr never deletes nor blocklists them (its library folders are not its to write). The search stays: it records a
+/// pick in shadow mode like every other search, and is sent to the followed app carrying the version (its search command
+/// for the film, the series, the season or the episode), as forward mode sends approved requests.
 /// </para>
 /// </summary>
 public sealed class IssueActionService(
@@ -33,6 +36,7 @@ public sealed class IssueActionService(
     BlocklistService blocklist,
     MovieService movies,
     SeriesManualImportService seriesFiles,
+    ArrForwarder forwarder,
     IOptions<ShadowOptions> shadow,
     TimeProvider time,
     ILogger<IssueActionService> logger)
@@ -42,19 +46,24 @@ public sealed class IssueActionService(
 
     private DateTime Now => time.GetUtcNow().UtcDateTime;
 
-    /// <summary>Who owns the issue's files when it is not Bigarr: shadow mode, or the followed app carrying its version.</summary>
+    /// <summary>
+    /// Who owns the issue's files when it is not Bigarr: the followed Radarr/Sonarr carrying its version (by name), else
+    /// shadow mode.
+    /// </summary>
     public async Task<string?> ManagedByAsync(Issue issue, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(issue);
-        if (shadow.Value.Enabled)
-        {
-            return Shadow;
-        }
+        var (radarr, sonarr) = await FollowedAsync(issue, ct);
+        return radarr?.Name ?? sonarr?.Name ?? (shadow.Value.Enabled ? Shadow : null);
+    }
 
+    /// <summary>The enabled followed Radarr (film) or Sonarr (series) that carries the issue's version, when there is one.</summary>
+    private async Task<(FollowedRadarr? Radarr, FollowedSonarr? Sonarr)> FollowedAsync(Issue issue, CancellationToken ct)
+    {
         var name = issue.VersionName;
         return issue.MediaType == RequestMediaType.Movie
-            ? await db.FollowedRadarrs.AsNoTracking().Where(r => r.Enabled && r.VersionName == name).Select(r => r.Name).FirstOrDefaultAsync(ct)
-            : await db.FollowedSonarrs.AsNoTracking().Where(r => r.Enabled && r.VersionName == name).Select(r => r.Name).FirstOrDefaultAsync(ct);
+            ? (await db.FollowedRadarrs.AsNoTracking().Where(r => r.Enabled && r.VersionName == name).OrderBy(r => r.Id).FirstOrDefaultAsync(ct), null)
+            : (null, await db.FollowedSonarrs.AsNoTracking().Where(r => r.Enabled && r.VersionName == name).OrderBy(r => r.Id).FirstOrDefaultAsync(ct));
     }
 
     /// <summary>What may be run now. The library title or its version gone: nothing.</summary>
@@ -84,7 +93,10 @@ public sealed class IssueActionService(
         }
 
         var search = await RunSearchAsync(issue.Value!, ct);
-        return await LogAsync(principal, issue.Value!, IssueAction.Search, search.Outcome, search.Detail, ct);
+        var forwarded = await ForwardSearchAsync(issue.Value!, ct);
+        return forwarded is null
+            ? await LogAsync(principal, issue.Value!, IssueAction.Search, search.Outcome, search.Detail, ct)
+            : await LogAsync(principal, issue.Value!, IssueAction.Search, $"{search.Outcome} {forwarded.Outcome}", $"{search.Detail} {forwarded.Detail}", ct);
     }
 
     public async Task<Result<Issue>> BlocklistAsync(ClaimsPrincipal principal, int id, bool deleteFile, CancellationToken ct)
@@ -199,7 +211,7 @@ public sealed class IssueActionService(
                 "The file is not Bigarr's",
                 managedBy == Shadow
                     ? "Shadow mode is on: the files belong to the followed Radarr/Sonarr. Fix it there; searching from here only records a pick."
-                    : $"{managedBy} manages this version's files: fix it there. Searching from here stays possible.");
+                    : $"{managedBy} manages this version's files: fix it there. Searching from here also sends the search to {managedBy}.");
         }
 
         if (issue.Scope is not (IssueScope.Movie or IssueScope.Episode))
@@ -226,6 +238,44 @@ public sealed class IssueActionService(
     }
 
     private sealed record SearchRun(string Outcome, string Detail);
+
+    /// <summary>
+    /// While a followed Radarr/Sonarr carries the version, the search also goes there (forward mode, as approved requests
+    /// do): the film's movie, or the series, season or episode. Null when no app follows the version. A refusal or an
+    /// unreachable app is said in the outcome and changes nothing else.
+    /// </summary>
+    private async Task<SearchRun?> ForwardSearchAsync(Issue issue, CancellationToken ct)
+    {
+        var (radarr, sonarr) = await FollowedAsync(issue, ct);
+        ForwardedSearch sent;
+        string app;
+        if (radarr is not null)
+        {
+            app = $"Radarr '{radarr.Name}'";
+            sent = issue.TmdbId is { } tmdbId ? await forwarder.SearchMovieAsync(radarr, tmdbId, ct) : new ForwardedSearch(false, "The film has no TMDB id.");
+        }
+        else if (sonarr is not null)
+        {
+            app = $"Sonarr '{sonarr.Name}'";
+            var episode = issue.Scope == IssueScope.Episode && issue.EpisodeId is { } episodeId
+                ? await db.Episodes.AsNoTracking().Where(e => e.Id == episodeId).Select(e => (int?)e.EpisodeNumber).FirstOrDefaultAsync(ct)
+                : null;
+            var season = issue.Scope is IssueScope.Season or IssueScope.Episode ? issue.SeasonNumber : null;
+            sent = issue.TvdbId is not { } tvdbId
+                ? new ForwardedSearch(false, "The series has no TVDB id.")
+                : issue.Scope == IssueScope.Episode && episode is null
+                    ? new ForwardedSearch(false, "The episode left the library.")
+                    : await forwarder.SearchSeriesAsync(sonarr, tvdbId, season, episode, ct);
+        }
+        else
+        {
+            return null;
+        }
+
+        return sent.Sent
+            ? new SearchRun($"The search was sent to {app}.", sent.Detail)
+            : new SearchRun($"Sending the search to {app} failed.", sent.Detail);
+    }
 
     private async Task<SearchRun> RunSearchAsync(Issue issue, CancellationToken ct)
     {
