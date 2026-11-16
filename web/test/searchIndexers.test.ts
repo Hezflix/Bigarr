@@ -25,7 +25,7 @@ describe('indexer pick', () => {
     expect(pickKey([7, 3])).toBe(pickKey([3, 7]))
   })
 
-  test('the indexers left out are kept for the tab, sorted and once each', () => {
+  test('the indexers left out are kept for the browser, sorted and once each', () => {
     const store = memoryStore()
     expect(readExcluded(store)).toEqual([])
     writeExcluded([7, 1, 7], store)

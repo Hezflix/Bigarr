@@ -1,21 +1,20 @@
 import type { KeyValueStore } from '@/features/search/searchQueries'
 
 /**
- * The indexers left out of the interactive search, for this browser tab only (sessionStorage): the pick is for the
- * searches at hand, a new tab starts with every indexer again. The ids left out are kept rather than those picked, so an
- * indexer added since is searched.
+ * The indexers left out of the interactive search, remembered per browser (localStorage) like "Show queries". The ids
+ * left out are kept rather than those picked, so an indexer added since is searched.
  */
 export const excludedIndexersKey = 'bigarr.search.excludedIndexers'
 
-function sessionStore(): KeyValueStore | null {
+function browserStore(): KeyValueStore | null {
   try {
-    return globalThis.sessionStorage ?? null
+    return globalThis.localStorage ?? null
   } catch {
     return null
   }
 }
 
-export function readExcluded(store: KeyValueStore | null = sessionStore()): number[] {
+export function readExcluded(store: KeyValueStore | null = browserStore()): number[] {
   try {
     const raw = store?.getItem(excludedIndexersKey)
     const parsed: unknown = raw ? JSON.parse(raw) : []
@@ -25,7 +24,7 @@ export function readExcluded(store: KeyValueStore | null = sessionStore()): numb
   }
 }
 
-export function writeExcluded(ids: number[], store: KeyValueStore | null = sessionStore()): void {
+export function writeExcluded(ids: number[], store: KeyValueStore | null = browserStore()): void {
   try {
     store?.setItem(excludedIndexersKey, JSON.stringify([...new Set(ids)].sort((a, b) => a - b)))
   } catch {

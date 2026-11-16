@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDownIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { pickedIndexerIds, readExcluded, writeExcluded } from '@/features/search/searchIndexers'
+import { pickedIndexerIds, pickKey, readExcluded, writeExcluded } from '@/features/search/searchIndexers'
 
 export type IndexerPick = {
   /** The indexers with interactive search on, in priority order; empty until loaded. */
@@ -26,7 +26,15 @@ export type IndexerPick = {
   none: boolean
   /** The indexer list has answered (or failed: every indexer is then searched), so `ids` is final. */
   ready: boolean
+  /**
+   * The pick once it has stopped changing (`pickKey`), null until the list answers: the dialogs search again when it
+   * changes, so ticking several boxes in a row fires one search.
+   */
+  settledKey: string | null
 }
+
+/** How long the pick must stay put before the search runs again. */
+export const pickSettleMs = 600
 
 /** The indexers the interactive search asks, every one with interactive search on unless the user leaves some out. */
 export function useIndexerPick(): IndexerPick {
@@ -34,6 +42,19 @@ export function useIndexerPick(): IndexerPick {
   const [excluded, setState] = useState(readExcluded)
   const searchable = (list.data ?? []).filter((i) => i.enableInteractiveSearch).sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name))
   const ids = list.isSuccess ? pickedIndexerIds(searchable, excluded) : undefined
+  const ready = !list.isPending
+  const key = pickKey(ids)
+  const [settledKey, setSettledKey] = useState<string | null>(null)
+  useEffect(() => {
+    if (!ready || key === settledKey) return
+    // The first value counts at once (it is what the page opened with); later ones once the ticking stops.
+    if (settledKey === null) {
+      setSettledKey(key)
+      return
+    }
+    const timer = setTimeout(() => setSettledKey(key), pickSettleMs)
+    return () => clearTimeout(timer)
+  }, [ready, key, settledKey])
   return {
     searchable,
     excluded,
@@ -43,11 +64,12 @@ export function useIndexerPick(): IndexerPick {
     },
     ids,
     none: ids !== undefined && ids.length === 0,
-    ready: !list.isPending,
+    ready,
+    settledKey,
   }
 }
 
-/** "Indexers: All" or "Indexers: 2 of 3", a menu of check boxes. The pick applies to the next search. */
+/** "All indexers" or "2 of 3 indexers", a menu of check boxes. The search runs again once the pick settles. */
 export function IndexerPicker({ pick, testId }: { pick: IndexerPick; testId: string }) {
   const { t } = useTranslation()
   const { searchable, excluded, setExcluded, ids } = pick
