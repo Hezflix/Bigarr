@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { RequestButton } from '@/features/requests/RequestButton'
 import { RequestChips } from '@/features/requests/requestState'
+import { TitleIssues } from '@/features/issues/TitleIssues'
 import { AvailabilityChips } from './availability'
 import { TitleCard, rowCardClass } from './TitleCard'
 
@@ -30,9 +31,10 @@ type HeroProps = {
   trailerUrl: string | null
   library: React.ReactNode
   request: React.ReactNode
+  issues: React.ReactNode
 }
 
-function Hero({ title, posterUrl, backdropUrl, facts, genres, voteAverage, tagline, overview, availability, requests, trailerUrl, library, request }: HeroProps) {
+function Hero({ title, posterUrl, backdropUrl, facts, genres, voteAverage, tagline, overview, availability, requests, trailerUrl, library, request, issues }: HeroProps) {
   const { t } = useTranslation()
   const image = backdrop(backdropUrl)
   return (
@@ -76,6 +78,7 @@ function Hero({ title, posterUrl, backdropUrl, facts, genres, voteAverage, tagli
               </Button>
             )}
             {library}
+            {issues}
           </div>
         </div>
       </div>
@@ -176,6 +179,7 @@ export function DiscoverMoviePage() {
         availability={m.availability}
         requests={m.requests}
         request={<RequestButton mediaType="movie" tmdbId={m.tmdbId} availability={m.availability} requests={m.requests} inLibrary={m.libraryId != null} />}
+        issues={<TitleIssues mediaType="movie" tmdbId={m.tmdbId} title={m.title} />}
         trailerUrl={m.trailerUrl}
         library={
           m.libraryId != null && (
@@ -256,6 +260,7 @@ export function DiscoverSeriesPage() {
         availability={s.availability}
         requests={s.requests}
         request={<RequestButton mediaType="series" tmdbId={s.tmdbId} availability={s.availability} requests={s.requests} seasons={s.seasons} inLibrary={s.libraryId != null} />}
+        issues={<TitleIssues mediaType="series" tmdbId={s.tmdbId} tvdbId={s.tvdbId} title={s.title} />}
         trailerUrl={s.trailerUrl}
         library={
           s.libraryId != null && (

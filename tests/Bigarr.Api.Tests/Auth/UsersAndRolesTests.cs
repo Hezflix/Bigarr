@@ -318,6 +318,21 @@ public sealed class UsersAndRolesTests
             "POST /api/v1/requests/{id:int}/approve",
             "POST /api/v1/requests/{id:int}/decline",
             "POST /api/v1/requests/{id:int}/retry",
+
+            // Issues: the reporter and approvers read, comment, resolve and reopen; "report issues" reports; approvers act.
+            "GET /api/v1/issues/",
+            "GET /api/v1/issues/title",
+            "GET /api/v1/issues/{id:int}",
+            "POST /api/v1/issues/{id:int}/comments",
+            "PUT /api/v1/issues/{id:int}/comments/{commentId:int}",
+            "DELETE /api/v1/issues/{id:int}/comments/{commentId:int}",
+            "POST /api/v1/issues/{id:int}/resolve",
+            "POST /api/v1/issues/{id:int}/reopen",
+            "POST /api/v1/issues",
+            "GET /api/v1/issues/count",
+            "POST /api/v1/issues/{id:int}/search",
+            "POST /api/v1/issues/{id:int}/blocklist",
+            "POST /api/v1/issues/{id:int}/delete-file",
         ];
         string[] adminPolicies = [AuthPolicies.Session, AuthPolicies.Api];
         var opened = new List<string>();

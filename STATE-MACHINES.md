@@ -20,6 +20,7 @@ Line numbers are those of the commit that last touched the section; symbols are 
 - [Shadow follow](#shadow-follow): followed grab, checkpoint, memory, pick view
 - [Auth and UI](#auth-and-ui)
 - [Requests](#requests): request lifecycle, derived states, forward mode
+- [Issues](#issues): issue lifecycle, thread, actions from the issue
 - [Findings](#findings): fixed, open, checked and sound
 
 ## Ground rules
@@ -414,6 +415,55 @@ Invariants:
 
 Known gap: two approvers acting on the same pending request at once both pass the "still pending" check (no
 conditional update); the second add finds the title in the library and only monitors it again.
+
+## Issues
+
+`Issue.Status` (`Features/Issues/IssueService.cs`): `Open`, `Resolved`. One row per report: a title of the library (film,
+or series / season / episode), one version, and the file of a film or an episode at report time (`Issue.File`, a JSON
+snapshot: path, size, quality, release, indexer, grab id).
+
+| From | To | Trigger | Guard |
+|---|---|---|---|
+| none | `Open` | a user with "report issues" reports (`POST /issues`) | the title is in the library (TMDB id, or TVDB id for a series); the scope fits the title; the version, season or episode exists; a message |
+| `Open` | `Resolved` | the reporter or an approver resolves | still `Open` |
+| `Resolved` | `Open` | the reporter or an approver reopens | still `Resolved` |
+
+Each transition adds a line to the thread (`IssueComment.Kind` `Resolved` / `Reopened`) and an outbox event
+(`issueResolved` / `issueReopened`); a report adds `issueCreated`, a comment `issueCommented`. Comments are written by
+whoever sees the issue (reporter, approvers), in either state.
+
+Thread (`IssueComment`): `Comment` rows are edited or deleted by their author for `IssueService.CommentEditWindow`
+(15 minutes), by the admin at any time. `Action`, `Resolved` and `Reopened` rows are the app's and never change.
+
+Actions (`IssueActionService`, approvers only), each logged as an `Action` row: an `Outcome` every reader sees and a
+`Detail` (release names, paths) only the admin reads.
+
+| Action | Through | Guard |
+|---|---|---|
+| Search again | `AutomaticSearchService` (film version) / `SeriesAutomaticSearchService.SearchEpisodesAsync` (the episode, the season's or the series' episodes), trigger `User`; then the followed app's search command, when one carries the version (below) | the title and version are still in the library |
+| Blocklist the release (and optionally delete the file), then search | `BlocklistService.BlockAsync` with the grab that produced the file (import line → download id → grab), or a stand-in grab carrying the file's release title | Bigarr owns the file (below); film or episode scope; a release is known |
+| Delete the file (then optionally search) | `MovieService.DeleteFileAsync` / `SeriesManualImportService.DeleteEpisodeFileAsync` (recycle bin, history, `fileDeleted` events) | Bigarr owns the file; film or episode scope; a file is there now |
+
+Ownership: while shadow mode is on, or while an enabled followed Radarr/Sonarr carries the issue's version name, the
+files are that app's. Blocklist and delete are refused (409) and not offered; the search stays and, in shadow mode,
+records a pick through the grab choke point like any other search. When a followed app carries the version, the search
+is also sent there (`ArrForwarder.SearchMovieAsync` / `SearchSeriesAsync`, the same client as forward mode): Radarr
+`MoviesSearch` for the movie it has by TMDB id; Sonarr `SeriesSearch`, `SeasonSearch` or `EpisodeSearch` (its episode
+of the same numbers) for the series it has by TVDB id. A refusal or an unreachable app is written in the action's
+outcome and changes nothing else; nothing is retried. This search command is, with forward mode's adds, the only write
+Bigarr makes to a followed app.
+
+Invariants:
+
+- The issue keeps its own copy of the title, version name, episode label and file: the library ids
+  (`MovieId`, `SeriesId`, `EpisodeId`, `MovieVersionId`, `SeriesVersionId`) are references without foreign keys, so the
+  issue outlives a deleted title, version or file. An action on an issue whose title or version is gone is refused.
+- An action works on the file there now (`IssueFiles.CurrentAsync`), not on the snapshot: the admin's view shows both
+  when they differ (`FileChanged`).
+- What reaches a user carries no path, release, indexer, library id nor action detail; another user's issue answers 404.
+
+Known gap: two approvers resolving the same issue at once both pass the "still open" check (no conditional update);
+the thread then shows two "resolved" lines and two `issueResolved` events go out.
 
 ## Findings
 

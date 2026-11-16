@@ -10,6 +10,7 @@ import { DiscoverShell } from './features/discover/DiscoverShell'
 import './i18n'
 import './index.css'
 
+import { validateIssuesSearch } from './features/issues/issuesSearch'
 import { validateRequestsSearch } from './features/requests/requestsSearch'
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
@@ -109,6 +110,14 @@ const requestsRoute = createRoute({
   validateSearch: validateRequestsSearch,
   component: lazyRouteComponent(() => import('./features/requests/RequestsPage'), 'RequestsPage'),
 })
+// Issues: everyone's own, and everyone's for an admin or a request manager. `?status=open&type=audio&q=matrix`.
+const issuesRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/issues',
+  validateSearch: validateIssuesSearch,
+  component: lazyRouteComponent(() => import('./features/issues/IssuesPage'), 'IssuesPage'),
+})
+const issueRoute = createRoute({ getParentRoute: () => shellRoute, path: '/issues/$issueId', component: lazyRouteComponent(() => import('./features/issues/IssuePage'), 'IssuePage') })
 
 // Each page is its own chunk, fetched on first visit: the shell and the login page load without the rest.
 const libraryRoute = createRoute({
@@ -228,6 +237,8 @@ const router = createRouter({
     discoverTvRoute,
     discoverPersonRoute,
     requestsRoute,
+    issuesRoute,
+    issueRoute,
     appRoute.addChildren([
       libraryRoute,
       wantedRoute,

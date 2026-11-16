@@ -197,6 +197,47 @@ export const requests = {
   updateSettings: (defaults: RequestDefaults) => put<RequestDefaults>('/api/v1/requests/settings', defaults),
 }
 
+// ---- Issues (reporter and approvers; the file is the admin's) ----------------
+
+export type IssueType = Schemas['IssueType']
+export type IssueScope = Schemas['IssueScope']
+export type IssueStatus = Schemas['IssueStatus']
+export type IssueAction = NonNullable<Schemas['IssueAction']>
+export type Issue = Schemas['IssueResponse']
+export type IssueComment = Schemas['IssueCommentResponse']
+export type IssueFile = Schemas['IssueFileResponse']
+export type IssuePage = Schemas['IssuePage']
+export type IssueTitle = Schemas['IssueTitleResponse']
+export type IssueStatusFilter = 'open' | 'resolved' | 'all'
+export type CreateIssue = {
+  mediaType: RequestMediaType
+  tmdbId: number
+  tvdbId?: number | null
+  type: IssueType
+  scope: IssueScope
+  seasonNumber?: number | null
+  episodeId?: number | null
+  versionName?: string | null
+  message: string
+}
+
+export const issues = {
+  list: (filter: { status?: IssueStatusFilter; type?: IssueType; q?: string; movieId?: number; seriesId?: number; mine?: boolean; page?: number; pageSize?: number }) =>
+    api<IssuePage>(`/api/v1/issues${query({ ...filter, mine: filter.mine ? 'true' : undefined })}`),
+  get: (id: number) => api<Issue>(`/api/v1/issues/${id}`),
+  title: (mediaType: RequestMediaType, tmdbId: number, tvdbId?: number | null) => api<IssueTitle>(`/api/v1/issues/title${query({ mediaType, tmdbId, tvdbId: tvdbId ?? undefined })}`),
+  create: (body: CreateIssue) => post<Issue>('/api/v1/issues', body),
+  comment: (id: number, message: string) => post<Issue>(`/api/v1/issues/${id}/comments`, { message }),
+  editComment: (id: number, commentId: number, message: string) => put<Issue>(`/api/v1/issues/${id}/comments/${commentId}`, { message }),
+  deleteComment: (id: number, commentId: number) => api<Issue>(`/api/v1/issues/${id}/comments/${commentId}`, { method: 'DELETE' }),
+  resolve: (id: number) => post<Issue>(`/api/v1/issues/${id}/resolve`),
+  reopen: (id: number) => post<Issue>(`/api/v1/issues/${id}/reopen`),
+  count: () => api<Schemas['IssueCountsResponse']>('/api/v1/issues/count'),
+  search: (id: number) => post<Issue>(`/api/v1/issues/${id}/search`),
+  blocklist: (id: number, deleteFile: boolean) => post<Issue>(`/api/v1/issues/${id}/blocklist`, { deleteFile }),
+  deleteFile: (id: number, search: boolean) => post<Issue>(`/api/v1/issues/${id}/delete-file`, { search }),
+}
+
 // ---- API keys (Connect) ----------------------------------------------------
 
 /** What a key sees through the Radarr-compatible API: `default`, `all` or `version:<slug>`. */

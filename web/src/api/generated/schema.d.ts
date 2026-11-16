@@ -4,6 +4,73 @@
  */
 
 export interface paths {
+    "/api/v1/issues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    status?: string;
+                    type?: string;
+                    q?: string;
+                    movieId?: number;
+                    seriesId?: number;
+                    mine?: boolean;
+                    page?: number;
+                    pageSize?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IssuePage"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateIssueRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IssueResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/calendar/movies": {
         parameters: {
             query?: never;
@@ -2041,6 +2108,422 @@ export interface paths {
             };
         };
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/issues/title": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    mediaType: string;
+                    tmdbId: number;
+                    tvdbId?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IssueTitleResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/issues/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IssueResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/issues/{id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["IssueMessageRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IssueResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/issues/{id}/comments/{commentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                    commentId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["IssueMessageRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IssueResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                    commentId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IssueResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/issues/{id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IssueResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/issues/{id}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IssueResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/issues/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IssueCountsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/issues/{id}/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IssueResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/issues/{id}/blocklist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["IssueBlocklistRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IssueResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/issues/{id}/delete-file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["IssueDeleteFileRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IssueResponse"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -10360,6 +10843,21 @@ export interface components {
             name: string;
             compatView: null | string;
         };
+        CreateIssueRequest: {
+            mediaType: components["schemas"]["RequestMediaType"];
+            /** Format: int32 */
+            tmdbId: number;
+            type: components["schemas"]["IssueType"];
+            scope: components["schemas"]["IssueScope"];
+            message: string;
+            /** Format: int32 */
+            tvdbId?: null | number;
+            /** Format: int32 */
+            seasonNumber?: null | number;
+            /** Format: int32 */
+            episodeId?: null | number;
+            versionName?: null | string;
+        };
         CreateRequestRequest: {
             mediaType: components["schemas"]["RequestMediaType"];
             /** Format: int32 */
@@ -11369,6 +11867,141 @@ export interface components {
             tvSearchParams: null | string[];
             tvCategories: null | number[];
             animeCategories: null | number[];
+        };
+        /** @enum {unknown} */
+        IssueAction: "search" | "blocklistAndSearch" | "deleteFile" | null;
+        IssueActionsResponse: {
+            search: boolean;
+            blocklist: boolean;
+            deleteFile: boolean;
+            managedBy: null | string;
+        };
+        IssueBlocklistRequest: {
+            /** @default false */
+            deleteFile: boolean;
+        };
+        /** @enum {unknown} */
+        IssueCommentKind: "comment" | "action" | "resolved" | "reopened";
+        IssueCommentResponse: {
+            /** Format: int32 */
+            id: number;
+            kind: components["schemas"]["IssueCommentKind"];
+            author: null | components["schemas"]["IssueUserRef"];
+            message: string;
+            action: null | components["schemas"]["IssueAction"];
+            outcome: null | string;
+            detail: null | string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            editedAt: null | string;
+            canEdit: boolean;
+            canDelete: boolean;
+        };
+        IssueCountsResponse: {
+            /** Format: int32 */
+            open: number;
+        };
+        IssueDeleteFileRequest: {
+            /** @default true */
+            search: boolean;
+        };
+        IssueEpisodeOption: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            episodeNumber: number;
+            title: string;
+            hasFile: boolean;
+        };
+        IssueFileResponse: {
+            path: string;
+            /** Format: int64 */
+            size: number;
+            quality: null | string;
+            releaseTitle: null | string;
+            releaseGroup: null | string;
+            indexerName: null | string;
+        };
+        IssueMessageRequest: {
+            message: string;
+        };
+        IssuePage: {
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
+            /** Format: int32 */
+            totalRecords: number;
+            records: components["schemas"]["IssueResponse"][];
+        };
+        IssueResponse: {
+            /** Format: int32 */
+            id: number;
+            type: components["schemas"]["IssueType"];
+            scope: components["schemas"]["IssueScope"];
+            status: components["schemas"]["IssueStatus"];
+            mediaType: components["schemas"]["RequestMediaType"];
+            /** Format: int32 */
+            tmdbId: null | number;
+            title: string;
+            /** Format: int32 */
+            year: null | number;
+            posterUrl: null | string;
+            /** Format: int32 */
+            seasonNumber: null | number;
+            episodeLabel: null | string;
+            versionName: string;
+            message: string;
+            reportedBy: components["schemas"]["IssueUserRef"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: date-time */
+            resolvedAt: null | string;
+            resolvedBy: null | components["schemas"]["IssueUserRef"];
+            /** Format: int32 */
+            commentCount: number;
+            mine: boolean;
+            canResolve: boolean;
+            canReopen: boolean;
+            canComment: boolean;
+            /** Format: int32 */
+            libraryId: null | number;
+            file: null | components["schemas"]["IssueFileResponse"];
+            currentFile: null | components["schemas"]["IssueFileResponse"];
+            fileChanged: boolean;
+            actions: null | components["schemas"]["IssueActionsResponse"];
+            comments: null | components["schemas"]["IssueCommentResponse"][];
+        };
+        /** @enum {unknown} */
+        IssueScope: "movie" | "series" | "season" | "episode";
+        IssueSeasonOption: {
+            /** Format: int32 */
+            seasonNumber: number;
+            episodes: components["schemas"]["IssueEpisodeOption"][];
+        };
+        /** @enum {unknown} */
+        IssueStatus: "open" | "resolved";
+        IssueTitleResponse: {
+            inLibrary: boolean;
+            canReport: boolean;
+            versions: components["schemas"]["IssueVersionOption"][];
+            seasons: components["schemas"]["IssueSeasonOption"][];
+            open: components["schemas"]["IssueResponse"][];
+        };
+        /** @enum {unknown} */
+        IssueType: "video" | "audio" | "subtitles" | "other";
+        IssueUserRef: {
+            /** Format: int32 */
+            id: number;
+            username: string;
+        };
+        IssueVersionOption: {
+            name: string;
+            isDefault: boolean;
+            fourK: boolean;
         };
         ItemFilmPair: {
             /** Format: int32 */

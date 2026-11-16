@@ -5,6 +5,7 @@ import {
   CirclePlayIcon,
   CompassIcon,
   FilmIcon,
+  FlagIcon,
   FolderCogIcon,
   FolderOpenIcon,
   GitCompareArrowsIcon,
@@ -37,6 +38,7 @@ export type NavPath =
   | '/'
   | '/discover'
   | '/requests'
+  | '/issues'
   | '/settings/discover'
   | '/wanted'
   | '/series'
@@ -81,6 +83,8 @@ export type NavItem = {
   health?: boolean
   /** The count of pending requests sits on this entry. */
   pendingRequests?: boolean
+  /** The count of open issues sits on this entry. */
+  openIssues?: boolean
   /** Reached from the palette only: a page linked from elsewhere (the library) that the sidebar does not list. */
   paletteOnly?: boolean
 }
@@ -99,6 +103,7 @@ export function useNavSections(): NavSection[] {
       items: [
         { to: '/discover', label: t('nav.discover'), icon: CompassIcon },
         { to: '/requests', label: t('nav.requests'), icon: InboxIcon, pendingRequests: true },
+        { to: '/issues', label: t('nav.issues'), icon: FlagIcon, openIssues: true },
       ],
     },
     {

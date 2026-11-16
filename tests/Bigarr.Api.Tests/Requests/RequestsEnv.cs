@@ -50,7 +50,7 @@ internal sealed class RequestsEnv : IAsyncDisposable
 
     public int SeriesRootId { get; private set; }
 
-    public static async Task<RequestsEnv> StartAsync(bool shadow = false, bool seriesRoot = true)
+    public static async Task<RequestsEnv> StartAsync(bool shadow = false, bool seriesRoot = true, TimeProvider? time = null)
     {
         var settings = new Dictionary<string, string> { ["Bigarr:Tmdb:ApiKey"] = "test-key" };
         if (shadow)
@@ -58,7 +58,7 @@ internal sealed class RequestsEnv : IAsyncDisposable
             settings["Bigarr:Shadow:Enabled"] = "true";
         }
 
-        var factory = new Factory(settings);
+        var factory = new Factory(settings, time);
         var admin = factory.CreateClientWithCookies();
         var login = await admin.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest(BigarrApiFactory.AdminUsername, BigarrApiFactory.AdminPassword));
         Assert.Equal(HttpStatusCode.NoContent, login.StatusCode);
@@ -152,7 +152,7 @@ internal sealed class RequestsEnv : IAsyncDisposable
 
     public async ValueTask DisposeAsync() => await App.DisposeAsync();
 
-    private sealed class Factory(IReadOnlyDictionary<string, string> settings) : BigarrApiFactory(null, settings)
+    private sealed class Factory(IReadOnlyDictionary<string, string> settings, TimeProvider? time) : BigarrApiFactory(null, settings, time: time)
     {
         private readonly Recorded _tmdb = new(new Dictionary<string, string>
         {

@@ -11,11 +11,15 @@ namespace Bigarr.Api.Features.Requests;
 /// <summary>What a forward came to: forwarded, already there, or failed with a message for the approver.</summary>
 public sealed record ForwardOutcome(ForwardStatus Status, string? Error = null);
 
+/// <summary>A search sent to a followed app: the command it took (for the admin), or why it did not go.</summary>
+public sealed record ForwardedSearch(bool Sent, string Detail);
+
 /// <summary>
 /// Forward mode: an approved request also goes to the Radarr or Sonarr Bigarr follows for its version, through that app's
 /// v3 API and with the payload Seerr would send (mapped profile and root folder, monitored, search on add). A title the
 /// app already has counts as forwarded: an unmonitored film is monitored and searched, a series gets the requested seasons
-/// monitored and a series search, as Seerr does. The only writes Bigarr ever makes to a followed app.
+/// monitored and a series search, as Seerr does. With an issue's "search again" (a search command, nothing else), the
+/// only writes Bigarr ever makes to a followed app.
 /// </summary>
 public sealed class ArrForwarder(IHttpClientFactory httpClientFactory, ILogger<ArrForwarder> logger)
 {
@@ -151,6 +155,79 @@ public sealed class ArrForwarder(IHttpClientFactory httpClientFactory, ILogger<A
         {
             logger.LogWarning("Forward of TVDB {TvdbId} to Sonarr {Name} failed: {Error}", tvdbId, sonarr.Name, ex.Message);
             return new ForwardOutcome(ForwardStatus.Failed, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// An issue's "search again" for a film the followed Radarr carries: its <c>MoviesSearch</c> command for the movie it
+    /// knows by that TMDB id. A film it does not have is not added: the search is not sent.
+    /// </summary>
+    public async Task<ForwardedSearch> SearchMovieAsync(FollowedRadarr radarr, int tmdbId, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(radarr);
+        var app = new App("Radarr", radarr.Name, radarr.Url, radarr.ApiKey);
+        try
+        {
+            var movies = await SendAsync(app, HttpMethod.Get, $"/movie?tmdbId={tmdbId}", null, ct) as JsonArray;
+            if (movies?.OfType<JsonObject>().Select(Id).FirstOrDefault(i => i is not null) is not { } movieId)
+            {
+                return new ForwardedSearch(false, $"Radarr '{radarr.Name}' does not have TMDB {tmdbId}.");
+            }
+
+            await SendAsync(app, HttpMethod.Post, "/command", new JsonObject { ["name"] = "MoviesSearch", ["movieIds"] = new JsonArray(movieId) }, ct);
+            return new ForwardedSearch(true, $"Radarr '{radarr.Name}': MoviesSearch for movie {movieId}.");
+        }
+        catch (ForwardException ex)
+        {
+            logger.LogWarning("Search of TMDB {TmdbId} on Radarr {Name} failed: {Error}", tmdbId, radarr.Name, ex.Message);
+            return new ForwardedSearch(false, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// An issue's "search again" for a series the followed Sonarr carries, by its TVDB id: <c>SeriesSearch</c> for the whole
+    /// series, <c>SeasonSearch</c> for a season, <c>EpisodeSearch</c> for an episode (Sonarr's episode of the same numbers).
+    /// </summary>
+    public async Task<ForwardedSearch> SearchSeriesAsync(FollowedSonarr sonarr, int tvdbId, int? seasonNumber, int? episodeNumber, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(sonarr);
+        var app = new App("Sonarr", sonarr.Name, sonarr.Url, sonarr.ApiKey);
+        try
+        {
+            var series = await SendAsync(app, HttpMethod.Get, $"/series?tvdbId={tvdbId}", null, ct) as JsonArray;
+            if (series?.OfType<JsonObject>().Select(Id).FirstOrDefault(i => i is not null) is not { } seriesId)
+            {
+                return new ForwardedSearch(false, $"Sonarr '{sonarr.Name}' does not have TVDB {tvdbId}.");
+            }
+
+            if (seasonNumber is not { } season)
+            {
+                await SendAsync(app, HttpMethod.Post, "/command", new JsonObject { ["name"] = "SeriesSearch", ["seriesId"] = seriesId }, ct);
+                return new ForwardedSearch(true, $"Sonarr '{sonarr.Name}': SeriesSearch for series {seriesId}.");
+            }
+
+            if (episodeNumber is not { } number)
+            {
+                await SendAsync(app, HttpMethod.Post, "/command", new JsonObject { ["name"] = "SeasonSearch", ["seriesId"] = seriesId, ["seasonNumber"] = season }, ct);
+                return new ForwardedSearch(true, $"Sonarr '{sonarr.Name}': SeasonSearch for series {seriesId} season {season}.");
+            }
+
+            var episodes = await SendAsync(app, HttpMethod.Get, $"/episode?seriesId={seriesId}", null, ct) as JsonArray;
+            var episodeId = episodes?.OfType<JsonObject>()
+                .Where(e => e["seasonNumber"]?.GetValue<int>() == season && e["episodeNumber"]?.GetValue<int>() == number)
+                .Select(Id).FirstOrDefault(i => i is not null);
+            if (episodeId is null)
+            {
+                return new ForwardedSearch(false, $"Sonarr '{sonarr.Name}' has no episode S{season:00}E{number:00} in series {seriesId}.");
+            }
+
+            await SendAsync(app, HttpMethod.Post, "/command", new JsonObject { ["name"] = "EpisodeSearch", ["episodeIds"] = new JsonArray(episodeId.Value) }, ct);
+            return new ForwardedSearch(true, $"Sonarr '{sonarr.Name}': EpisodeSearch for episode {episodeId}.");
+        }
+        catch (ForwardException ex)
+        {
+            logger.LogWarning("Search of TVDB {TvdbId} on Sonarr {Name} failed: {Error}", tvdbId, sonarr.Name, ex.Message);
+            return new ForwardedSearch(false, ex.Message);
         }
     }
 
