@@ -9,7 +9,7 @@ type Props = {
   /** The formatted count beside the title; null while the library loads. */
   count: string | null
   countTestId: string
-  addTo: '/add' | '/series/add'
+  /** The add button's label: adding happens in Discover, from its search. */
   addLabel: string
   selecting?: boolean
   onSelect?: () => void
@@ -22,7 +22,7 @@ type Props = {
  * title, left-aligned, and wrap, so the row never pushes the page wider than the viewport. From `sm` up they sit
  * on the title's line, on the right.
  */
-export function LibraryHeader({ title, count, countTestId, addTo, addLabel, selecting = false, onSelect, children }: Props) {
+export function LibraryHeader({ title, count, countTestId, addLabel, selecting = false, onSelect, children }: Props) {
   const { t } = useTranslation()
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -41,7 +41,7 @@ export function LibraryHeader({ title, count, countTestId, addTo, addLabel, sele
           </Button>
         )}
         <Button asChild>
-          <Link to={addTo}>
+          <Link to="/discover/search" data-testid="library-add">
             <PlusIcon />
             {addLabel}
           </Link>

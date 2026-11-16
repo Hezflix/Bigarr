@@ -19,7 +19,7 @@ export function ApproveDialog({ request, onClose }: { request: MediaRequest; onC
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const options = useQuery({ queryKey: ['requests', 'options', request.mediaType], queryFn: () => requests.options(request.mediaType) })
-  const show = useQuery({ queryKey: ['discover', 'tv', String(request.tmdbId)], queryFn: () => discover.show(request.tmdbId), enabled: request.mediaType === 'series' })
+  const show = useQuery({ queryKey: ['discover', 'tv', String(request.tmdbId)], queryFn: () => discover.show(request.tmdbId as number), enabled: request.mediaType === 'series' && request.tmdbId != null })
   const [fourK, setFourK] = useState(request.fourK)
   const [seasons, setSeasons] = useState<number[]>(request.seasons)
   const [profileId, setProfileId] = useState<number | ''>('')

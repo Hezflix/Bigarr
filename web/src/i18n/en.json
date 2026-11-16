@@ -5,7 +5,6 @@
   "nav": {
     "movies": "Movies",
     "library": "Library",
-    "addMovie": "Add a movie",
     "settings": "Settings",
     "settingsLibrary": "Library",
     "logout": "Log out",
@@ -33,7 +32,6 @@
     "compareSonarr": "Compare · Sonarr",
     "series": "Series",
     "seriesLibrary": "Library",
-    "addSeries": "Add a series",
     "playback": "Playback",
     "nowPlaying": "Now playing",
     "plays": "Plays",
@@ -84,7 +82,7 @@
     "count_other": "{{count}} movies",
     "addMovie": "Add a movie",
     "empty": "No movies yet.",
-    "emptyHint": "<add>Add a movie</add> or <scan>scan an existing library</scan>.",
+    "emptyHint": "<add>Add a film from Discover</add> or <scan>scan an existing library</scan>.",
     "loadError": "The library could not be loaded.",
     "noFile": "no file",
     "countShown": "{{shown}} of {{count}} movies",
@@ -400,7 +398,7 @@
     "countShown": "{{shown}} of {{count}} series",
     "search": "Filter by title or network…",
     "empty": "No series yet.",
-    "emptyHint": "<add>Add a series</add> to start.",
+    "emptyHint": "<add>Add a series from Discover</add> to start.",
     "noMatch": "No series matches the filter.",
     "loadError": "The series could not be loaded.",
     "add": "Add a series",
@@ -1270,7 +1268,7 @@
     "verdict": "Verdict",
     "sample": "sample",
     "noMovie": "No movie matched",
-    "noMovieHint": "Add the movie to the library first, then pick it here.",
+    "noMovieHint": "Add the film from Discover first, then pick it here.",
     "extras_one": "Brings {{count}} extra file",
     "extras_other": "Brings {{count}} extra files",
     "selectExtra": "Bring {{name}} with the movie",
@@ -2961,10 +2959,9 @@
       "movies": "Movies",
       "series": "Series",
       "add": "Add to the library",
-      "addMovie": "Add the movie “{{term}}”…",
-      "addSeries": "Add the series “{{term}}”…",
       "searching": "Searching the library…",
-      "alsoKnownAs": "Also known as {{title}}"
+      "alsoKnownAs": "Also known as {{title}}",
+      "addFromDiscover": "Add “{{term}}” from Discover…"
     },
     "actionsHeading": "Actions",
     "actions": {
@@ -3326,6 +3323,19 @@
       "hint": "The quality profile and root folder an approved request goes to, per type and version, unless the approver picks others. Automatic takes the first of the right kind (a 4K profile for 4K).",
       "auto": "Automatic",
       "saved": "Request defaults saved."
+    },
+    "add": {
+      "add": "Add",
+      "addVersion": "Add a version",
+      "standardName": "the standard name",
+      "pickedSeasons": "The seasons picked below",
+      "suggestedType": "Suggested by the metadata",
+      "searchHint": "The indexers are searched in the background once it is added (picks only in shadow mode).",
+      "viaRequest": "Added as an approved request in your name: it shows in Requests, and goes to the followed Radarr or Sonarr of its version.",
+      "done": "{{title}} added.",
+      "failed": "{{title}} could not be added: see the request.",
+      "tvdbOnly": "Only on TVDB",
+      "tvdbOnlyHint": "Series TMDB does not have, found on TVDB. Search tvdb:81189 for one by its id."
     }
   }
 }

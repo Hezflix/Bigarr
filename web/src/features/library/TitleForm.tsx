@@ -5,10 +5,10 @@ import { Label } from '@/components/ui/label'
 import { AddDialog, AddError, IdSelectField } from './addParts'
 
 /**
- * The one form that puts a film or a series into the library, whoever fills it: the admin's library "Add", a user's
- * request (version slot, seasons) and an approver's "approve with edits" (slot, seasons, profile, root folder). Each
- * caller turns on the parts it needs; what only the library add has (version name, monitoring, search on add) comes in
- * as `children`.
+ * The one form that puts a film or a series into the library, whoever fills it, always from Discover: a user's request
+ * (version slot, seasons), an approver's "approve with edits" (slot, seasons, profile, root folder) and the admin's add
+ * (all of that plus what the library add offers: version name, monitoring, search on add, series type…, passed in as
+ * `children`).
  */
 
 export type TitleKind = 'movie' | 'series'

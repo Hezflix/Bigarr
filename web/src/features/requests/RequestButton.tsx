@@ -3,8 +3,9 @@ import { useQuery } from '@tanstack/react-query'
 import { cn } from 'cn'
 import { PlusIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { auth, type Availability, type DiscoverSeason, type RequestMediaType, type RequestSlots } from '@/api/client'
+import { auth, type Availability, type DiscoverSeason, isAdmin, type RequestMediaType, type RequestSlots } from '@/api/client'
 import { Button } from '@/components/ui/button'
+import { AdminAddDialog } from './AdminAddDialog'
 import { RequestDialog } from './RequestDialog'
 import { requestRights } from './requestState'
 
@@ -31,34 +32,52 @@ export function useCanRequest(title: Title) {
   return slots.some((slot) => open(title.availability, title.requests, slot) || (title.mediaType === 'series' && title.availability?.[slot] !== 'available' && !title.requests?.[slot]))
 }
 
-/** The "Request" button of a title page, opening the request dialog. */
-export function RequestButton(title: Title) {
+function useAdmin() {
+  const me = useQuery({ queryKey: ['me'], queryFn: auth.me, staleTime: 60_000 })
+  return isAdmin(me.data)
+}
+
+/**
+ * The button of a title page: "Request" for everyone, opening the request dialog; for the admin, "Add" (or "Add a
+ * version" when the library has the title), opening the full add form. Discover is where titles are added.
+ */
+export function RequestButton(title: Title & { inLibrary?: boolean }) {
   const { t } = useTranslation()
   const [asking, setAsking] = useState(false)
-  if (!useCanRequest(title)) return null
+  const admin = useAdmin()
+  const canRequest = useCanRequest(title)
+  if (!admin && !canRequest) return null
   return (
     <>
-      <Button size="sm" onClick={() => setAsking(true)} data-testid="request-button">
+      <Button size="sm" onClick={() => setAsking(true)} data-testid={admin ? 'admin-add-button' : 'request-button'}>
         <PlusIcon />
-        {t('requests.request')}
+        {admin ? (title.inLibrary ? t('requests.add.addVersion') : t('requests.add.add')) : t('requests.request')}
       </Button>
-      {asking && <RequestDialog mediaType={title.mediaType} tmdbId={title.tmdbId} onClose={() => setAsking(false)} />}
+      {asking &&
+        (admin ? (
+          <AdminAddDialog mediaType={title.mediaType} tmdbId={title.tmdbId} onClose={() => setAsking(false)} />
+        ) : (
+          <RequestDialog mediaType={title.mediaType} tmdbId={title.tmdbId} onClose={() => setAsking(false)} />
+        ))}
     </>
   )
 }
 
-/** The round "+" on a Discover card, over the poster's corner; the card itself stays a link. */
+/** The round "+" on a Discover card, over the poster's corner (request, or the admin's add); the card itself stays a link. */
 export function CardRequestButton({ className, ...title }: Title & { className?: string }) {
   const { t } = useTranslation()
   const [asking, setAsking] = useState(false)
-  if (!useCanRequest(title)) return null
+  const admin = useAdmin()
+  const canRequest = useCanRequest(title)
+  if (!admin && !canRequest) return null
+  const label = admin ? t('requests.add.add') : t('requests.request')
   return (
     <>
       <button
         type="button"
         onClick={() => setAsking(true)}
-        aria-label={t('requests.request')}
-        title={t('requests.request')}
+        aria-label={label}
+        title={label}
         className={cn(
           'absolute right-1.5 bottom-1.5 flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md transition-opacity outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring sm:size-8 sm:opacity-0 sm:group-hover/card:opacity-100',
           className,
@@ -67,7 +86,12 @@ export function CardRequestButton({ className, ...title }: Title & { className?:
       >
         <PlusIcon className="size-4" aria-hidden="true" />
       </button>
-      {asking && <RequestDialog mediaType={title.mediaType} tmdbId={title.tmdbId} onClose={() => setAsking(false)} />}
+      {asking &&
+        (admin ? (
+          <AdminAddDialog mediaType={title.mediaType} tmdbId={title.tmdbId} onClose={() => setAsking(false)} />
+        ) : (
+          <RequestDialog mediaType={title.mediaType} tmdbId={title.tmdbId} onClose={() => setAsking(false)} />
+        ))}
     </>
   )
 }

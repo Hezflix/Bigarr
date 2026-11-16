@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { SearchBox } from './DiscoverPage'
 import { sliderTitle } from './sliders'
 import { TitleCard, TitleCardSkeleton, gridClass, skeletonKeys } from './TitleCard'
+import { TvdbOnlyResults } from '@/features/requests/TvdbOnlyResults'
 
 type Fetch = (page: number) => Promise<DiscoverPage>
 
@@ -114,6 +115,7 @@ export function DiscoverSearchPage() {
         <SearchBox key={q} initial={q ?? ''} className="sm:w-80" />
       </div>
       {q && <InfiniteGrid queryKey={['discover', 'search', q]} fetch={(page) => discover.search(q, page)} empty={t('discover.noResults')} />}
+      {q && <TvdbOnlyResults query={q} />}
     </div>
   )
 }

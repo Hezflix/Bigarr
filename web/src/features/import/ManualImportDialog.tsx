@@ -165,7 +165,7 @@ export function ManualImportDialog({ grabId, path: initialPath, title, onClose }
                         {selection.movieId === null && (
                           <span className="mt-1 block max-w-64 text-xs text-muted-foreground">
                             {file.matchReason ?? t('manualImport.noMovie')}{' '}
-                            <Link to="/add" className="underline underline-offset-4 hover:text-foreground">
+                            <Link to="/discover/search" className="underline underline-offset-4 hover:text-foreground">
                               {t('manualImport.noMovieHint')}
                             </Link>
                           </span>

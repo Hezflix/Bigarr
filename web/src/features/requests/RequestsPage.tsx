@@ -141,15 +141,19 @@ function RequestRow({
   const cancel = useMutation({ mutationFn: () => requests.cancel(r.id), onSuccess: done, onError: failed })
   const retry = useMutation({ mutationFn: () => requests.retry(r.id), onSuccess: done, onError: failed })
   const forwardFailed = r.forwardStatus === 'failed'
-  const titleLink = r.mediaType === 'movie' ? (
-    <Link to="/discover/movie/$tmdbId" params={{ tmdbId: String(r.tmdbId) }} className="font-medium hover:underline">
-      {r.title}
-    </Link>
-  ) : (
-    <Link to="/discover/tv/$tmdbId" params={{ tmdbId: String(r.tmdbId) }} className="font-medium hover:underline">
-      {r.title}
-    </Link>
-  )
+  // A series only TVDB has (added by the admin) has no Discover page: its title is plain text.
+  const titleLink =
+    r.tmdbId == null ? (
+      <span className="font-medium">{r.title}</span>
+    ) : r.mediaType === 'movie' ? (
+      <Link to="/discover/movie/$tmdbId" params={{ tmdbId: String(r.tmdbId) }} className="font-medium hover:underline">
+        {r.title}
+      </Link>
+    ) : (
+      <Link to="/discover/tv/$tmdbId" params={{ tmdbId: String(r.tmdbId) }} className="font-medium hover:underline">
+        {r.title}
+      </Link>
+    )
 
   return (
     <li className="flex gap-3 p-3" data-testid={`request-${r.id}`}>

@@ -175,7 +175,7 @@ export function DiscoverMoviePage() {
         overview={m.overview}
         availability={m.availability}
         requests={m.requests}
-        request={<RequestButton mediaType="movie" tmdbId={m.tmdbId} availability={m.availability} requests={m.requests} />}
+        request={<RequestButton mediaType="movie" tmdbId={m.tmdbId} availability={m.availability} requests={m.requests} inLibrary={m.libraryId != null} />}
         trailerUrl={m.trailerUrl}
         library={
           m.libraryId != null && (
@@ -255,7 +255,7 @@ export function DiscoverSeriesPage() {
         overview={s.overview}
         availability={s.availability}
         requests={s.requests}
-        request={<RequestButton mediaType="series" tmdbId={s.tmdbId} availability={s.availability} requests={s.requests} seasons={s.seasons} />}
+        request={<RequestButton mediaType="series" tmdbId={s.tmdbId} availability={s.availability} requests={s.requests} seasons={s.seasons} inLibrary={s.libraryId != null} />}
         trailerUrl={s.trailerUrl}
         library={
           s.libraryId != null && (

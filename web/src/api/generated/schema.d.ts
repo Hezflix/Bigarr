@@ -9929,6 +9929,27 @@ export interface components {
             searchOnAdd: boolean;
             tagIds?: null | number[];
         };
+        AdminAddRequest: {
+            /** Format: int32 */
+            qualityProfileId?: null | number;
+            /** Format: int32 */
+            rootFolderId?: null | number;
+            versionName?: null | string;
+            /** @default true */
+            monitored: boolean;
+            /** @default true */
+            searchOnAdd: boolean;
+            minimumAvailability?: components["schemas"]["MinimumAvailability"];
+            seriesType?: components["schemas"]["SeriesType"];
+            /** @default true */
+            suggestedSeriesType: boolean;
+            monitor?: components["schemas"]["MonitoringOption"];
+            /** @default false */
+            monitorPickedSeasons: boolean;
+            /** @default true */
+            seasonFolder: boolean;
+            monitorNewItems?: components["schemas"]["NewItemMonitoring"];
+        };
         AlternativeTitle: {
             title: string;
             language: null | string;
@@ -10342,10 +10363,13 @@ export interface components {
         CreateRequestRequest: {
             mediaType: components["schemas"]["RequestMediaType"];
             /** Format: int32 */
-            tmdbId: number;
+            tmdbId: null | number;
             /** @default false */
             fourK: boolean;
             seasons?: null | number[];
+            /** Format: int32 */
+            tvdbId?: null | number;
+            add?: null | components["schemas"]["AdminAddRequest"];
         };
         CustomFormatEvaluationResponse: {
             title: string;
@@ -11639,7 +11663,7 @@ export interface components {
             id: number;
             mediaType: components["schemas"]["RequestMediaType"];
             /** Format: int32 */
-            tmdbId: number;
+            tmdbId: null | number;
             title: string;
             /** Format: int32 */
             year: null | number;
@@ -11712,7 +11736,10 @@ export interface components {
             compatView: null | string;
             permissions: string[];
         };
-        /** @enum {unknown} */
+        /**
+         * @default released
+         * @enum {unknown}
+         */
         MinimumAvailability: "announced" | "inCinemas" | "released";
         /** @enum {unknown} */
         MinimumPlayUnit: "seconds" | "percent";
@@ -13662,7 +13689,10 @@ export interface components {
         };
         /** @enum {unknown} */
         SeriesTokenScope: "series" | "season" | "episode";
-        /** @enum {unknown} */
+        /**
+         * @default standard
+         * @enum {unknown}
+         */
         SeriesType: "standard" | "anime" | "daily";
         SeriesVersionDecisionResponse: {
             /** Format: int32 */

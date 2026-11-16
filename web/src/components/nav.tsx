@@ -20,7 +20,6 @@ import {
   ListVideoIcon,
   MonitorPlayIcon,
   PlugIcon,
-  PlusIcon,
   RadioTowerIcon,
   RssIcon,
   ShieldCheckIcon,
@@ -39,10 +38,8 @@ export type NavPath =
   | '/discover'
   | '/requests'
   | '/settings/discover'
-  | '/add'
   | '/wanted'
   | '/series'
-  | '/series/add'
   | '/series/wanted'
   | '/library/specials-films'
   | '/calendar'
@@ -108,7 +105,6 @@ export function useNavSections(): NavSection[] {
       title: t('nav.movies'),
       items: [
         { to: '/', label: t('nav.library'), icon: FilmIcon, exact: true },
-        { to: '/add', label: t('nav.addMovie'), icon: PlusIcon },
         { to: '/wanted', label: t('nav.wanted'), icon: ListTodoIcon },
       ],
     },
@@ -116,7 +112,6 @@ export function useNavSections(): NavSection[] {
       title: t('nav.series'),
       items: [
         { to: '/series', label: t('nav.seriesLibrary'), icon: TvIcon, exact: true },
-        { to: '/series/add', label: t('nav.addSeries'), icon: PlusIcon },
         { to: '/series/wanted', label: t('nav.seriesWanted'), icon: ListTodoIcon },
         { to: '/library/specials-films', label: t('specialsFilms.title'), icon: FilmIcon, paletteOnly: true },
       ],

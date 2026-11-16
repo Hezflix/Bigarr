@@ -123,11 +123,19 @@ const libraryRoute = createRoute({
   }),
   component: lazyRouteComponent(() => import('./features/library/LibraryPage'), 'LibraryPage'),
 })
-// `?term=alien`: the lookup to open on, as the command palette's "Add" entry sends it.
+// `?term=alien`: the term an old Add link carried, handed to Discover's search.
 const termSearch = (search: Record<string, unknown>): { term?: string } => ({
   term: typeof search.term === 'string' && search.term.trim() ? search.term : undefined,
 })
-const addRoute = createRoute({ getParentRoute: () => appRoute, path: '/add', validateSearch: termSearch, component: lazyRouteComponent(() => import('./features/movies/AddMoviePage'), 'AddMoviePage') })
+// The old Add pages: adding is done from Discover now. Their addresses (and the term they were opened on) still land there.
+const addRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/add',
+  validateSearch: termSearch,
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: '/discover/search', search: { q: search.term } })
+  },
+})
 const movieRoute = createRoute({ getParentRoute: () => appRoute, path: '/movies/$movieId', component: lazyRouteComponent(() => import('./features/movies/MovieDetailPage'), 'MovieDetailPage') })
 const seriesLibraryRoute = createRoute({
   getParentRoute: () => appRoute,
@@ -149,7 +157,14 @@ const specialsFilmsRoute = createRoute({
   }),
   component: lazyRouteComponent(() => import('./features/series/SpecialsFilmsPage'), 'SpecialsFilmsPage'),
 })
-const addSeriesRoute = createRoute({ getParentRoute: () => appRoute, path: '/series/add', validateSearch: termSearch, component: lazyRouteComponent(() => import('./features/series/AddSeriesPage'), 'AddSeriesPage') })
+const addSeriesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/series/add',
+  validateSearch: termSearch,
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: '/discover/search', search: { q: search.term } })
+  },
+})
 const seriesRoute = createRoute({ getParentRoute: () => appRoute, path: '/series/$seriesId', component: lazyRouteComponent(() => import('./features/series/SeriesDetailPage'), 'SeriesDetailPage') })
 const queueRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/queue', component: lazyRouteComponent(() => import('./features/activity/QueuePage'), 'QueuePage') })
 const releasesRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/releases', component: lazyRouteComponent(() => import('./features/activity/ReleasesPage'), 'ReleasesPage') })
@@ -203,7 +218,7 @@ const importSonarrRoute = createRoute({ getParentRoute: () => appRoute, path: '/
 const followedSonarrsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/followed-sonarrs', component: lazyRouteComponent(() => import('./features/settings/SonarrFollowPage'), 'SonarrFollowPage') })
 
 const router = createRouter({
-  routeTree: rootRoute.addChildren([loginRoute, welcomeRoute, shellRoute.addChildren([
+  routeTree: rootRoute.addChildren([loginRoute, welcomeRoute, addRoute, addSeriesRoute, shellRoute.addChildren([
     discoverRoute,
     discoverSearchRoute,
     discoverRowRoute,
@@ -215,7 +230,6 @@ const router = createRouter({
     requestsRoute,
     appRoute.addChildren([
       libraryRoute,
-      addRoute,
       wantedRoute,
       nowPlayingRoute,
       playsRoute,
@@ -225,7 +239,6 @@ const router = createRouter({
       movieRoute,
       seriesLibraryRoute,
       specialsFilmsRoute,
-      addSeriesRoute,
       seriesWantedRoute,
       calendarRoute,
       seriesRoute,

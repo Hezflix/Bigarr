@@ -175,6 +175,8 @@ export type RequestOptions = Schemas['RequestOptionsResponse']
 export type RequestQuota = Schemas['QuotaResponse']
 export type RequestDefaults = Schemas['RequestDefaultsDto']
 export type RequestFilter = 'all' | 'pending' | 'approved' | 'processing' | 'available' | 'declined' | 'failed'
+export type AdminAddOptions = Schemas['AdminAddRequest']
+export type AdminAddBody = { mediaType: RequestMediaType; tmdbId: number | null; tvdbId?: number | null; fourK: boolean; seasons: number[] | null; add: AdminAddOptions }
 export type ApproveEdits = { qualityProfileId?: number | null; rootFolderId?: number | null; fourK?: boolean | null; seasons?: number[] | null }
 
 export const requests = {
@@ -182,6 +184,8 @@ export const requests = {
     api<MediaRequestPage>(`/api/v1/requests${query(filter)}`),
   get: (id: number) => api<MediaRequest>(`/api/v1/requests/${id}`),
   create: (mediaType: RequestMediaType, tmdbId: number, fourK: boolean, seasons: number[] | null) => post<MediaRequest>('/api/v1/requests', { mediaType, tmdbId, fourK, seasons }),
+  /** The admin's add from Discover: a request approved at once, with the library add's options; `tvdbId` alone for a series TMDB lacks. */
+  add: (body: AdminAddBody) => post<MediaRequest>('/api/v1/requests', body),
   cancel: (id: number) => del(`/api/v1/requests/${id}`),
   approve: (id: number, edits: ApproveEdits) => post<MediaRequest>(`/api/v1/requests/${id}/approve`, edits),
   decline: (id: number, reason: string | null) => post<MediaRequest>(`/api/v1/requests/${id}/decline`, { reason }),
