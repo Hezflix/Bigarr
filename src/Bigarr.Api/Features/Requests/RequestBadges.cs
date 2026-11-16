@@ -21,8 +21,8 @@ public sealed class RequestBadges(BigarrDbContext db)
         }
 
         var active = await db.MediaRequests.AsNoTracking()
-            .Where(r => r.MediaType == type && tmdbIds.Contains(r.TmdbId) && r.Status != RequestStatus.Declined)
-            .Select(r => new { r.TmdbId, r.FourK, r.Status, r.Seasons })
+            .Where(r => r.MediaType == type && r.TmdbId != null && tmdbIds.Contains(r.TmdbId.Value) && r.Status != RequestStatus.Declined)
+            .Select(r => new { TmdbId = r.TmdbId!.Value, r.FourK, r.Status, r.Seasons })
             .ToListAsync(ct);
 
         return active.GroupBy(r => r.TmdbId).ToDictionary(g => g.Key, g =>

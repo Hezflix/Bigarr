@@ -1,5 +1,7 @@
 using Bigarr.Api.Features.Discover;
+using Bigarr.Domain.Movies;
 using Bigarr.Domain.Requests;
+using Bigarr.Domain.Tv;
 
 namespace Bigarr.Api.Features.Requests;
 
@@ -24,8 +26,45 @@ public enum RequestState
     Available,
 }
 
+/// <param name="TmdbId">The title on TMDB; null only for a series an admin adds from its TVDB id.</param>
 /// <param name="Seasons">The seasons to ask for (series); null asks for every season that can still be asked for.</param>
-public sealed record CreateRequestRequest(RequestMediaType MediaType, int TmdbId, bool FourK = false, List<int>? Seasons = null);
+/// <param name="TvdbId">A series TMDB does not have (admin only, with <see cref="Add"/>).</param>
+/// <param name="Add">The admin's add from Discover: the library add's options. Refused for anyone else.</param>
+public sealed record CreateRequestRequest(RequestMediaType MediaType, int? TmdbId, bool FourK = false, List<int>? Seasons = null, int? TvdbId = null, AdminAddRequest? Add = null);
+
+/// <summary>
+/// Everything the library's add offers, for the admin adding a title from Discover. Null ids take what a request would
+/// (the request defaults for profile and root folder); a null version name takes the slot's.
+/// </summary>
+/// <param name="VersionName">Any version name; one the 4K setting names lands in the 4K slot.</param>
+/// <param name="SuggestedSeriesType">Series: take the metadata's suggestion instead of <paramref name="SeriesType"/>.</param>
+/// <param name="MonitorPickedSeasons">Series: monitor the seasons of the request instead of the <paramref name="Monitor"/> rule.</param>
+public sealed record AdminAddRequest(
+    int? QualityProfileId = null,
+    int? RootFolderId = null,
+    string? VersionName = null,
+    bool Monitored = true,
+    bool SearchOnAdd = true,
+    MinimumAvailability MinimumAvailability = MinimumAvailability.Released,
+    SeriesType SeriesType = SeriesType.Standard,
+    bool SuggestedSeriesType = true,
+    MonitoringOption Monitor = MonitoringOption.All,
+    bool MonitorPickedSeasons = false,
+    bool SeasonFolder = true,
+    NewItemMonitoring MonitorNewItems = NewItemMonitoring.All)
+{
+    public AdminAddOptions ToOptions() => new()
+    {
+        VersionName = string.IsNullOrWhiteSpace(VersionName) ? null : VersionName.Trim(),
+        Monitored = Monitored,
+        SearchOnAdd = SearchOnAdd,
+        MinimumAvailability = MinimumAvailability,
+        SeriesType = SuggestedSeriesType ? null : SeriesType,
+        Monitor = MonitorPickedSeasons ? null : Monitor,
+        SeasonFolder = SeasonFolder,
+        MonitorNewItems = MonitorNewItems,
+    };
+}
 
 /// <summary>Approve with edits: every field left null keeps what the request or the defaults say.</summary>
 /// <param name="FourK">Moves the request to the other slot (an approver may turn a 4K request into a standard one).</param>
@@ -48,7 +87,7 @@ public sealed record RequestUserRef(int Id, string Username);
 public sealed record MediaRequestResponse(
     int Id,
     RequestMediaType MediaType,
-    int TmdbId,
+    int? TmdbId,
     string Title,
     int? Year,
     string? PosterUrl,
@@ -102,7 +141,7 @@ public sealed record QuotaDto(int? FilmLimit, int FilmDays, int? SeasonLimit, in
     };
 }
 
-/// <summary>A profile or a root folder an approver may pick: its id and a name (a root folder's folder name, never its path).</summary>
+/// <summary>A profile or a root folder an approver may pick: its id and a name (a root folder's folder name for a request manager, its path for the admin).</summary>
 public sealed record RequestOption(int Id, string Name);
 
 /// <param name="FourKVersion">The 4K version's name; null when only the standard slot is offered.</param>

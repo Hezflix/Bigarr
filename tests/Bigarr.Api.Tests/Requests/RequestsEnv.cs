@@ -159,6 +159,8 @@ internal sealed class RequestsEnv : IAsyncDisposable
             ["/3/movie/603"] = DiscoverRecorded.Movie603,
             ["/3/movie/604"] = Movie604,
             ["/3/tv/1396"] = DiscoverRecorded.Tv1396,
+            ["/3/find/tt0133093"] = """{ "movie_results": [{ "id": 603, "title": "The Matrix", "release_date": "1999-03-30", "poster_path": "/m.jpg" }], "tv_results": [] }""",
+            ["/3/find/81189"] = """{ "movie_results": [], "tv_results": [{ "id": 1396, "name": "Breaking Bad", "first_air_date": "2008-01-20" }] }""",
         });
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)

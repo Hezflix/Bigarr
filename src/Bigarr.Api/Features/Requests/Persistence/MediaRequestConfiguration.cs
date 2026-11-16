@@ -14,6 +14,7 @@ public sealed class MediaRequestConfiguration : IEntityTypeConfiguration<MediaRe
         builder.Property(r => r.Title).HasMaxLength(512);
         builder.Property(r => r.PosterUrl).HasMaxLength(1024);
         builder.Property(r => r.Seasons).HasJsonConversion();
+        builder.Property(r => r.AddOptions).HasJsonConversion();
         builder.Property(r => r.DeclineReason).HasMaxLength(1024);
         builder.Property(r => r.Error).HasMaxLength(2048);
         builder.Property(r => r.VersionName).HasMaxLength(64);

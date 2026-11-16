@@ -118,7 +118,7 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
                     MediaType = table.Column<int>(type: "INTEGER", nullable: false),
-                    TmdbId = table.Column<int>(type: "INTEGER", nullable: false),
+                    TmdbId = table.Column<int>(type: "INTEGER", nullable: true),
                     TvdbId = table.Column<int>(type: "INTEGER", nullable: true),
                     Title = table.Column<string>(type: "TEXT", maxLength: 512, nullable: false),
                     Year = table.Column<int>(type: "INTEGER", nullable: true),
@@ -135,6 +135,7 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     AutoApproved = table.Column<bool>(type: "INTEGER", nullable: false),
                     DeclineReason = table.Column<string>(type: "TEXT", maxLength: 1024, nullable: true),
                     Error = table.Column<string>(type: "TEXT", maxLength: 2048, nullable: true),
+                    AddOptions = table.Column<string>(type: "TEXT", nullable: true),
                     QualityProfileId = table.Column<int>(type: "INTEGER", nullable: true),
                     RootFolderId = table.Column<int>(type: "INTEGER", nullable: true),
                     VersionName = table.Column<string>(type: "TEXT", maxLength: 64, nullable: true),

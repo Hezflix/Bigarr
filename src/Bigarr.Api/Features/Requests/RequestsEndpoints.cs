@@ -168,9 +168,9 @@ public static class RequestsEndpoints
             await db.MediaRequests.CountAsync(r => r.Status == RequestStatus.Pending, ct),
             await db.MediaRequests.CountAsync(r => r.Status == RequestStatus.Failed || (r.Status == RequestStatus.Approved && r.ForwardStatus == ForwardStatus.Failed), ct)));
 
-    /// <summary>What an approver may pick from: profiles and root folders of the type, by name (a root folder's folder name only).</summary>
+    /// <summary>What an approver may pick from: profiles and root folders of the type, by name (a root folder's folder name; its path for the admin).</summary>
     /// <param name="mediaType"><c>movie</c> or <c>series</c>.</param>
-    private static async Task<Results<Ok<RequestOptionsResponse>, ProblemHttpResult>> OptionsAsync(string mediaType, RequestTargets targets, LibraryAvailability library, CancellationToken ct)
+    private static async Task<Results<Ok<RequestOptionsResponse>, ProblemHttpResult>> OptionsAsync(string mediaType, ClaimsPrincipal principal, RequestTargets targets, LibraryAvailability library, CancellationToken ct)
     {
         if (ParseType(mediaType) is not { } type)
         {
@@ -184,7 +184,7 @@ public static class RequestsEndpoints
         return TypedResults.Ok(new RequestOptionsResponse(
             type,
             [.. profiles.Select(p => new RequestOption(p.Id, p.Name))],
-            [.. roots.Select(r => new RequestOption(r.Id, RequestTargets.FolderName(r.Path)))],
+            [.. roots.Select(r => new RequestOption(r.Id, principal.IsAdmin() ? r.Path : RequestTargets.FolderName(r.Path)))],
             await library.FourKVersionAsync(ct),
             standard.ProfileId,
             standard.RootFolderId,

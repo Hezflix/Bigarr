@@ -383,6 +383,7 @@ title, version slot (standard / 4K) and, for a series, set of seasons.
 |---|---|---|---|
 | none | `Pending` | a signed-in user asks (`POST /requests`) | permission for the type (and "request 4K"); slot not wanted or available in the library; no active request for the same title, slot (and season); quota |
 | none → `Pending` | `Approved` | at once, same request | the user's auto-approve flag for the type, or an admin |
+| none → `Pending` | `Approved` | the admin adds a title from Discover (the only way to add one from the UI) | admin only; the library add's own options are kept on the request (`AddOptions`); a version the admin names is its own slot, refused only when the library already has a version of that name; a series TMDB lacks comes by its TVDB id |
 | `Pending` | `Approved` | an admin or a request manager approves (with edits: profile, root folder, slot, seasons) | still `Pending` |
 | `Pending` | `Declined` | an admin or a request manager declines (optional reason) | still `Pending`; terminal |
 | `Pending` | (deleted) | its author cancels | still `Pending`, author only |
@@ -400,6 +401,8 @@ retry. Independent of the lifecycle: a failed forward never fails the request.
 
 Invariants:
 
+- Every add from the UI is a request: the admin's goes through the same approval and forward as anyone's, attributed
+  to them, so it shows in Requests and in its events. A retry adds the title the same way (`AddOptions`).
 - Approval saves `Approved` (and its outbox event) before touching the library, so a crash mid-add leaves an approved
   request, never a lost one; the add then writes the library's rows through `MovieService` / `SeriesService`, and the
   request's library id and version name.

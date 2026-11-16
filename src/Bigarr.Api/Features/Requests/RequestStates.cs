@@ -20,12 +20,12 @@ public sealed class RequestStates(LibraryAvailability library)
             return result;
         }
 
-        var films = await library.FilmsAsync(approved.Where(r => r.MediaType == RequestMediaType.Movie).Select(r => r.TmdbId).Distinct().ToList(), ct);
+        var films = await library.FilmsAsync(approved.Where(r => r.MediaType == RequestMediaType.Movie && r.TmdbId != null).Select(r => r.TmdbId!.Value).Distinct().ToList(), ct);
         var series = await library.MatchSeriesAsync(approved.Where(r => r.MediaType == RequestMediaType.Series && r.SeriesId != null).Select(r => r.SeriesId!.Value).Distinct().ToList(), ct);
         foreach (var request in approved)
         {
             result[request.Id] = request.MediaType == RequestMediaType.Movie
-                ? FromAvailability(films.GetValueOrDefault(request.TmdbId) is { } film ? Slot(film.Availability, request.FourK) : AvailabilityState.NotInLibrary)
+                ? FromAvailability(request.TmdbId is { } tmdbId && films.GetValueOrDefault(tmdbId) is { } film ? Slot(film.Availability, request.FourK) : AvailabilityState.NotInLibrary)
                 : OfSeasons(request, request.SeriesId is { } id ? series.GetValueOrDefault(id) : null);
         }
 

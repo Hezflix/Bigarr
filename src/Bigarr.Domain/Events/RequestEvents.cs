@@ -3,13 +3,14 @@ using Bigarr.Domain.Requests;
 namespace Bigarr.Domain.Events;
 
 /// <summary>The request at the moment of the event: what a request notification (R5) needs, without asking Bigarr back.</summary>
+/// <param name="TmdbId">Null for a series only TVDB has.</param>
 /// <param name="Seasons">The seasons asked for (series); empty for a film.</param>
 /// <param name="RequestedBy">The username of who asked.</param>
 /// <param name="RequestedByUserId">Their id, to find their Discord id and opt-ins.</param>
 public sealed record RequestRef(
     int Id,
     RequestMediaType MediaType,
-    int TmdbId,
+    int? TmdbId,
     int? TvdbId,
     string Title,
     int? Year,

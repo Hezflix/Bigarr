@@ -52,9 +52,10 @@ public sealed class MediaRequest
 
     public RequestMediaType MediaType { get; set; }
 
-    public int TmdbId { get; set; }
+    /// <summary>Null only for a series TMDB does not have, added by an admin from its TVDB id.</summary>
+    public int? TmdbId { get; set; }
 
-    /// <summary>A series' TVDB id when TMDB knows it: the library and Sonarr key series by it.</summary>
+    /// <summary>A series' TVDB id when known: the library and Sonarr key series by it.</summary>
     public int? TvdbId { get; set; }
 
     public required string Title { get; set; }
@@ -97,6 +98,12 @@ public sealed class MediaRequest
     /// <summary>Why the library could not take it (status <see cref="RequestStatus.Failed"/>).</summary>
     public string? Error { get; set; }
 
+    /// <summary>
+    /// An admin's add from Discover: the library add's own options (version name, monitoring, search on add, series
+    /// type…). Null for a request, which takes the request defaults.
+    /// </summary>
+    public AdminAddOptions? AddOptions { get; set; }
+
     // ---- what the approval chose (approve with edits) ----
 
     public int? QualityProfileId { get; set; }
@@ -126,6 +133,34 @@ public sealed class MediaRequest
 
     /// <summary>A request that still holds its slot: a new one for the same title, version (and season) is refused.</summary>
     public bool IsActive => Status is RequestStatus.Pending or RequestStatus.Approved or RequestStatus.Failed;
+}
+
+/// <summary>
+/// What the admin's add form sets beside the profile and the root folder, everything the library add offers. Kept on the
+/// request so a retry adds the title the same way.
+/// </summary>
+public sealed record AdminAddOptions
+{
+    /// <summary>The version's name; null takes the slot's (the standard name, or the 4K one).</summary>
+    public string? VersionName { get; init; }
+
+    public bool Monitored { get; init; } = true;
+
+    public bool SearchOnAdd { get; init; } = true;
+
+    /// <summary>Films.</summary>
+    public Movies.MinimumAvailability MinimumAvailability { get; init; } = Movies.MinimumAvailability.Released;
+
+    /// <summary>Series: null takes the metadata's suggestion.</summary>
+    public Tv.SeriesType? SeriesType { get; init; }
+
+    /// <summary>Series: a monitoring rule (all, future, missing…); null monitors the request's seasons.</summary>
+    public Tv.MonitoringOption? Monitor { get; init; }
+
+    public bool SeasonFolder { get; init; } = true;
+
+    /// <summary>Series: null follows the request (new seasons monitored only when every season was asked for).</summary>
+    public Tv.NewItemMonitoring? MonitorNewItems { get; init; }
 }
 
 /// <summary>

@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 namespace Bigarr.Api.Features.Discover;
 
 /// <summary>Turns TMDB answers into Discover's shapes and puts the library's availability on every film and series.</summary>
-public sealed class DiscoverService(TmdbDiscoverClient tmdb, LibraryAvailability library, IOptions<MetadataOptions> metadata, Requests.RequestBadges badges)
+public sealed partial class DiscoverService(TmdbDiscoverClient tmdb, LibraryAvailability library, IOptions<MetadataOptions> metadata, Requests.RequestBadges badges)
 {
     /// <summary>Studios offered as tiles (TMDB company ids), the big names Seerr's studio row shows.</summary>
     public static readonly DiscoverTile[] Studios =
@@ -91,7 +91,41 @@ public sealed class DiscoverService(TmdbDiscoverClient tmdb, LibraryAvailability
         await PageAsync(await tmdb.DiscoverSeriesAsync(genre, keyword, network, page, ct), DiscoverMediaType.Series, keepPeople: false, ct);
 
     public async Task<DiscoverPage> SearchAsync(string query, int page, CancellationToken ct) =>
-        await PageAsync(await tmdb.SearchAsync(query, page, ct), null, keepPeople: true, ct);
+        IdTerm().Match(query) is { Success: true } id
+            ? await PageAsync(await ByIdAsync(id.Groups["source"].Value.ToLowerInvariant(), id.Groups["id"].Value, ct), null, keepPeople: false, ct)
+            : await PageAsync(await tmdb.SearchAsync(query, page, ct), null, keepPeople: true, ct);
+
+    /// <summary>
+    /// A search by id, as the library's former Add pages took it: <c>tmdb:603</c> (the film and the series of that id),
+    /// <c>tvdb:81189</c>, <c>imdb:tt0133093</c> or a bare <c>tt0133093</c>.
+    /// </summary>
+    private async Task<TmdbPage> ByIdAsync(string source, string id, CancellationToken ct)
+    {
+        var results = new List<TmdbListItem>();
+        if (source is "tmdb" && int.TryParse(id, System.Globalization.CultureInfo.InvariantCulture, out var tmdbId))
+        {
+            if (await tmdb.MovieAsync(tmdbId, ct) is { } movie)
+            {
+                results.Add(new TmdbListItem { Id = movie.Id, MediaType = "movie", Title = movie.Title, ReleaseDate = movie.ReleaseDate, PosterPath = movie.PosterPath, Overview = movie.Overview, VoteAverage = movie.VoteAverage });
+            }
+
+            if (await tmdb.SeriesAsync(tmdbId, ct) is { } tv)
+            {
+                results.Add(new TmdbListItem { Id = tv.Id, MediaType = "tv", Name = tv.Name, FirstAirDate = tv.FirstAirDate, PosterPath = tv.PosterPath, Overview = tv.Overview, VoteAverage = tv.VoteAverage });
+            }
+        }
+        else if (source is "tvdb" or "imdb" or "")
+        {
+            var found = await tmdb.FindAsync(source == "tvdb" ? id : id.ToLowerInvariant(), source == "tvdb" ? "tvdb_id" : "imdb_id", ct);
+            results.AddRange((found?.MovieResults ?? []).Select(r => { r.MediaType = "movie"; return r; }));
+            results.AddRange((found?.TvResults ?? []).Select(r => { r.MediaType = "tv"; return r; }));
+        }
+
+        return new TmdbPage { Page = 1, TotalPages = 1, TotalResults = results.Count, Results = results };
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^\s*(?:(?<source>tmdb|tvdb|imdb)\s*:\s*(?<id>\w+)|(?<source>)(?<id>tt\d{5,}))\s*$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex IdTerm();
 
     public async Task<DiscoverMovieResponse?> MovieAsync(int tmdbId, bool admin, CancellationToken ct)
     {

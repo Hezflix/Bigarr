@@ -5,6 +5,7 @@ using Bigarr.Api.Infrastructure.Auth;
 using Bigarr.Api.Infrastructure.Events;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Auth;
+using Bigarr.Domain.Common;
 using Bigarr.Domain.Events;
 using Bigarr.Domain.Requests;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +20,7 @@ namespace Bigarr.Api.Features.Requests;
 public sealed class RequestService(
     BigarrDbContext db,
     DiscoverService discover,
+    Domain.Metadata.ISeriesMetadataProvider seriesMetadata,
     LibraryAvailability library,
     RequestTargets targets,
     RequestLibrary libraryAdd,
@@ -36,18 +38,43 @@ public sealed class RequestService(
             return Failure.Invalid("Unknown media type");
         }
 
-        var permission = body.MediaType == RequestMediaType.Movie ? UserPermission.RequestFilms : UserPermission.RequestSeries;
-        if (!principal.Has(permission) || (body.FourK && !principal.Has(UserPermission.Request4K)))
+        // The admin's add from Discover carries the library add's options; a series TMDB lacks comes by its TVDB id.
+        var options = body.Add?.ToOptions();
+        if ((options is not null || body.TmdbId is null) && !principal.IsAdmin())
         {
-            return new Failure(StatusCodes.Status403Forbidden, "Not allowed", body.FourK ? "You may not request this in 4K." : "You may not request this type of title.");
+            return new Failure(StatusCodes.Status403Forbidden, "Not allowed", "Only the admin adds a title with its own options or by its TVDB id.");
         }
 
-        if (body.FourK && await library.FourKVersionAsync(ct) is null)
+        if (body.TmdbId is null && (body.MediaType != RequestMediaType.Series || body.TvdbId is null))
+        {
+            return Failure.Invalid("A TMDB id is required", "Only a series may come by its TVDB id alone.");
+        }
+
+        var fourKName = await library.FourKVersionAsync(ct);
+        var fourK = body.FourK;
+        var named = options?.VersionName;
+        if (named is not null)
+        {
+            if (!Slug.IsValid(named))
+            {
+                return Failure.Invalid("Invalid version name", "A version name is a lowercase slug: letters, digits and single dashes.");
+            }
+
+            fourK = string.Equals(named, fourKName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        var permission = body.MediaType == RequestMediaType.Movie ? UserPermission.RequestFilms : UserPermission.RequestSeries;
+        if (!principal.Has(permission) || (fourK && !principal.Has(UserPermission.Request4K)))
+        {
+            return new Failure(StatusCodes.Status403Forbidden, "Not allowed", fourK ? "You may not request this in 4K." : "You may not request this type of title.");
+        }
+
+        if (fourK && fourKName is null)
         {
             return Failure.Invalid("4K is not offered");
         }
 
-        if (!discover.Configured)
+        if (body.TmdbId is not null && !discover.Configured)
         {
             return new Failure(StatusCodes.Status503ServiceUnavailable, "Requests need a TMDB API key.");
         }
@@ -56,61 +83,78 @@ public sealed class RequestService(
         {
             MediaType = body.MediaType,
             TmdbId = body.TmdbId,
-            FourK = body.FourK,
+            TvdbId = body.TvdbId,
+            FourK = fourK,
             Title = string.Empty,
             RequestedById = principal.UserId(),
             UpdatedAt = Now,
+            AddOptions = options,
+            QualityProfileId = body.Add?.QualityProfileId,
+            RootFolderId = body.Add?.RootFolderId,
         };
 
-        // The title as TMDB has it, and what the library and the other requests already hold of it.
-        var taken = await ActiveAsync(body.MediaType, body.TmdbId, body.FourK, ct);
+        // The title as TMDB has it, and what the library and the other requests already hold of it. A version the admin
+        // names is its own slot: only a version of that name already in the library stands in the way.
+        var taken = named is null ? await ActiveAsync(body.MediaType, body.TmdbId, body.TvdbId, fourK, ct) : [];
         if (body.MediaType == RequestMediaType.Movie)
         {
-            var movie = await discover.MovieAsync(body.TmdbId, admin: false, ct);
+            var movie = await discover.MovieAsync(body.TmdbId!.Value, admin: false, ct);
             if (movie is null)
             {
                 return Failure.NotFound($"TMDB film {body.TmdbId}");
             }
 
             (request.Title, request.Year, request.PosterUrl) = (movie.Title, movie.Year, movie.PosterUrl);
-            if (Slot(movie.Availability, body.FourK) != AvailabilityState.NotInLibrary)
+            if (named is not null)
+            {
+                if (await db.MovieVersions.AnyAsync(v => v.Movie.TmdbId == body.TmdbId && v.Name == named, ct))
+                {
+                    return Failure.Conflict("Version already in the library", $"{movie.Title} already has a version named '{named}'.");
+                }
+            }
+            else if (Slot(movie.Availability, fourK) != AvailabilityState.NotInLibrary)
             {
                 return Failure.Conflict("Already in the library", $"{movie.Title} is already wanted or available in this version.");
             }
-
-            if (taken.Count > 0)
+            else if (taken.Count > 0)
             {
                 return Failure.Conflict("Already requested", $"{movie.Title} is already requested in this version.");
             }
         }
         else
         {
-            var show = await discover.SeriesAsync(body.TmdbId, admin: false, ct);
-            if (show is null)
+            var title = await SeriesTitleAsync(body.TmdbId, body.TvdbId, ct);
+            if (title is null)
             {
-                return Failure.NotFound($"TMDB series {body.TmdbId}");
+                return Failure.NotFound(body.TmdbId is not null ? $"TMDB series {body.TmdbId}" : $"TVDB series {body.TvdbId}");
             }
 
-            (request.Title, request.Year, request.PosterUrl, request.TvdbId) = (show.Title, show.Year, show.PosterUrl, show.TvdbId);
-            var known = show.Seasons.Select(s => s.SeasonNumber).ToHashSet();
+            (request.Title, request.Year, request.PosterUrl, request.TvdbId) = (title.Title, title.Year, title.PosterUrl, title.TvdbId ?? body.TvdbId);
+            var known = title.Seasons.Select(s => s.Number).ToHashSet();
             var unknown = (body.Seasons ?? []).Where(n => !known.Contains(n)).ToList();
             if (unknown.Count > 0)
             {
-                return Failure.Invalid("Unknown season", $"{show.Title} has no season {string.Join(", ", unknown)}.");
+                return Failure.Invalid("Unknown season", $"{title.Title} has no season {string.Join(", ", unknown)}.");
+            }
+
+            if (named is not null && await db.SeriesVersions.AnyAsync(v => ((body.TmdbId != null && v.Series.TmdbId == body.TmdbId) || (request.TvdbId != null && v.Series.TvdbId == request.TvdbId)) && v.Name == named, ct))
+            {
+                return Failure.Conflict("Version already in the library", $"{title.Title} already has a version named '{named}'.");
             }
 
             var requested = taken.SelectMany(r => r.Seasons).ToHashSet();
-            var open = show.Seasons
-                .Where(s => Slot(s.Availability, body.FourK) == AvailabilityState.NotInLibrary && !requested.Contains(s.SeasonNumber))
-                .Select(s => s.SeasonNumber)
+            var open = title.Seasons
+                .Where(s => named is not null || (Slot(s.Availability, fourK) == AvailabilityState.NotInLibrary && !requested.Contains(s.Number)))
+                .Select(s => s.Number)
                 .ToHashSet();
 
             // Without a list: every regular season still open. A season already there or already asked for is left out.
-            var asked = body.Seasons ?? [.. show.Seasons.Select(s => s.SeasonNumber).Where(n => n > 0)];
-            request.Seasons = [.. asked.Where(open.Contains).Distinct().Order()];
-            if (request.Seasons.Count == 0)
+            // A monitoring rule (the admin's form) picks the seasons itself: the request records them once added.
+            var asked = body.Seasons ?? [.. title.Seasons.Select(s => s.Number).Where(n => n > 0)];
+            request.Seasons = options?.Monitor is not null ? [.. asked.Distinct().Order()] : [.. asked.Where(open.Contains).Distinct().Order()];
+            if (request.Seasons.Count == 0 && options?.Monitor is null)
             {
-                return Failure.Conflict("Nothing left to request", $"Every season of {show.Title} asked for is already requested or in the library in this version.");
+                return Failure.Conflict("Nothing left to request", $"Every season of {title.Title} asked for is already requested or in the library in this version.");
             }
 
             request.AllSeasons = open.Where(n => n > 0).All(request.Seasons.Contains);
@@ -132,7 +176,7 @@ public sealed class RequestService(
         if (auto)
         {
             request.AutoApproved = true;
-            await ApproveCoreAsync(request, null, null, null, username, ct);
+            await ApproveCoreAsync(request, request.QualityProfileId, request.RootFolderId, null, username, ct);
         }
 
         return Result<MediaRequest>.Ok(request);
@@ -317,10 +361,54 @@ public sealed class RequestService(
     }
 
     /// <summary>The active requests for a title and slot (pending, approved, failed): the duplicate check and the season picker.</summary>
-    public async Task<List<MediaRequest>> ActiveAsync(RequestMediaType type, int tmdbId, bool fourK, CancellationToken ct) =>
+    public async Task<List<MediaRequest>> ActiveAsync(RequestMediaType type, int? tmdbId, int? tvdbId, bool fourK, CancellationToken ct) =>
         await db.MediaRequests.AsNoTracking()
-            .Where(r => r.MediaType == type && r.TmdbId == tmdbId && r.FourK == fourK && r.Status != RequestStatus.Declined)
+            .Where(r => r.MediaType == type && r.FourK == fourK && r.Status != RequestStatus.Declined)
+            .Where(r => (tmdbId != null && r.TmdbId == tmdbId) || (tmdbId == null && tvdbId != null && r.TvdbId == tvdbId))
             .ToListAsync(ct);
+
+    private sealed record SeasonSlot(int Number, AvailabilityResponse Availability);
+
+    private sealed record SeriesTitle(string Title, int? Year, string? PosterUrl, int? TvdbId, List<SeasonSlot> Seasons);
+
+    /// <summary>
+    /// A series as TMDB has it (with Discover's availability per season), or, for one TMDB lacks, as the library's
+    /// metadata provider has it by its TVDB id, with the library's availability.
+    /// </summary>
+    private async Task<SeriesTitle?> SeriesTitleAsync(int? tmdbId, int? tvdbId, CancellationToken ct)
+    {
+        if (tmdbId is { } id)
+        {
+            var show = await discover.SeriesAsync(id, admin: false, ct);
+            return show is null ? null : new SeriesTitle(show.Title, show.Year, show.PosterUrl, show.TvdbId, [.. show.Seasons.Select(s => new SeasonSlot(s.SeasonNumber, s.Availability))]);
+        }
+
+        Domain.Metadata.SeriesMetadata? found;
+        try
+        {
+            found = await seriesMetadata.GetByTvdbIdAsync(tvdbId!.Value, withEpisodes: false, ct);
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogWarning(ex, "Series metadata provider failed for TVDB {TvdbId}", tvdbId);
+            return null;
+        }
+
+        if (found is null)
+        {
+            return null;
+        }
+
+        var match = await library.SeriesAsync(-1, tvdbId, ct);
+        var none = new AvailabilityResponse(AvailabilityState.NotInLibrary, await library.FourKVersionAsync(ct) is null ? null : AvailabilityState.NotInLibrary);
+        var numbers = found.Seasons.Select(s => s.SeasonNumber).Union(match?.Seasons.Keys ?? []).Distinct().Order();
+        return new SeriesTitle(
+            found.Title,
+            found.Year,
+            found.Images.FirstOrDefault(i => i.Type == Domain.Movies.ImageType.Poster)?.RemoteUrl,
+            found.TvdbId ?? tvdbId,
+            [.. numbers.Select(n => new SeasonSlot(n, match?.Seasons.GetValueOrDefault(n) ?? none))]);
+    }
 
     public async Task<QuotaResponse> QuotaAsync(ClaimsPrincipal principal, CancellationToken ct)
     {

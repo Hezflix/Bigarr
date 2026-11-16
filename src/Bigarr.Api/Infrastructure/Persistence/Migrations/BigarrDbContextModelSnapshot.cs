@@ -2132,6 +2132,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("AddOptions")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("AllSeasons")
                         .HasColumnType("INTEGER");
 
@@ -2209,7 +2212,7 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("TmdbId")
+                    b.Property<int?>("TmdbId")
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("TvdbId")

@@ -46,11 +46,15 @@ public sealed class RequestLibrary(
 
     private async Task<Result<bool>> AddMovieAsync(MediaRequest request, QualityProfile profile, RootFolder root, string? fourK, CancellationToken ct)
     {
+        var options = request.AddOptions;
+        var monitored = options?.Monitored ?? true;
+        var search = monitored && (options?.SearchOnAdd ?? true);
+        var availability = options?.MinimumAvailability ?? MinimumAvailability.Released;
         var movie = await db.Movies.AsNoTracking().Include(m => m.Versions).ThenInclude(v => v.File).FirstOrDefaultAsync(m => m.TmdbId == request.TmdbId, ct);
         if (movie is null)
         {
-            var name = request.FourK ? fourK! : await targets.StandardVersionNameAsync(RequestMediaType.Movie, profile, ct);
-            var added = await movies.AddMovieAsync(new AddMovieRequest(request.TmdbId, profile.Id, root.Id, name, Monitored: true, MinimumAvailability.Released, SearchOnAdd: true), ct);
+            var name = options?.VersionName ?? (request.FourK ? fourK! : await targets.StandardVersionNameAsync(RequestMediaType.Movie, profile, ct));
+            var added = await movies.AddMovieAsync(new AddMovieRequest(request.TmdbId!.Value, profile.Id, root.Id, name, monitored, availability, search), ct);
             if (!added.IsSuccess)
             {
                 return added.Failure!;
@@ -62,14 +66,17 @@ public sealed class RequestLibrary(
         }
 
         request.MovieId = movie.Id;
-        var slot = request.FourK
-            ? movie.Versions.FirstOrDefault(v => string.Equals(v.Name, fourK, StringComparison.OrdinalIgnoreCase))
-            : LibraryAvailability.StandardOf(movie.Versions, v => v.IsDefault, v => v.Name, v => v.Id, fourK);
+
+        // The admin named the version: a new version of that name, never one already there.
+        var slot = options?.VersionName is not null
+            ? null
+            : request.FourK
+                ? movie.Versions.FirstOrDefault(v => string.Equals(v.Name, fourK, StringComparison.OrdinalIgnoreCase))
+                : LibraryAvailability.StandardOf(movie.Versions, v => v.IsDefault, v => v.Name, v => v.Id, fourK);
         if (slot is null)
         {
-            var name = request.FourK ? fourK! : await targets.StandardVersionNameAsync(RequestMediaType.Movie, profile, ct);
-            name = VersionNaming.Unique(name, movie.Versions.Select(v => v.Name));
-            var added = await movies.AddVersionAsync(movie.Id, new AddVersionRequest(name, VersionMode.Managed, profile.Id, root.Id, Monitored: true, SearchOnAdd: true), ct);
+            var name = options?.VersionName ?? VersionNaming.Unique(request.FourK ? fourK! : await targets.StandardVersionNameAsync(RequestMediaType.Movie, profile, ct), movie.Versions.Select(v => v.Name));
+            var added = await movies.AddVersionAsync(movie.Id, new AddVersionRequest(name, VersionMode.Managed, profile.Id, root.Id, Monitored: monitored, MinimumAvailability: availability, SearchOnAdd: search), ct);
             if (!added.IsSuccess)
             {
                 return added.Failure!;
@@ -100,20 +107,25 @@ public sealed class RequestLibrary(
 
     private async Task<Result<bool>> AddSeriesAsync(MediaRequest request, QualityProfile profile, RootFolder root, string? fourK, CancellationToken ct)
     {
+        var options = request.AddOptions;
         var show = await db.Series.AsNoTracking()
             .Include(s => s.Versions)
-            .Where(s => s.TmdbId == request.TmdbId || (request.TvdbId != null && s.TvdbId == request.TvdbId))
-            .OrderBy(s => s.TmdbId == request.TmdbId ? 0 : 1)
+            .Where(s => (request.TmdbId != null && s.TmdbId == request.TmdbId) || (request.TvdbId != null && s.TvdbId == request.TvdbId))
+            .OrderBy(s => request.TmdbId != null && s.TmdbId == request.TmdbId ? 0 : 1)
             .FirstOrDefaultAsync(ct);
 
-        // New episodes are monitored only when every season was asked for: asking for season 1 does not sign up for the rest.
-        var newItems = request.AllSeasons ? NewItemMonitoring.All : NewItemMonitoring.None;
+        // New episodes are monitored only when every season was asked for: asking for season 1 does not sign up for the
+        // rest. The admin's form says it outright.
+        var newItems = options?.MonitorNewItems ?? (request.AllSeasons ? NewItemMonitoring.All : NewItemMonitoring.None);
+        var rule = options?.Monitor ?? MonitoringOption.None;
+        var monitored = options?.Monitored ?? true;
+        var seasonFolder = options?.SeasonFolder ?? true;
         int seriesId;
         int versionId;
         if (show is null)
         {
-            var name = request.FourK ? fourK! : await targets.StandardVersionNameAsync(RequestMediaType.Series, profile, ct);
-            var added = await series.AddSeriesAsync(new AddSeriesRequest(profile.Id, root.Id, request.TvdbId, request.TmdbId, Monitor: MonitoringOption.None, MonitorNewItems: newItems, VersionName: name), ct);
+            var name = options?.VersionName ?? (request.FourK ? fourK! : await targets.StandardVersionNameAsync(RequestMediaType.Series, profile, ct));
+            var added = await series.AddSeriesAsync(new AddSeriesRequest(profile.Id, root.Id, request.TvdbId, request.TmdbId, options?.SeriesType, rule, seasonFolder, newItems, name, monitored), ct);
             if (!added.IsSuccess)
             {
                 return added.Failure!;
@@ -126,14 +138,15 @@ public sealed class RequestLibrary(
         else
         {
             seriesId = show.Id;
-            var slot = request.FourK
-                ? show.Versions.FirstOrDefault(v => string.Equals(v.Name, fourK, StringComparison.OrdinalIgnoreCase))
-                : LibraryAvailability.StandardOf(show.Versions, v => v.IsDefault, v => v.Name, v => v.Id, fourK);
+            var slot = options?.VersionName is not null
+                ? null
+                : request.FourK
+                    ? show.Versions.FirstOrDefault(v => string.Equals(v.Name, fourK, StringComparison.OrdinalIgnoreCase))
+                    : LibraryAvailability.StandardOf(show.Versions, v => v.IsDefault, v => v.Name, v => v.Id, fourK);
             if (slot is null)
             {
-                var name = request.FourK ? fourK! : await targets.StandardVersionNameAsync(RequestMediaType.Series, profile, ct);
-                name = VersionNaming.Unique(name, show.Versions.Select(v => v.Name));
-                var added = await series.AddVersionAsync(seriesId, new AddSeriesVersionRequest(name, profile.Id, root.Id, Monitor: MonitoringOption.None, MonitorNewItems: newItems), ct);
+                var name = options?.VersionName ?? VersionNaming.Unique(request.FourK ? fourK! : await targets.StandardVersionNameAsync(RequestMediaType.Series, profile, ct), show.Versions.Select(v => v.Name));
+                var added = await series.AddVersionAsync(seriesId, new AddSeriesVersionRequest(name, profile.Id, root.Id, Monitor: rule, SeasonFolder: seasonFolder, MonitorNewItems: newItems, Monitored: monitored), ct);
                 if (!added.IsSuccess)
                 {
                     return added.Failure!;
@@ -154,28 +167,54 @@ public sealed class RequestLibrary(
                         return updated.Failure!;
                     }
                 }
+
+                if (options?.Monitor is { } existingRule)
+                {
+                    var applied = await series.ApplyMonitoringAsync(seriesId, slot.Id, existingRule, ct);
+                    if (!applied.IsSuccess)
+                    {
+                        return applied.Failure!;
+                    }
+                }
             }
         }
 
         request.SeriesId = seriesId;
-        var monitored = 0;
-        foreach (var season in request.Seasons)
+        if (options?.Monitor is null)
         {
-            if ((await series.SetSeasonMonitoredAsync(seriesId, versionId, season, true, ct)).IsSuccess)
+            var flagged = 0;
+            foreach (var season in request.Seasons)
             {
-                monitored++;
+                if ((await series.SetSeasonMonitoredAsync(seriesId, versionId, season, true, ct)).IsSuccess)
+                {
+                    flagged++;
+                }
+            }
+
+            if (flagged == 0 && request.Seasons.Count > 0)
+            {
+                return Failure.Invalid("Seasons not in the library", $"The library's episode list of {request.Title} has none of the seasons asked for ({string.Join(", ", request.Seasons)}).");
             }
         }
-
-        if (monitored == 0 && request.Seasons.Count > 0)
+        else
         {
-            return Failure.Invalid("Seasons not in the library", $"The library's episode list of {request.Title} has none of the seasons asked for ({string.Join(", ", request.Seasons)}).");
+            // A monitoring rule chose the seasons: the request records what it monitored, for its state and the forward.
+            request.Seasons = await db.SeriesVersionSeasons.AsNoTracking()
+                .Where(s => s.VersionId == versionId && s.Monitored)
+                .Select(s => s.Season.SeasonNumber)
+                .OrderBy(n => n)
+                .ToListAsync(ct);
         }
 
-        // Search on add, as Seerr asks Sonarr to: the aired episodes of the requested seasons that have no file.
+        if (!monitored || !(options?.SearchOnAdd ?? true))
+        {
+            return Result<bool>.Ok(true);
+        }
+
+        // Search on add, as Seerr asks Sonarr to: the aired, wanted episodes of the requested seasons that have no file.
         var now = time.GetUtcNow().UtcDateTime;
         var wanted = (await db.EpisodeTargets.AsNoTracking()
-                .Where(t => t.VersionId == versionId && t.EpisodeFileId == null && request.Seasons.Contains(t.Episode.SeasonNumber))
+                .Where(t => t.VersionId == versionId && t.Monitored && t.EpisodeFileId == null && request.Seasons.Contains(t.Episode.SeasonNumber))
                 .Select(t => t.Episode)
                 .ToListAsync(ct))
             .Where(e => e.HasAired(now))
@@ -215,7 +254,7 @@ public sealed class RequestLibrary(
             }
 
             name = radarr.Name;
-            outcome = await forwarder.ForwardMovieAsync(radarr, request.TmdbId, request.Title, request.Year, request.QualityProfileId.Value, request.RootFolderId.Value, ct);
+            outcome = await forwarder.ForwardMovieAsync(radarr, request.TmdbId!.Value, request.Title, request.Year, request.QualityProfileId.Value, request.RootFolderId.Value, ct);
         }
         else
         {

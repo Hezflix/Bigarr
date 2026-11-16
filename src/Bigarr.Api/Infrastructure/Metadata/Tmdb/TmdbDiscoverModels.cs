@@ -53,6 +53,14 @@ public sealed class TmdbListItem
     public string? Job { get; set; }
 }
 
+/// <summary>TMDB's <c>/find/{id}</c>: the titles an IMDb or TVDB id stands for.</summary>
+public sealed class TmdbFind
+{
+    public List<TmdbListItem> MovieResults { get; set; } = [];
+
+    public List<TmdbListItem> TvResults { get; set; } = [];
+}
+
 public sealed class TmdbGenreList
 {
     public List<TmdbGenre> Genres { get; set; } = [];
