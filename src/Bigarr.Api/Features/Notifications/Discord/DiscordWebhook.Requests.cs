@@ -1,4 +1,5 @@
 using Bigarr.Domain.Events;
+using Bigarr.Domain.Issues;
 using Bigarr.Domain.Notifications;
 using Bigarr.Domain.Requests;
 
@@ -10,7 +11,7 @@ namespace Bigarr.Api.Features.Notifications.Discord;
 public sealed record DiscordContext(string? ApplicationUrl = null, IReadOnlyList<string>? Mentions = null);
 
 /// <summary>
-/// Requests as Seerr's Discord agent posts them (<c>server/lib/notifications/agents/discord.ts</c>): the event as the
+/// Requests and issues as Seerr's Discord agent posts them (<c>server/lib/notifications/agents/discord.ts</c>): the event as the
 /// author linking to Bigarr, the title and year linking to the title's Discover page, the poster as the thumbnail,
 /// <c>Requested By</c> and <c>Request Status</c> inline, the seasons of a series, Seerr's colors, the people concerned
 /// mentioned in the content. Nothing about files, releases or indexers: the channel may be read by the requesters.
@@ -24,8 +25,53 @@ public static partial class DiscordWebhook
         RequestDeclined e => Request(e.Request, $"{Kind(e.Request)} Request Declined", "Declined", SeerrColor.Red, at, context, ("Reason", e.Reason, false)),
         RequestAvailable e => Request(e.Request, $"{Kind(e.Request)} Request Now Available", "Available", SeerrColor.Green, at, context),
         RequestFailed e => Request(e.Request, $"{Kind(e.Request)} Request Failed", "Failed", SeerrColor.Red, at, context),
+        IssueCreated e => Issue(e.Issue, $"New {IssueName(e.Issue)} Issue Reported", SeerrColor.Red, at, context),
+        IssueCommented e => Seerr(
+            $"New Comment on {IssueName(e.Issue)} Issue",
+            Subject(e.Issue.Title, e.Issue.Year),
+            IssueUrl(context.ApplicationUrl, e.Issue.Id),
+            SeerrColor.Orange,
+            e.Issue.PosterUrl,
+            at,
+            context,
+            Fields([($"Comment from {e.CommentedBy}", e.Message, false), .. Affected(e.Issue)]),
+            Message(e.Issue.Message)),
+        IssueResolved e => Issue(e.Issue with { Status = IssueStatus.Resolved }, $"{IssueName(e.Issue)} Issue Resolved", SeerrColor.Green, at, context),
+        IssueReopened e => Issue(e.Issue with { Status = IssueStatus.Open }, $"{IssueName(e.Issue)} Issue Reopened", SeerrColor.Red, at, context),
         _ => null,
     };
+
+    /// <summary>The issue's page on Bigarr, as Seerr links <c>/issues/12</c>: the reporter and the handlers both open it.</summary>
+    public static string? IssueUrl(string? applicationUrl, int issueId) =>
+        string.IsNullOrWhiteSpace(applicationUrl) ? null : $"{applicationUrl.TrimEnd('/')}/issues/{issueId}";
+
+    /// <summary>Seerr's <c>IssueTypeName</c>.</summary>
+    private static string IssueName(IssueRef issue) => issue.IssueType switch
+    {
+        IssueType.Video => "Video",
+        IssueType.Audio => "Audio",
+        IssueType.Subtitles => "Subtitle",
+        _ => "Other",
+    };
+
+    /// <summary>Seerr's issue embed: the report as the description, who reported it, its type and status.</summary>
+    private static DiscordEmbed Issue(IssueRef issue, string title, SeerrColor color, string at, DiscordContext context) => Seerr(
+        title,
+        Subject(issue.Title, issue.Year),
+        IssueUrl(context.ApplicationUrl, issue.Id),
+        color,
+        issue.PosterUrl,
+        at,
+        context,
+        Fields([("Reported By", issue.ReportedBy, true), ("Issue Type", IssueName(issue), true), ("Issue Status", issue.Status == IssueStatus.Open ? "Open" : "Resolved", true), .. Affected(issue)]),
+        Message(issue.Message));
+
+    /// <summary>Seerr's extra fields for a season or an episode issue.</summary>
+    private static (string Name, string? Value, bool Inline)[] Affected(IssueRef issue) =>
+        [("Affected Season", issue.SeasonNumber?.ToString(System.Globalization.CultureInfo.InvariantCulture), true), ("Affected Episode", issue.EpisodeLabel, true)];
+
+    /// <summary>Seerr cuts the message at 300 characters.</summary>
+    private static string? Message(string? text) => string.IsNullOrWhiteSpace(text) ? null : Cut(text, OverviewLimit + Ellipsis.Length);
 
     /// <summary>Seerr's subject: the title and the year.</summary>
     public static string Subject(string title, int? year) => Cut(year > 0 ? $"{title} ({year})" : title, TitleLimit)!;

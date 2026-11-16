@@ -2,6 +2,7 @@ using System.Text.Json;
 using Bigarr.Api.Features.Notifications.Discord;
 using Bigarr.Domain.Auth;
 using Bigarr.Domain.Events;
+using Bigarr.Domain.Issues;
 using Bigarr.Domain.Notifications;
 using Bigarr.Domain.Requests;
 
@@ -40,6 +41,25 @@ public sealed class RequestDiscordTests
         Assert.Single(Mentions.For(new RequestAvailable(Film), [quiet]));
         Assert.Empty(Mentions.For(new RequestAvailable(Film), [new User { Id = 2, Username = "demo-viewer", PasswordHash = string.Empty }]));
         Assert.Empty(Mentions.For(new RequestAvailable(Film), [new User { Id = 2, Username = "demo-viewer", PasswordHash = string.Empty, DiscordUserId = "100000000000000002", DisabledAt = DateTime.UnixEpoch }]));
+    }
+
+    [Fact]
+    public void Issue_mentions_follow_Seerr_reporter_or_handlers_never_the_author()
+    {
+        var issue = new IssueRef(5, IssueType.Audio, IssueScope.Episode, IssueStatus.Open, RequestMediaType.Series, 1396, 81189, "Demo Show", 2008, null, 1, "S01E02 · Demo", "1080p", "No sound", "demo-viewer", 2);
+        User[] everyone = [Admin, Viewer, Manager];
+        Assert.Equal(["100000000000000001", "100000000000000003"], Mentions.For(new IssueCreated(issue), everyone));
+        Assert.Equal(["100000000000000002"], Mentions.For(new IssueCommented(issue, 1, "Looking", "demo-admin", 1), everyone));
+        Assert.Equal(["100000000000000001", "100000000000000003"], Mentions.For(new IssueCommented(issue, 2, "Still", "demo-viewer", 2), everyone));
+        Assert.Equal(["100000000000000002"], Mentions.For(new IssueResolved(issue, "demo-manager"), everyone));
+        Assert.Empty(Mentions.For(new IssueResolved(issue, "demo-viewer"), everyone));
+        Assert.Equal(["100000000000000001", "100000000000000003"], Mentions.For(new IssueReopened(issue, "demo-viewer"), everyone));
+
+        var embed = DiscordWebhook.Payload(new IssueCreated(issue), null, new DiscordContext("https://bigarr.example"))!.Embeds![0];
+        Assert.Equal("New Audio Issue Reported", embed.Author!.Name);
+        Assert.Equal("https://bigarr.example/issues/5", embed.Url);
+        Assert.Contains(embed.Fields!, f => f is { Name: "Affected Episode", Value: "S01E02 · Demo" });
+        Assert.DoesNotContain(embed.Fields!, f => f.Value.Contains("1080p", StringComparison.Ordinal));
     }
 
     [Theory]

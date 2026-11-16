@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(BigarrDbContext))]
-    [Migration("20261116142431_UserDiscordMentions")]
+    [Migration("20261116143651_UserDiscordMentions")]
     partial class UserDiscordMentions
     {
         /// <inheritdoc />
@@ -846,6 +846,155 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("TagId");
 
                     b.ToTable("IndexerTags", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Issues.Issue", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("EpisodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("EpisodeLabel")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("File")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MediaType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("MovieId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("MovieVersionId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PosterUrl")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ReportedById")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("ResolvedById")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Scope")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("SeasonNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("SeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("SeriesVersionId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("TmdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("TvdbId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("VersionName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("Year")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MovieId");
+
+                    b.HasIndex("ResolvedById");
+
+                    b.HasIndex("SeriesId");
+
+                    b.HasIndex("MediaType", "TmdbId");
+
+                    b.HasIndex("ReportedById", "CreatedAt");
+
+                    b.HasIndex("Status", "CreatedAt");
+
+                    b.ToTable("Issues", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Issues.IssueComment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Action")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("AuthorId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(4096)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("EditedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("IssueId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Outcome")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("IssueId", "CreatedAt");
+
+                    b.ToTable("IssueComments", (string)null);
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Library.MediaManagementConfig", b =>
@@ -4148,6 +4297,42 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Tag");
                 });
 
+            modelBuilder.Entity("Bigarr.Domain.Issues.Issue", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Auth.User", "ReportedBy")
+                        .WithMany()
+                        .HasForeignKey("ReportedById")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Bigarr.Domain.Auth.User", "ResolvedBy")
+                        .WithMany()
+                        .HasForeignKey("ResolvedById")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("ReportedBy");
+
+                    b.Navigation("ResolvedBy");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Issues.IssueComment", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Auth.User", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Bigarr.Domain.Issues.Issue", "Issue")
+                        .WithMany("Comments")
+                        .HasForeignKey("IssueId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+
+                    b.Navigation("Issue");
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Library.UnmappedFolder", b =>
                 {
                     b.HasOne("Bigarr.Domain.Library.RootFolder", "RootFolder")
@@ -4910,6 +5095,11 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Bigarr.Domain.Auth.User", b =>
                 {
                     b.Navigation("ApiKeys");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Issues.Issue", b =>
+                {
+                    b.Navigation("Comments");
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Movies.MediaFile", b =>

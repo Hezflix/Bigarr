@@ -464,6 +464,8 @@ Invariants:
 - An action works on the file there now (`IssueFiles.CurrentAsync`), not on the snapshot: the admin's view shows both
   when they differ (`FileChanged`).
 - What reaches a user carries no path, release, indexer, library id nor action detail; another user's issue answers 404.
+  The Discord message of an issue event follows the same rule (title, type, status, message, season or episode only),
+  since the channel may be read by reporters; mentions are resolved at send time, as for requests.
 
 Known gap: two approvers resolving the same issue at once both pass the "still open" check (no conditional update);
 the thread then shows two "resolved" lines and two `issueResolved` events go out.

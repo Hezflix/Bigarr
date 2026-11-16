@@ -59,6 +59,7 @@ public static class WebhookRouting
         typeof(EpisodeGrabbed), typeof(EpisodeFileImported), typeof(EpisodeFileRenamed), typeof(SeriesAdded), typeof(SeriesDeleted),
         typeof(EpisodeFileDeleted), typeof(EpisodeImportFailed), typeof(EpisodeDownloadFailed), typeof(SeriesVersionDeleted),
         typeof(RequestCreated), typeof(RequestApproved), typeof(RequestDeclined), typeof(RequestAvailable), typeof(RequestFailed),
+        typeof(IssueCreated), typeof(IssueCommented), typeof(IssueResolved), typeof(IssueReopened),
     }.Select(DomainEventCatalog.NameOf).ToHashSet(StringComparer.Ordinal);
 
     /// <summary>True when the Discord format posts a message for the event type.</summary>
@@ -111,16 +112,20 @@ public static class WebhookRouting
         _ => [],
     };
 
-    /// <summary>Health, test, and requests: a request is about a title the library may not have yet, so no version and no tag.</summary>
+    /// <summary>
+    /// Health, test, requests and issues: a request is about a title the library may not have yet, an issue carries no
+    /// version (its snapshot keeps library ids out of reach of the reporter), so neither has a tag to filter on.
+    /// </summary>
     private static readonly HashSet<string> FilmlessTypes = new[]
         {
             typeof(HealthIssueRaised), typeof(HealthIssueResolved), typeof(TestEvent),
             typeof(RequestCreated), typeof(RequestApproved), typeof(RequestDeclined), typeof(RequestAvailable), typeof(RequestFailed),
+            typeof(IssueCreated), typeof(IssueCommented), typeof(IssueResolved), typeof(IssueReopened),
         }
         .Select(DomainEventCatalog.NameOf)
         .ToHashSet(StringComparer.Ordinal);
 
-    /// <summary>Health, health restored and test concern no film: an endpoint's tags do not filter them, like in Radarr. Requests neither.</summary>
+    /// <summary>Health, health restored and test concern no film: an endpoint's tags do not filter them, like in Radarr. Requests and issues neither.</summary>
     public static bool IgnoresTags(string eventType) => FilmlessTypes.Contains(eventType);
 
     public static bool IgnoresTags(DomainEvent domainEvent)

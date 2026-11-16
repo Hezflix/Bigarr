@@ -1620,7 +1620,7 @@
     "radarrEventsHint": "Radarr's format only sends the events Radarr has; the others are greyed out.",
     "radarrAs": "→ {{type}}",
     "notInRadarr": "not sent in Radarr's format",
-    "discordEventsHint": "Discord gets what Radarr's Discord connection posts, plus failed downloads and imports and versions added, deleted or made the default; a version's settings changing is greyed out. Requests go out as Seerr posts them, mentioning the people concerned who set their Discord user id.",
+    "discordEventsHint": "Discord gets what Radarr's Discord connection posts, plus failed downloads and imports and versions added, deleted or made the default; a version's settings changing is greyed out. Requests and issues go out as Seerr posts them, mentioning the people concerned who set their Discord user id.",
     "notInDiscord": "not posted to Discord",
     "ignoresTags": "sent whatever the tags",
     "formatSonarr": "Sonarr (compatible)",
@@ -3102,7 +3102,7 @@
       "every": "every",
       "days": "days"
     },
-    "discordHint": "Their Discord user id and the request messages that mention them. They can change these themselves on their profile."
+    "discordHint": "Their Discord user id and the request and issue messages that mention them. They can change these themselves on their profile."
   },
   "discover": {
     "title": "Discover",
@@ -3474,7 +3474,7 @@
     "title": "Profile",
     "saved": "Saved",
     "discordTitle": "Discord mentions",
-    "discordHint": "Request messages are posted to the Discord channel the admin chose. With your Discord user id here, the ones about you mention you, so Discord notifies you.",
+    "discordHint": "Request and issue messages are posted to the Discord channel the admin chose. With your Discord user id here, the ones about you mention you, so Discord notifies you.",
     "discordId": "Discord user id",
     "discordIdHint": "17 to 20 digits. In Discord: User Settings → Advanced → Developer Mode, then right-click your name → Copy User ID.",
     "discordIdInvalid": "A Discord user id is 17 to 20 digits, not a username.",
@@ -3486,7 +3486,11 @@
       "requestApproved": "My request is approved",
       "requestDeclined": "My request is declined",
       "requestAvailable": "My request is available to watch",
-      "requestFailed": "My request failed (admins and request managers: anyone's)"
+      "requestFailed": "My request failed (admins and request managers: anyone's)",
+      "issueCreated": "Someone reports an issue",
+      "issueCommented": "A comment on my issue (admins and request managers: the reporter's answers)",
+      "issueResolved": "My issue is resolved",
+      "issueReopened": "My issue is reopened (admins and request managers: anyone's)"
     },
     "mentionsTitleOther": "Mention them when",
     "mentionsOther": {
@@ -3494,7 +3498,11 @@
       "requestApproved": "Their request is approved",
       "requestDeclined": "Their request is declined",
       "requestAvailable": "Their request is available to watch",
-      "requestFailed": "Their request failed (admins and request managers: anyone's)"
+      "requestFailed": "Their request failed (admins and request managers: anyone's)",
+      "issueCreated": "Someone reports an issue",
+      "issueCommented": "A comment on their issue (admins and request managers: the reporter's answers)",
+      "issueResolved": "Their issue is resolved",
+      "issueReopened": "Their issue is reopened (admins and request managers: anyone's)"
     }
   }
 }

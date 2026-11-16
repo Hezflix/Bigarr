@@ -1,15 +1,18 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Bigarr.Api.Features.Issues;
 using Bigarr.Api.Features.Notifications;
 using Bigarr.Api.Features.Notifications.Discord;
 using Bigarr.Api.Features.Requests;
 using Bigarr.Api.Features.Users;
 using Bigarr.Api.Infrastructure.Events;
 using Bigarr.Api.Tests.Hosting;
+using Bigarr.Api.Tests.Issues;
 using Bigarr.Api.Tests.Persistence;
 using Bigarr.Api.Tests.Requests;
 using Bigarr.Domain.Auth;
+using Bigarr.Domain.Issues;
 using Bigarr.Domain.Notifications;
 using Bigarr.Domain.Requests;
 using Microsoft.EntityFrameworkCore;
@@ -19,7 +22,7 @@ using static Bigarr.Api.Tests.Requests.RequestsEnv;
 namespace Bigarr.Api.Tests.Notifications;
 
 /// <summary>
-/// R5's acceptance: every request event, made by the real request flow, reaches a fake Discord in Seerr's layout, with
+/// R5's acceptance: every request and issue event, made by the real request and issue flows, reaches a fake Discord in Seerr's layout, with
 /// the people concerned mentioned by their Discord user id. Demo users and ids only.
 /// </summary>
 public sealed class RequestDiscordDeliveryTests
@@ -58,7 +61,7 @@ public sealed class RequestDiscordDeliveryTests
         var mine = await SetMineAsync(viewer, $"<@{ViewerDiscord}>", null);
         Assert.Equal(ViewerDiscord, mine.DiscordUserId);
         Assert.DoesNotContain(mine.Choices, c => c.Type == "requestCreated");
-        Assert.Equal(["requestApproved", "requestDeclined", "requestAvailable", "requestFailed"], mine.Mentions);
+        Assert.Equal(["requestApproved", "requestDeclined", "requestAvailable", "requestFailed", "issueCommented", "issueResolved", "issueReopened"], mine.Mentions);
         var refused = await viewer.PutAsJsonAsync("/api/v1/profile/notifications", new UserNotificationsDto("not-an-id", []), Json);
         Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
         await env.UserAsync("demo-manager", Defaults, UserRole.RequestManager);
@@ -120,6 +123,82 @@ public sealed class RequestDiscordDeliveryTests
         var autoApproved = await MessageAsync(discord, "Movie Request Automatically Approved");
         AssertMentions(autoApproved);
         Assert.Single(discord.Requests, r => r.Body.Contains("demo-trusted", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Each_issue_event_reaches_Discord_in_Seerrs_layout_without_file_release_or_indexer()
+    {
+        await using var discord = await FakeHttpServer.StartAsync();
+        discord.Responder = r => r.Path == WebhookPath ? new FakeHttpServer.Answer(204) : null;
+        await using var env = await StartAsync(
+            extra: new Dictionary<string, string> { ["Bigarr:Notifications:SweepSeconds"] = "1", ["Bigarr:Notifications:ApplicationUrl"] = AppUrl },
+            testServices: services => services.AddHttpClient(WebhookClient.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => new DiscordDeliveryTests.ToFakeDiscord(new Uri(discord.Url))));
+        await env.FilmInLibraryAsync(withGrab: true);
+        var created = await env.Admin.PostAsJsonAsync(
+            "/api/v1/notifications",
+            new NotificationEndpointRequest("Issues", WebhookUrl, Format: WebhookFormat.Discord, Events: ["issueCreated", "issueCommented", "issueResolved", "issueReopened"]),
+            Json);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        await SetMineAsync(env.Admin, AdminDiscord, null);
+        var viewer = await env.UserAsync("demo-viewer", Defaults);
+        var mine = await SetMineAsync(viewer, ViewerDiscord, null);
+        Assert.DoesNotContain(mine.Choices, c => c.Type == "issueCreated");
+        var managerClient = await env.UserAsync("demo-manager", Defaults, UserRole.RequestManager);
+        await SetMineAsync(managerClient, ManagerDiscord, null);
+
+        // Reported: the people who handle it.
+        var report = await viewer.PostAsJsonAsync("/api/v1/issues", new CreateIssueRequest(RequestMediaType.Movie, 603, IssueType.Video, IssueScope.Movie, "Green blocks all over"), Json);
+        Assert.True(report.IsSuccessStatusCode, await report.Content.ReadAsStringAsync());
+        var issue = (await report.Content.ReadFromJsonAsync<IssueResponse>(Json))!;
+        var reported = await MessageAsync(discord, "New Video Issue Reported");
+        AssertIssue(reported, issue.Id, SeerrColor.Red, "Open");
+        Assert.Equal("Green blocks all over", reported.Embed.GetProperty("description").GetString());
+        AssertMentions(reported, AdminDiscord, ManagerDiscord);
+
+        // A reply from the admin: the reporter. The reporter's answer: the people who handle it.
+        await PostOkAsync(env.Admin, $"/api/v1/issues/{issue.Id}/comments", new IssueMessageRequest("Looking for another release."));
+        var reply = await MessageAsync(discord, "New Comment on Video Issue");
+        Assert.Equal("Looking for another release.", Field(reply, "Comment from admin"));
+        Assert.Equal($"{AppUrl}/issues/{issue.Id}", reply.Embed.GetProperty("url").GetString());
+        Assert.Equal((int)SeerrColor.Orange, reply.Embed.GetProperty("color").GetInt32());
+        AssertMentions(reply, ViewerDiscord);
+        await PostOkAsync(viewer, $"/api/v1/issues/{issue.Id}/comments", new IssueMessageRequest("Still there at 00:42."));
+        AssertMentions(await MessageAsync(discord, "New Comment on Video Issue", skip: 1), AdminDiscord, ManagerDiscord);
+
+        // Resolved by the admin: the reporter. Reopened by the reporter: the people who handle it.
+        await PostOkAsync(env.Admin, $"/api/v1/issues/{issue.Id}/resolve");
+        var resolved = await MessageAsync(discord, "Video Issue Resolved");
+        AssertIssue(resolved, issue.Id, SeerrColor.Green, "Resolved");
+        AssertMentions(resolved, ViewerDiscord);
+        await PostOkAsync(viewer, $"/api/v1/issues/{issue.Id}/reopen");
+        var reopened = await MessageAsync(discord, "Video Issue Reopened");
+        AssertIssue(reopened, issue.Id, SeerrColor.Red, "Open");
+        AssertMentions(reopened, AdminDiscord, ManagerDiscord);
+
+        // The channel may be read by reporters: no file, release, indexer or version, whatever the admin's own view has.
+        Assert.All(discord.Requests, r =>
+        {
+            Assert.DoesNotContain("BluRay", r.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Demo indexer", r.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain(".mkv", r.Body, StringComparison.Ordinal);
+            Assert.DoesNotContain("1080p", r.Body, StringComparison.Ordinal);
+        });
+    }
+
+    private static async Task PostOkAsync(HttpClient client, string path, object? body = null)
+    {
+        var response = body is null ? await client.PostAsync(path, null) : await client.PostAsJsonAsync(path, body, Json);
+        Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
+    }
+
+    private static void AssertIssue(Message message, int issueId, SeerrColor color, string status)
+    {
+        Assert.Equal("The Matrix (1999)", message.Embed.GetProperty("title").GetString());
+        Assert.Equal($"{AppUrl}/issues/{issueId}", message.Embed.GetProperty("url").GetString());
+        Assert.Equal((int)color, message.Embed.GetProperty("color").GetInt32());
+        Assert.Equal("demo-viewer", Field(message, "Reported By"));
+        Assert.Equal("Video", Field(message, "Issue Type"));
+        Assert.Equal(status, Field(message, "Issue Status"));
     }
 
     private static async Task<MyNotificationsResponse> SetMineAsync(HttpClient client, string? discordId, List<string>? mentions)

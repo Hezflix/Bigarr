@@ -20,10 +20,14 @@ public static class Mentions
     public static IReadOnlyList<string> Choices { get; } = new[]
     {
         typeof(RequestCreated), typeof(RequestApproved), typeof(RequestDeclined), typeof(RequestAvailable), typeof(RequestFailed),
+        typeof(IssueCreated), typeof(IssueCommented), typeof(IssueResolved), typeof(IssueReopened),
     }.Select(DomainEventCatalog.NameOf).ToList();
 
-    /// <summary>Choices only an admin or a request manager is ever mentioned on: someone else's request waiting for approval.</summary>
-    public static IReadOnlyList<string> ManagerChoices { get; } = new[] { typeof(RequestCreated) }.Select(DomainEventCatalog.NameOf).ToList();
+    /// <summary>
+    /// Choices only an admin or a request manager is ever mentioned on: someone else's request waiting for approval, a
+    /// new issue to handle.
+    /// </summary>
+    public static IReadOnlyList<string> ManagerChoices { get; } = new[] { typeof(RequestCreated), typeof(IssueCreated) }.Select(DomainEventCatalog.NameOf).ToList();
 
     /// <summary>A Discord user id is a snowflake: 17 to 20 digits.</summary>
     public static bool IsDiscordUserId(string? value) =>
@@ -66,6 +70,13 @@ public static class Mentions
 
         // The requester waits on it, and someone has to act on it.
         RequestFailed e => new MentionTarget(e.Request.RequestedByUserId, Managers: true, null),
+
+        // Issues, as Seerr: a new one for the people who handle it; a comment for the reporter, or for the handlers
+        // when the reporter wrote it; resolved for the reporter; reopened for both sides. Never the author of the act.
+        IssueCreated e => new MentionTarget(null, Managers: true, e.Issue.ReportedBy),
+        IssueCommented e => new MentionTarget(e.Issue.ReportedByUserId, Managers: e.CommentedByUserId == e.Issue.ReportedByUserId, e.CommentedBy),
+        IssueResolved e => new MentionTarget(e.Issue.ReportedByUserId, Managers: false, e.ResolvedBy),
+        IssueReopened e => new MentionTarget(e.Issue.ReportedByUserId, Managers: true, e.ReopenedBy),
         _ => null,
     };
 
