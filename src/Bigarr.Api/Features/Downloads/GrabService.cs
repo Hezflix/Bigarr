@@ -135,6 +135,8 @@ public sealed class GrabService(
             IndexerFlags = request.Flags,
             Protocol = request.Protocol,
             GrabbedAt = now,
+            QualityOverride = request.QualityId,
+            LanguagesOverride = GrabOverrides.Languages(request),
         };
         grab.AddTarget(version);
         db.Grabs.Add(grab);
@@ -160,7 +162,7 @@ public sealed class GrabService(
         outbox.Publish(new ReleaseGrabbed(
             MovieRef.From(version.Movie),
             VersionRef.From(version),
-            EventSnapshots.Release(request.Title, grab.IndexerName, request.Size, request.Flags, version.Movie, version.QualityProfile, await scorer.CalculatorAsync(ct), request.Seeders, downloadId),
+            GrabOverrides.Apply(EventSnapshots.Release(request.Title, grab.IndexerName, request.Size, request.Flags, version.Movie, version.QualityProfile, await scorer.CalculatorAsync(ct), request.Seeders, downloadId), request),
             grab.Id,
             chosen.Name,
             downloadId,
@@ -269,6 +271,9 @@ public sealed class GrabService(
             Protocol = request.Protocol,
             GrabbedAt = now,
             Numbering = request.Numbering ?? Bigarr.Domain.Tv.EpisodeNumbering.Tvdb,
+            QualityOverride = request.QualityId,
+            LanguagesOverride = GrabOverrides.Languages(request),
+            EpisodesOverridden = request.EpisodesOverridden == true,
         };
         foreach (var target in ordered)
         {
@@ -296,10 +301,12 @@ public sealed class GrabService(
                 history.Data["seeders"] = seeders.ToString(System.Globalization.CultureInfo.InvariantCulture);
             }
 
-            if (EpisodeQualityOf(request.Title) is { } quality)
+            if ((GrabOverrides.QualityName(request.QualityId) ?? EpisodeQualityOf(request.Title)) is { } quality)
             {
                 history.Data["quality"] = quality;
             }
+
+            AddOverrides(history.Data, request);
 
             db.History.Add(history);
         }
@@ -324,7 +331,7 @@ public sealed class GrabService(
             Bigarr.Domain.Events.SeriesRef.From(version.Series),
             SeriesVersionRef.From(version),
             EpisodeRef.From(ordered.Select(t => t.Episode)),
-            EventSnapshots.EpisodeRelease(request.Title, grab.IndexerName, request.Size, request.Flags, version.Series, version.QualityProfile, await scorer.CalculatorAsync(ct), request.Seeders, downloadId),
+            GrabOverrides.Apply(EventSnapshots.EpisodeRelease(request.Title, grab.IndexerName, request.Size, request.Flags, version.Series, version.QualityProfile, await scorer.CalculatorAsync(ct), request.Seeders, downloadId), request),
             grab.Id,
             chosen.Name,
             downloadId!,
@@ -447,7 +454,7 @@ public sealed class GrabService(
             return Failure.Invalid("No episode", "Pick at least one episode for the release.");
         }
 
-        return null;
+        return GrabOverrides.Validate(request);
     }
 
     private static HistoryEvent HistoryFor(Grab grab, MovieVersion version, GrabRequest request, DownloadClient client, DateTime now)
@@ -475,11 +482,13 @@ public sealed class GrabService(
             data["nzbInfoUrl"] = request.InfoUrl;
         }
 
-        var quality = QualityOf(request.Title);
+        var quality = GrabOverrides.QualityName(request.QualityId) ?? QualityOf(request.Title);
         if (quality is not null)
         {
             data["quality"] = quality;
         }
+
+        AddOverrides(data, request);
 
         return new HistoryEvent
         {
@@ -495,6 +504,26 @@ public sealed class GrabService(
             Data = data,
             CreatedAt = now,
         };
+    }
+
+    /// <summary>What the user overrode, in the history line: the languages given, and which parts the title did not decide.</summary>
+    private static void AddOverrides(Dictionary<string, string> data, GrabRequest request)
+    {
+        if (GrabOverrides.Languages(request) is { } languages)
+        {
+            data["languages"] = string.Join(", ", languages);
+        }
+
+        var overridden = new[]
+        {
+            request.QualityId is not null ? "quality" : null,
+            request.Languages is not null ? "languages" : null,
+            request.EpisodesOverridden == true ? "episodes" : null,
+        }.Where(o => o is not null).ToList();
+        if (overridden.Count > 0)
+        {
+            data["overridden"] = string.Join(",", overridden);
+        }
     }
 
     /// <summary>Sonarr's rule: a full season pack seeds for the indexer's season-pack seed time when it has one, anything else for its seed time.</summary>

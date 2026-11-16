@@ -114,10 +114,10 @@ public sealed class SeriesManualImportService(
         foreach (var file in files)
         {
             var parsedFile = SeriesImportService.TryParsePath(file.FullName);
-            var quality = SeriesImportService.QualityOf(releaseParsed?.Quality, parsedFile?.Quality);
+            var quality = ImportService.Overridden(grab, SeriesImportService.QualityOf(releaseParsed?.Quality, parsedFile?.Quality));
             var qualityName = definitions.GetValueOrDefault(quality.Quality.Id)?.Name ?? quality.Quality.Name;
             var group = SeriesImportService.Group(parsedFile) ?? SeriesImportService.Group(releaseParsed);
-            var languages = SeriesImportService.LanguagesOf(parsedFile) is { Count: > 0 } l ? l : SeriesImportService.LanguagesOf(releaseParsed);
+            var languages = SeriesImportService.LanguagesFor(grab, parsedFile, releaseParsed);
 
             int? showId = forcedSeriesId;
             string? reason = null;
@@ -298,7 +298,7 @@ public sealed class SeriesManualImportService(
 
         var releaseParsed = grab is null ? null : SeriesImportService.TryParse(grab.ReleaseTitle);
         var parsedFile = SeriesImportService.TryParsePath(item.Path);
-        var quality = SeriesImportService.QualityOf(releaseParsed?.Quality, parsedFile?.Quality);
+        var quality = ImportService.Overridden(grab, SeriesImportService.QualityOf(releaseParsed?.Quality, parsedFile?.Quality));
         if (item.QualityId is { } qualityId)
         {
             var picked = ParserQuality.All.FirstOrDefault(q => q.Id == qualityId);
@@ -317,7 +317,7 @@ public sealed class SeriesManualImportService(
             grab?.ReleaseTitle ?? Path.GetFileNameWithoutExtension(item.Path),
             quality,
             SeriesImportService.Group(parsedFile) ?? SeriesImportService.Group(releaseParsed),
-            SeriesImportService.LanguagesOf(parsedFile) is { Count: > 0 } l ? l : SeriesImportService.LanguagesOf(releaseParsed),
+            SeriesImportService.LanguagesFor(grab, parsedFile, releaseParsed),
             grab?.IndexerFlags ?? IndexerFlags.None,
             grab,
             Force: true,

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Bigarr.Api.Features.Downloads;
 using Bigarr.Api.Features.Import;
 using Bigarr.Api.Features.Movies;
 using Bigarr.Api.Infrastructure.Downloads.Mock;
@@ -243,6 +244,59 @@ public sealed class ImportFlowTests(BigarrApiFactory factory) : IClassFixture<Bi
             await client.DeleteAsync($"/api/v1/downloadclients/{downloadClient.Id}");
             await client.DeleteAsync($"/api/v1/indexers/{indexer.Id}");
             await client.DeleteAsync($"/api/v1/movies/{movie.Id}");
+        }
+    }
+
+    [Fact]
+    public async Task A_grab_overridden_in_the_search_is_imported_as_the_user_said()
+    {
+        var client = await ClientAsync(factory);
+        var (hd, _) = await ProfilesAsync(client);
+        var root = await AddRootAsync(client, Path.Combine(_root, "override"));
+        await ConfigureAsync(client, _bin);
+
+        var movie = await AddMovieAsync(client, 16320, hd, root.Id); // Serenity
+        var version = movie.Versions.Single();
+        var downloadClient = await AddMockClientAsync(client, "Mock override");
+        const string title = "Serenity.2005.720p.HDTV.x264-GRP";
+        var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(title)));
+        var request = new GrabRequest(version.Id, 0, "crafted/" + title, title, InfoHash: hash, Size: 4L * 1024 * 1024 * 1024, Indexer: "by hand");
+        try
+        {
+            // Refused: a quality Bigarr does not know, an empty language list, a language it does not know, episodes on a film.
+            foreach (var invalid in new[]
+            {
+                request with { QualityId = 9999 },
+                request with { QualityId = 0 },
+                request with { Languages = [] },
+                request with { Languages = ["Klingon"] },
+                request with { EpisodesOverridden = true },
+            })
+            {
+                Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync("/api/v1/grab", invalid, Json)).StatusCode);
+            }
+
+            // The title says HDTV-720p and no language; the user says Bluray-1080p in French (case and spaces forgiven).
+            var response = await client.PostAsJsonAsync("/api/v1/grab", request with { QualityId = 7, Languages = [" french "] }, Json);
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            var grab = (await response.Content.ReadFromJsonAsync<GrabResponse>(Json))!;
+            var grabbed = Assert.Single(await HistoryAsync(client, movie.Id, HistoryEventType.Grabbed));
+            Assert.Equal("Bluray-1080p", grabbed.Data["quality"]);
+            Assert.Equal("French", grabbed.Data["languages"]);
+            Assert.Equal("quality,languages", grabbed.Data["overridden"]);
+
+            await RefreshAsync(client);
+            await CompleteAsync(client, grab.DownloadId!);
+            await RefreshAsync(client);
+            var imported = await WaitForFileAsync(client, movie.Id, version.Id);
+            Assert.Equal("Serenity (2005) [Bluray-1080p].mkv", imported.File!.RelativePath);
+            Assert.Equal("Bluray-1080p", imported.File.Quality);
+            Assert.Equal(["French"], imported.File.Languages);
+            Assert.Equal(title, imported.File.OriginalReleaseTitle);
+        }
+        finally
+        {
+            await client.DeleteAsync($"/api/v1/downloadclients/{downloadClient.Id}");
         }
     }
 

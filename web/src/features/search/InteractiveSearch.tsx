@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
-import { CopyPlusIcon } from 'lucide-react'
+import { CopyPlusIcon, PencilLineIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, queue, search, type Movie, type Release, type Version } from '@/api/client'
@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { OneShotGrabDialog } from '@/features/search/OneShotGrabDialog'
+import { GrabOverrideDialog } from '@/features/search/GrabOverrideDialog'
+import type { GrabOverride } from '@/features/search/grabOverride'
 import { grabObjections } from '@/features/search/grabRules'
 import { FitCell } from '@/features/search/ReasonsDisplay'
 import { IndexerPicker, useIndexerPick } from '@/features/search/IndexerPicker'
@@ -76,6 +78,7 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
   const [sort, onSort] = useReleaseSort<SortKey>()
   const [oneShot, setOneShot] = useState<{ release: Release; profileId: number } | null>(null)
   const [pending, setPending] = useState<PendingGrab | null>(null)
+  const [overriding, setOverriding] = useState<{ release: Release; versionId: number | undefined } | null>(null)
   const [showQueries, setShowQueries] = useShowQueries()
   const query = useQuery({
     queryKey: ['search', movie.id, submitted?.text ?? '', pickKey(submitted?.ids)],
@@ -128,8 +131,8 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
   const defaultVersion = movie.versions.find((v) => v.isDefault) ?? movie.versions[0]
 
   const grab = useMutation({
-    mutationFn: ({ release, versionId }: { release: Release; versionId: number }) =>
-      queue.grab(grabRequest(release, versionId)),
+    mutationFn: ({ release, versionId, override }: { release: Release; versionId: number; override?: GrabOverride }) =>
+      queue.grab({ ...grabRequest(release, versionId), ...override }),
     onSuccess: async (result, { release, versionId }) => {
       const version = versionById.get(versionId)?.name ?? ''
       // Shadow mode: the release is recorded as Bigarr's pick, nothing reaches a client.
@@ -264,6 +267,7 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
                         grabbing={grab.isPending && grab.variables?.release.guid === release.guid && grab.variables.release.indexerId === release.indexerId}
                         onGrab={(versionId) => requestGrab(release, versionId)}
                         onGrabOneShot={() => setOneShot({ release, profileId: target?.qualityProfileId ?? defaultVersion?.qualityProfileId ?? 0 })}
+                        onOverride={() => setOverriding({ release, versionId: target?.id })}
                       />
                     )
                   })}
@@ -277,6 +281,15 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
       )}
 
       <GrabConfirmDialog pending={pending} onClose={() => setPending(null)} />
+      {overriding && (
+        <GrabOverrideDialog
+          release={overriding.release}
+          versions={movie.versions}
+          defaultVersionId={overriding.versionId}
+          onGrab={(versionId, override) => grab.mutate({ release: overriding.release, versionId, override })}
+          onClose={() => setOverriding(null)}
+        />
+      )}
       {oneShot && <OneShotGrabDialog movie={movie} release={oneShot.release} defaultProfileId={oneShot.profileId} onClose={() => setOneShot(null)} />}
     </section>
   )
@@ -290,6 +303,7 @@ function ReleaseRow({
   grabbing,
   onGrab,
   onGrabOneShot,
+  onOverride,
 }: {
   release: Release
   fits: ReturnType<typeof versionFits>
@@ -300,6 +314,8 @@ function ReleaseRow({
   onGrab: (versionId: number) => void
   /** Creates a one-shot version for this release and grabs it there. */
   onGrabOneShot: () => void
+  /** Grabs it as the user says it is: version, quality, languages. */
+  onOverride: () => void
 }) {
   const { t } = useTranslation()
   const good = fitsAny(release)
@@ -369,6 +385,10 @@ function ReleaseRow({
             )
           })}
           <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={onOverride} data-testid="grab-override">
+            <PencilLineIcon />
+            {t('grabOverride.menu')}
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={onGrabOneShot} data-testid="grab-oneshot">
             <CopyPlusIcon />
             {t('search.grabOneShot')}

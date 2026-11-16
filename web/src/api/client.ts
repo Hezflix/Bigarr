@@ -383,6 +383,7 @@ export type QualityProfile = Schemas['QualityProfileResponse']
 export const profilesFor = (kind: 'movies' | 'series') => (profiles: QualityProfile[]) => profiles.filter((p) => p.kind === kind || p.kind === 'both')
 
 export type QualityDefinition = Schemas['QualityDefinitionResponse']
+export type LanguageOption = Schemas['LanguageResponse']
 
 /** `kind` says whose sizes these are: the films' (default) or the series'. */
 export type QualityDefinitionUpdate = Schemas['QualityDefinitionUpdateRequest']
@@ -416,6 +417,8 @@ export const quality = {
   updateProfile: (id: number, body: QualityProfileRequest) => put<QualityProfileDetail>(`/api/v1/qualityprofiles/${id}`, body),
   removeProfile: (id: number) => del(`/api/v1/qualityprofiles/${id}`),
   definitions: () => api<QualityDefinition[]>('/api/v1/qualitydefinitions'),
+  /** The languages a release can be said to have (the interactive search's override), as the parser names them. */
+  languages: () => api<LanguageOption[]>('/api/v1/languages'),
   updateDefinition: (id: number, body: QualityDefinitionUpdate) => put<QualityDefinition>(`/api/v1/qualitydefinitions/${id}`, body),
 }
 

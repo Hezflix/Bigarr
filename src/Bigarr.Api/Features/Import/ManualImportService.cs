@@ -87,7 +87,7 @@ public sealed class ManualImportService(BigarrDbContext db, ImportService import
             var parsedRelease = releaseTitle is null ? null : ReleaseMatcher.TryParse(releaseTitle);
             var parsedFile = ImportService.TryParsePath(file.FullName);
             var parsed = parsedRelease ?? parsedFile;
-            var quality = ImportService.QualityOf(parsedRelease, parsedFile);
+            var quality = ImportService.Overridden(grab, ImportService.QualityOf(parsedRelease, parsedFile));
             var qualityName = definitions.GetValueOrDefault(quality.Quality.Id)?.Name ?? quality.Quality.Name;
 
             Movie? movie = grabbedMovie ?? forcedMovie;
@@ -205,7 +205,7 @@ public sealed class ManualImportService(BigarrDbContext db, ImportService import
 
         var parsedRelease = grab is null ? null : ReleaseMatcher.TryParse(grab.ReleaseTitle);
         var parsedFile = ImportService.TryParsePath(item.Path);
-        var quality = ImportService.QualityOf(parsedRelease, parsedFile);
+        var quality = ImportService.Overridden(grab, ImportService.QualityOf(parsedRelease, parsedFile));
         if (item.QualityId is { } qualityId)
         {
             var picked = ParserQuality.All.FirstOrDefault(q => q.Id == qualityId);

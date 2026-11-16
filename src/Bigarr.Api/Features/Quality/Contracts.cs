@@ -6,6 +6,8 @@ namespace Bigarr.Api.Features.Quality;
 public sealed record QualityProfileSummary(int Id, string Name, int Cutoff, bool UpgradeAllowed, bool IsSystem, string PreferredLanguage, Bigarr.Domain.Quality.ProfileKind Kind = Bigarr.Domain.Quality.ProfileKind.Movies);
 
 /// <summary>Sizes are MB per minute: the films' (<c>MinSize</c>…) and the series' (<c>SeriesMinSize</c>…, per minute of every episode covered).</summary>
+public sealed record LanguageResponse(int Id, string Name);
+
 public sealed record QualityDefinitionResponse(int Id, string Name, string? Title, string Source, int Resolution, string Modifier, double? MinSize, double? PreferredSize, double? MaxSize, double? SeriesMinSize = null, double? SeriesPreferredSize = null, double? SeriesMaxSize = null);
 
 /// <summary>Sizes are MB per minute of runtime; null max means unlimited.</summary>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { cn } from 'cn'
-import { ChevronRightIcon } from 'lucide-react'
+import { ChevronRightIcon, PencilLineIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Episode } from '@/api/client'
 import {
@@ -15,6 +15,8 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { type GrabOverride, grabOverride, overriddenParts } from '@/features/search/grabOverride'
+import { OverrideFields } from '@/features/search/OverrideFields'
 import { GrabReasons } from '@/features/search/releaseTable'
 import { episodeCode, pickerSeasons } from './seriesGrabScope'
 
@@ -33,7 +35,11 @@ export type PendingSeriesGrab = {
   prefill: number[]
   /** Bigarr's match, as the search labels it (`S01E01–S01E07 (7 episodes)`); null when it maps to no episode. */
   matched: string | null
-  go: (episodeIds: number[]) => void
+  /** The release as parsed, for the override: its quality, languages and matched episodes. */
+  release: { qualityId: number; quality: string; languages: string[]; episodes: { id: number }[] }
+  /** Opened from "Override and grab…": the quality and languages show from the start. */
+  overrideOpen: boolean
+  go: (episodeIds: number[], override: GrabOverride) => void
 }
 
 export function SeriesGrabDialog({ pending, onClose }: { pending: PendingSeriesGrab | null; onClose: () => void }) {
@@ -48,6 +54,9 @@ export function SeriesGrabDialog({ pending, onClose }: { pending: PendingSeriesG
 function SeriesGrabContent({ pending, onClose }: { pending: PendingSeriesGrab; onClose: () => void }) {
   const { t } = useTranslation()
   const [selected, setSelected] = useState(() => new Set(pending.prefill))
+  const [showOverride, setShowOverride] = useState(pending.overrideOpen)
+  const [qualityId, setQualityId] = useState(pending.release.qualityId)
+  const [languages, setLanguages] = useState(pending.release.languages)
   const seasons = pickerSeasons(pending.episodes)
   const prefilledSeasons = new Set(pending.episodes.filter((e) => pending.prefill.includes(e.id)).map((e) => e.seasonNumber))
   // Seasons holding the prefill start open, the others folded; a single season is always open.
@@ -71,6 +80,10 @@ function SeriesGrabContent({ pending, onClose }: { pending: PendingSeriesGrab; o
   const picked = pending.episodes.filter((e) => selected.has(e.id)).map((e) => e.id)
   const hint = pending.matched ? t('seriesSearch.pickMatched', { episodes: pending.matched }) : pending.prefill.length > 0 ? t('seriesSearch.pickScope') : t('seriesSearch.pickNone')
   const anyway = pending.reasons.length > 0
+  // Only what differs from the parse is sent. Episodes picked over Bigarr's match (or for a release matching none) are
+  // an override too: a single-file download then lands on them whatever its file is named.
+  const override = grabOverride(pending.release, { qualityId, languages, episodeIds: picked })
+  const parts = overriddenParts(override)
 
   return (
     <AlertDialogContent className="flex max-h-[90vh] flex-col sm:max-w-xl" data-testid="series-grab-dialog">
@@ -135,12 +148,47 @@ function SeriesGrabContent({ pending, onClose }: { pending: PendingSeriesGrab; o
           })}
         </ul>
       )}
+      <div className="rounded-lg border" data-testid="series-grab-override">
+        <button
+          type="button"
+          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium"
+          onClick={() => setShowOverride((v) => !v)}
+          aria-expanded={showOverride}
+          data-testid="series-grab-override-toggle"
+        >
+          <ChevronRightIcon className={cn('size-4 transition-transform', showOverride && 'rotate-90')} />
+          <PencilLineIcon className="size-4" />
+          {t('grabOverride.toggle')}
+          <span className="ml-auto truncate text-xs font-normal text-muted-foreground">
+            {showOverride ? null : [pending.release.quality, pending.release.languages.join(', ')].filter(Boolean).join(' · ')}
+          </span>
+        </button>
+        {showOverride && (
+          <div className="grid gap-3 border-t px-3 py-3">
+            <p className="text-xs text-muted-foreground">{t('grabOverride.hintSeries')}</p>
+            <OverrideFields
+              parsedQuality={pending.release.quality}
+              parsedLanguages={pending.release.languages}
+              qualityId={qualityId}
+              languages={languages}
+              onQuality={setQualityId}
+              onLanguages={setLanguages}
+              idPrefix="series-grab-override"
+            />
+          </div>
+        )}
+      </div>
+      {parts.length > 0 && (
+        <p className="text-xs text-muted-foreground" data-testid="series-grab-override-summary">
+          {t('grabOverride.changed', { parts: parts.map((p) => t(`grabOverride.part.${p}`)).join(', ') })}
+        </p>
+      )}
       <AlertDialogFooter>
         <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
         <AlertDialogAction
           disabled={picked.length === 0}
           onClick={() => {
-            pending.go(picked)
+            pending.go(picked, override)
             onClose()
           }}
           data-testid="series-grab-go"

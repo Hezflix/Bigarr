@@ -40,8 +40,9 @@ public sealed class ShadowPickRecorder(BigarrDbContext db, CustomFormatScorer sc
             ? await db.Indexers.AsNoTracking().Where(i => i.Id == request.IndexerId).Select(i => new { i.Id, i.Name }).FirstOrDefaultAsync(ct)
             : null;
         var indexerName = indexer?.Name ?? request.Indexer;
-        var release = EventSnapshots.Release(request.Title, indexerName, request.Size, request.Flags, version.Movie, version.QualityProfile, await scorer.CalculatorAsync(ct), request.Seeders, request.InfoHash);
-        var parsedQuality = ReleaseMatcher.TryParse(request.Title)?.Quality?.Quality;
+        // The user's quality and languages (an override from the interactive search) over the title's.
+        var release = GrabOverrides.Apply(EventSnapshots.Release(request.Title, indexerName, request.Size, request.Flags, version.Movie, version.QualityProfile, await scorer.CalculatorAsync(ct), request.Seeders, request.InfoHash), request);
+        var parsedQuality = request.QualityId is { } overridden ? Bigarr.Parsing.Qualities.Quality.FindById(overridden) : ReleaseMatcher.TryParse(request.Title)?.Quality?.Quality;
 
         var pick = new ShadowPick
         {
