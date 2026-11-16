@@ -40,6 +40,13 @@ public sealed record SeriesMatch(IndexedSeries? Series, SeriesMatchKind Kind, in
 /// scene name, the cleaned title or an alternate title, title + year, then the release's TVDB id and, when the release
 /// carries no TVDB id, its IMDb id. Titles are compared after the episode parser's <c>CleanSeriesTitle</c>. Two series
 /// answering the same title are reported, never picked, unless the release's id names one of them.
+/// <para>
+/// Year twins (two shows of one name, "Scrubs" 2001 and its 2026 revival): TVDB tells them apart by the year in the
+/// later one's name ("Scrubs (2026)"), which is Sonarr's clean title. The index gives every twin that name too, so
+/// "Scrubs.2026.S01E05" finds the revival by title, and the longest start of a name wins it in <see cref="FindInexact"/>.
+/// A release that names a twin's title with another year is never handed to that twin by an id: the year says it is
+/// the other show (a feed often tags the revival with the old show's ids).
+/// </para>
 /// </summary>
 public sealed class SeriesTitleIndex
 {
@@ -60,15 +67,24 @@ public sealed class SeriesTitleIndex
             .GroupBy(x => x.Key!, StringComparer.Ordinal)
             .Where(g => g.Count() == 1)
             .ToDictionary(g => g.Key, g => g.Single().Series, StringComparer.Ordinal);
-        _byTitle = _series
+        var keys = _series
             .SelectMany(s => new[] { s.Title }.Concat(s.AlternateTitles).Select(t => (Key: Clean(t), Series: s)))
             .Where(x => x.Key.Length > 0)
             .Distinct()
-            .ToLookup(x => x.Key, x => x.Series);
+            .ToList();
+        // A name two series answer, each twin also answers with its year: Sonarr's "Scrubs (2026)".
+        var shared = keys.GroupBy(x => x.Key, StringComparer.Ordinal).Where(g => g.Select(x => x.Series.Id).Distinct().Count() > 1).Select(g => g.Key).ToHashSet(StringComparer.Ordinal);
+        var withYear = keys
+            .Where(x => shared.Contains(x.Key) && x.Series.Year is not null)
+            .Select(x => (Key: x.Key + x.Series.Year!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture), x.Series));
+        _byTitle = keys.Concat(withYear).Distinct().ToLookup(x => x.Key, x => x.Series);
         _scene = sceneNames.Select(n => (Key: Clean(n.Title), Name: n)).Where(x => x.Key.Length > 0).ToLookup(x => x.Key, x => x.Name);
     }
 
     public IReadOnlyList<IndexedSeries> All => _series;
+
+    /// <summary>"Scrubs (2001)": how a reason names a series, its year telling twins apart.</summary>
+    public static string Label(IndexedSeries series) => series is { Year: { } year } ? $"{series.Title} ({year})" : series?.Title ?? string.Empty;
 
     public static string Clean(string? title) => string.IsNullOrWhiteSpace(title) ? string.Empty : title.CleanSeriesTitle();
 
@@ -132,12 +148,12 @@ public sealed class SeriesTitleIndex
         // Sonarr only falls back to the ids once no name matched; an id never overrides a name that found another show.
         if (tvdbId is > 0)
         {
-            return ByTvdbId(tvdbId.Value) is { } byTvdb && Fits(byName, byTvdb)
+            return ByTvdbId(tvdbId.Value) is { } byTvdb && Fits(byName, byTvdb) && !OtherYear(byTvdb, titleWithoutYear, year)
                 ? new SeriesMatch(byTvdb, SeriesMatchKind.Id, SceneSeasonFor(title, byTvdb.TvdbId), [])
                 : byName;
         }
 
-        if (ByImdbId(imdbId) is { } byImdb && Fits(byName, byImdb))
+        if (ByImdbId(imdbId) is { } byImdb && Fits(byName, byImdb) && !OtherYear(byImdb, titleWithoutYear, year))
         {
             return new SeriesMatch(byImdb, SeriesMatchKind.ImdbId, SceneSeasonFor(title, byImdb.TvdbId), []);
         }
@@ -145,8 +161,65 @@ public sealed class SeriesTitleIndex
         return byName;
     }
 
+    /// <summary>
+    /// The show a name without an episode number (a possible special) stands for, in Sonarr's order
+    /// (<c>ParseSpecialEpisodeTitle</c>): the name, then the start of the release title, then the release's ids.
+    /// </summary>
+    public IndexedSeries? FindShowOfSpecial(ParsedEpisodeInfo? parsed, string releaseTitle, int? tvdbId, string? imdbId)
+    {
+        if (parsed is not null && Find(parsed).Series is { } byName)
+        {
+            return byName;
+        }
+
+        if (FindInexact(releaseTitle) is { } byStart)
+        {
+            return byStart;
+        }
+
+        if (parsed is not null)
+        {
+            return Find(parsed, tvdbId, imdbId).Series;
+        }
+
+        return (tvdbId is > 0 ? ByTvdbId(tvdbId.Value) : null) ?? (tvdbId is null ? ByImdbId(imdbId) : null);
+    }
+
+    /// <summary>
+    /// A lookup made for one show (a search, the shadow judge), Sonarr's search rule: a name several series answer is
+    /// that show when it is the show's own title (not an alias), or when the release's id names it. Any other series
+    /// found means the release is another show; <see cref="SeriesMatch.Ambiguous"/> then lists it.
+    /// </summary>
+    public SeriesMatch FindFor(IndexedSeries searched, ParsedEpisodeInfo parsed, int? tvdbId = null, string? imdbId = null)
+    {
+        ArgumentNullException.ThrowIfNull(searched);
+        ArgumentNullException.ThrowIfNull(parsed);
+
+        var match = Find(parsed, tvdbId, imdbId);
+        if (match.Series?.Id == searched.Id)
+        {
+            return match;
+        }
+
+        var name = Clean(parsed.SeriesTitle);
+        if (match.IsAmbiguous && match.Ambiguous.Any(s => s.Id == searched.Id)
+            && name.Length > 0 && Clean(searched.Title) == name && match.Ambiguous.Count(s => Clean(s.Title) == name) == 1)
+        {
+            return new SeriesMatch(searched, SeriesMatchKind.Title, null, []);
+        }
+
+        return match.Series is { } other ? new SeriesMatch(null, SeriesMatchKind.None, null, [other]) : match;
+    }
+
     /// <summary>An id match stands when no name matched, or picks one of the series a name matched several of.</summary>
     private static bool Fits(SeriesMatch byName, IndexedSeries byId) => !byName.IsAmbiguous || byName.Ambiguous.Contains(byId);
+
+    /// <summary>
+    /// The release names this show's title with another year ("Scrubs 2026" for the 2001 show): it is a twin, not this
+    /// show, whatever its ids say. A year off by one is metadata drift, not a twin.
+    /// </summary>
+    private bool OtherYear(IndexedSeries byId, string? titleWithoutYear, int? year) =>
+        year is not null && byId.Year is { } own && Math.Abs(own - year.Value) > 1 && _byTitle[Clean(titleWithoutYear)].Contains(byId);
 
     private SeriesMatch FindByName(string? title, string? titleWithoutYear, int? year)
     {

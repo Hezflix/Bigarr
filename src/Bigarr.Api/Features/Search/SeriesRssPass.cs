@@ -53,12 +53,10 @@ public sealed class SeriesRssPass(
                 var parsed = SeriesReleaseJudge.TryParse(f.Release.Title);
                 if (parsed is null || parsed.IsPossibleSpecialEpisode)
                 {
-                    // Sonarr: a name without an episode number may still name a special of a show found by TVDB id or
-                    // by the start of the name; the special's title is looked for once the show is loaded.
-                    var show = (f.Release.TvdbId is { } tvdb ? index.ByTvdbId(tvdb) : null)
-                        ?? (parsed is null ? null : index.Find(parsed, f.Release.TvdbId, f.Release.ImdbId).Series)
-                        ?? index.FindInexact(f.Release.Title)
-                        ?? (f.Release.TvdbId is null ? index.ByImdbId(f.Release.ImdbId) : null);
+                    // Sonarr: a name without an episode number may still name a special of a show found by its name,
+                    // the start of the release title or, last, its ids; the special's title is looked for once the show
+                    // is loaded.
+                    var show = index.FindShowOfSpecial(parsed, f.Release.Title, f.Release.TvdbId, f.Release.ImdbId);
                     if (show is not null)
                     {
                         return (f.Indexer, f.Release, Parsed: parsed, Match: new SeriesMatch(show, SeriesMatchKind.Title, null, []), Reason: (string?)null, Special: true);
@@ -75,7 +73,7 @@ public sealed class SeriesRssPass(
                 string? reason = match switch
                 {
                     { Series: not null } => null,
-                    { IsAmbiguous: true } => $"Several series in the library match '{parsed.SeriesTitle}': {string.Join(", ", match.Ambiguous.Select(s => s.Title))}",
+                    { IsAmbiguous: true } => $"Several series in the library match '{parsed.SeriesTitle}': {string.Join(", ", match.Ambiguous.Select(SeriesTitleIndex.Label))}",
                     _ when f.Release.TvdbId is { } tvdb => $"TVDB {tvdb} is not in the library and no title matches '{parsed.SeriesTitle}'",
                     _ when f.Release.ImdbId is { } imdb => $"IMDb {imdb} names no single series in the library and no title matches '{parsed.SeriesTitle}'",
                     _ => $"No series in the library matches '{parsed.SeriesTitle}'",

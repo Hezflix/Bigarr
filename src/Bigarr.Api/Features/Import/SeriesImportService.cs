@@ -638,7 +638,7 @@ public sealed class SeriesImportService(
         if (match.Series is null)
         {
             return (null, match.IsAmbiguous
-                ? $"Several series in the library match '{probe.SeriesTitle}': {string.Join(", ", match.Ambiguous.Select(s => s.Title))}. Import it by hand."
+                ? $"Several series in the library match '{probe.SeriesTitle}': {string.Join(", ", match.Ambiguous.Select(SeriesTitleIndex.Label))}. Import it by hand."
                 : $"No series in the library matches '{probe.SeriesTitle}'. Import it by hand.");
         }
 
