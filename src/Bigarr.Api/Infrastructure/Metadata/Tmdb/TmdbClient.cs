@@ -17,7 +17,7 @@ public sealed class TmdbClient(HttpClient http, IOptions<MetadataOptions> option
 
     public async Task<TmdbMovieDetails?> GetMovieAsync(int tmdbId, CancellationToken cancellationToken)
     {
-        var url = $"movie/{tmdbId}?append_to_response=alternative_titles,release_dates,external_ids&language={Uri.EscapeDataString(options.Value.Language)}";
+        var url = $"movie/{tmdbId}?append_to_response=alternative_titles,translations,release_dates,external_ids&language={Uri.EscapeDataString(options.Value.Language)}";
         using var response = await http.GetAsync(url, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {

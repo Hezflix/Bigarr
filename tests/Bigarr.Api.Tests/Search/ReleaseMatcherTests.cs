@@ -56,6 +56,31 @@ public sealed class ReleaseMatcherTests
         Assert.Equal("Release is IMDb tt0234215, not tt0133093", Match("The.Matrix.1999.1080p.BluRay.x264-GRP", imdb: "tt0234215"));
     }
 
+    [Fact]
+    public void A_release_named_after_a_translated_title_matches_without_ids()
+    {
+        // The film's title in the metadata language, the release's in English: TMDB's translations hold the latter.
+        var film = new Movie
+        {
+            TmdbId = 1_290_201,
+            Title = "2000 mètres d'Andriïvka",
+            OriginalTitle = "2000 метрів до Андріївки",
+            SortTitle = "2000 metres d andriivka",
+            Year = 2025,
+            AlternativeTitles = [new AlternativeTitle("2000 Meters to Andriivka", "US"), new AlternativeTitle("2000 Metres to Andriivka", "GB")],
+        };
+
+        foreach (var title in new[] { "2000.Meters.to.Andriivka.2025.1080p.WEB-DL.DDP5.1.H.264-GRP", "2000.Metres.to.Andriivka.2025.2160p.WEB-DL-GRP" })
+        {
+            Assert.Null(ReleaseMatcher.Match(ReleaseMatcher.TryParse(title), Release(title), film));
+        }
+
+        Assert.StartsWith("Title '2000 Meters to Andriivka'", ReleaseMatcher.Match(
+            ReleaseMatcher.TryParse("2000.Meters.to.Andriivka.2025.1080p.WEB-DL-GRP"),
+            Release("2000.Meters.to.Andriivka.2025.1080p.WEB-DL-GRP"),
+            new Movie { TmdbId = film.TmdbId, Title = film.Title, OriginalTitle = film.OriginalTitle, SortTitle = film.SortTitle, Year = 2025 }), StringComparison.Ordinal);
+    }
+
     private static Movie LibraryMovie(int id, int tmdbId, string title, int? year, string? imdb = null, params string[] alternatives) => new()
     {
         Id = id,

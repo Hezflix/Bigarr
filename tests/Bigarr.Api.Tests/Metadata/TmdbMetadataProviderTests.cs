@@ -46,6 +46,24 @@ public sealed class TmdbMetadataProviderTests
     }
 
     [Fact]
+    public async Task Translated_titles_are_kept_as_alternative_titles()
+    {
+        var (provider, requests) = Create(new Dictionary<string, (HttpStatusCode, string)>
+        {
+            ["/3/movie/603"] = (HttpStatusCode.OK, TmdbRecorded.Movie603French),
+        });
+
+        var movie = await provider.GetMovieAsync(603, CancellationToken.None);
+
+        // The original title, the alternative titles, then each translation once, trimmed; empty and same-as-title ones dropped.
+        Assert.NotNull(movie);
+        Assert.Equal("Matrix", movie.Title);
+        Assert.Equal(["The Matrix", "Матрица", "Матриця"], movie.AlternativeTitles.Select(a => a.Title));
+        Assert.Equal("UA", movie.AlternativeTitles[2].Language);
+        Assert.Contains("translations", Assert.Single(requests).Query, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Unknown_movie_is_null()
     {
         var (provider, _) = Create(new Dictionary<string, (HttpStatusCode, string)>
