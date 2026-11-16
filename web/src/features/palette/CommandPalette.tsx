@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { type NavItem, useNavSections } from '@/components/nav'
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import type { PaletteAction, PaletteContextActions, PaletteParamOption } from './actions'
-import { AddGroup, ContentGroups } from './ContentGroups'
+import { AddGroup, ContentGroups, firstResult, useContentSearch } from './ContentGroups'
 import { paletteFilter } from './filter'
 import { Kbd } from './Kbd'
 import { type RecentItem, recentKey, useRecent } from './recent'
@@ -41,6 +41,32 @@ export function CommandPalette({ open, onOpenChange, contextual }: Props) {
     for (const section of sections) for (const item of section.items) map.set(item.to, { item, section: section.title })
     return map
   }, [sections])
+
+  // The library search is only for the list itself: the question and a parameter's values reuse the input for other text.
+  const content = useContentSearch(confirming || param ? '' : query)
+
+  // What a library hit competes with for the first place: the pages and actions that match the term.
+  const rivals = [...pageActions, ...globalActions]
+    .map((a) => ({ value: `action:${a.id}`, keywords: [a.label, ...(a.keywords ?? [])] }))
+    .concat(sections.flatMap((section) => section.items.map((item) => ({ value: `${section.title} ${item.label} ${item.to}`, keywords: [item.label] }))))
+    .reduce<{ value: string; score: number } | null>((top, e) => {
+      const score = query === '' ? 0 : paletteFilter(e.value, query, e.keywords)
+      return score > (top?.score ?? 0) ? { value: e.value, score } : top
+    }, null)
+  // A page or action named like the term (or starting with it) comes before library hits that only hold its words:
+  // typing "Discover" lists the Discover page first, not under every film with the word in its title.
+  const rivalFirst = rivals !== null && content.top !== null && rivals.score > content.top.score
+  // cmdk selects the first row when the term changes, but not when the library rows arrive later: say which one it is.
+  const rivalRef = useRef(rivals)
+  rivalRef.current = rivals
+  const { fresh, debounced } = content
+  useEffect(() => {
+    const first = firstResult(fresh, debounced)
+    if (!first) return
+    const rival = rivalRef.current
+    // Only when new rows arrive, through the ref: running it again at every render would undo the arrow keys.
+    setSelected(rival && rival.score > first.score ? rival.value : first.value)
+  }, [fresh, debounced])
 
   const close = () => {
     onOpenChange(false)
@@ -169,7 +195,7 @@ export function CommandPalette({ open, onOpenChange, contextual }: Props) {
               </CommandGroup>
             )}
 
-            <ContentGroups query={query} onSelect={go} onFirstResult={setSelected} />
+            {!rivalFirst && <ContentGroups search={content} onSelect={go} />}
 
             <CommandGroup heading={t('palette.actionsHeading')}>{globalActions.map(actionItem)}</CommandGroup>
 
@@ -181,6 +207,8 @@ export function CommandPalette({ open, onOpenChange, contextual }: Props) {
                     // The value must be unique (three pages are called "Library"): the section and the path make it so,
                     // and they also let "settings lib" find the right one.
                     value={`${section.title} ${item.label} ${item.to}`}
+                    // The first keyword is the page's name: a page named like the term ranks above library hits.
+                    keywords={[item.label]}
                     onSelect={() => go({ kind: 'page', to: item.to })}
                     data-testid={`palette-go-${item.to}`}
                   >
@@ -190,6 +218,8 @@ export function CommandPalette({ open, onOpenChange, contextual }: Props) {
                 ))}
               </CommandGroup>
             ))}
+
+            {rivalFirst && <ContentGroups search={content} onSelect={go} />}
 
             <AddGroup query={query} onSelect={go} />
           </CommandList>

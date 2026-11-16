@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { TFunction } from 'i18next'
 import type { Episode } from '../src/api/client'
-import { paletteFilter } from '../src/features/palette/filter'
+import { contentScore, contentTier, paletteFilter } from '../src/features/palette/filter'
 import { isPaletteShortcut, isSearchShortcut } from '../src/features/palette/keys'
 import { parseRecent, pushRecent, type RecentItem } from '../src/features/palette/recent'
 import { parseSeriesScope, seriesScopeOptions } from '../src/features/palette/seriesScopes'
@@ -152,5 +152,73 @@ describe('series scopes (Tab on a series search)', () => {
     test("a season is the order's, with its episodes", () => {
       expect(parseSeriesScope('season:2', ordered, true)).toEqual({ kind: 'season', season: 2, orderSeason: true, episodeIds: [2, 3] })
     })
+  })
+})
+
+describe('ranking pages and actions against library hits', () => {
+  const discover = (search: string) => paletteFilter('Requests Discover /discover', search, ['Discover'])
+  const hit = (tier: string) => paletteFilter(`content:movie:1:${tier}`, 'discover')
+
+  test('a page named like the term ranks above library hits that start with it or only hold its words', () => {
+    expect(discover('discover')).toBeGreaterThan(hit('prefix'))
+    expect(discover('discover')).toBeGreaterThan(hit('words'))
+    expect(discover('discover')).toBeGreaterThan(hit('typo'))
+  })
+
+  test('a page whose name starts with the term ranks above loose and typo hits, below exact and prefix titles', () => {
+    const score = discover('disc')
+    expect(score).toBeGreaterThan(hit('words'))
+    expect(score).toBeGreaterThan(hit('typo'))
+    expect(score).toBeLessThan(hit('prefix'))
+  })
+
+  test('a film titled exactly like the term still comes first', () => {
+    expect(hit('exact')).toBeGreaterThan(discover('discover'))
+  })
+
+  test('typo hits rank below a page that merely matches', () => {
+    expect(paletteFilter('Settings Library /settings/library', 'library', ['Library'])).toBeGreaterThan(hit('typo'))
+    expect(paletteFilter('Settings Indexers /settings/indexers', 'discover', ['Indexers'])).toBe(0)
+  })
+
+  test('"Add" stays last and an action is ranked by its label', () => {
+    expect(paletteFilter('add:movie', 'discover')).toBeLessThan(0.01)
+    expect(paletteFilter('action:search-missing', 'search missing', ['Search missing movies'])).toBeGreaterThan(1)
+    expect(paletteFilter('action:search-missing', 'missing', ['Search missing movies'])).toBeLessThan(1)
+  })
+})
+
+describe('contentTier', () => {
+  test('the whole title, with or without its article, is exact', () => {
+    expect(contentTier('frost queen', 'The Frost Queen')).toBe('exact')
+    expect(contentTier('the matrix', 'Matrix')).toBe('exact')
+    expect(contentTier('Amelie', 'Amélie')).toBe('exact')
+  })
+
+  test('a title that starts with the term, word for word, is a prefix hit', () => {
+    expect(contentTier('frost', 'The Frost Queen 2')).toBe('prefix')
+    expect(contentTier('discover', 'Discover Weekly')).toBe('prefix')
+  })
+
+  test('words that start words of the title anywhere are a loose hit', () => {
+    expect(contentTier('discover', 'The Discoverers')).toBe('words')
+    expect(contentTier('queen frost', 'The Frost Queen')).toBe('words')
+    expect(contentTier('frost qu', 'The Frost Queen')).toBe('words')
+  })
+
+  test('what only a forgiven slip found is a typo hit', () => {
+    expect(contentTier('reine des glacs', 'La Reine des glaces')).toBe('typo')
+    expect(contentTier('discovr', 'Discovery Road')).toBe('typo')
+    expect(contentTier('discover', 'Dis-Cover Girl')).toBe('typo')
+  })
+
+  test('a trailing year is not a word of the title', () => {
+    expect(contentTier('alien 1979', 'Alien')).toBe('exact')
+  })
+
+  test('scores order the tiers', () => {
+    expect(contentScore('exact')).toBeGreaterThan(contentScore('prefix'))
+    expect(contentScore('prefix')).toBeGreaterThan(contentScore('words'))
+    expect(contentScore('words')).toBeGreaterThan(contentScore('typo'))
   })
 })
