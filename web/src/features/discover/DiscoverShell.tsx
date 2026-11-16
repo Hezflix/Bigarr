@@ -1,16 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
-import { CompassIcon, LogOutIcon } from 'lucide-react'
+import { CompassIcon, InboxIcon, LogOutIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { auth } from '@/api/client'
+import { auth, canManageRequests } from '@/api/client'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import { Toaster } from '@/components/ui/sonner'
+import { PendingBadge } from '@/features/requests/PendingBadge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 /**
  * The frame of someone who is not the admin: Bigarr's own pages are not theirs, so no sidebar, only what they may
- * see (Discover), who they are, the theme and sign out.
+ * see (Discover, their requests, everyone's for a request manager), who they are, the theme and sign out.
  */
 export function DiscoverShell() {
   const { t } = useTranslation()
@@ -40,6 +41,15 @@ export function DiscoverShell() {
           >
             <CompassIcon className="size-4" aria-hidden="true" />
             {t('nav.discover')}
+          </Link>
+          <Link
+            to="/requests"
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-muted-foreground hover:text-foreground data-[status=active]:font-medium data-[status=active]:text-foreground"
+            data-testid="nav-requests"
+          >
+            <InboxIcon className="size-4" aria-hidden="true" />
+            <span className="max-sm:sr-only">{canManageRequests(me.data) ? t('nav.requests') : t('requests.mine')}</span>
+            {canManageRequests(me.data) && <PendingBadge className="ml-0" />}
           </Link>
         </nav>
         <div className="ml-auto flex items-center gap-1">

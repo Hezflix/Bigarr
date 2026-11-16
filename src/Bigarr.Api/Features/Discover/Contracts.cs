@@ -1,3 +1,4 @@
+using Bigarr.Api.Features.Requests;
 using Bigarr.Domain.Discover;
 
 namespace Bigarr.Api.Features.Discover;
@@ -18,6 +19,7 @@ public enum DiscoverMediaType
 
 /// <param name="Subtitle">A person's department; in a person's credits, the role or the job.</param>
 /// <param name="Availability">Null for a person.</param>
+/// <param name="Requests">Active requests per slot (who asked is not said); null for a person or when nobody asked.</param>
 public sealed record DiscoverItem(
     DiscoverMediaType MediaType,
     int TmdbId,
@@ -28,7 +30,8 @@ public sealed record DiscoverItem(
     string? Overview,
     double? VoteAverage,
     string? Subtitle,
-    AvailabilityResponse? Availability);
+    AvailabilityResponse? Availability,
+    RequestSlotsResponse? Requests = null);
 
 public sealed record DiscoverPage(int Page, int TotalPages, int TotalResults, List<DiscoverItem> Results);
 
@@ -70,10 +73,11 @@ public sealed record DiscoverMovieResponse(
     List<DiscoverItem> Recommendations,
     List<DiscoverItem> Similar,
     AvailabilityResponse Availability,
-    int? LibraryId);
+    int? LibraryId,
+    RequestSlotsResponse? Requests = null);
 
 /// <param name="InLibraryOnly">A season the library has (TVDB numbering) that TMDB does not list.</param>
-public sealed record DiscoverSeasonResponse(int SeasonNumber, string Name, int? EpisodeCount, string? AirDate, string? PosterUrl, bool InLibraryOnly, AvailabilityResponse Availability);
+public sealed record DiscoverSeasonResponse(int SeasonNumber, string Name, int? EpisodeCount, string? AirDate, string? PosterUrl, bool InLibraryOnly, AvailabilityResponse Availability, RequestSlotsResponse? Requests = null);
 
 /// <param name="LibraryId">The series' id in the library, for the admin only (null for everyone else and when absent).</param>
 public sealed record DiscoverSeriesResponse(
@@ -100,7 +104,8 @@ public sealed record DiscoverSeriesResponse(
     List<DiscoverItem> Recommendations,
     List<DiscoverItem> Similar,
     AvailabilityResponse Availability,
-    int? LibraryId);
+    int? LibraryId,
+    RequestSlotsResponse? Requests = null);
 
 public sealed record DiscoverPersonResponse(
     int TmdbId,

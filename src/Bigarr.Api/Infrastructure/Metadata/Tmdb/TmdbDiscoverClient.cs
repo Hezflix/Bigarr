@@ -88,6 +88,10 @@ public sealed class TmdbDiscoverClient(HttpClient http, IOptions<MetadataOptions
     public Task<TmdbNamedPage?> SearchCompaniesAsync(string query, CancellationToken ct) =>
         GetAsync<TmdbNamedPage>($"search/company?query={Uri.EscapeDataString(query)}", ct);
 
+    /// <summary>The titles an outside id stands for: <paramref name="source"/> is <c>imdb_id</c> or <c>tvdb_id</c>.</summary>
+    public Task<TmdbFind?> FindAsync(string id, string source, CancellationToken ct) =>
+        GetAsync<TmdbFind>($"find/{Uri.EscapeDataString(id)}?external_source={source}", ct);
+
     /// <summary>TMDB has no network search: a network is looked up by its id.</summary>
     public Task<TmdbNamed?> NetworkAsync(int id, CancellationToken ct) => GetAsync<TmdbNamed>($"network/{id}", ct);
 

@@ -156,7 +156,7 @@ export function LibraryPage() {
               <Trans
                 i18nKey="library.emptyHint"
                 components={{
-                  add: <Link to="/add" className="text-foreground underline underline-offset-4" />,
+                  add: <Link to="/discover/search" className="text-foreground underline underline-offset-4" />,
                   scan: <Link to="/settings/library" className="text-foreground underline underline-offset-4" />,
                 }}
               />
@@ -264,7 +264,6 @@ function PageHeader({ count, shown = null, selecting = false, onSelect }: { coun
       title={t('library.title')}
       count={count === null ? null : shown === null ? t('library.count', { count }) : t('library.countShown', { count, shown })}
       countTestId="library-count"
-      addTo="/add"
       addLabel={t('library.addMovie')}
       selecting={selecting}
       onSelect={onSelect}

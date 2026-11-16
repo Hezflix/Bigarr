@@ -7,7 +7,7 @@ export type PaletteTarget =
   | { kind: 'page'; to: NavPath }
   | { kind: 'movie'; id: number }
   | { kind: 'series'; id: number }
-  | { kind: 'add'; media: 'movie' | 'series'; term: string }
+  | { kind: 'add'; term: string }
 
 export function usePaletteGo() {
   const navigate = useNavigate()
@@ -24,7 +24,7 @@ export function usePaletteGo() {
           void navigate({ to: '/series/$seriesId', params: { seriesId: String(target.id) } })
           return
         case 'add':
-          void navigate({ to: target.media === 'movie' ? '/add' : '/series/add', search: { term: target.term } })
+          void navigate({ to: '/discover/search', search: { q: target.term } })
       }
     },
     [navigate],

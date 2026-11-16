@@ -1,3 +1,4 @@
+using Bigarr.Api.Features.Requests;
 using Bigarr.Domain.Auth;
 
 namespace Bigarr.Api.Features.Users;
@@ -37,12 +38,16 @@ public sealed record UserResponse(
     DateTime? LastLoginAt,
     bool HasPassword,
     IReadOnlyList<UserLoginResponse> Logins,
-    bool IsYou);
+    bool IsYou,
+    QuotaDto Quota);
 
-public sealed record UpdateUserRequest(UserRole Role, PermissionsDto Permissions);
+/// <param name="Quota">Null leaves the user's request limits as they are.</param>
+public sealed record UpdateUserRequest(UserRole Role, PermissionsDto Permissions, QuotaDto? Quota = null);
 
 /// <param name="PlexNewAccounts">A Plex account linked to no user may sign in, creating its user, when it has access to the Plex server.</param>
 /// <param name="PlexServerConfigured">A Plex server is set up in Media servers: without one no new account gets in.</param>
-public sealed record UserSettingsResponse(bool PlexNewAccounts, PermissionsDto DefaultPermissions, bool PlexServerConfigured);
+/// <param name="DefaultQuota">What a new user may request over a sliding window.</param>
+public sealed record UserSettingsResponse(bool PlexNewAccounts, PermissionsDto DefaultPermissions, bool PlexServerConfigured, QuotaDto DefaultQuota);
 
-public sealed record UpdateUserSettingsRequest(bool PlexNewAccounts, PermissionsDto DefaultPermissions);
+/// <param name="DefaultQuota">Null leaves the default limits as they are.</param>
+public sealed record UpdateUserSettingsRequest(bool PlexNewAccounts, PermissionsDto DefaultPermissions, QuotaDto? DefaultQuota = null);

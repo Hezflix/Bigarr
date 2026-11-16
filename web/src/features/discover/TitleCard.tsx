@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import type { DiscoverItem } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import { Skeleton } from '@/components/ui/skeleton'
+import { CardRequestButton } from '@/features/requests/RequestButton'
 import { PosterBadges } from './availability'
 
 /** A film, a series or a person of a Discover row or grid: the poster leads to its page. */
@@ -20,7 +21,7 @@ export function TitleCard({ item, className }: { item: DiscoverItem; className?:
         ) : (
           <Poster url={item.posterUrl} title={item.title} className={cn(item.mediaType === 'person' && 'rounded-full aspect-square')} />
         )}
-        <PosterBadges availability={item.availability} />
+        <PosterBadges availability={item.availability} requests={item.requests} />
         {item.mediaType === 'series' && (
           <span className="pointer-events-none absolute top-1.5 right-1.5 rounded bg-black/60 px-1 text-[10px] font-semibold tracking-wide text-white uppercase">
             {t('discover.seriesTag')}
@@ -50,24 +51,31 @@ export function TitleCard({ item, className }: { item: DiscoverItem; className?:
   )
 
   const classes = cn('group block min-w-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring', className)
-  if (item.mediaType === 'movie') {
+  if (item.mediaType === 'person') {
     return (
-      <Link to="/discover/movie/$tmdbId" params={{ tmdbId: String(item.tmdbId) }} className={classes} data-testid="discover-card">
+      <Link to="/discover/person/$tmdbId" params={{ tmdbId: String(item.tmdbId) }} className={classes} data-testid="discover-card">
         {body}
       </Link>
     )
   }
-  if (item.mediaType === 'series') {
-    return (
-      <Link to="/discover/tv/$tmdbId" params={{ tmdbId: String(item.tmdbId) }} className={classes} data-testid="discover-card">
-        {body}
-      </Link>
-    )
-  }
+
+  // The request button sits beside the link, over the poster, not inside it: a button in a link is not valid.
+  const mediaType = item.mediaType === 'movie' ? 'movie' : 'series'
   return (
-    <Link to="/discover/person/$tmdbId" params={{ tmdbId: String(item.tmdbId) }} className={classes} data-testid="discover-card">
-      {body}
-    </Link>
+    <div className={cn('group/card relative min-w-0', className)}>
+      {item.mediaType === 'movie' ? (
+        <Link to="/discover/movie/$tmdbId" params={{ tmdbId: String(item.tmdbId) }} className={cn(classes, 'w-full')} data-testid="discover-card">
+          {body}
+        </Link>
+      ) : (
+        <Link to="/discover/tv/$tmdbId" params={{ tmdbId: String(item.tmdbId) }} className={cn(classes, 'w-full')} data-testid="discover-card">
+          {body}
+        </Link>
+      )}
+      <div className="pointer-events-none absolute inset-x-0 top-0 aspect-[2/3]">
+        <CardRequestButton mediaType={mediaType} tmdbId={item.tmdbId} availability={item.availability} requests={item.requests} className="pointer-events-auto" />
+      </div>
+    </div>
   )
 }
 

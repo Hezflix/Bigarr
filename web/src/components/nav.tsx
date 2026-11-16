@@ -14,12 +14,12 @@ import {
   HeartPulseIcon,
   HistoryIcon,
   ImportIcon,
+  InboxIcon,
   ListOrderedIcon,
   ListTodoIcon,
   ListVideoIcon,
   MonitorPlayIcon,
   PlugIcon,
-  PlusIcon,
   RadioTowerIcon,
   RssIcon,
   ShieldCheckIcon,
@@ -36,11 +36,10 @@ import { useTranslation } from 'react-i18next'
 export type NavPath =
   | '/'
   | '/discover'
+  | '/requests'
   | '/settings/discover'
-  | '/add'
   | '/wanted'
   | '/series'
-  | '/series/add'
   | '/series/wanted'
   | '/library/specials-films'
   | '/calendar'
@@ -80,6 +79,8 @@ export type NavItem = {
   exact?: boolean
   /** The health badge sits on this entry. */
   health?: boolean
+  /** The count of pending requests sits on this entry. */
+  pendingRequests?: boolean
   /** Reached from the palette only: a page linked from elsewhere (the library) that the sidebar does not list. */
   paletteOnly?: boolean
 }
@@ -95,13 +96,15 @@ export function useNavSections(): NavSection[] {
   return useMemo(() => [
     {
       title: t('nav.requests'),
-      items: [{ to: '/discover', label: t('nav.discover'), icon: CompassIcon }],
+      items: [
+        { to: '/discover', label: t('nav.discover'), icon: CompassIcon },
+        { to: '/requests', label: t('nav.requests'), icon: InboxIcon, pendingRequests: true },
+      ],
     },
     {
       title: t('nav.movies'),
       items: [
         { to: '/', label: t('nav.library'), icon: FilmIcon, exact: true },
-        { to: '/add', label: t('nav.addMovie'), icon: PlusIcon },
         { to: '/wanted', label: t('nav.wanted'), icon: ListTodoIcon },
       ],
     },
@@ -109,7 +112,6 @@ export function useNavSections(): NavSection[] {
       title: t('nav.series'),
       items: [
         { to: '/series', label: t('nav.seriesLibrary'), icon: TvIcon, exact: true },
-        { to: '/series/add', label: t('nav.addSeries'), icon: PlusIcon },
         { to: '/series/wanted', label: t('nav.seriesWanted'), icon: ListTodoIcon },
         { to: '/library/specials-films', label: t('specialsFilms.title'), icon: FilmIcon, paletteOnly: true },
       ],

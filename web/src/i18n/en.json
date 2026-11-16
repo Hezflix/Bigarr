@@ -5,7 +5,6 @@
   "nav": {
     "movies": "Movies",
     "library": "Library",
-    "addMovie": "Add a movie",
     "settings": "Settings",
     "settingsLibrary": "Library",
     "logout": "Log out",
@@ -33,7 +32,6 @@
     "compareSonarr": "Compare · Sonarr",
     "series": "Series",
     "seriesLibrary": "Library",
-    "addSeries": "Add a series",
     "playback": "Playback",
     "nowPlaying": "Now playing",
     "plays": "Plays",
@@ -84,7 +82,7 @@
     "count_other": "{{count}} movies",
     "addMovie": "Add a movie",
     "empty": "No movies yet.",
-    "emptyHint": "<add>Add a movie</add> or <scan>scan an existing library</scan>.",
+    "emptyHint": "<add>Add a film from Discover</add> or <scan>scan an existing library</scan>.",
     "loadError": "The library could not be loaded.",
     "noFile": "no file",
     "countShown": "{{shown}} of {{count}} movies",
@@ -400,7 +398,7 @@
     "countShown": "{{shown}} of {{count}} series",
     "search": "Filter by title or network…",
     "empty": "No series yet.",
-    "emptyHint": "<add>Add a series</add> to start.",
+    "emptyHint": "<add>Add a series from Discover</add> to start.",
     "noMatch": "No series matches the filter.",
     "loadError": "The series could not be loaded.",
     "add": "Add a series",
@@ -1270,7 +1268,7 @@
     "verdict": "Verdict",
     "sample": "sample",
     "noMovie": "No movie matched",
-    "noMovieHint": "Add the movie to the library first, then pick it here.",
+    "noMovieHint": "Add the film from Discover first, then pick it here.",
     "extras_one": "Brings {{count}} extra file",
     "extras_other": "Brings {{count}} extra files",
     "selectExtra": "Bring {{name}} with the movie",
@@ -2961,10 +2959,9 @@
       "movies": "Movies",
       "series": "Series",
       "add": "Add to the library",
-      "addMovie": "Add the movie “{{term}}”…",
-      "addSeries": "Add the series “{{term}}”…",
       "searching": "Searching the library…",
-      "alsoKnownAs": "Also known as {{title}}"
+      "alsoKnownAs": "Also known as {{title}}",
+      "addFromDiscover": "Add “{{term}}” from Discover…"
     },
     "actionsHeading": "Actions",
     "actions": {
@@ -3092,6 +3089,17 @@
       "autoApproveFilms": "Their film requests skip approval.",
       "autoApproveSeries": "Their series requests skip approval.",
       "reportIssues": "Report a problem with a file: video, audio, subtitles."
+    },
+    "quota": {
+      "title": "Request limits",
+      "defaultTitle": "Request limits a new user starts with",
+      "hint": "How many films and seasons they may request over a sliding window. Leave a limit empty for no limit; a declined request does not count.",
+      "adminExempt": "An admin is never limited.",
+      "films": "Films",
+      "seasons": "Seasons",
+      "unlimited": "No limit",
+      "every": "every",
+      "days": "days"
     }
   },
   "discover": {
@@ -3218,6 +3226,117 @@
       "upcomingSeries": "Upcoming series",
       "seriesGenres": "Series genres",
       "networks": "Networks"
+    }
+  },
+  "addTitle": {
+    "kind": "What to add",
+    "film": "Film",
+    "series": "Series"
+  },
+  "requests": {
+    "title": "Requests",
+    "mine": "My requests",
+    "request": "Request",
+    "film": "Film",
+    "season": "Season {{number}}",
+    "seasons": "Seasons {{list}}",
+    "autoApproved": "auto-approved",
+    "askedOn": "Asked {{date}}",
+    "approvedBy": "approved by {{user}}",
+    "declinedBy": "declined by {{user}}",
+    "empty": "No request here.",
+    "emptyMine": "You have not asked for anything here yet. Find a film or a series in Discover and press Request.",
+    "pendingBadge_one": "{{count}} request waiting",
+    "pendingBadge_other": "{{count}} requests waiting",
+    "state": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "declined": "Declined",
+      "failed": "Failed",
+      "processing": "On its way",
+      "partiallyAvailable": "Partially available",
+      "available": "Available"
+    },
+    "badge": {
+      "pending": "Requested",
+      "approved": "Approved",
+      "declined": "Declined",
+      "failed": "Request failed",
+      "processing": "On its way",
+      "partiallyAvailable": "Partially available",
+      "available": "Available"
+    },
+    "filters": {
+      "state": "Request state",
+      "type": "Type",
+      "allTypes": "Films and series",
+      "all": "All",
+      "pending": "Pending",
+      "approved": "Approved",
+      "processing": "On its way",
+      "available": "Available",
+      "declined": "Declined",
+      "failed": "Failed",
+      "byUser": "Asked by {{user}}",
+      "clearUser": "Everyone"
+    },
+    "actions": {
+      "approve": "Approve",
+      "decline": "Decline",
+      "retry": "Retry",
+      "retryForward": "Retry sending",
+      "cancel": "Cancel request"
+    },
+    "forward": {
+      "none": "",
+      "forwarded": "Sent to {{name}}",
+      "alreadyThere": "Already in {{name}}",
+      "failed": "Could not send it to {{name}}"
+    },
+    "form": {
+      "version": "Version",
+      "seasons": "Seasons",
+      "allSeasons": "All seasons"
+    },
+    "dialog": {
+      "submit": "Request",
+      "submitSeasons_one": "Request {{count}} season",
+      "submitSeasons_other": "Request {{count}} seasons",
+      "sent": "{{title}} requested. You will see here when it is approved.",
+      "approved": "{{title}} requested and approved.",
+      "quotaFilms": "{{remaining}} of your {{limit}} film requests left over {{days}} days.",
+      "quotaSeasons": "{{remaining}} of your {{limit}} season requests left over {{days}} days."
+    },
+    "approve": {
+      "askedBy": "Asked for by {{user}}.",
+      "done": "{{title}} approved.",
+      "failed": "{{title}} approved, but the library could not take it: see the request."
+    },
+    "decline": {
+      "title": "Decline {{title}}?",
+      "hint": "The person who asked sees that it was declined, and your reason if you give one.",
+      "reason": "Reason (optional)",
+      "reasonPlaceholder": "Already on another server…"
+    },
+    "defaults": {
+      "title": "Approved requests",
+      "hint": "The quality profile and root folder an approved request goes to, per type and version, unless the approver picks others. Automatic takes the first of the right kind (a 4K profile for 4K).",
+      "auto": "Automatic",
+      "saved": "Request defaults saved."
+    },
+    "add": {
+      "add": "Add",
+      "addVersion": "Add a version",
+      "standardName": "the standard name",
+      "pickedSeasons": "The seasons picked below",
+      "suggestedType": "Suggested by the metadata",
+      "searchHint": "The indexers are searched in the background once it is added (picks only in shadow mode).",
+      "viaRequest": "Added as an approved request in your name: it shows in Requests, and goes to the followed Radarr or Sonarr of its version.",
+      "done": "{{title}} added.",
+      "failed": "{{title}} could not be added: see the request.",
+      "tvdbOnly": "Only on TVDB",
+      "tvdbOnlyHint": "Series TMDB does not have, found on TVDB. Search tvdb:81189 for one by its id.",
+      "needsName": "The library already has this title in each version: name the new version (directors-cut, remux…)."
     }
   }
 }

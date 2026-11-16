@@ -164,7 +164,7 @@ export function SeriesLibraryPage() {
           <CardContent className="flex flex-col gap-2">
             <p className="font-medium">{t('seriesLibrary.empty')}</p>
             <p className="text-sm text-muted-foreground">
-              <Trans i18nKey="seriesLibrary.emptyHint" components={{ add: <Link to="/series/add" className="text-foreground underline underline-offset-4" /> }} />
+              <Trans i18nKey="seriesLibrary.emptyHint" components={{ add: <Link to="/discover/search" className="text-foreground underline underline-offset-4" /> }} />
             </p>
           </CardContent>
         </Card>
@@ -271,7 +271,6 @@ function PageHeader({ count, shown = null, selecting = false, onSelect }: { coun
       title={t('seriesLibrary.title')}
       count={count === null ? null : shown === null ? t('seriesLibrary.count', { count }) : t('seriesLibrary.countShown', { count, shown })}
       countTestId="series-count"
-      addTo="/series/add"
       addLabel={t('seriesLibrary.add')}
       selecting={selecting}
       onSelect={onSelect}

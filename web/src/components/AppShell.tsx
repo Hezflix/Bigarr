@@ -28,6 +28,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
+import { PendingBadge } from '@/features/requests/PendingBadge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 /** Warnings and errors of the last health check, next to the System entry. Notices are not worth a badge. */
@@ -124,6 +125,7 @@ function AppSidebar() {
                           <item.icon />
                           <span>{item.label}</span>
                           {item.health && <HealthBadge />}
+                          {item.pendingRequests && <PendingBadge className="group-data-[collapsible=icon]:hidden" />}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

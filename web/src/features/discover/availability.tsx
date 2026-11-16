@@ -1,7 +1,7 @@
 import { cn } from 'cn'
-import { CheckIcon, ClockIcon, PieChartIcon } from 'lucide-react'
+import { CheckIcon, ClockIcon, HourglassIcon, PieChartIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { Availability, AvailabilityState } from '@/api/client'
+import type { Availability, AvailabilityState, RequestSlots } from '@/api/client'
 
 /** One colour per state, close to the library's: green available, amber partial, blue on its way. */
 export const availabilityStyles: Record<AvailabilityState, string> = {
@@ -30,14 +30,19 @@ const icons: Record<AvailabilityState, React.ComponentType<{ className?: string 
  * The corner badges of a poster: one per version that is in the library ("HD" for the default version, "4K"),
  * nothing for a title the library does not have. The label says the state for screen readers and on hover.
  */
-export function PosterBadges({ availability, className }: { availability: Availability | null; className?: string }) {
+export function PosterBadges({ availability, requests, className }: { availability: Availability | null; requests?: RequestSlots | null; className?: string }) {
   const { t } = useTranslation()
   if (!availability) return null
   const slots = [
     { key: 'standard', label: t('discover.version.standardShort'), state: availability.standard },
     ...(availability.fourK ? [{ key: 'fourK', label: t('discover.version.fourK'), state: availability.fourK }] : []),
   ].filter((s) => s.state !== 'notInLibrary')
-  if (slots.length === 0) return null
+  // A slot not in the library yet but asked for and waiting for a decision: "Requested".
+  const asked = [
+    { key: 'standard', label: t('discover.version.standardShort'), state: requests?.standard, available: availability.standard },
+    { key: 'fourK', label: t('discover.version.fourK'), state: requests?.fourK, available: availability.fourK },
+  ].filter((s) => s.state === 'pending' && s.available === 'notInLibrary')
+  if (slots.length === 0 && asked.length === 0) return null
 
   return (
     <div className={cn('pointer-events-none absolute top-1.5 left-1.5 flex flex-col items-start gap-1', className)}>
@@ -52,6 +57,16 @@ export function PosterBadges({ availability, className }: { availability: Availa
             data-testid={`badge-${slot.key}`}
           >
             {Icon && <Icon className="size-3" aria-hidden="true" />}
+            <span aria-hidden="true">{slot.label}</span>
+            <span className="sr-only">{text}</span>
+          </span>
+        )
+      })}
+      {asked.map((slot) => {
+        const text = `${slot.label}: ${t('requests.badge.pending')}`
+        return (
+          <span key={`asked-${slot.key}`} title={text} className="inline-flex h-5 items-center gap-0.5 rounded-full bg-amber-500 px-1.5 text-[11px] font-semibold text-black shadow-sm" data-testid={`badge-requested-${slot.key}`}>
+            <HourglassIcon className="size-3" aria-hidden="true" />
             <span aria-hidden="true">{slot.label}</span>
             <span className="sr-only">{text}</span>
           </span>

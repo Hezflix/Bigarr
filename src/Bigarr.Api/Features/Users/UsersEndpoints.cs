@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Bigarr.Api.Features.Requests;
 using Bigarr.Api.Infrastructure.Auth;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Auth;
@@ -61,6 +62,11 @@ public static class UsersEndpoints
         var before = user.Role;
         user.Role = request.Role;
         user.Permissions = request.Permissions.ToDomain();
+        if (request.Quota is not null)
+        {
+            user.Quota = request.Quota.ToDomain();
+        }
+
         await db.SaveChangesAsync(ct);
         stamps.Changed(user);
         if (before != user.Role)
@@ -106,6 +112,11 @@ public static class UsersEndpoints
         var settings = await UserSettings.EditAsync(db, ct);
         settings.PlexNewAccounts = request.PlexNewAccounts;
         settings.DefaultPermissions = request.DefaultPermissions.ToDomain();
+        if (request.DefaultQuota is not null)
+        {
+            settings.DefaultQuota = request.DefaultQuota.ToDomain();
+        }
+
         await db.SaveChangesAsync(ct);
         return TypedResults.Ok(await SettingsResponseAsync(db, ct));
     }
@@ -114,7 +125,7 @@ public static class UsersEndpoints
     {
         var settings = await UserSettings.ReadAsync(db, ct);
         var plexServer = await db.MediaServers.AnyAsync(s => s.Enabled && s.Kind == MediaServerKind.Plex && s.Token != string.Empty, ct);
-        return new UserSettingsResponse(settings.PlexNewAccounts, PermissionsDto.From(settings.DefaultPermissions), plexServer);
+        return new UserSettingsResponse(settings.PlexNewAccounts, PermissionsDto.From(settings.DefaultPermissions), plexServer, QuotaDto.From(settings.DefaultQuota));
     }
 
     private static UserResponse ToResponse(User user, IEnumerable<ExternalLogin> logins, int me) =>
@@ -128,5 +139,6 @@ public static class UsersEndpoints
             user.LastLoginAt,
             user.HasPassword,
             [.. logins.OrderBy(l => l.Provider).Select(l => new UserLoginResponse(l.Provider, l.ExternalUsername, l.Email, l.ThumbUrl, l.LastLoginAt))],
-            user.Id == me);
+            user.Id == me,
+            QuotaDto.From(user.Quota));
 }

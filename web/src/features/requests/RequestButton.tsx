@@ -1,0 +1,97 @@
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { cn } from 'cn'
+import { PlusIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { auth, type Availability, type DiscoverSeason, isAdmin, type RequestMediaType, type RequestSlots } from '@/api/client'
+import { Button } from '@/components/ui/button'
+import { AdminAddDialog } from './AdminAddDialog'
+import { RequestDialog } from './RequestDialog'
+import { requestRights } from './requestState'
+
+type Title = { mediaType: RequestMediaType; tmdbId: number; availability: Availability | null; requests?: RequestSlots | null; seasons?: DiscoverSeason[] }
+
+const open = (availability: Availability | null | undefined, requests: RequestSlots | null | undefined, slot: 'standard' | 'fourK') =>
+  availability?.[slot] === 'notInLibrary' && !requests?.[slot]
+
+/**
+ * Whether the signed-in user can still ask for something of this title: the type allowed by their permissions, and a
+ * slot (or, for a series, a season) not in the library nor requested yet. A series card does not know its seasons: the
+ * dialog does, so the button shows unless the whole series is there or asked for.
+ */
+export function useCanRequest(title: Title) {
+  const me = useQuery({ queryKey: ['me'], queryFn: auth.me, staleTime: 60_000 })
+  const rights = requestRights(me.data)
+  if (title.mediaType === 'movie' ? !rights.films : !rights.series) return false
+  const slots: ('standard' | 'fourK')[] = rights.fourK && title.availability?.fourK != null ? ['standard', 'fourK'] : ['standard']
+  const seasons = title.mediaType === 'series' ? title.seasons : undefined
+  if (seasons) {
+    return slots.some((slot) => seasons.some((s) => open(s.availability, s.requests, slot)))
+  }
+
+  return slots.some((slot) => open(title.availability, title.requests, slot) || (title.mediaType === 'series' && title.availability?.[slot] !== 'available' && !title.requests?.[slot]))
+}
+
+function useAdmin() {
+  const me = useQuery({ queryKey: ['me'], queryFn: auth.me, staleTime: 60_000 })
+  return isAdmin(me.data)
+}
+
+/**
+ * The button of a title page: "Request" for everyone, opening the request dialog; for the admin, "Add" (or "Add a
+ * version" when the library has the title), opening the full add form. Discover is where titles are added.
+ */
+export function RequestButton(title: Title & { inLibrary?: boolean }) {
+  const { t } = useTranslation()
+  const [asking, setAsking] = useState(false)
+  const admin = useAdmin()
+  const canRequest = useCanRequest(title)
+  if (!admin && !canRequest) return null
+  return (
+    <>
+      <Button size="sm" onClick={() => setAsking(true)} data-testid={admin ? 'admin-add-button' : 'request-button'}>
+        <PlusIcon />
+        {admin ? (title.inLibrary ? t('requests.add.addVersion') : t('requests.add.add')) : t('requests.request')}
+      </Button>
+      {asking &&
+        (admin ? (
+          <AdminAddDialog mediaType={title.mediaType} tmdbId={title.tmdbId} onClose={() => setAsking(false)} />
+        ) : (
+          <RequestDialog mediaType={title.mediaType} tmdbId={title.tmdbId} onClose={() => setAsking(false)} />
+        ))}
+    </>
+  )
+}
+
+/** The round "+" on a Discover card, over the poster's corner (request, or the admin's add); the card itself stays a link. */
+export function CardRequestButton({ className, ...title }: Title & { className?: string }) {
+  const { t } = useTranslation()
+  const [asking, setAsking] = useState(false)
+  const admin = useAdmin()
+  const canRequest = useCanRequest(title)
+  if (!admin && !canRequest) return null
+  const label = admin ? t('requests.add.add') : t('requests.request')
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setAsking(true)}
+        aria-label={label}
+        title={label}
+        className={cn(
+          'absolute right-1.5 bottom-1.5 flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md transition-opacity outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring sm:size-8 sm:opacity-0 sm:group-hover/card:opacity-100',
+          className,
+        )}
+        data-testid="card-request"
+      >
+        <PlusIcon className="size-4" aria-hidden="true" />
+      </button>
+      {asking &&
+        (admin ? (
+          <AdminAddDialog mediaType={title.mediaType} tmdbId={title.tmdbId} onClose={() => setAsking(false)} />
+        ) : (
+          <RequestDialog mediaType={title.mediaType} tmdbId={title.tmdbId} onClose={() => setAsking(false)} />
+        ))}
+    </>
+  )
+}

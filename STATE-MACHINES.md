@@ -19,6 +19,7 @@ Line numbers are those of the commit that last touched the section; symbols are 
 - [Playback](#playback): session, play, listener, backstop
 - [Shadow follow](#shadow-follow): followed grab, checkpoint, memory, pick view
 - [Auth and UI](#auth-and-ui)
+- [Requests](#requests): request lifecycle, derived states, forward mode
 - [Findings](#findings): fixed, open, checked and sound
 
 ## Ground rules
@@ -363,8 +364,8 @@ See [F10](#f10-shadow-follow-searches-and-views-were-lost-for-good).
   plex.tv lists the configured Plex server among the account's resources; a non-admin needs that access at every
   sign-in, the admin never.
 - Discover availability: derived on every request from the library, never stored, no scan job
-  (`Features/Discover/Availability.cs`, `LibraryAvailability.cs`). Per version slot ("standard" = default version, "4K" =
-  the version named in Discover settings): a film version is available with a file, processing while monitored without
+  (`Features/Discover/Availability.cs`, `LibraryAvailability.cs`). Per version slot ("standard" = the default version, or the
+  first other version when the default is the 4K one; "4K" = the version named in Discover settings): a film version is available with a file, processing while monitored without
   one, not in the library otherwise. A season or a whole series (specials left out) is available when every aired
   episode has a file, partially available when only some do, processing when none has one yet but episodes are
   monitored (or the monitored version has no episode listed yet), not in the library otherwise. An episode that has not
@@ -372,6 +373,47 @@ See [F10](#f10-shadow-follow-searches-and-views-were-lost-for-good).
 - The web UI holds no state machine of its own: server state lives in the query cache, invalidated by the server's
   event stream (`web/src/hooks/useServerEvents.ts`). The stream is at most once and the cache is not invalidated on
   reconnect, so an event missed while disconnected leaves a page stale until its next refetch. Not audited further.
+
+## Requests
+
+`MediaRequest.Status` (`Features/Requests/RequestService.cs`): `Pending`, `Approved`, `Declined`, `Failed`. One row per
+title, version slot (standard / 4K) and, for a series, set of seasons.
+
+| From | To | Trigger | Guard |
+|---|---|---|---|
+| none | `Pending` | a signed-in user asks (`POST /requests`) | permission for the type (and "request 4K"); slot not wanted or available in the library; no active request for the same title, slot (and season); quota |
+| none → `Pending` | `Approved` | at once, same request | the user's auto-approve flag for the type, or an admin |
+| none → `Pending` | `Approved` | the admin adds a title from Discover (the only way to add one from the UI) | admin only; the library add's own options are kept on the request (`AddOptions`); a version the admin names is its own slot, refused only when the library already has a version of that name; a series TMDB lacks comes by its TVDB id |
+| `Pending` | `Approved` | an admin or a request manager approves (with edits: profile, root folder, slot, seasons) | still `Pending` |
+| `Pending` | `Declined` | an admin or a request manager declines (optional reason) | still `Pending`; terminal |
+| `Pending` | (deleted) | its author cancels | still `Pending`, author only |
+| `Approved` | `Failed` | the library add failed (no root folder, metadata provider down, title unknown) | in the same approval |
+| `Failed` | `Approved` | an approver retries | the add goes through this time |
+
+Derived, never stored (`RequestStates`): an `Approved` request shows `Processing`, `PartiallyAvailable` or
+`Available` from the library with Discover's availability rules, on the version slot it asked for and, for a series,
+on its seasons only (all available: available; some episodes in: partial; wanted: processing). The library losing the
+title shows plain `Approved` again.
+
+Forward state (`ForwardStatus`, written only by `RequestLibrary.ForwardAsync`): `None` (no enabled followed
+Radarr/Sonarr carries the version's name), `Forwarded`, `AlreadyThere`, `Failed` → `Forwarded` / `AlreadyThere` on a
+retry. Independent of the lifecycle: a failed forward never fails the request.
+
+Invariants:
+
+- Every add from the UI is a request: the admin's goes through the same approval and forward as anyone's, attributed
+  to them, so it shows in Requests and in its events. A retry adds the title the same way (`AddOptions`).
+- Approval saves `Approved` (and its outbox event) before touching the library, so a crash mid-add leaves an approved
+  request, never a lost one; the add then writes the library's rows through `MovieService` / `SeriesService`, and the
+  request's library id and version name.
+- "Available" goes to the outbox once per request: `AvailableAt` is set by `RequestAvailabilityJob` when the derived
+  state first reads `Available`, and never cleared.
+- Active (pending, approved, failed) requests hold their slot: the duplicate check reads them; a declined one does not,
+  and neither counts a deleted (cancelled) one. Quotas count every request but declined ones over each window.
+- Shadow mode needs nothing of its own here: the search the approval enqueues goes through the grab choke point.
+
+Known gap: two approvers acting on the same pending request at once both pass the "still pending" check (no
+conditional update); the second add finds the title in the library and only monitors it again.
 
 ## Findings
 

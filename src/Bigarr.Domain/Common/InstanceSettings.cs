@@ -22,6 +22,12 @@ public sealed class InstanceSettings
     /// </summary>
     public bool PlexNewAccounts { get; set; } = true;
 
+    /// <summary>What a new user may request over a sliding window: unlimited unless the admin sets limits.</summary>
+    public Requests.RequestQuota DefaultQuota { get; set; } = new();
+
+    /// <summary>The profile and root folder an approved request takes when the approver leaves them.</summary>
+    public Requests.RequestDefaults RequestDefaults { get; set; } = new();
+
     /// <summary>
     /// The version name Discover shows as "4K" next to the default version ("standard"), as a 4K Seerr sees it through a
     /// <c>version:4k</c> key. Null or empty: Discover shows the default version only.

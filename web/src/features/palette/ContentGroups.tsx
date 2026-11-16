@@ -76,20 +76,16 @@ export function ContentGroups({ query, onSelect, onFirstResult }: Props) {
   )
 }
 
-/** "Add the movie '…'": opens the add pages on the query. Rendered last, below anything else that matched. */
+/** "Add “…” from Discover": opens Discover's search on the query, where films and series are added. Rendered last. */
 export function AddGroup({ query, onSelect }: { query: string; onSelect: (target: PaletteTarget) => void }) {
   const { t } = useTranslation()
   const term = query.trim()
   if (term.length < minContentTerm) return null
   return (
     <CommandGroup heading={t('palette.content.add')}>
-      <CommandItem value="add:movie" onSelect={() => onSelect({ kind: 'add', media: 'movie', term })} data-testid="palette-add-movie">
+      <CommandItem value="add:discover" onSelect={() => onSelect({ kind: 'add', term })} data-testid="palette-add">
         <PlusIcon />
-        <span className="truncate">{t('palette.content.addMovie', { term })}</span>
-      </CommandItem>
-      <CommandItem value="add:series" onSelect={() => onSelect({ kind: 'add', media: 'series', term })} data-testid="palette-add-series">
-        <PlusIcon />
-        <span className="truncate">{t('palette.content.addSeries', { term })}</span>
+        <span className="truncate">{t('palette.content.addFromDiscover', { term })}</span>
       </CommandItem>
     </CommandGroup>
   )

@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 namespace Bigarr.Api.Features.Discover;
 
 /// <summary>Turns TMDB answers into Discover's shapes and puts the library's availability on every film and series.</summary>
-public sealed class DiscoverService(TmdbDiscoverClient tmdb, LibraryAvailability library, IOptions<MetadataOptions> metadata)
+public sealed partial class DiscoverService(TmdbDiscoverClient tmdb, LibraryAvailability library, IOptions<MetadataOptions> metadata, Requests.RequestBadges badges)
 {
     /// <summary>Studios offered as tiles (TMDB company ids), the big names Seerr's studio row shows.</summary>
     public static readonly DiscoverTile[] Studios =
@@ -91,7 +91,41 @@ public sealed class DiscoverService(TmdbDiscoverClient tmdb, LibraryAvailability
         await PageAsync(await tmdb.DiscoverSeriesAsync(genre, keyword, network, page, ct), DiscoverMediaType.Series, keepPeople: false, ct);
 
     public async Task<DiscoverPage> SearchAsync(string query, int page, CancellationToken ct) =>
-        await PageAsync(await tmdb.SearchAsync(query, page, ct), null, keepPeople: true, ct);
+        IdTerm().Match(query) is { Success: true } id
+            ? await PageAsync(await ByIdAsync(id.Groups["source"].Value.ToLowerInvariant(), id.Groups["id"].Value, ct), null, keepPeople: false, ct)
+            : await PageAsync(await tmdb.SearchAsync(query, page, ct), null, keepPeople: true, ct);
+
+    /// <summary>
+    /// A search by id, as the library's former Add pages took it: <c>tmdb:603</c> (the film and the series of that id),
+    /// <c>tvdb:81189</c>, <c>imdb:tt0133093</c> or a bare <c>tt0133093</c>.
+    /// </summary>
+    private async Task<TmdbPage> ByIdAsync(string source, string id, CancellationToken ct)
+    {
+        var results = new List<TmdbListItem>();
+        if (source is "tmdb" && int.TryParse(id, System.Globalization.CultureInfo.InvariantCulture, out var tmdbId))
+        {
+            if (await tmdb.MovieAsync(tmdbId, ct) is { } movie)
+            {
+                results.Add(new TmdbListItem { Id = movie.Id, MediaType = "movie", Title = movie.Title, ReleaseDate = movie.ReleaseDate, PosterPath = movie.PosterPath, Overview = movie.Overview, VoteAverage = movie.VoteAverage });
+            }
+
+            if (await tmdb.SeriesAsync(tmdbId, ct) is { } tv)
+            {
+                results.Add(new TmdbListItem { Id = tv.Id, MediaType = "tv", Name = tv.Name, FirstAirDate = tv.FirstAirDate, PosterPath = tv.PosterPath, Overview = tv.Overview, VoteAverage = tv.VoteAverage });
+            }
+        }
+        else if (source is "tvdb" or "imdb" or "")
+        {
+            var found = await tmdb.FindAsync(source == "tvdb" ? id : id.ToLowerInvariant(), source == "tvdb" ? "tvdb_id" : "imdb_id", ct);
+            results.AddRange((found?.MovieResults ?? []).Select(r => { r.MediaType = "movie"; return r; }));
+            results.AddRange((found?.TvResults ?? []).Select(r => { r.MediaType = "tv"; return r; }));
+        }
+
+        return new TmdbPage { Page = 1, TotalPages = 1, TotalResults = results.Count, Results = results };
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^\s*(?:(?<source>tmdb|tvdb|imdb)\s*:\s*(?<id>\w+)|(?<source>)(?<id>tt\d{5,}))\s*$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex IdTerm();
 
     public async Task<DiscoverMovieResponse?> MovieAsync(int tmdbId, bool admin, CancellationToken ct)
     {
@@ -107,6 +141,7 @@ public sealed class DiscoverService(TmdbDiscoverClient tmdb, LibraryAvailability
         var fourK = await library.FourKVersionAsync(ct) is not null;
         var country = metadata.Value.CertificationCountry;
 
+        var requests = await badges.ForAsync(Domain.Requests.RequestMediaType.Movie, related, ct);
         return new DiscoverMovieResponse(
             movie.Id,
             movie.ImdbId,
@@ -129,10 +164,11 @@ public sealed class DiscoverService(TmdbDiscoverClient tmdb, LibraryAvailability
             Image(movie.BackdropPath),
             Trailer(movie.Videos),
             Cast(movie.Credits),
-            Items(movie.Recommendations?.Results ?? [], DiscoverMediaType.Movie, films, null, fourK, keepPeople: false).Take(20).ToList(),
-            Items(movie.Similar?.Results ?? [], DiscoverMediaType.Movie, films, null, fourK, keepPeople: false).Take(20).ToList(),
+            WithRequests(Items(movie.Recommendations?.Results ?? [], DiscoverMediaType.Movie, films, null, fourK, keepPeople: false).Take(20), requests, null),
+            WithRequests(Items(movie.Similar?.Results ?? [], DiscoverMediaType.Movie, films, null, fourK, keepPeople: false).Take(20), requests, null),
             match?.Availability ?? NotInLibrary(fourK),
-            admin ? match?.MovieId : null);
+            admin ? match?.MovieId : null,
+            requests.GetValueOrDefault(movie.Id)?.Slots);
     }
 
     public async Task<DiscoverSeriesResponse?> SeriesAsync(int tmdbId, bool admin, CancellationToken ct)
@@ -148,6 +184,8 @@ public sealed class DiscoverService(TmdbDiscoverClient tmdb, LibraryAvailability
         var others = await library.SeriesAsync(related, ct);
         var fourK = await library.FourKVersionAsync(ct) is not null;
         var notInLibrary = NotInLibrary(fourK);
+        var requests = await badges.ForAsync(Domain.Requests.RequestMediaType.Series, [.. related.Append(tv.Id).Distinct()], ct);
+        var mine = requests.GetValueOrDefault(tv.Id);
 
         // TMDB's seasons, with the availability of the library's season of the same number (the library numbers seasons as
         // TVDB does, which matches TMDB for most shows); a season only the library has comes after them.
@@ -160,13 +198,14 @@ public sealed class DiscoverService(TmdbDiscoverClient tmdb, LibraryAvailability
                 NullIfEmpty(s.AirDate),
                 Image(s.PosterPath),
                 InLibraryOnly: false,
-                match?.Seasons.GetValueOrDefault(s.SeasonNumber) ?? notInLibrary))
+                match?.Seasons.GetValueOrDefault(s.SeasonNumber) ?? notInLibrary,
+                mine?.Seasons.GetValueOrDefault(s.SeasonNumber)))
             .ToList();
         if (match is not null)
         {
             var known = tv.Seasons.Select(s => s.SeasonNumber).ToHashSet();
             seasons.AddRange(match.Seasons.Where(s => !known.Contains(s.Key)).Select(s =>
-                new DiscoverSeasonResponse(s.Key, s.Key == 0 ? "Specials" : $"Season {s.Key}", null, null, null, InLibraryOnly: true, s.Value)));
+                new DiscoverSeasonResponse(s.Key, s.Key == 0 ? "Specials" : $"Season {s.Key}", null, null, null, InLibraryOnly: true, s.Value, mine?.Seasons.GetValueOrDefault(s.Key))));
         }
 
         return new DiscoverSeriesResponse(
@@ -190,10 +229,11 @@ public sealed class DiscoverService(TmdbDiscoverClient tmdb, LibraryAvailability
             Trailer(tv.Videos),
             Cast(tv.Credits),
             seasons,
-            Items(tv.Recommendations?.Results ?? [], DiscoverMediaType.Series, null, others, fourK, keepPeople: false).Take(20).ToList(),
-            Items(tv.Similar?.Results ?? [], DiscoverMediaType.Series, null, others, fourK, keepPeople: false).Take(20).ToList(),
+            WithRequests(Items(tv.Recommendations?.Results ?? [], DiscoverMediaType.Series, null, others, fourK, keepPeople: false).Take(20), null, requests),
+            WithRequests(Items(tv.Similar?.Results ?? [], DiscoverMediaType.Series, null, others, fourK, keepPeople: false).Take(20), null, requests),
             match?.Availability ?? notInLibrary,
-            admin ? match?.SeriesId : null);
+            admin ? match?.SeriesId : null,
+            mine?.Slots);
     }
 
     public async Task<DiscoverPersonResponse?> PersonAsync(int tmdbId, CancellationToken ct)
@@ -241,12 +281,23 @@ public sealed class DiscoverService(TmdbDiscoverClient tmdb, LibraryAvailability
         var films = await library.FilmsAsync(answer.Results.Where(r => TypeOf(r, type) == DiscoverMediaType.Movie).Select(r => r.Id).ToList(), ct);
         var series = await library.SeriesAsync(answer.Results.Where(r => TypeOf(r, type) == DiscoverMediaType.Series).Select(r => r.Id).ToList(), ct);
         var fourK = await library.FourKVersionAsync(ct) is not null;
+        var items = Items(answer.Results, type, films, series, fourK, keepPeople).ToList();
+        var filmRequests = await badges.ForAsync(Domain.Requests.RequestMediaType.Movie, [.. items.Where(i => i.MediaType == DiscoverMediaType.Movie).Select(i => i.TmdbId)], ct);
+        var seriesRequests = await badges.ForAsync(Domain.Requests.RequestMediaType.Series, [.. items.Where(i => i.MediaType == DiscoverMediaType.Series).Select(i => i.TmdbId)], ct);
         return new DiscoverPage(
             answer.Page,
             Math.Min(answer.TotalPages, TmdbDiscoverClient.MaxPage),
             answer.TotalResults,
-            Items(answer.Results, type, films, series, fourK, keepPeople).ToList());
+            WithRequests(items, filmRequests, seriesRequests));
     }
+
+    private static List<DiscoverItem> WithRequests(IEnumerable<DiscoverItem> items, IReadOnlyDictionary<int, Requests.TitleRequests>? films, IReadOnlyDictionary<int, Requests.TitleRequests>? series) =>
+        [.. items.Select(i => i.MediaType switch
+        {
+            DiscoverMediaType.Movie when films?.GetValueOrDefault(i.TmdbId) is { } r => i with { Requests = r.Slots },
+            DiscoverMediaType.Series when series?.GetValueOrDefault(i.TmdbId) is { } r => i with { Requests = r.Slots },
+            _ => i,
+        })];
 
     private IEnumerable<DiscoverItem> Items(
         IEnumerable<TmdbListItem> results,

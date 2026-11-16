@@ -14,12 +14,13 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { customKinds, sliderTitle } from '@/features/discover/sliders'
 import { useDebounced } from '@/hooks/useDebounced'
+import { RequestDefaultsCard } from './RequestDefaultsCard'
 
 type Row = DiscoverSliderUpdate & { key: string; builtIn: boolean }
 
 const NONE = '__none__'
 
-/** Settings → Discover: which rows the Discover page shows and in what order, custom rows, and which version is "4K". */
+/** Settings → Discover: which rows the Discover page shows and in what order, custom rows, which version is "4K", and where approved requests go. */
 export function DiscoverSettingsPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -138,6 +139,8 @@ export function DiscoverSettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <RequestDefaultsCard />
     </>
   )
 }
