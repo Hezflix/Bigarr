@@ -186,6 +186,11 @@ public sealed class LibrarySearchEndpointTests(BigarrApiFactory factory) : IClas
         var found = Assert.Single(typo!.Movies);
         Assert.Equal(("Spirited Away", "Le Voyage de Chihiro"), (found.Title, found.MatchedTitle));
 
+        // The original title is read too, though it is not among the alternative titles.
+        var original = await client.GetFromJsonAsync<LibrarySearchResponse>("/api/v1/library/search?term=" + Uri.EscapeDataString("千と千尋の神隠し"), Json);
+        var viaOriginal = Assert.Single(original!.Movies);
+        Assert.Equal(("Spirited Away", "千と千尋の神隠し"), (viaOriginal.Title, viaOriginal.MatchedTitle));
+
         var amelie = await client.GetFromJsonAsync<LibrarySearchResponse>("/api/v1/library/search?term=amelie%202001", Json);
         Assert.Equal("Amélie", Assert.Single(amelie!.Movies).Title);
 

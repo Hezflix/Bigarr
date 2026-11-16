@@ -199,7 +199,9 @@ public sealed class SeriesMetadataProvider(
             [
                 (originalTitle, null),
                 .. (series.Aliases ?? []).Select(a => (a.Name, IsoCodes.Language(a.Language))),
+                .. (series.Translations?.NameTranslations ?? []).Select(t => (t.Name, IsoCodes.Language(t.Language))),
                 .. (tv?.AlternativeTitles?.Results ?? []).Select(a => (a.Title, a.Iso31661)),
+                .. (tv?.Translations?.Translations ?? []).Select(t => (t.Data?.Name, t.Iso6391)),
             ]);
 
         var metadata = new SeriesMetadata
@@ -387,7 +389,7 @@ public sealed class SeriesMetadataProvider(
             NetworkCountry = NullIfBlank(tv.Networks.FirstOrDefault()?.OriginCountry)?.ToLowerInvariant(),
             OriginalLanguage = NullIfBlank(tv.OriginalLanguage),
             Genres = genres,
-            AlternativeTitles = AlternativeTitles(title, [(tv.OriginalName, null), .. (tv.AlternativeTitles?.Results ?? []).Select(a => (a.Title, a.Iso31661))]),
+            AlternativeTitles = AlternativeTitles(title, [(tv.OriginalName, null), .. (tv.AlternativeTitles?.Results ?? []).Select(a => (a.Title, a.Iso31661)), .. (tv.Translations?.Translations ?? []).Select(t => (t.Data?.Name, t.Iso6391))]),
             Images = TmdbImages(tv.PosterPath, tv.BackdropPath),
             FirstAired = firstAired,
             LastAired = ParseDate(tv.LastAirDate),

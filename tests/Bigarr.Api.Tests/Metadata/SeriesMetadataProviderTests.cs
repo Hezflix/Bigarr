@@ -142,6 +142,44 @@ public sealed class SeriesMetadataProviderTests
     }
 
     [Fact]
+    public async Task A_show_is_also_known_by_its_translated_names()
+    {
+        // TVDB's French name and TMDB's German one differ from the English title: both are kept, with their language.
+        var tvdb = System.Text.Json.Nodes.JsonNode.Parse(TvdbRecorded.SeriesExtended81189)!;
+        foreach (var translation in tvdb["data"]!["translations"]!["nameTranslations"]!.AsArray().Where(t => t!["language"]!.GetValue<string>() == "fra"))
+        {
+            translation!["name"] = "Breaking Bad : Le Chimiste";
+        }
+
+        var tmdb = System.Text.Json.Nodes.JsonNode.Parse(TvdbRecorded.TmdbTv1396)!;
+        tmdb["translations"] = System.Text.Json.Nodes.JsonNode.Parse("""{"translations":[{"iso_639_1":"de","iso_3166_1":"DE","data":{"name":"Breaking Bad – Chemie"}},{"iso_639_1":"es","data":{"name":""}}]}""");
+        var routes = new Stub(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/v4/login" => Json(Login("token-1")),
+            "/v4/series/81189/extended" => Json(tvdb.ToJsonString()),
+            "/3/tv/1396" => Json(tmdb.ToJsonString()),
+            _ => NotFound(),
+        });
+
+        var series = await Provider(routes).GetByTvdbIdAsync(81189, withEpisodes: false, CancellationToken.None);
+
+        Assert.Contains(("Breaking Bad : Le Chimiste", "fr"), series!.AlternativeTitles.Select(a => (a.Title, a.Language)));
+        Assert.Contains(("Breaking Bad – Chemie", "de"), series.AlternativeTitles.Select(a => (a.Title, a.Language)));
+        Assert.DoesNotContain(series.AlternativeTitles, a => a.Title.Length == 0);
+        Assert.Contains(routes.Requests, r => r.Path == "/3/tv/1396" && (r.Query["append_to_response"] ?? "").Contains("translations", StringComparison.Ordinal));
+
+        // And a show TVDB lacks keeps TMDB's translated names.
+        var alone = await Provider(new Stub(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/v4/login" => Json(Login("token-1")),
+            "/v4/series/81189/extended" => NotFound(TvdbRecorded.NotFound),
+            "/3/tv/1396" => Json(tmdb.ToJsonString()),
+            _ => NotFound(),
+        })).GetByTmdbIdAsync(1396, withEpisodes: false, CancellationToken.None);
+        Assert.Contains("Breaking Bad – Chemie", alone!.AlternativeTitles.Select(a => a.Title));
+    }
+
+    [Fact]
     public async Task Without_episodes_only_the_show_is_fetched()
     {
         var routes = BreakingBadRoutes();
