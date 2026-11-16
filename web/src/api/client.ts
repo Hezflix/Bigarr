@@ -113,14 +113,25 @@ export type RequestQuotaSettings = Schemas['QuotaDto']
 /** Approves and declines other people's requests: an admin or a request manager. */
 export const canManageRequests = (me: Me | undefined) => me?.role === 'Admin' || me?.role === 'RequestManager'
 
+export type UserNotifications = Schemas['UserNotificationsDto']
+export type MentionChoice = Schemas['MentionChoiceResponse']
+export type MyNotifications = Schemas['MyNotificationsResponse']
+
 export const users = {
   list: () => api<UserSummary[]>('/api/v1/users'),
-  update: (id: number, role: UserRole, permissions: UserPermissions, quota?: RequestQuotaSettings) => put<UserSummary>(`/api/v1/users/${id}`, { role, permissions, quota }),
+  update: (id: number, role: UserRole, permissions: UserPermissions, quota?: RequestQuotaSettings, notifications?: UserNotifications) =>
+    put<UserSummary>(`/api/v1/users/${id}`, { role, permissions, quota, notifications }),
   disable: (id: number) => post<UserSummary>(`/api/v1/users/${id}/disable`),
   enable: (id: number) => post<UserSummary>(`/api/v1/users/${id}/enable`),
   settings: () => api<UserSettings>('/api/v1/users/settings'),
   updateSettings: (plexNewAccounts: boolean, defaultPermissions: UserPermissions, defaultQuota?: RequestQuotaSettings) =>
     put<UserSettings>('/api/v1/users/settings', { plexNewAccounts, defaultPermissions, defaultQuota }),
+}
+
+/** The signed-in user's own settings, whatever their role. */
+export const profile = {
+  notifications: () => api<MyNotifications>('/api/v1/profile/notifications'),
+  updateNotifications: (body: UserNotifications) => put<MyNotifications>('/api/v1/profile/notifications', body),
 }
 
 // ---- Discover (every signed-in user) ----------------------------------------

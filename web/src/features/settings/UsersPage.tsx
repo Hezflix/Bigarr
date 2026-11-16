@@ -4,7 +4,7 @@ import { Link } from '@tanstack/react-router'
 import { BanIcon, CircleCheckIcon, InfoIcon, KeyRoundIcon, PencilIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, users, type RequestQuotaSettings, type UserPermissions, type UserRole, type UserSummary } from '@/api/client'
+import { ApiError, users, type RequestQuotaSettings, type UserNotifications, type UserPermissions, type UserRole, type UserSummary } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -26,6 +26,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatDateTime } from '@/i18n'
+import { DiscordMentionFields, discordIdPattern } from '../profile/ProfilePage'
 
 const PERMISSIONS = ['requestFilms', 'requestSeries', 'request4K', 'autoApproveFilms', 'autoApproveSeries', 'reportIssues'] as const
 const ROLES: UserRole[] = ['admin', 'requestManager', 'user']
@@ -356,8 +357,13 @@ function EditUserDialog({ user, onClose }: { user: UserSummary; onClose: () => v
   const [role, setRole] = useState<UserRole>(user.role)
   const [permissions, setPermissions] = useState<UserPermissions>(user.permissions)
   const [quota, setQuota] = useState<RequestQuotaSettings>(user.quota)
+  const [notifications, setNotifications] = useState<UserNotifications>(user.notifications)
+  const settings = useQuery({ queryKey: ['users', 'settings'], queryFn: users.settings })
+  const manager = role === 'admin' || role === 'requestManager'
+  const choices = (settings.data?.mentionChoices ?? []).filter((c) => manager || !c.managersOnly)
+  const validId = !notifications.discordUserId?.trim() || discordIdPattern.test(notifications.discordUserId)
   const save = useMutation({
-    mutationFn: () => users.update(user.id, role, permissions, quota),
+    mutationFn: () => users.update(user.id, role, permissions, quota, notifications),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['users'] })
       toast.success(t('users.saved', { name: user.username }))
@@ -402,12 +408,19 @@ function EditUserDialog({ user, onClose }: { user: UserSummary; onClose: () => v
             </div>
             <QuotaFields idPrefix="user-edit" value={quota} onChange={setQuota} disabled={role === 'admin'} />
           </div>
+          <div className="grid gap-3">
+            <div className="grid gap-1">
+              <p className="text-sm font-medium">{t('profile.discordTitle')}</p>
+              <p className="text-xs text-muted-foreground">{t('users.discordHint')}</p>
+            </div>
+            <DiscordMentionFields idPrefix="user-edit" value={notifications} onChange={setNotifications} choices={choices} other={!user.isYou} />
+          </div>
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose}>
             {t('common.cancel')}
           </Button>
-          <Button type="button" disabled={save.isPending} onClick={() => save.mutate()} data-testid="user-edit-save">
+          <Button type="button" disabled={save.isPending || !validId} onClick={() => save.mutate()} data-testid="user-edit-save">
             {t('common.save')}
           </Button>
         </DialogFooter>
