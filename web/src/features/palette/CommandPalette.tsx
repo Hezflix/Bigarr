@@ -1,5 +1,5 @@
 import { useRouterState } from '@tanstack/react-router'
-import { FilmIcon, HistoryIcon, TriangleAlertIcon, TvIcon, XIcon } from 'lucide-react'
+import { ChevronRightIcon, FilmIcon, HistoryIcon, TriangleAlertIcon, TvIcon, XIcon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type NavItem, useNavSections } from '@/components/nav'
@@ -32,6 +32,8 @@ export function CommandPalette({ open, onOpenChange, contextual }: Props) {
   const [confirming, setConfirming] = useState<PaletteAction | null>(null)
   // Tab on an action that takes a parameter: the list gives way to its values; `query` is what to restore on the way back.
   const [param, setParam] = useState<{ action: PaletteAction & { param: NonNullable<PaletteAction['param']> }; query: string } | null>(null)
+  // Tab, → or Cmd/Ctrl+Enter on a season: its episodes replace the list; `query` is what to restore on the way back.
+  const [drill, setDrill] = useState<{ option: PaletteParamOption; query: string } | null>(null)
   const globalActions = useGlobalActions()
   const pageActions = open && contextual ? contextual.get() : []
 
@@ -68,24 +70,55 @@ export function CommandPalette({ open, onOpenChange, contextual }: Props) {
     setSelected(rival && rival.score > first.score ? rival.value : first.value)
   }, [fresh, debounced])
 
+  // The values of the parameter on screen: the action's, or those of the season drilled into.
+  const paramOptions = useMemo(() => param?.action.param.options() ?? [], [param])
+  const visibleOptions = drill?.option.narrow?.options ?? paramOptions
+
   const close = () => {
     onOpenChange(false)
     setQuery('')
     setSelected('')
     setConfirming(null)
     setParam(null)
+    setDrill(null)
   }
   const leaveParam = () => {
     if (!param) return
     setQuery(param.query)
     setSelected(`action:${param.action.id}`)
     setParam(null)
+    setDrill(null)
+  }
+  function enterDrill(option: PaletteParamOption) {
+    if (!option.narrow) return
+    setDrill({ option, query })
+    setQuery('')
+    setSelected('')
+  }
+  const leaveDrill = () => {
+    if (!drill) return
+    setQuery(drill.query)
+    setSelected(`param:${drill.option.id}`)
+    setDrill(null)
   }
   const onInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (param) {
       if (e.key === 'Backspace' && query === '') {
         e.preventDefault()
-        leaveParam()
+        if (drill) leaveDrill()
+        else leaveParam()
+        return
+      }
+      // The focus stays in the field.
+      if (e.key === 'Tab') e.preventDefault()
+      const option = drill ? undefined : visibleOptions.find((o) => `param:${o.id}` === selected)
+      if (!option?.narrow) return
+      const input = e.currentTarget
+      const caretAtEnd = input.selectionStart === input.value.length && input.selectionEnd === input.value.length
+      const plain = !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey
+      if ((e.key === 'Tab' && !e.shiftKey) || (e.key === 'ArrowRight' && plain && caretAtEnd) || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) {
+        e.preventDefault()
+        enterDrill(option)
       }
       return
     }
@@ -143,7 +176,7 @@ export function CommandPalette({ open, onOpenChange, contextual }: Props) {
     <CommandDialog
       open={open}
       // Esc or a click outside while asking only steps back to the list.
-      onOpenChange={(next) => (next ? onOpenChange(true) : confirming ? setConfirming(null) : param ? leaveParam() : close())}
+      onOpenChange={(next) => (next ? onOpenChange(true) : confirming ? setConfirming(null) : drill ? leaveDrill() : param ? leaveParam() : close())}
       title={t('palette.title')}
       description={t('palette.description')}
       showCloseButton={false}
@@ -155,6 +188,9 @@ export function CommandPalette({ open, onOpenChange, contextual }: Props) {
       ) : param ? (
         <ParamView
           action={param.action}
+          options={visibleOptions}
+          drilled={drill?.option.narrow?.label ?? null}
+          onDrill={enterDrill}
           query={query}
           onQueryChange={setQuery}
           onKeyDown={onInputKeyDown}
@@ -314,19 +350,25 @@ function ParamHint({ hint, onOpen }: { hint: string; onOpen: () => void }) {
 /** The values of an action's parameter, behind a chip naming the action. Backspace on an empty field or Esc goes back. */
 function ParamView({
   action,
+  options,
+  drilled,
+  onDrill,
   query,
   onQueryChange,
   onKeyDown,
   onRun,
 }: {
   action: PaletteAction & { param: NonNullable<PaletteAction['param']> }
+  options: PaletteParamOption[]
+  /** The season whose episodes are listed, once drilled into one. */
+  drilled: string | null
+  onDrill: (option: PaletteParamOption) => void
   query: string
   onQueryChange: (query: string) => void
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
   onRun: (option: PaletteParamOption) => void
 }) {
   const { t } = useTranslation()
-  const options = useMemo(() => action.param.options(), [action])
   const shown = query === '' ? options.filter((o) => !o.onlyWhenTyping) : options
   const groups = [...new Set(shown.map((o) => o.group))]
   const hidden = query === '' && shown.length < options.length
@@ -334,12 +376,18 @@ function ParamView({
     <>
       <CommandInput
         before={
-          <span className="flex max-w-[55%] shrink-0 items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium" data-testid="palette-param-chip">
+          <span className="flex max-w-[65%] shrink-0 items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium" data-testid="palette-param-chip">
             <action.icon className="size-3.5 shrink-0" />
             <span className="truncate">{action.label}</span>
+            {drilled && (
+              <>
+                <ChevronRightIcon className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span className="shrink-0">{drilled}</span>
+              </>
+            )}
           </span>
         }
-        placeholder={action.param.hint}
+        placeholder={drilled ? t('palette.param.episodePlaceholder') : action.param.hint}
         value={query}
         onValueChange={onQueryChange}
         onKeyDown={onKeyDown}
@@ -353,15 +401,46 @@ function ParamView({
             {shown
               .filter((o) => o.group === group)
               .map((o) => (
-                <CommandItem key={o.id} value={`param:${o.id}`} keywords={[o.label, ...(o.keywords ?? [])]} onSelect={() => onRun(o)} data-testid={`palette-param-${o.id}`}>
+                <CommandItem key={o.id} value={`param:${o.id}`} keywords={[o.label, ...(o.keywords ?? [])]} onSelect={() => onRun(o)} data-testid={`palette-param-${o.id}`} className="group">
                   <span className="truncate">{o.label}</span>
                   {o.hint && <span className="ml-auto shrink-0 pl-2 text-xs text-muted-foreground tabular-nums">{o.hint}</span>}
+                  {o.narrow && <NarrowButton option={o} onOpen={() => onDrill(o)} />}
                 </CommandItem>
               ))}
           </CommandGroup>
         ))}
         {hidden && <p className="px-3 py-2 text-xs text-muted-foreground">{t('palette.param.typeForEpisodes')}</p>}
       </CommandList>
+    </>
+  )
+}
+
+/**
+ * Enter on a season runs the action on all of it; this lists its episodes instead. A button for touch screens, which
+ * have no Tab, and the key hints on the row the arrows are on.
+ */
+function NarrowButton({ option, onOpen }: { option: PaletteParamOption; onOpen: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <>
+      <button
+        type="button"
+        // Handled here, not by the row: a click on the row runs the action on the whole season.
+        onClick={(e) => {
+          e.stopPropagation()
+          onOpen()
+        }}
+        onPointerDown={(e) => e.preventDefault()}
+        className="-my-1 flex min-h-8 shrink-0 items-center gap-0.5 rounded-md border px-2 text-xs text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+        aria-label={t('palette.param.pickEpisode', { season: option.narrow?.label })}
+        data-testid={`palette-param-narrow-${option.id}`}
+      >
+        {t('palette.param.episodesGroup')}
+        <ChevronRightIcon className="size-3.5" aria-hidden="true" />
+      </button>
+      <Kbd className="hidden group-data-[selected=true]:sm:inline-flex" aria-hidden="true">
+        Tab
+      </Kbd>
     </>
   )
 }

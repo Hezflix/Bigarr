@@ -47,35 +47,43 @@ export function seriesScopeOptions(t: TFunction, episodes: Episode[], alt: boole
   // Specials last, as on the page.
   const seasons = [...bySeason.keys()].sort((a, b) => (a === 0 ? 1 : b === 0 ? -1 : a - b))
   for (const n of seasons) {
+    const label = n === 0 ? t('palette.param.specials') : t('palette.param.season', { number: n })
+    const inSeason = [...(bySeason.get(n) ?? [])].sort((a, b) => (numbers(a, alt)?.episode ?? 0) - (numbers(b, alt)?.episode ?? 0))
     options.push({
       id: `season:${n}`,
-      label: n === 0 ? t('palette.param.specials') : t('palette.param.season', { number: n }),
-      hint: t('palette.param.episodeCount', { count: bySeason.get(n)?.length ?? 0 }),
+      label,
+      hint: t('palette.param.episodeCount', { count: inSeason.length }),
       group: t('palette.param.seasonsGroup'),
       keywords: [`s${n}`, `s${pad(n)}`, 'season', ...(n === 0 ? ['specials'] : [])],
+      // Its episodes, all listed (nothing to type first) and found by their number alone.
+      narrow: { label, options: inSeason.map((e) => episodeOption(t, e, alt, { drilled: true })) },
     })
   }
-  const episodesGroup = t('palette.param.episodesGroup')
   // In order, those the order leaves out last.
   const rank = (e: Episode) => numbers(e, alt) ?? { season: Number.MAX_SAFE_INTEGER, episode: e.seasonNumber * 10_000 + e.episodeNumber }
   const searchable = episodes.filter((e) => !e.ownedByFilm).sort((a, b) => rank(a).season - rank(b).season || rank(a).episode - rank(b).episode)
-  for (const e of searchable) {
-    const n = numbers(e, alt)
-    options.push({
-      id: `episode:${e.id}`,
-      label: `${shownEpisodeCode(e, alt)} · ${e.title}`,
-      hint: n ? formatDate(e.airDate) : t('seriesOrder.notInOrderTitle'),
-      group: episodesGroup,
-      keywords: [
-        ...(n
-          ? [`s${n.season}e${n.episode}`, `s${n.season}e${pad(n.episode)}`, `s${pad(n.season)}e${n.episode}`, `${n.season}x${pad(n.episode)}`, `${n.season}x${n.episode}`, `e${n.episode}`, `e${pad(n.episode)}`]
-          : []),
-        ...(e.absoluteEpisodeNumber ? [String(e.absoluteEpisodeNumber)] : []),
-      ],
-      onlyWhenTyping: true,
-    })
-  }
+  for (const e of searchable) options.push(episodeOption(t, e, alt, { drilled: false }))
   return options
+}
+
+/** One episode as a value: "S01E03 · Title", found by its code in any spelling (see `canonicalEpisodeQuery`) or a word of its title. */
+function episodeOption(t: TFunction, e: Episode, alt: boolean, { drilled }: { drilled: boolean }): PaletteParamOption {
+  const n = numbers(e, alt)
+  return {
+    id: `episode:${e.id}`,
+    label: `${shownEpisodeCode(e, alt)} · ${e.title}`,
+    hint: n ? formatDate(e.airDate) : t('seriesOrder.notInOrderTitle'),
+    group: t('palette.param.episodesGroup'),
+    keywords: [
+      ...(n
+        ? [`s${n.season}e${n.episode}`, `s${n.season}e${pad(n.episode)}`, `s${pad(n.season)}e${n.episode}`, `${n.season}x${pad(n.episode)}`, `${n.season}x${n.episode}`, `e${n.episode}`, `e${pad(n.episode)}`]
+        : []),
+      // Inside a season the number alone says which: "5", "05".
+      ...(drilled && n ? [String(n.episode), pad(n.episode)] : []),
+      ...(e.absoluteEpisodeNumber ? [String(e.absoluteEpisodeNumber)] : []),
+    ],
+    onlyWhenTyping: !drilled,
+  }
 }
 
 /** Back from an option's id to what it names; null when the episode is gone (a refresh while the palette was open). */

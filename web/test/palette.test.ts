@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { TFunction } from 'i18next'
 import type { Episode } from '../src/api/client'
-import { contentScore, contentTier, paletteFilter } from '../src/features/palette/filter'
+import { canonicalEpisodeQuery, contentScore, contentTier, paletteFilter } from '../src/features/palette/filter'
 import { isPaletteShortcut, isSearchShortcut } from '../src/features/palette/keys'
 import { parseRecent, pushRecent, type RecentItem } from '../src/features/palette/recent'
 import { parseSeriesScope, seriesScopeOptions } from '../src/features/palette/seriesScopes'
@@ -110,8 +110,21 @@ describe('series scopes (Tab on a series search)', () => {
   })
 
   test('finds an episode by code in any spelling, or by a word of its title', () => {
-    for (const search of ['s1e2', 's01e02', 'S1E02', '1x02', '1x2']) expect(find(search)).toEqual(['episode:2'])
+    for (const search of ['s1e2', 's01e02', 'S1E02', '1x02', '1x2', '1e2', '1E02', '1 2', 's1 e2', 'S01 E02', '1.2', 'season 1 episode 2']) expect(find(search)).toEqual(['episode:2'])
     expect(find('pilot')).toEqual(['episode:1'])
+  })
+
+  test('a season carries its episodes in order, all listed and found by number', () => {
+    const season = options.find((o) => o.id === 'season:1')?.narrow
+    expect(season?.label).toBe('palette.param.season {"number":1}')
+    expect(season?.options.map((o) => o.id)).toEqual(['episode:1', 'episode:2'])
+    expect(season?.options.some((o) => o.onlyWhenTyping)).toBe(false)
+    const inSeason = (search: string) => season?.options.filter((o) => paletteFilter(`param:${o.id}`, search, [o.label, ...(o.keywords ?? [])]) > 0).map((o) => o.id)
+    expect(inSeason('2')).toEqual(['episode:2'])
+    expect(inSeason('02')).toEqual(['episode:2'])
+    expect(inSeason('second')).toEqual(['episode:2'])
+    // Only seasons have something to drill into.
+    expect(options.filter((o) => o.narrow).map((o) => o.id)).toEqual(['season:1', 'season:2', 'season:0'])
   })
 
   test('"s2" finds the season and its episodes; the id never matches', () => {
@@ -152,6 +165,18 @@ describe('series scopes (Tab on a series search)', () => {
     test("a season is the order's, with its episodes", () => {
       expect(parseSeriesScope('season:2', ordered, true)).toEqual({ kind: 'season', season: 2, orderSeason: true, episodeIds: [2, 3] })
     })
+  })
+})
+
+describe('canonicalEpisodeQuery', () => {
+  test('reads season and number in the usual spellings', () => {
+    for (const typed of ['s3e5', 'S03E05', '3e5', '3E5', '3x5', '3x05', '03x05', '3×5', 's3 e5', 'S3 E 5', '3 5', '3.5', ' 3 e 5 ', 'season 3 episode 5', 's3 ep5'])
+      expect(canonicalEpisodeQuery(typed)).toBe('s3e5')
+    expect(canonicalEpisodeQuery('s00e01')).toBe('s0e1')
+  })
+
+  test('leaves everything else alone', () => {
+    for (const typed of ['s3', '3', 'e5', 'pilot', 'blade runner 2049', 's3e5 pilot', '', '1 2 3']) expect(canonicalEpisodeQuery(typed)).toBe(typed)
   })
 })
 

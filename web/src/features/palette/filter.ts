@@ -61,11 +61,21 @@ export function paletteWords(text: string): string[] {
 }
 
 /**
+ * An episode typed as season and number in any of the usual spellings becomes the code the options carry: "3e5", "3x5",
+ * "3x05", "s3 e5", "s03e05", "3 5", "3.5", "season 3 episode 5" all give "s3e5". Anything else is left alone.
+ */
+export function canonicalEpisodeQuery(search: string): string {
+  const m = /^\s*(?:s|season\s*)?0*(\d+)\s*(?:e|ep|episode|x|×|\.|\s)\s*(?:e|ep|episode)?\s*0*(\d+)\s*$/i.exec(search)
+  return m ? `s${Number(m[1])}e${Number(m[2])}` : search
+}
+
+/**
  * cmdk's own filter matches letters in order anywhere ("chihiro" found "History"), which floods a list of short page
  * names. Here every typed word must start a word of the entry; cmdk's score then ranks what is left.
  */
-export function paletteFilter(value: string, search: string, keywords?: string[]): number {
+export function paletteFilter(value: string, rawSearch: string, keywords?: string[]): number {
   if (isServerItem(value)) return serverScore(value)
+  const search = value.startsWith('param:') ? canonicalEpisodeQuery(rawSearch) : rawSearch
   const words = paletteWords(search)
   if (words.length === 0) return 1
   // A parameter's value is only an id ("param:episode:12"): matching on it would find episode 12 for "12".
