@@ -14,7 +14,9 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { approvedStyle as grabStyle, permanentStyle, temporaryStyle } from '@/features/search/releaseTable'
+import { statusText, VersionLine } from '@/features/search/ReasonsDisplay'
+import { versionFits, type VersionFit } from '@/features/search/rejectionReasons'
+import { approvedStyle as grabStyle } from '@/features/search/releaseTable'
 import { formatAge, formatBytes, formatDateTime } from '@/i18n'
 
 const pickStyle = 'border-violet-600/30 bg-violet-500/15 text-violet-700 dark:border-violet-400/30 dark:text-violet-300'
@@ -144,6 +146,8 @@ function ReleaseRow({ release }: { release: RssRelease }) {
     (d): d is string => !!d,
   )
   const dimmed = !wouldGrab
+  const judged = !wouldGrab && !!(release.movie || (release.series && release.episodes))
+  const fits = judged ? versionFits(release.versions, [], '') : []
 
   return (
     <TableRow className={cn(dimmed && 'text-muted-foreground')} data-would-grab={wouldGrab} data-grabbed={grabbed} data-picked={picked}>
@@ -155,7 +159,7 @@ function ReleaseRow({ release }: { release: RssRelease }) {
           <TooltipContent>{formatDateTime(release.publishDate)}</TooltipContent>
         </Tooltip>
       </TableCell>
-      <TableCell className="min-w-[22rem] align-top whitespace-normal">
+      <TableCell className="min-w-[15rem] align-top whitespace-normal md:min-w-[22rem]">
         <span className={cn('flex items-start gap-1 break-all', wouldGrab && 'font-medium text-foreground')}>
           {release.infoUrl ? (
             <a href={release.infoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline-offset-4 hover:underline">
@@ -180,6 +184,7 @@ function ReleaseRow({ release }: { release: RssRelease }) {
           ))}
           {details.length > 0 && <span className="text-xs text-muted-foreground">{details.join(' · ')}</span>}
         </span>
+        <RejectionReasons fits={fits} />
       </TableCell>
       <TableCell className="align-top whitespace-nowrap">{release.indexer}</TableCell>
       <TableCell className="align-top whitespace-nowrap">{formatBytes(release.size)}</TableCell>
@@ -225,25 +230,37 @@ function ReleaseRow({ release }: { release: RssRelease }) {
             </Badge>
             {release.grabError && <span className="text-xs text-muted-foreground">{release.grabError}</span>}
           </span>
-        ) : release.movie || (release.series && release.episodes) ? (
-          <ul className="flex flex-col gap-1">
-            {release.versions.map((v) => (
-              <li key={v.versionId} className="flex flex-wrap items-center gap-1">
-                <span className="text-xs font-medium">
-                  {v.versionName} <span className="font-normal text-muted-foreground">· {t('search.score', { score: v.customFormatScore })}</span>
-                </span>
-                {v.rejections.map((rej) => (
-                  <Badge key={rej.reason} variant="outline" className={cn('whitespace-normal text-left', rej.temporary ? temporaryStyle : permanentStyle)}>
-                    {rej.reason}
-                  </Badge>
-                ))}
-              </li>
+        ) : judged ? (
+          <span className="flex flex-col gap-1">
+            {fits.map((fit) => (
+              <VersionLine key={fit.versionId} fit={fit} strong={false} />
             ))}
-          </ul>
+          </span>
         ) : (
           <span className="text-xs">{t('rss.noMatch')}</span>
         )}
       </TableCell>
     </TableRow>
+  )
+}
+
+/** Why each version would not take the release, as light text under the title: the verdict column keeps only the icons. */
+function RejectionReasons({ fits }: { fits: VersionFit[] }) {
+  const rejected = fits.filter((f) => f.reasons.length > 0)
+  if (rejected.length === 0) return null
+  return (
+    <ul className="mt-1 flex flex-col gap-0.5 text-xs" data-testid="rss-reasons">
+      {rejected.map((fit) => (
+        <li key={fit.versionId} className="[overflow-wrap:anywhere]">
+          {fits.length > 1 && <span className="text-muted-foreground">{fit.versionName}: </span>}
+          {fit.reasons.map((r, i) => (
+            <span key={r.reason} className={r.temporary ? statusText.temporary : statusText.rejected}>
+              {i > 0 && ' · '}
+              {r.reason}
+            </span>
+          ))}
+        </li>
+      ))}
+    </ul>
   )
 }

@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { TableCell } from '@/components/ui/table'
 import type { FitStatus, VersionFit } from '@/features/search/rejectionReasons'
 
-const statusText: Record<FitStatus, string> = {
+export const statusText: Record<FitStatus, string> = {
   accepted: 'text-emerald-700 dark:text-emerald-300',
   temporary: 'text-amber-700 dark:text-amber-300',
   rejected: 'text-red-700/80 dark:text-red-300/80',
@@ -18,7 +18,7 @@ function StatusIcon({ status }: { status: FitStatus }) {
 }
 
 /** "2160p · Score 40": a version's verdict icon, name and score, the line the cell shows per version. */
-function VersionLine({ fit, strong }: { fit: VersionFit; strong: boolean }) {
+export function VersionLine({ fit, strong }: { fit: VersionFit; strong: boolean }) {
   const { t } = useTranslation()
   return (
     <span className="flex h-5 min-w-0 items-center gap-1">
