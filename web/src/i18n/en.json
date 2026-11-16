@@ -2886,7 +2886,7 @@
   "searchIndexers": {
     "all": "All indexers",
     "some": "{{count}} of {{total}} indexers",
-    "hint": "Indexers this search asks (this tab only)",
+    "hint": "Indexers the search asks (remembered in this browser)",
     "reset": "Search every indexer",
     "noneHint": "Pick at least one indexer"
   },

@@ -96,6 +96,12 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
     queryClient.removeQueries({ queryKey: ['search', movie.id, nextText, pickKey(indexerPick.ids)], exact: true })
     setSubmitted({ text: nextText, ids: indexerPick.ids })
   }
+  // A new pick of indexers, once it has settled, searches again with the text last searched: no click needed.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only a settled pick runs it
+  useEffect(() => {
+    if (indexerPick.settledKey === null || submitted === null || indexerPick.none || indexerPick.settledKey === pickKey(submitted.ids)) return
+    run(submitted.text)
+  }, [indexerPick.settledKey])
   const section = useRef<HTMLElement>(null)
   const lastRun = useRef(runRequest)
   // biome-ignore lint/correctness/useExhaustiveDependencies: only a new request from the header runs it, with the text as it is then
