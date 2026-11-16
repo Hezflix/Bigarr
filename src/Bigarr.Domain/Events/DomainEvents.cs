@@ -284,6 +284,10 @@ public static class DomainEventCatalog
         (typeof(RequestDeclined), "requestDeclined", "A request was declined"),
         (typeof(RequestAvailable), "requestAvailable", "Everything a request asked for is in the library"),
         (typeof(RequestFailed), "requestFailed", "An approved request could not be added (library or forward)"),
+        (typeof(IssueCreated), "issueCreated", "A user reported an issue on a title"),
+        (typeof(IssueCommented), "issueCommented", "Someone commented on an issue"),
+        (typeof(IssueResolved), "issueResolved", "An issue was resolved"),
+        (typeof(IssueReopened), "issueReopened", "A resolved issue was reopened"),
         (typeof(TestEvent), "test", "Test notification"),
     ];
 

@@ -15,6 +15,9 @@ public sealed class DomainEventTests
 
     private static readonly RequestRef Request = new(1, Bigarr.Domain.Requests.RequestMediaType.Series, 1396, 81189, "Breaking Bad", 2008, null, false, [1, 2], "demo-friend", 3);
 
+    private static readonly IssueRef Issue = new(1, Bigarr.Domain.Issues.IssueType.Audio, Bigarr.Domain.Issues.IssueScope.Episode, Bigarr.Domain.Issues.IssueStatus.Open,
+        Bigarr.Domain.Requests.RequestMediaType.Series, 1396, 81189, "Breaking Bad", 2008, null, 1, "S01E02 · Cat's in the Bag...", "1080p", "No sound after ten minutes", "demo-friend", 3);
+
     [Fact]
     public void Every_event_type_is_in_the_catalogue_and_serializes_camel_case_without_the_type_property()
     {
@@ -55,6 +58,10 @@ public sealed class DomainEventTests
             new RequestDeclined(Request, "demo-manager", "Not now"),
             new RequestAvailable(Request),
             new RequestFailed(Request, "TMDB unavailable", Forward: false),
+            new IssueCreated(Issue),
+            new IssueCommented(Issue, 2, "Searching again", "demo-admin", 1),
+            new IssueResolved(Issue, "demo-friend"),
+            new IssueReopened(Issue, "demo-friend"),
         ];
 
         foreach (var domainEvent in events)

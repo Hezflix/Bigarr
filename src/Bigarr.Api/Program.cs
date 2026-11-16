@@ -11,6 +11,7 @@ using Bigarr.Api.Features.Downloads;
 using Bigarr.Api.Features.History;
 using Bigarr.Api.Features.Import;
 using Bigarr.Api.Features.Indexers;
+using Bigarr.Api.Features.Issues;
 using Bigarr.Api.Features.Library;
 using Bigarr.Api.Features.MediaServers;
 using Bigarr.Api.Features.Migration;
@@ -95,6 +96,11 @@ builder.Services.AddScoped<RequestService>();
 builder.Services.AddHttpClient(ArrForwarder.HttpClientName, http => http.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddSingleton<ArrForwarder>();
 builder.Services.AddScoped<IScheduledJob, RequestAvailabilityJob>();
+
+// Issues: reported on a title of the library, discussed, resolved; approvers act on the file from the issue.
+builder.Services.AddScoped<IssueFiles>();
+builder.Services.AddScoped<IssueService>();
+builder.Services.AddScoped<IssueActionService>();
 builder.Services.AddScoped<HistoryService>();
 builder.Services.AddScoped<RootFolderService>();
 builder.Services.AddScoped<CustomFormatScorer>();
@@ -296,6 +302,7 @@ app.MapExternalLogin();
 app.MapUsers();
 app.MapDiscover();
 app.MapRequests();
+app.MapIssues();
 app.MapSystem();
 app.MapMovies();
 app.MapSeries();

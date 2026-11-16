@@ -117,6 +117,10 @@ public sealed class BigarrDbContext : DbContext
 
     public DbSet<Bigarr.Domain.Requests.MediaRequest> MediaRequests => Set<Bigarr.Domain.Requests.MediaRequest>();
 
+    public DbSet<Bigarr.Domain.Issues.Issue> Issues => Set<Bigarr.Domain.Issues.Issue>();
+
+    public DbSet<Bigarr.Domain.Issues.IssueComment> IssueComments => Set<Bigarr.Domain.Issues.IssueComment>();
+
     public DbSet<OutboxEvent> Outbox => Set<OutboxEvent>();
 
     public DbSet<NotificationEndpoint> NotificationEndpoints => Set<NotificationEndpoint>();
