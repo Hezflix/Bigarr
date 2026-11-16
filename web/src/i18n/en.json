@@ -3335,7 +3335,8 @@
       "done": "{{title}} added.",
       "failed": "{{title}} could not be added: see the request.",
       "tvdbOnly": "Only on TVDB",
-      "tvdbOnlyHint": "Series TMDB does not have, found on TVDB. Search tvdb:81189 for one by its id."
+      "tvdbOnlyHint": "Series TMDB does not have, found on TVDB. Search tvdb:81189 for one by its id.",
+      "needsName": "The library already has this title in each version: name the new version (directors-cut, remux…)."
     }
   }
 }

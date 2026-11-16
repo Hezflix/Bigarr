@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Trans, useTranslation } from 'react-i18next'
@@ -65,6 +65,11 @@ export function AdminAddDialog({ mediaType, tmdbId, tvdbId, preset, onClose }: {
   // A version the admin names is its own slot; the slot buttons only say which default name it takes.
   const standardTaken = title && !series && !named ? takenReason(t, title.availability, title.requests, 'standard') : null
   const fourKTaken = title && !series && !named ? takenReason(t, title.availability, title.requests, 'fourK') : null
+  // A film whose standard slot is taken opens on 4K when that one is free; with both taken, a version name is needed.
+  useEffect(() => {
+    if (standardTaken && !fourKTaken && o?.fourKVersion) setFourK(true)
+  }, [standardTaken, fourKTaken, o?.fourKVersion])
+  const needsName = !named && !!standardTaken && (!!fourKTaken || !o?.fourKVersion)
   const choices = useMemo(() => (show.data ? seasonChoices(t, show.data.seasons, slot).map((c) => (named ? { ...c, taken: null } : c)) : []), [show.data, slot, named, t])
   const picked = seasons ?? choices.filter((c) => !c.taken && c.seasonNumber > 0).map((c) => c.seasonNumber)
   const placeholder = fourK ? (o?.fourKVersion ?? '') : t('requests.add.standardName')
@@ -206,6 +211,7 @@ export function AdminAddDialog({ mediaType, tmdbId, tvdbId, preset, onClose }: {
           </>
         )}
       </div>
+      {needsName && <p className="text-xs text-muted-foreground">{t('requests.add.needsName')}</p>}
       <p className="text-xs text-muted-foreground">{t('requests.add.viaRequest')}</p>
     </TitleForm>
   )
