@@ -10,8 +10,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { ImportFileCell, ImportFooter, ImportListingState, ImportPathForm, ImportQualityCell, rejectedStyle, type TransferChoice } from '@/features/import/manualImportParts'
+import { ImportFileCell, ImportFooter, ImportListingState, ImportPathForm, ImportQualityCell, type TransferChoice } from '@/features/import/manualImportParts'
+import { ReasonList } from '@/features/search/ReasonsDisplay'
 import { approvedStyle } from '@/features/search/releaseTable'
 
 
@@ -231,17 +231,6 @@ function Verdict({ file, movieId, versionId }: { file: ManualImportFile; movieId
     )
   }
   return (
-    <span className="flex flex-wrap gap-1">
-      {option.rejections.map((reason) => (
-        <Tooltip key={reason}>
-          <TooltipTrigger asChild>
-            <Badge variant="outline" className={cn('max-w-[16rem] cursor-default whitespace-normal text-left', rejectedStyle)}>
-              {reason}
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-sm whitespace-normal">{reason}</TooltipContent>
-        </Tooltip>
-      ))}
-    </span>
+    <ReasonList reasons={option.rejections} temporary className="max-w-[16rem] text-xs" />
   )
 }

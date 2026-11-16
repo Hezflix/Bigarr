@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatGap, TimingNote } from '@/features/activity/TimingNote'
+import { ReasonList } from '@/features/search/ReasonsDisplay'
 import { formatBytes, formatDateTime } from '@/i18n'
 
 const pageSize = 50
@@ -27,7 +28,6 @@ export const seriesOutcomeStyles: Record<SeriesCompareOutcome, string> = {
   sonarrOnly: 'border-sky-600/30 bg-sky-500/15 text-sky-700 dark:border-sky-400/30 dark:text-sky-300',
 }
 const okStyle = 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300'
-const rejectStyle = 'border-red-600/30 bg-red-500/10 text-red-700 dark:border-red-400/30 dark:text-red-300'
 
 /**
  * Activity → Compare, series: one flat table like the Radarr page, newest first, one row per show, version and episode
@@ -381,19 +381,15 @@ function GrabCard({ grab }: { grab: SeriesCompareGrab }) {
             <span className="text-xs text-muted-foreground">{verdict.unmatched}</span>
           ) : (
             <>
-              <span className="flex flex-wrap gap-1">
-                {verdict.approved ? (
+              {verdict.approved ? (
+                <span>
                   <Badge variant="outline" className={okStyle}>
                     {t('compare.approved')}
                   </Badge>
-                ) : (
-                  verdict.rejections.map((r) => (
-                    <Badge key={r} variant="outline" className={cn('whitespace-normal', rejectStyle)}>
-                      {r}
-                    </Badge>
-                  ))
-                )}
-              </span>
+                </span>
+              ) : (
+                <ReasonList reasons={verdict.rejections} />
+              )}
               {verdict.episodes && <span className="text-xs text-muted-foreground">{t('compare.bigarrEpisodes', { episodes: verdict.episodes })}</span>}
               {verdict.currentQuality ? (
                 <span className="text-xs text-muted-foreground">

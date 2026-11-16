@@ -20,13 +20,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigg
 import { Skeleton } from '@/components/ui/skeleton'
 import { TableCell, TableHead } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { ReasonText } from '@/features/search/ReasonsDisplay'
 import { formatBytes } from '@/i18n'
 
 /** What the film and series searches render the same way: the parts of a release that do not depend on what it is a release of. */
 
 export const approvedStyle = 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300'
 export const temporaryStyle = 'border-amber-600/30 bg-amber-500/15 text-amber-700 dark:border-amber-400/30 dark:text-amber-300'
-export const permanentStyle = 'border-red-600/30 bg-red-500/10 text-red-700 dark:border-red-400/30 dark:text-red-300'
 
 /** The fields both kinds of release share. */
 export type ReleaseCommon = Pick<
@@ -327,12 +327,10 @@ export function GrabReasons({ reasons }: { reasons: string[] }) {
   return (
     <div className="flex flex-col gap-2 text-sm" data-testid="grab-reasons">
       <p>{t('search.confirmReasons')}</p>
-      <ul className="flex flex-wrap gap-1">
+      <ul className="flex flex-col gap-0.5">
         {reasons.map((reason) => (
           <li key={reason}>
-            <Badge variant="outline" className={cn('h-auto rounded-md whitespace-normal text-left', permanentStyle)}>
-              {reason}
-            </Badge>
+            <ReasonText reason={reason} />
           </li>
         ))}
       </ul>

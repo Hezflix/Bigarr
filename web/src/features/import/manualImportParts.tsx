@@ -13,13 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { TableCell } from '@/components/ui/table'
 import { extraSummary } from '@/features/import/extraFiles'
-import { temporaryStyle } from '@/features/search/releaseTable'
 import { formatBytes } from '@/i18n'
 
 /** What the film and series manual imports share: everything about the file itself, nothing about what it is matched to. */
-
-/** A reason the import would refuse the file on its own: amber, since the user can still force it. */
-export const rejectedStyle = temporaryStyle
 
 export type TransferChoice = 'default' | TransferMode
 

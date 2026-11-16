@@ -12,6 +12,22 @@ export const statusText: Record<FitStatus, string> = {
   rejected: 'text-red-700/80 dark:text-red-300/80',
 }
 
+/** One rejection reason as light text: red when it rules the release out, amber when it will pass (e.g. a download already running). */
+export function ReasonText({ reason, temporary = false, className }: { reason: string; temporary?: boolean; className?: string }) {
+  return <span className={cn('[overflow-wrap:anywhere]', temporary ? statusText.temporary : statusText.rejected, className)}>{reason}</span>
+}
+
+/** Reasons one under the other, as light text. */
+export function ReasonList({ reasons, temporary = false, className }: { reasons: string[]; temporary?: boolean; className?: string }) {
+  return (
+    <span className={cn('flex flex-col gap-0.5', className)}>
+      {reasons.map((reason) => (
+        <ReasonText key={reason} reason={reason} temporary={temporary} />
+      ))}
+    </span>
+  )
+}
+
 function StatusIcon({ status }: { status: FitStatus }) {
   const Icon = status === 'accepted' ? CheckIcon : status === 'temporary' ? ClockIcon : XIcon
   return <Icon className={cn('size-3.5 shrink-0', statusText[status])} aria-hidden="true" />
