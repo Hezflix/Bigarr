@@ -26,6 +26,10 @@ public sealed class LibraryTitleQueryTests
         Row(8, "Alien", 1979),
         Row(9, "Alien", 1992),
         Row(10, "Aliens", 1986),
+        Row(11, "La Reine des neiges", 2013, "Frozen"),
+        Row(12, "La Reine des neiges 2", 2019),
+        Row(13, "L'Amour ouf", 2024),
+        Row(14, "The Lord of the Rings", 2001),
     ];
 
     private static List<int> Ids(string term, int limit = 10) =>
@@ -82,6 +86,64 @@ public sealed class LibraryTitleQueryTests
     }
 
     [Fact]
+    public void A_typo_still_finds_the_title()
+    {
+        Assert.Equal([11, 12], Ids("reine des neigs"));
+        Assert.Equal([3, 4], Ids("blade runenr"));
+        Assert.Equal([6], Ids("spirted away"));
+        Assert.Equal([5], Ids("amelei"));
+    }
+
+    [Fact]
+    public void Typo_hits_rank_after_strict_hits()
+    {
+        var rows = new[] { Row(1, "Chihuahua Story"), Row(2, "Chihiro"), Row(3, "Chihirro Days") };
+        var ids = LibraryTitleQuery.Parse("chihiro")!.Rank(rows, LibraryItemKind.Movie, 10).Select(r => r.Id).ToList();
+        Assert.Equal([2, 3], ids);
+    }
+
+    [Fact]
+    public void Short_words_take_no_typos_and_longer_ones_a_bounded_number()
+    {
+        Assert.Empty(Ids("mtx"));
+        Assert.Empty(Ids("blade rnnr"));
+        // Two slips in a long word are forgiven, three are not.
+        Assert.Equal([7], Ids("schndlrs list"));
+        Assert.Empty(Ids("sckndlxrs list"));
+    }
+
+    [Fact]
+    public void A_leading_article_does_not_count_when_it_is_typed_or_left_out()
+    {
+        // Typed but not in the title.
+        Assert.Equal(1, Ids("the matrix")[0]);
+        Assert.Contains(2, Ids("the matrix"));
+        // Left out: the exact title ranks above the sequel that starts with it, which plain word matching tied.
+        Assert.Equal([11, 12], Ids("reine des neiges"));
+        Assert.Equal([14], Ids("lord of the rings"));
+        Assert.Equal([14], Ids("lord rings"));
+    }
+
+    [Fact]
+    public void A_space_left_out_or_added_is_forgiven_and_elisions_split()
+    {
+        Assert.Equal([11, 12], Ids("lareine des neiges"));
+        Assert.Equal([13], Ids("lamour ouf"));
+        Assert.Equal([13], Ids("amour"));
+        Assert.Equal([13], Ids("l'amour ouf"));
+        Assert.Equal([13], Ids("l amour ouf"));
+        Assert.Equal([7], Ids("schindlers"));
+    }
+
+    [Fact]
+    public void A_typo_in_an_alternative_title_names_it()
+    {
+        var result = Assert.Single(LibraryTitleQuery.Parse("voyage de chihirro")!.Rank(Rows, LibraryItemKind.Movie, 10));
+        Assert.Equal(6, result.Id);
+        Assert.Equal("Le Voyage de Chihiro", result.MatchedTitle);
+    }
+
+    [Fact]
     public void A_blank_term_is_no_query()
     {
         Assert.Null(LibraryTitleQuery.Parse(null));
@@ -118,6 +180,11 @@ public sealed class LibrarySearchEndpointTests(BigarrApiFactory factory) : IClas
         Assert.Equal(("Spirited Away", 2001, LibraryItemKind.Movie), (spirited.Title, spirited.Year, spirited.Kind));
         Assert.Equal("Le Voyage de Chihiro", spirited.MatchedTitle);
         Assert.Empty(chihiro.Series);
+
+        // A typo comes through the endpoint.
+        var typo = await client.GetFromJsonAsync<LibrarySearchResponse>("/api/v1/library/search?term=voyage%20de%20chihirro", Json);
+        var found = Assert.Single(typo!.Movies);
+        Assert.Equal(("Spirited Away", "Le Voyage de Chihiro"), (found.Title, found.MatchedTitle));
 
         var amelie = await client.GetFromJsonAsync<LibrarySearchResponse>("/api/v1/library/search?term=amelie%202001", Json);
         Assert.Equal("Amélie", Assert.Single(amelie!.Movies).Title);
