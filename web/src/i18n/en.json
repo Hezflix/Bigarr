@@ -2883,6 +2883,13 @@
       "playsCount": "Plays ({{count}})"
     }
   },
+  "searchIndexers": {
+    "all": "All indexers",
+    "some": "{{count}} of {{total}} indexers",
+    "hint": "Indexers this search asks (this tab only)",
+    "reset": "Search every indexer",
+    "noneHint": "Pick at least one indexer"
+  },
   "searchQueries": {
     "toggle": "Show queries",
     "toggleHint": "Also show what Bigarr asked each indexer: the requests, their URLs (keys hidden) and the outcome",

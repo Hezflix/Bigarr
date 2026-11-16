@@ -94,6 +94,56 @@ public sealed class SearchQueriesTests
     }
 
     [Fact]
+    public async Task A_search_asks_only_the_indexers_picked_for_it()
+    {
+        var torznab = new StubHttpHandler(request => StubHttpHandler.Xml(request.RequestUri!.Query.Contains("t=caps", StringComparison.Ordinal) ? TorznabRecorded.Caps : TorznabRecorded.Feed));
+        using var app = new TorznabFactory(torznab, series: false);
+        var client = await ClientAsync(app);
+        var (hd, _) = await ProfilesAsync(client);
+        var movie = await AddMovieAsync(client, 603, hd); // The Matrix
+        var first = await AddTorznabAsync(client, "First", "http://indexer.invalid/first");
+        var second = await AddTorznabAsync(client, "Second", "http://indexer.invalid/second");
+
+        // Absent: every enabled indexer.
+        var all = (await client.GetFromJsonAsync<SearchResponse>($"/api/v1/search?movieId={movie.Id}", Json))!;
+        Assert.Equal(2, all.IndexersQueried);
+        torznab.Requests.Clear();
+
+        // One picked: only it is asked, and only its releases come back.
+        var one = (await client.GetFromJsonAsync<SearchResponse>($"/api/v1/search?movieId={movie.Id}&indexerIds={second.Id}&includeQueries=true", Json))!;
+        Assert.Equal(1, one.IndexersQueried);
+        Assert.All(one.Releases, r => Assert.Equal(second.Id, r.IndexerId));
+        Assert.Equal(second.Id, Assert.Single(one.Queries!).IndexerId);
+        Assert.All(torznab.Requests, r => Assert.Contains("/second", r.AbsolutePath, StringComparison.Ordinal));
+        Assert.NotEmpty(torznab.Requests);
+
+        // Repeated: both.
+        var both = (await client.GetFromJsonAsync<SearchResponse>($"/api/v1/search?movieId={movie.Id}&indexerIds={first.Id}&indexerIds={second.Id}", Json))!;
+        Assert.Equal(2, both.IndexersQueried);
+
+        // An indexer that is gone (or has interactive search off) is refused rather than dropped.
+        var unknown = await client.GetAsync($"/api/v1/search?movieId={movie.Id}&indexerIds={first.Id}&indexerIds=999");
+        Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
+        Assert.Contains("999", await unknown.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_series_search_asks_only_the_indexers_picked_for_it()
+    {
+        var torznab = new StubHttpHandler(request => StubHttpHandler.Xml(request.RequestUri!.Query.Contains("t=caps", StringComparison.Ordinal) ? TorznabRecorded.Caps : TorznabRecorded.Feed));
+        using var app = new TorznabFactory(torznab, series: true);
+        var client = await ClientAsync(app);
+        var series = await SeriesSetup.AddAsync(client, SeriesSearchTests.BreakingBad);
+        await AddTorznabAsync(client, "First", "http://indexer.invalid/first");
+        var second = await AddTorznabAsync(client, "Second", "http://indexer.invalid/second");
+
+        var result = (await client.GetFromJsonAsync<SeriesSearchResponse>($"/api/v1/series/{series.Id}/search?season=1&indexerIds={second.Id}", Json))!;
+        Assert.Equal(1, result.IndexersQueried);
+        Assert.All(result.Releases, r => Assert.Equal(second.Id, r.IndexerId));
+        Assert.All(torznab.Requests, r => Assert.Contains("/second", r.AbsolutePath, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task A_season_search_reports_the_id_request_then_the_title_fallback()
     {
         // The ids find nothing, so the titles are asked: Sonarr's tiers.

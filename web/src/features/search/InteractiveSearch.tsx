@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { OneShotGrabDialog } from '@/features/search/OneShotGrabDialog'
 import { grabObjections } from '@/features/search/grabRules'
 import { FitCell } from '@/features/search/ReasonsDisplay'
+import { IndexerPicker, useIndexerPick } from '@/features/search/IndexerPicker'
 import { InteractiveSearchIcon } from '@/features/search/SearchButtons'
 import { ShowQueriesToggle, SearchQueriesPanel, useShowQueries } from '@/features/search/SearchQueriesPanel'
 import {
@@ -33,6 +34,7 @@ import {
   VerdictIcon,
 } from '@/features/search/releaseTable'
 import { versionFits } from '@/features/search/rejectionReasons'
+import { pickKey } from '@/features/search/searchIndexers'
 import { formatAge, formatDateTime } from '@/i18n'
 
 type SortKey = keyof typeof commonComparators
@@ -44,14 +46,19 @@ function fitsAny(release: Release) {
   return release.matchesMovie && release.versions.some((v) => v.approved)
 }
 
-/** The last search shown for this film, so a remount (navigating away and back) shows it again with its text. */
-function cachedSearchText(queryClient: ReturnType<typeof useQueryClient>, movieId: number): string | null {
+/** A search as run: its text ('' is the film's own search) and the indexers picked (undefined: every one). */
+type Submitted = { text: string; ids: number[] | undefined }
+
+/** The last search shown for this film, so a remount (navigating away and back) shows it again with its text and indexers. */
+function cachedSearch(queryClient: ReturnType<typeof useQueryClient>, movieId: number): Submitted | null {
   const latest = queryClient
     .getQueryCache()
     .findAll({ queryKey: ['search', movieId] })
     .filter((q) => q.state.data !== undefined)
     .sort((a, b) => b.state.dataUpdatedAt - a.state.dataUpdatedAt)[0]
-  return latest ? String(latest.queryKey[2] ?? '') : null
+  if (!latest) return null
+  const ids = String(latest.queryKey[3] ?? 'all')
+  return { text: String(latest.queryKey[2] ?? ''), ids: ids === 'all' ? undefined : ids.split(',').filter(Boolean).map(Number) }
 }
 
 /**
@@ -62,29 +69,32 @@ function cachedSearchText(queryClient: ReturnType<typeof useQueryClient>, movieI
 export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /** Bumped from the page's header button: search now and scroll here. */ runRequest?: number }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  // null: nothing searched yet. '' is the film's own search (ids and titles), anything else the user's text.
-  const [submitted, setSubmitted] = useState<string | null>(() => cachedSearchText(queryClient, movie.id))
-  const [text, setText] = useState(submitted ?? '')
+  // null: nothing searched yet. Text '' is the film's own search (ids and titles), anything else the user's text.
+  const [submitted, setSubmitted] = useState<Submitted | null>(() => cachedSearch(queryClient, movie.id))
+  const [text, setText] = useState(submitted?.text ?? '')
+  const indexerPick = useIndexerPick()
   const [sort, onSort] = useReleaseSort<SortKey>()
   const [oneShot, setOneShot] = useState<{ release: Release; profileId: number } | null>(null)
   const [pending, setPending] = useState<PendingGrab | null>(null)
   const [showQueries, setShowQueries] = useShowQueries()
   const query = useQuery({
-    queryKey: ['search', movie.id, submitted ?? ''],
-    queryFn: () => search.movie(movie.id, { query: submitted || undefined, includeQueries: showQueries }),
+    queryKey: ['search', movie.id, submitted?.text ?? '', pickKey(submitted?.ids)],
+    queryFn: () => search.movie(movie.id, { query: submitted?.text || undefined, includeQueries: showQueries, indexerIds: submitted?.ids }),
     enabled: submitted !== null,
     staleTime: Number.POSITIVE_INFINITY,
     retry: false,
   })
 
-  // Every click searches again: grabs and imports since the last results change the verdicts.
-  const run = (next: string) => {
-    if (next === submitted) {
+  // Every click searches again: grabs and imports since the last results change the verdicts. The indexers picked
+  // apply from the next click on.
+  const isSubmitted = (nextText: string) => submitted !== null && submitted.text === nextText && pickKey(submitted.ids) === pickKey(indexerPick.ids)
+  const run = (nextText: string) => {
+    if (isSubmitted(nextText)) {
       void query.refetch()
       return
     }
-    queryClient.removeQueries({ queryKey: ['search', movie.id, next], exact: true })
-    setSubmitted(next)
+    queryClient.removeQueries({ queryKey: ['search', movie.id, nextText, pickKey(indexerPick.ids)], exact: true })
+    setSubmitted({ text: nextText, ids: indexerPick.ids })
   }
   const section = useRef<HTMLElement>(null)
   const lastRun = useRef(runRequest)
@@ -159,9 +169,10 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
               className="w-72"
               data-testid="search-query"
             />
-            <Button type="submit" disabled={query.isFetching || movie.versions.length === 0} data-testid="search-run">
+            <IndexerPicker pick={indexerPick} testId="search-indexers" />
+            <Button type="submit" disabled={query.isFetching || movie.versions.length === 0 || indexerPick.none || !indexerPick.ready} title={indexerPick.none ? t('searchIndexers.noneHint') : undefined} data-testid="search-run">
               <InteractiveSearchIcon className={query.isFetching ? 'animate-pulse' : undefined} aria-hidden="true" />
-              {query.isFetching ? t('search.searching') : submitted !== null && submitted === text.trim() ? t('search.searchAgain') : t('search.search')}
+              {query.isFetching ? t('search.searching') : isSubmitted(text.trim()) ? t('search.searchAgain') : t('search.search')}
             </Button>
           </form>
         </search>
