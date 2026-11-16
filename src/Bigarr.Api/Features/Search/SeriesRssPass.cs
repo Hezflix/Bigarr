@@ -5,6 +5,7 @@ using Bigarr.Api.Infrastructure.Matching;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Infrastructure.Tv;
 using Bigarr.Decision;
+using Bigarr.Decision.CustomFormats;
 using Bigarr.Decision.Specifications;
 using Bigarr.Domain.Indexers;
 using Bigarr.Domain.Movies;
@@ -82,15 +83,28 @@ public sealed class SeriesRssPass(
             })
             .ToList();
 
-        var seriesIds = located.Where(l => l.Match.Series is not null).Select(l => l.Match.Series!.Id).Distinct().ToList();
+        // Several shows answer a name and no id picks one: each candidate is loaded too, so the release can wait for the
+        // user on the held list under every show that would take it.
+        var seriesIds = located.SelectMany(l => l.Match.Series is { } s ? [s] : l.Match.Ambiguous).Select(s => s.Id).Distinct().ToList();
         var targets = await targetsFactory.LoadAsync(seriesIds, now, ct);
         var calculator = await scorer.CalculatorAsync(ct);
 
         var judged = new List<(RssReleaseResponse Entry, ReleaseInfo Release, SeriesJudgement? Judgement, SeriesTargets? Targets)>();
+        var heldAmbiguous = new List<(int VersionId, int SeriesId, ReleaseInfo Release, SeriesJudgement Judgement)>();
         foreach (var (indexer, release, located1, match, locatedReason, maybeSpecial) in located)
         {
             var parsed = located1;
             var reason = locatedReason;
+            if (match.IsAmbiguous && parsed is not null && !maybeSpecial)
+            {
+                var wanted = HoldAmbiguous(release, parsed, match, targets, calculator, indexer.MinimumSeeders);
+                heldAmbiguous.AddRange(wanted);
+                if (wanted.Count > 0)
+                {
+                    reason = $"{reason}. Held for review under {string.Join(", ", wanted.Select(w => SeriesTitleIndex.Label(match.Ambiguous.First(s => s.Id == w.SeriesId))).Distinct())}";
+                }
+            }
+
             SeriesTargets? show = match.Series is { } found ? targets.GetValueOrDefault(found.Id) : null;
             SeriesJudgement? judgement = null;
             var special = false;
@@ -194,6 +208,11 @@ public sealed class SeriesRssPass(
             await held.RecordAsync(group.Key.VersionId, group.Key.Id, group.Select(h => (h.Release, h.Judgement)).ToList(), RssSyncService.GrabTrigger, ct);
         }
 
+        foreach (var group in heldAmbiguous.GroupBy(h => (h.VersionId, h.SeriesId)))
+        {
+            await held.RecordAsync(group.Key.VersionId, group.Key.SeriesId, group.Select(h => (h.Release, h.Judgement)).ToList(), RssSyncService.GrabTrigger, ct);
+        }
+
         if (sightings.Enabled)
         {
             await sightings.RecordAsync(judged.Select(j => (j.Entry, j.Release, (int?)null, j.Targets?.Series.TvdbId)), now, ct);
@@ -208,6 +227,43 @@ public sealed class SeriesRssPass(
     }
 
     private static string Key(RssReleaseResponse entry) => $"{entry.IndexerId}:{entry.Guid}";
+
+    /// <summary>
+    /// A name several library series answer, with no id to pick one (twins: "Scrubs" 2001 and 2026): never attributed,
+    /// but judged against each candidate, and held for review for every version that would have taken it. The user
+    /// picks the show by grabbing that row; the other candidates' rows then leave the list.
+    /// </summary>
+    private List<(int VersionId, int SeriesId, ReleaseInfo Release, SeriesJudgement Judgement)> HoldAmbiguous(
+        ReleaseInfo release,
+        Bigarr.Parsing.Episodes.Model.ParsedEpisodeInfo parsed,
+        SeriesMatch match,
+        Dictionary<int, SeriesTargets> targets,
+        CustomFormatCalculator calculator,
+        int minimumSeeders)
+    {
+        var reason = string.Format(System.Globalization.CultureInfo.InvariantCulture, SeriesReleaseJudge.AmbiguousSeriesMessage, parsed.SeriesTitle, string.Join(", ", match.Ambiguous.Select(SeriesTitleIndex.Label)));
+        var held = new List<(int, int, ReleaseInfo, SeriesJudgement)>();
+        foreach (var candidate in match.Ambiguous)
+        {
+            if (targets.GetValueOrDefault(candidate.Id) is not { } show)
+            {
+                continue;
+            }
+
+            var judgement = SeriesReleaseJudge.Judge(release, parsed, show, null, calculator, _evaluator, minimumSeeders);
+            if (!judgement.IsMapped)
+            {
+                continue;
+            }
+
+            foreach (var versionId in judgement.Decisions.Where(d => d.Approved).Select(d => ((EpisodeTarget)d.Target.Target).VersionId).Distinct())
+            {
+                held.Add((versionId, candidate.Id, release, judgement with { HeldReason = reason }));
+            }
+        }
+
+        return held;
+    }
 
     private async Task<SeriesTitleIndex> BuildIndexAsync(CancellationToken ct)
     {
