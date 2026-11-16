@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { EyeIcon, EyeOffIcon, FileXIcon, PencilIcon, PlusIcon, RefreshCwIcon, StarIcon, TextSearchIcon, Trash2Icon, TvIcon, ZapIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { LibraryIssuesLink } from '@/features/issues/TitleIssues'
 import { toast } from 'sonner'
 import { ApiError, customFormats, history, movies, seriesFilms, quality, rootFolders, rootsOfKind, search, shadow, type MediaInfo, type MinimumAvailability, type Movie, type Version, type VersionMode, profilesFor} from '@/api/client'
 import { Poster } from '@/components/Poster'
@@ -179,6 +180,8 @@ export function MovieDetailPage() {
           {m.overview && <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">{m.overview}</p>}
 
           <SeriesLinks movieId={m.id} />
+
+          <LibraryIssuesLink movieId={m.id} />
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <a

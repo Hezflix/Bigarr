@@ -46,7 +46,8 @@
     "settingsUsers": "Users",
     "requests": "Requests",
     "discover": "Discover",
-    "settingsDiscover": "Discover"
+    "settingsDiscover": "Discover",
+    "issues": "Issues"
   },
   "theme": {
     "label": "Theme",
@@ -3337,6 +3338,135 @@
       "tvdbOnly": "Only on TVDB",
       "tvdbOnlyHint": "Series TMDB does not have, found on TVDB. Search tvdb:81189 for one by its id.",
       "needsName": "The library already has this title in each version: name the new version (directors-cut, remux…)."
+    }
+  },
+  "issues": {
+    "title": "Issues",
+    "mine": "My issues",
+    "openBadge_one": "{{count}} open issue",
+    "openBadge_other": "{{count}} open issues",
+    "report": "Report an issue",
+    "openOnTitle_one": "{{count}} open issue",
+    "openOnTitle_other": "{{count}} open issues",
+    "empty": "No issue here.",
+    "emptyMine": "You have not reported any issue. Report one from a title's page when something is wrong with it.",
+    "searchPlaceholder": "Filter by title…",
+    "reportedBy": "Reported by {{user}} · {{date}}",
+    "reportedOn": "Reported {{date}}",
+    "comments_one": "{{count}} comment",
+    "comments_other": "{{count}} comments",
+    "back": "All issues",
+    "version": "Version {{name}}",
+    "type": {
+      "video": "Video",
+      "audio": "Audio",
+      "subtitles": "Subtitles",
+      "other": "Other"
+    },
+    "typeHint": {
+      "video": "Picture glitches, wrong aspect, poor quality",
+      "audio": "Missing, out of sync or wrong language",
+      "subtitles": "Missing, out of sync or wrong",
+      "other": "Anything else"
+    },
+    "scope": {
+      "movie": "Film",
+      "series": "Whole series",
+      "season": "Season {{number}}",
+      "episode": "Episode"
+    },
+    "status": {
+      "open": "Open",
+      "resolved": "Resolved"
+    },
+    "filters": {
+      "status": "Status",
+      "open": "Open",
+      "resolved": "Resolved",
+      "all": "All",
+      "type": "Type",
+      "allTypes": "All types",
+      "allTitles": "Every title"
+    },
+    "dialog": {
+      "title": "Report an issue",
+      "description": "What is wrong with {{title}}? An admin will look at it and reply here.",
+      "type": "What is wrong",
+      "scope": "Where",
+      "scopeSeries": "Whole series",
+      "scopeSeason": "A season",
+      "scopeEpisode": "An episode",
+      "season": "Season",
+      "seasonName": "Season {{number}}",
+      "specials": "Specials",
+      "episode": "Episode",
+      "pickEpisode": "Pick an episode",
+      "noFile": "no file",
+      "version": "Version",
+      "versionStandard": "Standard ({{name}})",
+      "versionFourK": "4K ({{name}})",
+      "message": "Describe it",
+      "messagePlaceholder": "When does it happen, on which device…",
+      "submit": "Report",
+      "sent": "Issue reported. You will find the replies in Issues.",
+      "notInLibrary": "Only titles in the library can be reported on."
+    },
+    "detail": {
+      "message": "Report",
+      "file": "File reported",
+      "currentFile": "File now",
+      "fileGone": "There is no file now.",
+      "noFile": "No single file: the issue is about a season or the whole series.",
+      "noFileAtReport": "There was no file when it was reported.",
+      "path": "Path",
+      "quality": "Quality",
+      "size": "Size",
+      "release": "Release",
+      "indexer": "Indexer",
+      "unknown": "unknown",
+      "openInLibrary": "Open in the library",
+      "openInDiscover": "Title page",
+      "thread": "Conversation",
+      "noComments": "No reply yet.",
+      "commentPlaceholder": "Write a reply…",
+      "send": "Send",
+      "edit": "Edit",
+      "delete": "Delete",
+      "edited": "edited",
+      "saveEdit": "Save",
+      "resolve": "Mark resolved",
+      "reopen": "Reopen",
+      "resolvedBy": "{{user}} marked it resolved",
+      "reopenedBy": "{{user}} reopened it",
+      "someone": "Someone",
+      "notFound": "This issue does not exist, or is not yours."
+    },
+    "actions": {
+      "title": "Fix it",
+      "search": "Search again",
+      "blocklist": "Blocklist the release",
+      "deleteFile": "Delete the file",
+      "managedShadow": "Shadow mode is on: the files belong to the followed Radarr/Sonarr, fix it there. Searching from here only records a pick.",
+      "managedBy": "{{name}} manages this version's files: fix it there. Searching from here stays possible.",
+      "noRelease": "The release behind the file is unknown (scanned or imported): no blocklist, delete the file instead.",
+      "notInLibrary": "The title or its version left the library.",
+      "blocklistTitle": "Blocklist the release?",
+      "blocklistBody": "The release that produced this file will not be grabbed again, then a new search runs.",
+      "blocklistDelete": "Also delete the file, so the search replaces it whatever its quality",
+      "deleteTitle": "Delete the file?",
+      "deleteBody": "The file goes to the recycle bin when one is set, otherwise it is deleted.",
+      "deleteSearch": "Search again once it is gone",
+      "confirm": "Confirm",
+      "line": {
+        "search": "{{user}} searched again",
+        "blocklistAndSearch": "{{user}} blocklisted the release",
+        "deleteFile": "{{user}} deleted the file"
+      },
+      "done": "Done: {{outcome}}"
+    },
+    "library": {
+      "open_one": "{{count}} open issue",
+      "open_other": "{{count}} open issues"
     }
   }
 }

@@ -28,6 +28,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
+import { OpenIssuesBadge } from '@/features/issues/issueBits'
 import { PendingBadge } from '@/features/requests/PendingBadge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
@@ -126,6 +127,7 @@ function AppSidebar() {
                           <span>{item.label}</span>
                           {item.health && <HealthBadge />}
                           {item.pendingRequests && <PendingBadge className="group-data-[collapsible=icon]:hidden" />}
+                          {item.openIssues && <OpenIssuesBadge className="group-data-[collapsible=icon]:hidden" />}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

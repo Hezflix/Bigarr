@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { BookmarkIcon, ChevronRightIcon, ClapperboardIcon, Columns3Icon, Link2Icon, FilePenLineIcon, FilterIcon, FolderInputIcon, FolderSearchIcon, ListChecksIcon, ListOrderedIcon, PencilIcon, PlusIcon, RefreshCwIcon, StarIcon, TextSearchIcon, Trash2Icon, WrenchIcon, ZapIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { LibraryIssuesLink } from '@/features/issues/TitleIssues'
 import { SeriesCompareSection } from '@/features/activity/SeriesCompare'
 import { toast } from 'sonner'
 import {
@@ -254,6 +255,8 @@ export function SeriesDetailPage() {
           </div>
 
           {s.overview && <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">{s.overview}</p>}
+
+          <LibraryIssuesLink seriesId={s.id} />
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
             {s.tvdbId && (
