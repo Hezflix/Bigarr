@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
 import { CheckIcon, SearchIcon } from 'lucide-react'
@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { grabObjections, languagesComparator, qualityComparator } from '@/features/search/grabRules'
+import { IndexerPicker, useIndexerPick } from '@/features/search/IndexerPicker'
 import { FitCell } from '@/features/search/ReasonsDisplay'
 import { ShowQueriesToggle, SearchQueriesPanel, useShowQueries } from '@/features/search/SearchQueriesPanel'
 import {
@@ -33,6 +34,7 @@ import {
   VerdictIcon,
 } from '@/features/search/releaseTable'
 import { versionFits } from '@/features/search/rejectionReasons'
+import { pickKey } from '@/features/search/searchIndexers'
 import { formatAge } from '@/i18n'
 
 import { type PendingSeriesGrab, SeriesGrabDialog } from './SeriesGrabDialog'
@@ -55,7 +57,13 @@ const fitsAny = (release: SeriesRelease) => release.matchesSeries && release.epi
 export function SeriesSearchDialog({ series, scope, onClose }: { series: Series; scope: SeriesSearchScope; onClose: () => void }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [submitted, setSubmitted] = useState('')
+  const indexerPick = useIndexerPick()
+  // The search as run: its text and the indexers picked (undefined: every one). The dialog searches on opening, once the
+  // indexer list says which ones this tab left out.
+  const [submitted, setSubmitted] = useState<{ text: string; ids: number[] | undefined } | null>(null)
+  useEffect(() => {
+    if (indexerPick.ready && submitted === null) setSubmitted({ text: '', ids: indexerPick.ids })
+  }, [indexerPick.ready, indexerPick.ids, submitted])
   const [text, setText] = useState('')
   const [sort, onSort] = useReleaseSort<SortKey>()
   const [pending, setPending] = useState<PendingSeriesGrab | null>(null)
@@ -65,9 +73,14 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
   const [showQueries, setShowQueries] = useShowQueries()
   const scopeKey = scope.kind === 'episode' ? `e${scope.episodeId}` : scope.kind === 'season' ? `s${scope.season}${scope.orderSeason ? 'o' : ''}` : 'all'
   const query = useQuery({
-    queryKey: ['seriesSearch', series.id, scopeKey, submitted],
+    queryKey: ['seriesSearch', series.id, scopeKey, submitted?.text ?? '', pickKey(submitted?.ids)],
     queryFn: () =>
-      search.series(series.id, scope.kind === 'episode' ? { episodeId: scope.episodeId } : scope.kind === 'season' ? { season: scope.season, orderSeason: scope.orderSeason } : {}, { query: submitted || undefined, includeQueries: showQueries }),
+      search.series(series.id, scope.kind === 'episode' ? { episodeId: scope.episodeId } : scope.kind === 'season' ? { season: scope.season, orderSeason: scope.orderSeason } : {}, {
+        query: submitted?.text || undefined,
+        includeQueries: showQueries,
+        indexerIds: submitted?.ids,
+      }),
+    enabled: submitted !== null,
     staleTime: Number.POSITIVE_INFINITY,
     retry: false,
   })
@@ -119,14 +132,14 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
     })
   }
 
-  const run = (next: string) => {
-    if (next === submitted) {
+  const run = (nextText: string) => {
+    if (submitted && nextText === submitted.text && pickKey(indexerPick.ids) === pickKey(submitted.ids)) {
       void query.refetch()
       return
     }
 
-    queryClient.removeQueries({ queryKey: ['seriesSearch', series.id, scopeKey, next], exact: true })
-    setSubmitted(next)
+    queryClient.removeQueries({ queryKey: ['seriesSearch', series.id, scopeKey, nextText, pickKey(indexerPick.ids)], exact: true })
+    setSubmitted({ text: nextText, ids: indexerPick.ids })
   }
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -160,7 +173,8 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
               className="w-72"
               data-testid="series-search-query"
             />
-            <Button type="submit" disabled={query.isFetching} data-testid="series-search-run">
+            <IndexerPicker pick={indexerPick} testId="series-search-indexers" />
+            <Button type="submit" disabled={query.isFetching || indexerPick.none || !indexerPick.ready} title={indexerPick.none ? t('searchIndexers.noneHint') : undefined} data-testid="series-search-run">
               <SearchIcon className={query.isFetching ? 'animate-pulse' : undefined} />
               {query.isFetching ? t('search.searching') : t('search.searchAgain')}
             </Button>
@@ -174,7 +188,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
           </form>
         </search>
 
-        {query.isFetching && !data && <SearchSkeleton />}
+        {(query.isFetching || submitted === null) && !data && <SearchSkeleton />}
 
         {query.error && (
           <Alert variant="destructive">

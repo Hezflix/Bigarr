@@ -202,6 +202,7 @@ export interface paths {
                     query?: string;
                     orderSeason?: boolean;
                     includeQueries?: boolean;
+                    indexerIds?: number[];
                 };
                 header?: never;
                 path: {
@@ -5859,6 +5860,7 @@ export interface paths {
                     versionId?: number;
                     query?: string;
                     includeQueries?: boolean;
+                    indexerIds?: number[];
                 };
                 header?: never;
                 path?: never;

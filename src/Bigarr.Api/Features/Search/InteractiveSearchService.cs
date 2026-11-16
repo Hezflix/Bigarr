@@ -24,7 +24,8 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
 
     /// <summary>Searches the film by its ids and titles, or by <paramref name="query"/> when the user typed one.</summary>
     /// <param name="includeQueries">Report what each indexer was asked (the "Show queries" view).</param>
-    public async Task<Result<SearchResponse>> SearchAsync(int movieId, int? versionId, string? query, CancellationToken ct, bool includeQueries = false)
+    /// <param name="indexerIds">Only these indexers, for this one search; null or empty asks every enabled one.</param>
+    public async Task<Result<SearchResponse>> SearchAsync(int movieId, int? versionId, string? query, CancellationToken ct, bool includeQueries = false, IReadOnlyCollection<int>? indexerIds = null)
     {
         var movie = await contexts.MoviesWithVersions().FirstOrDefaultAsync(m => m.Id == movieId, ct);
         if (movie is null)
@@ -42,11 +43,13 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
             }
         }
 
-        var indexers = await db.Indexers.AsNoTracking().Where(i => i.EnableInteractiveSearch).OrderBy(i => i.Priority).ToListAsync(ct);
-        if (indexers.Count == 0)
+        var picked = await InteractiveIndexers.SelectAsync(db, indexerIds, ct);
+        if (!picked.IsSuccess)
         {
-            return Failure.Invalid("No indexer available", "No indexer has interactive search enabled. Add one in Settings → Indexers.");
+            return picked.Failure!;
         }
+
+        var indexers = picked.Value!;
 
         // The user's own words go out as they are: no ids, no year, no alternative titles, so every indexer gets a text query.
         query = string.IsNullOrWhiteSpace(query) ? null : query.Trim();
