@@ -15,7 +15,7 @@ import { OneShotGrabDialog } from '@/features/search/OneShotGrabDialog'
 import { grabObjections } from '@/features/search/grabRules'
 import { FitCell } from '@/features/search/ReasonsDisplay'
 import { InteractiveSearchIcon } from '@/features/search/SearchButtons'
-import { AdvancedToggle, SearchQueriesPanel, useAdvancedSearch } from '@/features/search/SearchQueriesPanel'
+import { ShowQueriesToggle, SearchQueriesPanel, useShowQueries } from '@/features/search/SearchQueriesPanel'
 import {
   commonComparators,
   GrabConfirmDialog,
@@ -68,10 +68,10 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
   const [sort, onSort] = useReleaseSort<SortKey>()
   const [oneShot, setOneShot] = useState<{ release: Release; profileId: number } | null>(null)
   const [pending, setPending] = useState<PendingGrab | null>(null)
-  const [advanced, setAdvanced] = useAdvancedSearch()
+  const [showQueries, setShowQueries] = useShowQueries()
   const query = useQuery({
     queryKey: ['search', movie.id, submitted ?? ''],
-    queryFn: () => search.movie(movie.id, { query: submitted || undefined, includeQueries: advanced }),
+    queryFn: () => search.movie(movie.id, { query: submitted || undefined, includeQueries: showQueries }),
     enabled: submitted !== null,
     staleTime: Number.POSITIVE_INFINITY,
     retry: false,
@@ -165,7 +165,7 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
             </Button>
           </form>
         </search>
-        <AdvancedToggle checked={advanced} onChange={setAdvanced} testId="search-advanced" />
+        <ShowQueriesToggle checked={showQueries} onChange={setShowQueries} testId="search-show-queries" />
       </div>
 
       {submitted === null && <p className="text-sm text-muted-foreground">{t('search.hint')}</p>}
@@ -204,7 +204,7 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
 
           <IndexerErrors errors={data.indexerErrors} />
 
-          {advanced && <SearchQueriesPanel queries={data.queries} />}
+          {showQueries && <SearchQueriesPanel queries={data.queries} />}
 
           {releases.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('search.noResults')}</p>

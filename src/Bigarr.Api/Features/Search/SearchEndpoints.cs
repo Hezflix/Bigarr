@@ -13,7 +13,7 @@ public static class SearchEndpoints
 
         // Interactive search: one round of indexer queries for the film, judged by every version (or one). A query
         // replaces the film's ids and titles with the user's own text (a film listed under another name or spelling).
-        // includeQueries=true adds what each indexer was asked, URLs redacted (the advanced view).
+        // includeQueries=true adds what each indexer was asked, URLs redacted (the "Show queries" view).
         group.MapGet("/", async Task<Results<Ok<SearchResponse>, ValidationProblem, ProblemHttpResult>> (
             int? movieId, int? versionId, string? query, InteractiveSearchService search, CancellationToken ct, bool includeQueries = false) =>
         {

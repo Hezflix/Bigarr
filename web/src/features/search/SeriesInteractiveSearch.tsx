@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { grabObjections, languagesComparator, qualityComparator } from '@/features/search/grabRules'
 import { FitCell } from '@/features/search/ReasonsDisplay'
-import { AdvancedToggle, SearchQueriesPanel, useAdvancedSearch } from '@/features/search/SearchQueriesPanel'
+import { ShowQueriesToggle, SearchQueriesPanel, useShowQueries } from '@/features/search/SearchQueriesPanel'
 import {
   commonComparators,
   grabRequest,
@@ -62,12 +62,12 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
   // The dialog stays open after a grab: each grabbed row says so, the others can be grabbed too.
   const [grabbed, setGrabbed] = useState<Map<string, { version: string; shadow: boolean }>>(new Map())
   const episodes = useQuery({ queryKey: ['seriesEpisodes', series.id], queryFn: () => seriesApi.episodes(series.id) })
-  const [advanced, setAdvanced] = useAdvancedSearch()
+  const [showQueries, setShowQueries] = useShowQueries()
   const scopeKey = scope.kind === 'episode' ? `e${scope.episodeId}` : scope.kind === 'season' ? `s${scope.season}${scope.orderSeason ? 'o' : ''}` : 'all'
   const query = useQuery({
     queryKey: ['seriesSearch', series.id, scopeKey, submitted],
     queryFn: () =>
-      search.series(series.id, scope.kind === 'episode' ? { episodeId: scope.episodeId } : scope.kind === 'season' ? { season: scope.season, orderSeason: scope.orderSeason } : {}, { query: submitted || undefined, includeQueries: advanced }),
+      search.series(series.id, scope.kind === 'episode' ? { episodeId: scope.episodeId } : scope.kind === 'season' ? { season: scope.season, orderSeason: scope.orderSeason } : {}, { query: submitted || undefined, includeQueries: showQueries }),
     staleTime: Number.POSITIVE_INFINITY,
     retry: false,
   })
@@ -170,7 +170,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
                 {acceptable.map(({ version, count }) => t('search.acceptableFor', { count, version: version.name })).join(' · ')}
               </p>
             )}
-            <AdvancedToggle checked={advanced} onChange={setAdvanced} testId="series-search-advanced" />
+            <ShowQueriesToggle checked={showQueries} onChange={setShowQueries} testId="series-search-show-queries" />
           </form>
         </search>
 
@@ -184,7 +184,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
 
         {data && <IndexerErrors errors={data.indexerErrors} />}
 
-        {data && advanced && <SearchQueriesPanel queries={data.queries} />}
+        {data && showQueries && <SearchQueriesPanel queries={data.queries} />}
 
         {data?.query && <p className="text-sm">{t('seriesSearch.textResults', { query: data.query })}</p>}
         {data?.orderFallback && (

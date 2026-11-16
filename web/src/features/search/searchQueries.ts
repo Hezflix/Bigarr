@@ -1,7 +1,10 @@
 import type { IndexerQueryReport, IndexerQueryRequest } from '@/api/client'
 
-/** The viewer's choice, per browser: the interactive search shows what each indexer was asked. Off by default. */
-export const advancedSearchKey = 'bigarr.search.advanced'
+/**
+ * The viewer's choice, per browser: the interactive search shows what each indexer was asked ("Show queries"). Off by
+ * default. The key predates the toggle's name (it was "Advanced"): kept so the choice already made survives.
+ */
+export const showQueriesKey = 'bigarr.search.advanced'
 
 export type KeyValueStore = Pick<Storage, 'getItem' | 'setItem'>
 
@@ -14,17 +17,17 @@ function browserStore(): KeyValueStore | null {
   }
 }
 
-export function readAdvanced(store: KeyValueStore | null = browserStore()): boolean {
+export function readShowQueries(store: KeyValueStore | null = browserStore()): boolean {
   try {
-    return store?.getItem(advancedSearchKey) === '1'
+    return store?.getItem(showQueriesKey) === '1'
   } catch {
     return false
   }
 }
 
-export function writeAdvanced(on: boolean, store: KeyValueStore | null = browserStore()): void {
+export function writeShowQueries(on: boolean, store: KeyValueStore | null = browserStore()): void {
   try {
-    store?.setItem(advancedSearchKey, on ? '1' : '0')
+    store?.setItem(showQueriesKey, on ? '1' : '0')
   } catch {
     // Not remembered: the toggle still works for this page.
   }
