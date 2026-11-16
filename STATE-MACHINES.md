@@ -412,6 +412,9 @@ Invariants:
 - Active (pending, approved, failed) requests hold their slot: the duplicate check reads them; a declined one does not,
   and neither counts a deleted (cancelled) one. Quotas count every request but declined ones over each window.
 - Shadow mode needs nothing of its own here: the search the approval enqueues goes through the grab choke point.
+- Notifications add no state: each event above is one outbox row. A Discord delivery reads who to mention (`Mentions`)
+  when it is sent, not when the event happened, so a Discord id or opt-in set in between counts and a disabled user is
+  never mentioned; a request approved at once posts one message, from its approval.
 
 Known gap: two approvers acting on the same pending request at once both pass the "still pending" check (no
 conditional update); the second add finds the title in the library and only monitors it again.

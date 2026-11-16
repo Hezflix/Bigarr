@@ -25,6 +25,15 @@ public sealed class User
 
     public DateTime? LastLoginAt { get; set; }
 
+    /// <summary>The user's Discord user id (a snowflake), so request and issue messages on Discord mention them.</summary>
+    public string? DiscordUserId { get; set; }
+
+    /// <summary>
+    /// The events the user wants to be mentioned on (<see cref="Notifications.Mentions.Choices"/>); null until they choose,
+    /// which means every one of them.
+    /// </summary>
+    public List<string>? DiscordMentions { get; set; }
+
     public ICollection<ApiKey> ApiKeys { get; set; } = [];
 
     public bool IsDisabled => DisabledAt is not null;

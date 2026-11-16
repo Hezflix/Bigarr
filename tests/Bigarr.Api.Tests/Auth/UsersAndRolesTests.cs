@@ -293,11 +293,14 @@ public sealed class UsersAndRolesTests
         var endpoints = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>();
 
         // What other people reach, by name: the login page and its flows, who-am-I, sign out, and Discover (TMDB's
-        // catalogue with availability states only; its row settings stay the admin's), and requests.
+        // catalogue with availability states only; its row settings stay the admin's), requests, and their own
+        // notification settings.
         string[] open =
         [
             "GET /api/v1/auth/me",
             "POST /api/v1/auth/logout",
+            "GET /api/v1/profile/notifications",
+            "PUT /api/v1/profile/notifications",
             "GET /api/v1/discover/",
             "GET /api/v1/discover/sliders/{id:int}",
             "GET /api/v1/discover/movies",

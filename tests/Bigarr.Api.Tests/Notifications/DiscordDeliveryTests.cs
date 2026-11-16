@@ -247,7 +247,7 @@ public sealed class DiscordDeliveryTests
     }
 
     /// <summary>Sends what is addressed to Discord to the fake instead, path and query intact.</summary>
-    private sealed class ToFakeDiscord(Uri fake) : DelegatingHandler(new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false })
+    internal sealed class ToFakeDiscord(Uri fake) : DelegatingHandler(new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false })
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {

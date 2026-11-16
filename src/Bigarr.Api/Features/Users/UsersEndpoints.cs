@@ -4,6 +4,7 @@ using Bigarr.Api.Infrastructure.Auth;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Auth;
 using Bigarr.Domain.MediaServers;
+using Bigarr.Domain.Notifications;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,6 +28,11 @@ public static class UsersEndpoints
             SetDisabledAsync(id, disabled: false, principal, db, stamps, time, logs, ct));
         group.MapGet("/settings", SettingsAsync);
         group.MapPut("/settings", UpdateSettingsAsync);
+
+        // Every signed-in user's own: their Discord id and the events they are mentioned on.
+        var profile = app.MapGroup("/api/v1/profile").WithTags("Users").RequireAuthorization(AuthPolicies.SignedIn);
+        profile.MapGet("/notifications", MyNotificationsAsync);
+        profile.MapPut("/notifications", UpdateMyNotificationsAsync);
 
         return app;
     }
@@ -65,6 +71,11 @@ public static class UsersEndpoints
         if (request.Quota is not null)
         {
             user.Quota = request.Quota.ToDomain();
+        }
+
+        if (request.Notifications is not null && !UserNotifications.Apply(user, request.Notifications, everyChoice: true))
+        {
+            return TypedResults.Problem(title: UserNotifications.InvalidDiscordId, statusCode: StatusCodes.Status400BadRequest);
         }
 
         await db.SaveChangesAsync(ct);
@@ -125,7 +136,31 @@ public static class UsersEndpoints
     {
         var settings = await UserSettings.ReadAsync(db, ct);
         var plexServer = await db.MediaServers.AnyAsync(s => s.Enabled && s.Kind == MediaServerKind.Plex && s.Token != string.Empty, ct);
-        return new UserSettingsResponse(settings.PlexNewAccounts, PermissionsDto.From(settings.DefaultPermissions), plexServer, QuotaDto.From(settings.DefaultQuota));
+        return new UserSettingsResponse(settings.PlexNewAccounts, PermissionsDto.From(settings.DefaultPermissions), plexServer, QuotaDto.From(settings.DefaultQuota), UserNotifications.Choices(managers: true));
+    }
+
+    private static async Task<Results<Ok<MyNotificationsResponse>, NotFound>> MyNotificationsAsync(ClaimsPrincipal principal, BigarrDbContext db, CancellationToken ct)
+    {
+        var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == principal.UserId(), ct);
+        return user is null ? TypedResults.NotFound() : TypedResults.Ok(UserNotifications.Mine(user));
+    }
+
+    private static async Task<Results<Ok<MyNotificationsResponse>, NotFound, ProblemHttpResult>> UpdateMyNotificationsAsync(
+        UserNotificationsDto request, ClaimsPrincipal principal, BigarrDbContext db, CancellationToken ct)
+    {
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == principal.UserId(), ct);
+        if (user is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (!UserNotifications.Apply(user, request, everyChoice: Mentions.IsManager(user)))
+        {
+            return TypedResults.Problem(title: UserNotifications.InvalidDiscordId, statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(UserNotifications.Mine(user));
     }
 
     private static UserResponse ToResponse(User user, IEnumerable<ExternalLogin> logins, int me) =>
@@ -140,5 +175,6 @@ public static class UsersEndpoints
             user.HasPassword,
             [.. logins.OrderBy(l => l.Provider).Select(l => new UserLoginResponse(l.Provider, l.ExternalUsername, l.Email, l.ThumbUrl, l.LastLoginAt))],
             user.Id == me,
-            QuotaDto.From(user.Quota));
+            QuotaDto.From(user.Quota),
+            UserNotificationsDto.From(user));
 }

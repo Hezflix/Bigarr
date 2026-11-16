@@ -45,10 +45,11 @@ public static partial class DiscordWebhook
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
 
     /// <summary>The body of one delivery, or null when the Discord format posts nothing for it.</summary>
-    public static string? Body(string eventType, string payloadJson, DiscordSettings? settings)
+    /// <param name="context">Bigarr's address and who to mention, for request and issue messages.</param>
+    public static string? Body(string eventType, string payloadJson, DiscordSettings? settings, DiscordContext? context = null)
     {
         var domainEvent = EventJson.Deserialize(eventType, payloadJson);
-        var payload = domainEvent is null ? null : Payload(domainEvent, settings);
+        var payload = domainEvent is null ? null : Payload(domainEvent, settings, context);
         return payload is null ? null : Serialize(payload);
     }
 
@@ -59,12 +60,23 @@ public static partial class DiscordWebhook
     }
 
     /// <summary>The message for one event, cut to Discord's limits, or null when the Discord format posts nothing for it.</summary>
-    public static DiscordPayload? Payload(DomainEvent domainEvent, DiscordSettings? settings)
+    public static DiscordPayload? Payload(DomainEvent domainEvent, DiscordSettings? settings, DiscordContext? context = null)
     {
         ArgumentNullException.ThrowIfNull(domainEvent);
 
         var s = (settings ?? DiscordSettings.Default).Normalized();
         var at = domainEvent.OccurredAt.ToString("O", CultureInfo.InvariantCulture);
+        context ??= new DiscordContext();
+        if (!WebhookRouting.SentToDiscord(domainEvent))
+        {
+            return null;
+        }
+
+        if (RequestEmbed(domainEvent, at, context) is { } seerr)
+        {
+            return Fit(Mention(new DiscordPayload(null, s.Username, s.Avatar, [seerr]), context.Mentions));
+        }
+
         var embed = domainEvent switch
         {
             ReleaseGrabbed e => Grab(s, e.Movie, e.Version, e.Release, "Movie Grabbed", DiscordColor.Standard, at),

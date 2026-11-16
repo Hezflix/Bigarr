@@ -39,15 +39,36 @@ public sealed record UserResponse(
     bool HasPassword,
     IReadOnlyList<UserLoginResponse> Logins,
     bool IsYou,
-    QuotaDto Quota);
+    QuotaDto Quota,
+    UserNotificationsDto Notifications);
 
 /// <param name="Quota">Null leaves the user's request limits as they are.</param>
-public sealed record UpdateUserRequest(UserRole Role, PermissionsDto Permissions, QuotaDto? Quota = null);
+/// <param name="Notifications">Null leaves the user's Discord id and mentions as they are.</param>
+public sealed record UpdateUserRequest(UserRole Role, PermissionsDto Permissions, QuotaDto? Quota = null, UserNotificationsDto? Notifications = null);
+
+/// <summary>How request and issue messages on Discord reach the user.</summary>
+/// <param name="DiscordUserId">Their Discord user id (17 to 20 digits); null for none, which means never mentioned.</param>
+/// <param name="Mentions">The event types they are mentioned on, among <see cref="Domain.Notifications.Mentions.Choices"/>.</param>
+public sealed record UserNotificationsDto(string? DiscordUserId, List<string> Mentions)
+{
+    public static UserNotificationsDto From(User user)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        return new(user.DiscordUserId, [.. Domain.Notifications.Mentions.Effective(user.DiscordMentions)]);
+    }
+}
+
+/// <param name="ManagersOnly">Only an admin or a request manager is ever mentioned on it: a user does not see it.</param>
+public sealed record MentionChoiceResponse(string Type, string Description, bool ManagersOnly);
+
+/// <summary>The signed-in user's own notification settings, with the choices that apply to them.</summary>
+public sealed record MyNotificationsResponse(string? DiscordUserId, List<string> Mentions, List<MentionChoiceResponse> Choices);
 
 /// <param name="PlexNewAccounts">A Plex account linked to no user may sign in, creating its user, when it has access to the Plex server.</param>
 /// <param name="PlexServerConfigured">A Plex server is set up in Media servers: without one no new account gets in.</param>
 /// <param name="DefaultQuota">What a new user may request over a sliding window.</param>
-public sealed record UserSettingsResponse(bool PlexNewAccounts, PermissionsDto DefaultPermissions, bool PlexServerConfigured, QuotaDto DefaultQuota);
+/// <param name="MentionChoices">The events a user can be mentioned on in Discord, for the user dialog.</param>
+public sealed record UserSettingsResponse(bool PlexNewAccounts, PermissionsDto DefaultPermissions, bool PlexServerConfigured, QuotaDto DefaultQuota, List<MentionChoiceResponse> MentionChoices);
 
 /// <param name="DefaultQuota">Null leaves the default limits as they are.</param>
 public sealed record UpdateUserSettingsRequest(bool PlexNewAccounts, PermissionsDto DefaultPermissions, QuotaDto? DefaultQuota = null);
