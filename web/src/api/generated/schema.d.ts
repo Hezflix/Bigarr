@@ -285,6 +285,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/series/{id}/versions/{versionId}/seasons/{seasonNumber}/alignment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                    versionId: number;
+                    seasonNumber: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SeasonAlignmentResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                    versionId: number;
+                    seasonNumber: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SeasonAlignmentResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/movies/{id}/search": {
         parameters: {
             query?: never;
@@ -13725,6 +13801,38 @@ export interface components {
             query: null | string;
             queries: null | components["schemas"]["IndexerQueryReport"][];
         };
+        SeasonAlignmentEpisode: {
+            /** Format: int32 */
+            episodeId: number;
+            label: string;
+            title: null | string;
+            currentGroup: null | string;
+            quality: string;
+            isPick: boolean;
+        };
+        SeasonAlignmentResponse: {
+            /** Format: int32 */
+            seriesId: number;
+            /** Format: int32 */
+            versionId: number;
+            /** Format: int32 */
+            seasonNumber: number;
+            seasonGroup: null | string;
+            reason: null | string;
+            /** Format: int32 */
+            minimumFiles: number;
+            groups: components["schemas"]["SeasonGroupCount"][];
+            episodes: components["schemas"]["SeasonAlignmentEpisode"][];
+        };
+        SeasonAlignmentResult: {
+            preview: components["schemas"]["SeasonAlignmentResponse"];
+            search: null | components["schemas"]["SeriesAutomaticSearchResult"];
+        };
+        SeasonGroupCount: {
+            group: string;
+            /** Format: int32 */
+            files: number;
+        };
         SeasonMonitoringRequest: {
             monitored: boolean;
         };
@@ -13750,6 +13858,12 @@ export interface components {
             versionId: number;
             monitored: boolean;
             statistics: components["schemas"]["EpisodeStatistics"];
+            seasonGroup: null | string;
+            /**
+             * Format: int32
+             * @default 0
+             */
+            offGroupEpisodes: number;
         };
         SeriesAutomaticSearchResult: {
             /** Format: int32 */

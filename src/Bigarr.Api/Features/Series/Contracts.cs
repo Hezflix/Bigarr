@@ -145,7 +145,9 @@ public sealed record SeriesVersionResponse(
     EpisodeStatistics Statistics,
     Bigarr.Api.Features.Movies.ConstraintsDto? Constraints = null);
 
-public sealed record SeasonVersionState(int VersionId, bool Monitored, EpisodeStatistics Statistics);
+/// <param name="SeasonGroup">The release group with the most files of the season (at least 3, specials never), null without one.</param>
+/// <param name="OffGroupEpisodes">Episodes whose file is from another group (or an unknown one): what "Align season" would replace.</param>
+public sealed record SeasonVersionState(int VersionId, bool Monitored, EpisodeStatistics Statistics, string? SeasonGroup = null, int OffGroupEpisodes = 0);
 
 public sealed record SeasonResponse(
     int SeasonNumber,

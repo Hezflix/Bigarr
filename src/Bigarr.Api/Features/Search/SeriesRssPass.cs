@@ -22,7 +22,8 @@ public sealed record SeriesRssOutcome(int Matched, int Attributed, int Grabbed, 
 /// The series half of the RSS pass: each release of the TV feed is parsed with Sonarr's parser, matched to a series of
 /// the library (XEM scene name, title, title + year, then the indexer's TVDB id or else its IMDb id: Sonarr's order),
 /// mapped to episodes and judged by every version with the automatic rules, then attributed to one version. The best releases of the pass are
-/// grabbed without overlap (Sonarr's prioritisation: quality, custom format score, revision, season packs first, then
+/// grabbed without overlap (Sonarr's prioritisation: quality, custom format score, then the season's own release
+/// group (<see cref="SeasonGroups"/>), revision, season packs first, then
 /// fewer episodes, indexer priority, seeders), through <see cref="GrabService"/>: in shadow mode they become picks. A
 /// real grab for a series is refused before reaching a client until series downloads can be imported.
 /// </summary>
@@ -133,15 +134,17 @@ public sealed class SeriesRssPass(
         var outcomes = new Dictionary<string, (int? PickId, string? Error)>(StringComparer.Ordinal);
         var grabbed = 0;
         var picked = 0;
-        var ranked = judged
-            .Where(j => j.Judgement?.Attributed is not null)
-            .OrderByDescending(j => ReleaseRanking.WeightOf(j.Entry.QualityId))
-            .ThenByDescending(j => j.Judgement!.Attributed!.CustomFormatScore)
-            .ThenByDescending(j => j.Entry.RevisionVersion)
-            .ThenByDescending(j => j.Judgement!.Parsed?.FullSeason ?? false)
-            .ThenBy(j => j.Targets!.Series.SeriesType == SeriesType.Anime ? -j.Judgement!.Episodes.Count : j.Judgement!.Episodes.Count)
-            .ThenBy(j => j.Release.IndexerPriority)
-            .ThenByDescending(j => j.Release.Seeders ?? 0)
+        var ranked = ReleaseRanking.OrderSeries(
+                judged.Where(j => j.Judgement?.Attributed is not null),
+                j => j.Entry.QualityId,
+                j => j.Judgement!.Attributed!.CustomFormatScore,
+                j => j.Judgement!.Attributed!.Target.Episodes is { } coverage && SeasonGroups.Matches(j.Judgement.Parsed?.ReleaseGroup, coverage),
+                j => j.Entry.RevisionVersion,
+                j => j.Judgement!.Parsed?.FullSeason ?? false,
+                j => j.Judgement!.Episodes.Count,
+                j => j.Targets!.Series.SeriesType == SeriesType.Anime,
+                j => j.Release.IndexerPriority,
+                j => j.Release.Seeders ?? 0)
             .ToList();
         foreach (var (entry, release, judgement, _) in ranked)
         {

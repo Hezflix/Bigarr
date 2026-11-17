@@ -111,7 +111,9 @@ public sealed class SameEpisodesGrabSpecification : IReleaseSpecification
 
 /// <summary>
 /// Sonarr's <c>AnimeVersionUpgradeSpecification</c>: for an anime, a v2 of an episode in place is only an upgrade when it
-/// comes from the group that made the file (Sonarr's default "prefer and upgrade" propers setting).
+/// comes from the group that made the file (Sonarr's default "prefer and upgrade" propers setting). A season being
+/// aligned on its group (<see cref="SeasonGroups.Realigns"/>) is a group change, not a v2: its off-group files are
+/// left to <see cref="UpgradableSpecification.CheckAlignment"/>.
 /// </summary>
 public sealed class AnimeVersionUpgradeSpecification : IReleaseSpecification
 {
@@ -123,9 +125,16 @@ public sealed class AnimeVersionUpgradeSpecification : IReleaseSpecification
         }
 
         var group = candidate.ReleaseGroup;
+        var realigns = SeasonGroups.Realigns(candidate, episodes);
         foreach (var slot in episodes.Slots)
         {
             if (slot.File is not { } file || !RevisionUpgrade.Is(file, candidate.Quality))
+            {
+                continue;
+            }
+
+            // An alignment replaces another group's file with the season group's release: a group change, not a v2.
+            if (realigns && episodes.AlignSeasons.Contains(slot.SeasonNumber) && SeasonGroups.IsOffGroup(slot, episodes))
             {
                 continue;
             }

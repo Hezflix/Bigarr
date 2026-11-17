@@ -46,6 +46,15 @@ public sealed record EpisodeCoverage(
     /// <summary>Air date of that season's first episode (the pilot), when known.</summary>
     public DateTime? PilotAirDateUtc { get; init; }
 
+    /// <summary>The version's group of each season that has one (<see cref="Decision.SeasonGroups"/>), by season number.</summary>
+    public IReadOnlyDictionary<int, string> SeasonGroups { get; init; } = new Dictionary<int, string>();
+
+    /// <summary>
+    /// Seasons whose off-group files a release from the season's group may replace at equal quality and score (an
+    /// "Align season" search). Empty everywhere else: the group then only breaks ties between releases.
+    /// </summary>
+    public IReadOnlySet<int> AlignSeasons { get; init; } = new HashSet<int>();
+
     public string Describe() => Describe(Slots);
 
     public static string Describe(IReadOnlyCollection<EpisodeSlot> slots)

@@ -159,6 +159,7 @@ public sealed class SeriesQueries(BigarrDbContext db, TimeProvider time)
             .Select(g => new { Season = g.Key, Total = g.Count(), Aired = g.Count(e => e.AirDateUtc != null && e.AirDateUtc <= now) })
             .ToDictionaryAsync(x => x.Season, ct);
 
+        var groups = await SeasonGroupsAsync(versions.Select(v => v.Id).ToList(), ct);
         var seasons = series.Seasons.OrderBy(s => s.SeasonNumber).Select(season => new SeasonResponse(
             season.SeasonNumber,
             season.Title,
@@ -169,7 +170,9 @@ public sealed class SeriesQueries(BigarrDbContext db, TimeProvider time)
             versions.Select(v => new SeasonVersionState(
                 v.Id,
                 v.Seasons.FirstOrDefault(f => f.SeasonId == season.Id)?.Monitored ?? false,
-                stats.GetValueOrDefault((v.Id, season.SeasonNumber)) ?? EpisodeStatistics.Empty)).ToList())).ToList();
+                stats.GetValueOrDefault((v.Id, season.SeasonNumber)) ?? EpisodeStatistics.Empty,
+                groups.GetValueOrDefault((v.Id, season.SeasonNumber)).Group,
+                groups.GetValueOrDefault((v.Id, season.SeasonNumber)).OffGroup)).ToList())).ToList();
 
         return new SeriesResponse(
             series.Id,
@@ -320,6 +323,29 @@ public sealed class SeriesQueries(BigarrDbContext db, TimeProvider time)
         return rows.ToDictionary(
             r => (r.VersionId, r.SeasonNumber),
             r => new EpisodeStatistics(r.Counted, r.Files, r.Monitored, r.Total, sizes.FirstOrDefault(s => s.VersionId == r.VersionId && s.SeasonNumber == r.SeasonNumber)?.Size ?? 0));
+    }
+
+    /// <summary>
+    /// Per (version, season) with a season group: the group and how many episodes have a file from another one. From the
+    /// files on disk (a shadow pick is not a file); the "Align season" preview has the exact list.
+    /// </summary>
+    private async Task<Dictionary<(int VersionId, int SeasonNumber), (string? Group, int OffGroup)>> SeasonGroupsAsync(List<int> versionIds, CancellationToken ct)
+    {
+        var rows = await db.EpisodeTargets.AsNoTracking()
+            .Where(t => versionIds.Contains(t.VersionId) && t.EpisodeFileId != null && t.Episode.SeasonNumber > 0)
+            .Select(t => new { t.VersionId, t.Episode.SeasonNumber, FileId = t.EpisodeFileId!.Value, t.EpisodeFile!.ReleaseGroup })
+            .ToListAsync(ct);
+        var result = new Dictionary<(int, int), (string?, int)>();
+        foreach (var season in rows.GroupBy(r => (r.VersionId, r.SeasonNumber)))
+        {
+            var group = Bigarr.Decision.SeasonGroups.Of(season.Key.SeasonNumber, season.DistinctBy(r => r.FileId).Select(r => r.ReleaseGroup));
+            if (group is not null)
+            {
+                result[season.Key] = (group, season.Count(r => !Bigarr.Decision.SeasonGroups.Same(r.ReleaseGroup, group)));
+            }
+        }
+
+        return result;
     }
 
     private static EpisodeStatistics Total(Dictionary<(int VersionId, int SeasonNumber), EpisodeStatistics> stats, int versionId)

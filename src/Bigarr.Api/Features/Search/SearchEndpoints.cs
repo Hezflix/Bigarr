@@ -78,6 +78,20 @@ public static class SearchEndpoints
             .WithTags("Search")
             .RequireAuthorization(AuthPolicies.Api);
 
+        // "Align season": the dry run (the season's release group and the episodes from another group), then the search
+        // that replaces them with the group's release, asked by the user.
+        app.MapGet("/api/v1/series/{id:int}/versions/{versionId:int}/seasons/{seasonNumber:int}/alignment", async Task<Results<Ok<SeasonAlignmentResponse>, NotFound>> (
+                int id, int versionId, int seasonNumber, SeasonAlignmentService alignment, CancellationToken ct) =>
+                await alignment.PreviewAsync(id, versionId, seasonNumber, ct) is { } preview ? TypedResults.Ok(preview) : TypedResults.NotFound())
+            .WithTags("Search")
+            .RequireAuthorization(AuthPolicies.Api);
+
+        app.MapPost("/api/v1/series/{id:int}/versions/{versionId:int}/seasons/{seasonNumber:int}/alignment", async Task<Results<Ok<SeasonAlignmentResult>, NotFound>> (
+                int id, int versionId, int seasonNumber, SeasonAlignmentService alignment, CancellationToken ct) =>
+                await alignment.AlignAsync(id, versionId, seasonNumber, ct) is { } result ? TypedResults.Ok(result) : TypedResults.NotFound())
+            .WithTags("Search")
+            .RequireAuthorization(AuthPolicies.Api);
+
         // Automatic search asked by the user: the best approved release is grabbed, one per version, and the outcome comes back.
         app.MapPost("/api/v1/movies/{id:int}/search", async Task<Results<Ok<List<AutomaticSearchResult>>, NotFound>> (
                 int id, int? versionId, MovieQueries movies, AutomaticSearchService search, CancellationToken ct) =>

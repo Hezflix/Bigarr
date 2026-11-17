@@ -1663,12 +1663,21 @@ export type SeriesBulkDeleteResponse = Schemas['SeriesBulkDeleteResponse']
 /** One series version's outcome of an automatic search. */
 export type SeriesAutomaticSearchResult = Schemas['SeriesAutomaticSearchResult']
 
+/** The dry run of "Align season": the season's release group and the episodes from another one. */
+export type SeasonAlignment = Schemas['SeasonAlignmentResponse']
+export type SeasonAlignmentResult = Schemas['SeasonAlignmentResult']
+
 export const series = {
   list: () => api<SeriesSummary[]>('/api/v1/series'),
   get: (id: number) => api<Series>(`/api/v1/series/${id}`),
   episodes: (id: number) => api<Episode[]>(`/api/v1/series/${id}/episodes`),
   /** Automatic search for one episode, now, by every version of the series: the best approved release is grabbed (picked in shadow mode). */
   searchEpisode: (id: number, episodeId: number) => post<SeriesAutomaticSearchResult[]>(`/api/v1/series/${id}/episodes/${episodeId}/search`),
+  alignment: (id: number, versionId: number, seasonNumber: number) =>
+    api<SeasonAlignment>(`/api/v1/series/${id}/versions/${versionId}/seasons/${seasonNumber}/alignment`),
+  /** Searches the off-group episodes of the season and takes only its group's releases (picked in shadow mode). */
+  align: (id: number, versionId: number, seasonNumber: number) =>
+    post<SeasonAlignmentResult>(`/api/v1/series/${id}/versions/${versionId}/seasons/${seasonNumber}/alignment`),
   lookup: (term: string) => api<SeriesLookupResult[]>(`/api/v1/series/lookup?term=${encodeURIComponent(term)}`),
   add: (body: AddSeriesRequest) => post<Series>('/api/v1/series', body),
   update: (id: number, body: { seriesType?: SeriesType }) => put<Series>(`/api/v1/series/${id}`, body),
