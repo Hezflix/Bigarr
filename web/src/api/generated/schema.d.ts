@@ -1277,6 +1277,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/profile/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MyNotificationsResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UserNotificationsDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MyNotificationsResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/discover": {
         parameters: {
             query?: never;
@@ -12406,6 +12478,11 @@ export interface components {
             /** Format: int32 */
             movieLibraries: number;
         };
+        MentionChoiceResponse: {
+            type: string;
+            description: string;
+            managersOnly: boolean;
+        };
         MeResponse: {
             /** Format: int32 */
             id: number;
@@ -12529,6 +12606,11 @@ export interface components {
         };
         /** @enum {unknown} */
         MultiEpisodeStyle: "extend" | "duplicate" | "repeat" | "scene" | "range" | "prefixedRange";
+        MyNotificationsResponse: {
+            discordUserId: null | string;
+            mentions: string[];
+            choices: components["schemas"]["MentionChoiceResponse"][];
+        };
         NamingPreviewRequest: {
             fileNameTemplate: null | string;
             folderNameTemplate: null | string;
@@ -15082,6 +15164,7 @@ export interface components {
             role: components["schemas"]["UserRole"];
             permissions: components["schemas"]["PermissionsDto"];
             quota?: null | components["schemas"]["QuotaDto"];
+            notifications?: null | components["schemas"]["UserNotificationsDto"];
         };
         UpdateUserSettingsRequest: {
             plexNewAccounts: boolean;
@@ -15108,6 +15191,10 @@ export interface components {
             /** Format: date-time */
             lastLoginAt: null | string;
         };
+        UserNotificationsDto: {
+            discordUserId: null | string;
+            mentions: string[];
+        };
         UserResponse: {
             /** Format: int32 */
             id: number;
@@ -15124,6 +15211,7 @@ export interface components {
             logins: components["schemas"]["UserLoginResponse"][];
             isYou: boolean;
             quota: components["schemas"]["QuotaDto"];
+            notifications: components["schemas"]["UserNotificationsDto"];
         };
         /** @enum {unknown} */
         UserRole: "admin" | "requestManager" | "user";
@@ -15132,6 +15220,7 @@ export interface components {
             defaultPermissions: components["schemas"]["PermissionsDto"];
             plexServerConfigured: boolean;
             defaultQuota: components["schemas"]["QuotaDto"];
+            mentionChoices: components["schemas"]["MentionChoiceResponse"][];
         };
         VersionDecisionResponse: {
             /** Format: int32 */

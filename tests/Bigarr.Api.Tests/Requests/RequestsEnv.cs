@@ -17,6 +17,7 @@ using Bigarr.Domain.Metadata;
 using Bigarr.Domain.Requests;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -50,7 +51,8 @@ internal sealed class RequestsEnv : IAsyncDisposable
 
     public int SeriesRootId { get; private set; }
 
-    public static async Task<RequestsEnv> StartAsync(bool shadow = false, bool seriesRoot = true, TimeProvider? time = null)
+    /// <param name="extra">More settings, and services swapped for the test (a fake Discord's handler).</param>
+    public static async Task<RequestsEnv> StartAsync(bool shadow = false, bool seriesRoot = true, TimeProvider? time = null, IReadOnlyDictionary<string, string>? extra = null, Action<IServiceCollection>? testServices = null)
     {
         var settings = new Dictionary<string, string> { ["Bigarr:Tmdb:ApiKey"] = "test-key" };
         if (shadow)
@@ -58,7 +60,12 @@ internal sealed class RequestsEnv : IAsyncDisposable
             settings["Bigarr:Shadow:Enabled"] = "true";
         }
 
-        var factory = new Factory(settings, time);
+        foreach (var (key, value) in extra ?? new Dictionary<string, string>())
+        {
+            settings[key] = value;
+        }
+
+        var factory = new Factory(settings, time, testServices);
         var admin = factory.CreateClientWithCookies();
         var login = await admin.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest(BigarrApiFactory.AdminUsername, BigarrApiFactory.AdminPassword));
         Assert.Equal(HttpStatusCode.NoContent, login.StatusCode);
@@ -152,7 +159,7 @@ internal sealed class RequestsEnv : IAsyncDisposable
 
     public async ValueTask DisposeAsync() => await App.DisposeAsync();
 
-    private sealed class Factory(IReadOnlyDictionary<string, string> settings, TimeProvider? time) : BigarrApiFactory(null, settings, time: time)
+    private sealed class Factory(IReadOnlyDictionary<string, string> settings, TimeProvider? time, Action<IServiceCollection>? testServices) : BigarrApiFactory(null, settings, time: time)
     {
         private readonly Recorded _tmdb = new(new Dictionary<string, string>
         {
@@ -174,6 +181,10 @@ internal sealed class RequestsEnv : IAsyncDisposable
                 services.AddSingleton<IMetadataProvider, FixtureMetadataProvider>();
                 services.AddSingleton<ISeriesMetadataProvider, FixtureSeriesMetadataProvider>();
             });
+            if (testServices is not null)
+            {
+                builder.ConfigureTestServices(testServices);
+            }
         }
     }
 

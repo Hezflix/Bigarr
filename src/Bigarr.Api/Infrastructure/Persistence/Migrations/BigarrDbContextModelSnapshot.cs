@@ -327,6 +327,13 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("DisabledAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("DiscordMentions")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DiscordUserId")
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("LastLoginAt")
                         .HasColumnType("TEXT");
 

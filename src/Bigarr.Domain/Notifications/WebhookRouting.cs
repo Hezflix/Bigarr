@@ -58,10 +58,22 @@ public static class WebhookRouting
         typeof(VersionAdded), typeof(VersionDeleted), typeof(DefaultVersionChanged),
         typeof(EpisodeGrabbed), typeof(EpisodeFileImported), typeof(EpisodeFileRenamed), typeof(SeriesAdded), typeof(SeriesDeleted),
         typeof(EpisodeFileDeleted), typeof(EpisodeImportFailed), typeof(EpisodeDownloadFailed), typeof(SeriesVersionDeleted),
+        typeof(RequestCreated), typeof(RequestApproved), typeof(RequestDeclined), typeof(RequestAvailable), typeof(RequestFailed),
+        typeof(IssueCreated), typeof(IssueCommented), typeof(IssueResolved), typeof(IssueReopened),
     }.Select(DomainEventCatalog.NameOf).ToHashSet(StringComparer.Ordinal);
 
     /// <summary>True when the Discord format posts a message for the event type.</summary>
     public static bool SentToDiscord(string eventType) => DiscordTypes.Contains(eventType);
+
+    /// <summary>
+    /// True when the Discord format posts a message for this event. A request approved at once posts once, as Seerr's
+    /// "automatically approved", from its approval: its creation stays quiet.
+    /// </summary>
+    public static bool SentToDiscord(DomainEvent domainEvent)
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        return SentToDiscord(domainEvent.Type) && domainEvent is not RequestCreated { AutoApproved: true };
+    }
 
     /// <summary>The versions an event is about. Empty when it is about no film: health, test, a download nothing matched.</summary>
     public static IReadOnlyList<VersionRef> Subjects(DomainEvent domainEvent) => domainEvent switch
@@ -100,11 +112,20 @@ public static class WebhookRouting
         _ => [],
     };
 
-    private static readonly HashSet<string> FilmlessTypes = new[] { typeof(HealthIssueRaised), typeof(HealthIssueResolved), typeof(TestEvent) }
+    /// <summary>
+    /// Health, test, requests and issues: a request is about a title the library may not have yet, an issue carries no
+    /// version (its snapshot keeps library ids out of reach of the reporter), so neither has a tag to filter on.
+    /// </summary>
+    private static readonly HashSet<string> FilmlessTypes = new[]
+        {
+            typeof(HealthIssueRaised), typeof(HealthIssueResolved), typeof(TestEvent),
+            typeof(RequestCreated), typeof(RequestApproved), typeof(RequestDeclined), typeof(RequestAvailable), typeof(RequestFailed),
+            typeof(IssueCreated), typeof(IssueCommented), typeof(IssueResolved), typeof(IssueReopened),
+        }
         .Select(DomainEventCatalog.NameOf)
         .ToHashSet(StringComparer.Ordinal);
 
-    /// <summary>Health, health restored and test concern no film: an endpoint's tags do not filter them, like in Radarr.</summary>
+    /// <summary>Health, health restored and test concern no film: an endpoint's tags do not filter them, like in Radarr. Requests and issues neither.</summary>
     public static bool IgnoresTags(string eventType) => FilmlessTypes.Contains(eventType);
 
     public static bool IgnoresTags(DomainEvent domainEvent)
@@ -173,7 +194,7 @@ public static class WebhookRouting
                 .ToList();
         }
 
-        if (endpoint.Format == WebhookFormat.Discord && (domainEvent is null || !SentToDiscord(eventType)))
+        if (endpoint.Format == WebhookFormat.Discord && (domainEvent is null || !SentToDiscord(domainEvent)))
         {
             return [];
         }

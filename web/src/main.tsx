@@ -119,6 +119,9 @@ const issuesRoute = createRoute({
 })
 const issueRoute = createRoute({ getParentRoute: () => shellRoute, path: '/issues/$issueId', component: lazyRouteComponent(() => import('./features/issues/IssuePage'), 'IssuePage') })
 
+// The signed-in user's own settings (their Discord id and mentions), whatever their role.
+const profileRoute = createRoute({ getParentRoute: () => shellRoute, path: '/profile', component: lazyRouteComponent(() => import('./features/profile/ProfilePage'), 'ProfilePage') })
+
 // Each page is its own chunk, fetched on first visit: the shell and the login page load without the rest.
 const libraryRoute = createRoute({
   getParentRoute: () => appRoute,
@@ -239,6 +242,7 @@ const router = createRouter({
     requestsRoute,
     issuesRoute,
     issueRoute,
+    profileRoute,
     appRoute.addChildren([
       libraryRoute,
       wantedRoute,

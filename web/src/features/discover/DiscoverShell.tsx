@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
-import { CompassIcon, FlagIcon, InboxIcon, LogOutIcon } from 'lucide-react'
+import { CompassIcon, FlagIcon, InboxIcon, LogOutIcon, UserIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { auth, canManageRequests } from '@/api/client'
 import { ThemeToggle } from '@/components/ThemeToggle'
@@ -63,9 +63,15 @@ export function DiscoverShell() {
           </Link>
         </nav>
         <div className="ml-auto flex items-center gap-1">
-          <span className="mr-1 hidden max-w-40 truncate text-sm text-muted-foreground sm:inline" data-testid="signed-in-as">
-            {me.data?.username}
-          </span>
+          <Link
+            to="/profile"
+            className="mr-1 inline-flex max-w-40 items-center gap-1.5 truncate rounded-md px-2 py-1 text-sm text-muted-foreground hover:text-foreground data-[status=active]:text-foreground"
+            aria-label={t('profile.title')}
+            data-testid="signed-in-as"
+          >
+            <UserIcon className="size-4 shrink-0" aria-hidden="true" />
+            <span className="truncate max-sm:sr-only">{me.data?.username}</span>
+          </Link>
           <ThemeToggle />
           <Tooltip>
             <TooltipTrigger asChild>

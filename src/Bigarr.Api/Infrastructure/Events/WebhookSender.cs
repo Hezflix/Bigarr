@@ -1,6 +1,7 @@
 using Bigarr.Api.Features.Notifications.Discord;
 using Bigarr.Api.Features.Notifications.Radarr;
 using Bigarr.Api.Infrastructure.Persistence;
+using Bigarr.Domain.Auth;
 using Bigarr.Domain.Notifications;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -105,6 +106,7 @@ public sealed class WebhookSender(IServiceScopeFactory scopeFactory, WebhookSign
             .ToListAsync(ct);
 
         var rateLimited = new Dictionary<int, DateTime>();
+        List<User>? users = null;
         foreach (var delivery in due)
         {
             ct.ThrowIfCancellationRequested();
@@ -124,6 +126,20 @@ public sealed class WebhookSender(IServiceScopeFactory scopeFactory, WebhookSign
         }
 
         return due.Count;
+
+        // Read when sent, not when the event happened: a user who sets their Discord id or changes their opt-ins counts
+        // from the next message on, and a disabled one is never mentioned. Loaded once per batch, only for messages that mention.
+        async Task<DiscordContext> DiscordContextAsync(WebhookDelivery delivery)
+        {
+            var parsed = EventJson.Deserialize(delivery.EventType, delivery.Event.Payload);
+            if (parsed is null || Mentions.Target(parsed) is null)
+            {
+                return new DiscordContext(settings.ApplicationUrl);
+            }
+
+            users ??= await db.Users.AsNoTracking().Where(u => u.DiscordUserId != null && u.DisabledAt == null).ToListAsync(ct);
+            return new DiscordContext(settings.ApplicationUrl, Mentions.For(parsed, users));
+        }
 
         async Task AttemptAsync(WebhookDelivery delivery)
         {
@@ -154,7 +170,7 @@ public sealed class WebhookSender(IServiceScopeFactory scopeFactory, WebhookSign
             var body = delivery.Endpoint.Format switch
             {
                 WebhookFormat.Radarr => RadarrWebhook.Body(delivery.EventType, delivery.Event.Payload, delivery.VersionId, settings.ApplicationUrl),
-                WebhookFormat.Discord => DiscordWebhook.Body(delivery.EventType, delivery.Event.Payload, delivery.Endpoint.Discord),
+                WebhookFormat.Discord => DiscordWebhook.Body(delivery.EventType, delivery.Event.Payload, delivery.Endpoint.Discord, await DiscordContextAsync(delivery)),
                 WebhookFormat.Sonarr => Features.Notifications.Sonarr.SonarrWebhook.Body(delivery.EventType, delivery.Event.Payload, delivery.VersionId, settings.ApplicationUrl),
                 _ => WebhookClient.Body(delivery.EventType, delivery.EventId, delivery.Event.Payload, delivery.Event.CreatedAt, settings.ApplicationUrl),
             };

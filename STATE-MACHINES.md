@@ -412,6 +412,9 @@ Invariants:
 - Active (pending, approved, failed) requests hold their slot: the duplicate check reads them; a declined one does not,
   and neither counts a deleted (cancelled) one. Quotas count every request but declined ones over each window.
 - Shadow mode needs nothing of its own here: the search the approval enqueues goes through the grab choke point.
+- Notifications add no state: each event above is one outbox row. A Discord delivery reads who to mention (`Mentions`)
+  when it is sent, not when the event happened, so a Discord id or opt-in set in between counts and a disabled user is
+  never mentioned; a request approved at once posts one message, from its approval.
 
 Known gap: two approvers acting on the same pending request at once both pass the "still pending" check (no
 conditional update); the second add finds the title in the library and only monitors it again.
@@ -461,6 +464,8 @@ Invariants:
 - An action works on the file there now (`IssueFiles.CurrentAsync`), not on the snapshot: the admin's view shows both
   when they differ (`FileChanged`).
 - What reaches a user carries no path, release, indexer, library id nor action detail; another user's issue answers 404.
+  The Discord message of an issue event follows the same rule (title, type, status, message, season or episode only),
+  since the channel may be read by reporters; mentions are resolved at send time, as for requests.
 
 Known gap: two approvers resolving the same issue at once both pass the "still open" check (no conditional update);
 the thread then shows two "resolved" lines and two `issueResolved` events go out.

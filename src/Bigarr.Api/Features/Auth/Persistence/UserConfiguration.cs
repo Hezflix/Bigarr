@@ -1,3 +1,4 @@
+using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -15,6 +16,8 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.HasIndex(u => u.Username).IsUnique();
         builder.ComplexProperty(u => u.Permissions);
         builder.ComplexProperty(u => u.Quota);
+        builder.Property(u => u.DiscordUserId).HasMaxLength(20);
+        builder.Property(u => u.DiscordMentions).HasJsonConversion();
         builder.Ignore(u => u.IsDisabled);
         builder.Ignore(u => u.HasPassword);
         builder.Ignore(u => u.Effective);

@@ -141,7 +141,9 @@ function AppSidebar() {
         <SidebarFooter>
           <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col">
             <div className="flex min-w-0 flex-1 flex-col px-2 group-data-[collapsible=icon]:hidden">
-              <span className="truncate text-sm font-medium">{me.data?.username}</span>
+              <Link to="/profile" className="truncate text-sm font-medium hover:underline" data-testid="signed-in-as">
+                {me.data?.username}
+              </Link>
               {version && <span className="text-xs text-muted-foreground">{version}</span>}
             </div>
             <ThemeToggle />
