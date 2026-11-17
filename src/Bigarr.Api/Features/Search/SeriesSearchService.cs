@@ -26,7 +26,8 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
 
     /// <param name="orderSeason"><paramref name="seasonNumber"/> is a season of the series' alternative order (its page shows that order).</param>
     /// <param name="includeQueries">Report what each indexer was asked (the "Show queries" view).</param>
-    public async Task<Result<SeriesSearchResponse>> SearchAsync(int seriesId, int? episodeId, int? seasonNumber, int? versionId, string? query, CancellationToken ct, bool orderSeason = false, bool includeQueries = false)
+    /// <param name="indexerIds">Only these indexers, for this one search; null or empty asks every enabled one.</param>
+    public async Task<Result<SeriesSearchResponse>> SearchAsync(int seriesId, int? episodeId, int? seasonNumber, int? versionId, string? query, CancellationToken ct, bool orderSeason = false, bool includeQueries = false, IReadOnlyCollection<int>? indexerIds = null)
     {
         var targets = await targetsFactory.LoadAsync(seriesId, ct);
         if (targets is null)
@@ -105,11 +106,13 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
             criteria = SeriesSearchCriteriaBuilder.ForText(series, query);
         }
 
-        var indexers = await db.Indexers.AsNoTracking().Where(i => i.EnableInteractiveSearch).OrderBy(i => i.Priority).ToListAsync(ct);
-        if (indexers.Count == 0)
+        var picked = await InteractiveIndexers.SelectAsync(db, indexerIds, ct);
+        if (!picked.IsSuccess)
         {
-            return Failure.Invalid("No indexer available", "No indexer has interactive search enabled. Add one in Settings → Indexers.");
+            return picked.Failure!;
         }
+
+        var indexers = picked.Value!;
 
         var trace = IndexerRequestTrace.Start(includeQueries);
         var stopwatch = Stopwatch.StartNew();

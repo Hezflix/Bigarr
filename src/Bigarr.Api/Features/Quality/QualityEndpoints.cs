@@ -52,6 +52,10 @@ public static class QualityEndpoints
             return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
         });
 
+        // The languages a release can be said to have (the interactive search's override), as the parser names them.
+        group.MapGet("/languages", Ok<List<LanguageResponse>> () => TypedResults.Ok(
+            Bigarr.Parsing.Languages.Language.All.Where(l => l.Id > 0).OrderBy(l => l.Name, StringComparer.Ordinal).Select(l => new LanguageResponse(l.Id, l.Name)).ToList()));
+
         group.MapGet("/customformats", async Task<Ok<List<CustomFormatResponse>>> (CustomFormatService formats, CancellationToken ct) =>
             TypedResults.Ok(await formats.ListAsync(ct)));
 

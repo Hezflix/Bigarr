@@ -2883,6 +2883,38 @@
       "playsCount": "Plays ({{count}})"
     }
   },
+  "grabOverride": {
+    "menu": "Override and grab…",
+    "title": "Override and grab",
+    "hintFilm": "When the title reads wrong: grab it as what it really is. The import then uses the quality and languages set here, not the title's.",
+    "hintSeries": "When the title reads wrong: the quality and languages set here are used by the import, not the title's.",
+    "toggle": "Quality and languages",
+    "version": "Version",
+    "quality": "Quality",
+    "qualityPlaceholder": "As the title says",
+    "languages": "Languages",
+    "languagesPlaceholder": "As the title says",
+    "parsed": "title says {{value}}",
+    "none": "none",
+    "findLanguage": "Find a language…",
+    "noLanguage": "No such language.",
+    "clearLanguages": "Back to the title's languages",
+    "asParsed": "Nothing overridden: grabbed as the title says.",
+    "changed": "Overridden: {{parts}}",
+    "part": {
+      "quality": "quality",
+      "languages": "languages",
+      "episodes": "episodes"
+    },
+    "grab": "Grab for {{version}}"
+  },
+  "searchIndexers": {
+    "all": "All indexers",
+    "some": "{{count}} of {{total}} indexers",
+    "hint": "Indexers the search asks (remembered in this browser)",
+    "reset": "Search every indexer",
+    "noneHint": "Pick at least one indexer"
+  },
   "searchQueries": {
     "toggle": "Show queries",
     "toggleHint": "Also show what Bigarr asked each indexer: the requests, their URLs (keys hidden) and the outcome",

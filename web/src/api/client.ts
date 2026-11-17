@@ -383,6 +383,7 @@ export type QualityProfile = Schemas['QualityProfileResponse']
 export const profilesFor = (kind: 'movies' | 'series') => (profiles: QualityProfile[]) => profiles.filter((p) => p.kind === kind || p.kind === 'both')
 
 export type QualityDefinition = Schemas['QualityDefinitionResponse']
+export type LanguageOption = Schemas['LanguageResponse']
 
 /** `kind` says whose sizes these are: the films' (default) or the series'. */
 export type QualityDefinitionUpdate = Schemas['QualityDefinitionUpdateRequest']
@@ -416,6 +417,8 @@ export const quality = {
   updateProfile: (id: number, body: QualityProfileRequest) => put<QualityProfileDetail>(`/api/v1/qualityprofiles/${id}`, body),
   removeProfile: (id: number) => del(`/api/v1/qualityprofiles/${id}`),
   definitions: () => api<QualityDefinition[]>('/api/v1/qualitydefinitions'),
+  /** The languages a release can be said to have (the interactive search's override), as the parser names them. */
+  languages: () => api<LanguageOption[]>('/api/v1/languages'),
   updateDefinition: (id: number, body: QualityDefinitionUpdate) => put<QualityDefinition>(`/api/v1/qualitydefinitions/${id}`, body),
 }
 
@@ -585,17 +588,21 @@ export type AutomaticSearchOutcome = Schemas['AutomaticSearchOutcome']
 /** One version's outcome of an automatic search: the best approved release was grabbed, or here is why not. */
 export type AutomaticSearchResult = Schemas['AutomaticSearchResult']
 
+/** Options of an interactive search. `indexerIds` limits it to those indexers; absent, every enabled one is asked. */
+export type SearchOptions = { versionId?: number; query?: string; includeQueries?: boolean; indexerIds?: number[] }
+
 export const search = {
   /** Interactive search for the film, judged by every version (or one); `query` replaces its ids and titles with a text. */
-  movie: (movieId: number, options: { versionId?: number; query?: string; includeQueries?: boolean } = {}) => {
+  movie: (movieId: number, options: SearchOptions = {}) => {
     const params = new URLSearchParams({ movieId: String(movieId) })
     if (options.versionId) params.set('versionId', String(options.versionId))
     if (options.query?.trim()) params.set('query', options.query.trim())
     if (options.includeQueries) params.set('includeQueries', 'true')
+    for (const id of options.indexerIds ?? []) params.append('indexerIds', String(id))
     return api<SearchResult>(`/api/v1/search?${params}`)
   },
   /** Interactive search for a series: an episode, a season (packs and singles together) or the whole series. */
-  series: (seriesId: number, scope: { episodeId?: number; season?: number; orderSeason?: boolean }, options: { versionId?: number; query?: string; includeQueries?: boolean } = {}) => {
+  series: (seriesId: number, scope: { episodeId?: number; season?: number; orderSeason?: boolean }, options: SearchOptions = {}) => {
     const params = new URLSearchParams()
     if (scope.episodeId) params.set('episodeId', String(scope.episodeId))
     if (scope.season !== undefined) params.set('season', String(scope.season))
@@ -603,6 +610,7 @@ export const search = {
     if (options.versionId) params.set('versionId', String(options.versionId))
     if (options.query?.trim()) params.set('query', options.query.trim())
     if (options.includeQueries) params.set('includeQueries', 'true')
+    for (const id of options.indexerIds ?? []) params.append('indexerIds', String(id))
     return api<SeriesSearchResult>(`/api/v1/series/${seriesId}/search?${params}`)
   },
   /** Automatic search on demand: every version of the film (or one), the best approved release grabbed. */

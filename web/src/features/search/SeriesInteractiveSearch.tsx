@@ -1,7 +1,7 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
-import { CheckIcon, SearchIcon } from 'lucide-react'
+import { CheckIcon, PencilLineIcon, SearchIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, queue, search, series as seriesApi, type Series, type SeriesRelease, type SeriesVersion } from '@/api/client'
@@ -9,11 +9,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import type { GrabOverride } from '@/features/search/grabOverride'
 import { grabObjections, languagesComparator, qualityComparator } from '@/features/search/grabRules'
+import { IndexerPicker, useIndexerPick } from '@/features/search/IndexerPicker'
 import { FitCell } from '@/features/search/ReasonsDisplay'
 import { ShowQueriesToggle, SearchQueriesPanel, useShowQueries } from '@/features/search/SearchQueriesPanel'
 import {
@@ -33,6 +35,7 @@ import {
   VerdictIcon,
 } from '@/features/search/releaseTable'
 import { versionFits } from '@/features/search/rejectionReasons'
+import { pickKey } from '@/features/search/searchIndexers'
 import { formatAge } from '@/i18n'
 
 import { type PendingSeriesGrab, SeriesGrabDialog } from './SeriesGrabDialog'
@@ -55,7 +58,13 @@ const fitsAny = (release: SeriesRelease) => release.matchesSeries && release.epi
 export function SeriesSearchDialog({ series, scope, onClose }: { series: Series; scope: SeriesSearchScope; onClose: () => void }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [submitted, setSubmitted] = useState('')
+  const indexerPick = useIndexerPick()
+  // The search as run: its text and the indexers picked (undefined: every one). The dialog searches on opening, once the
+  // indexer list says which ones this tab left out.
+  const [submitted, setSubmitted] = useState<{ text: string; ids: number[] | undefined } | null>(null)
+  useEffect(() => {
+    if (indexerPick.ready && submitted === null) setSubmitted({ text: '', ids: indexerPick.ids })
+  }, [indexerPick.ready, indexerPick.ids, submitted])
   const [text, setText] = useState('')
   const [sort, onSort] = useReleaseSort<SortKey>()
   const [pending, setPending] = useState<PendingSeriesGrab | null>(null)
@@ -65,9 +74,14 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
   const [showQueries, setShowQueries] = useShowQueries()
   const scopeKey = scope.kind === 'episode' ? `e${scope.episodeId}` : scope.kind === 'season' ? `s${scope.season}${scope.orderSeason ? 'o' : ''}` : 'all'
   const query = useQuery({
-    queryKey: ['seriesSearch', series.id, scopeKey, submitted],
+    queryKey: ['seriesSearch', series.id, scopeKey, submitted?.text ?? '', pickKey(submitted?.ids)],
     queryFn: () =>
-      search.series(series.id, scope.kind === 'episode' ? { episodeId: scope.episodeId } : scope.kind === 'season' ? { season: scope.season, orderSeason: scope.orderSeason } : {}, { query: submitted || undefined, includeQueries: showQueries }),
+      search.series(series.id, scope.kind === 'episode' ? { episodeId: scope.episodeId } : scope.kind === 'season' ? { season: scope.season, orderSeason: scope.orderSeason } : {}, {
+        query: submitted?.text || undefined,
+        includeQueries: showQueries,
+        indexerIds: submitted?.ids,
+      }),
+    enabled: submitted !== null,
     staleTime: Number.POSITIVE_INFINITY,
     retry: false,
   })
@@ -86,8 +100,8 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
   }
 
   const grab = useMutation({
-    mutationFn: ({ release, versionId, episodeIds }: { release: SeriesRelease; versionId: number; episodeIds: number[] }) =>
-      queue.grab({ ...grabRequest(release, versionId), episodeIds, numbering: release.numbering }),
+    mutationFn: ({ release, versionId, episodeIds, override }: { release: SeriesRelease; versionId: number; episodeIds: number[]; override: GrabOverride }) =>
+      queue.grab({ ...grabRequest(release, versionId), episodeIds, numbering: release.numbering, ...override }),
     onSuccess: async (result, { release, versionId }) => {
       const version = versionById.get(versionId)?.name ?? ''
       setGrabbed((current) => new Map(current).set(releaseKey(release), { version, shadow: result.shadow }))
@@ -104,7 +118,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
   // Every grab asks which episodes it is for, at every search level: prefilled with Bigarr's match, else with the
   // scope's episodes (none for the whole series). The grab sends exactly the episodes ticked. A release the version
   // rejects (or that names another show) lists the reasons in the same dialog.
-  const requestGrab = (release: SeriesRelease, versionId: number) => {
+  const requestGrab = (release: SeriesRelease, versionId: number, overrideOpen = false) => {
     const mapped = release.episodes.length > 0
     const pickable = pickableEpisodes(episodes.data ?? [], versionId)
     const decision = release.versions.find((v) => v.versionId === versionId)
@@ -115,19 +129,27 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
       episodes: pickable,
       prefill: prefillEpisodeIds(release, scope, pickable),
       matched: mapped ? (release.episodesLabel ?? null) : null,
-      go: (episodeIds) => grab.mutate({ release, versionId, episodeIds }),
+      release,
+      overrideOpen,
+      go: (episodeIds, override) => grab.mutate({ release, versionId, episodeIds, override }),
     })
   }
 
-  const run = (next: string) => {
-    if (next === submitted) {
+  const run = (nextText: string) => {
+    if (submitted && nextText === submitted.text && pickKey(indexerPick.ids) === pickKey(submitted.ids)) {
       void query.refetch()
       return
     }
 
-    queryClient.removeQueries({ queryKey: ['seriesSearch', series.id, scopeKey, next], exact: true })
-    setSubmitted(next)
+    queryClient.removeQueries({ queryKey: ['seriesSearch', series.id, scopeKey, nextText, pickKey(indexerPick.ids)], exact: true })
+    setSubmitted({ text: nextText, ids: indexerPick.ids })
   }
+  // A new pick of indexers, once it has settled, searches again with the text last searched: no click needed.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only a settled pick runs it
+  useEffect(() => {
+    if (indexerPick.settledKey === null || submitted === null || indexerPick.none || indexerPick.settledKey === pickKey(submitted.ids)) return
+    run(submitted.text)
+  }, [indexerPick.settledKey])
   const submit = (e: FormEvent) => {
     e.preventDefault()
     run(text.trim())
@@ -160,7 +182,8 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
               className="w-72"
               data-testid="series-search-query"
             />
-            <Button type="submit" disabled={query.isFetching} data-testid="series-search-run">
+            <IndexerPicker pick={indexerPick} testId="series-search-indexers" />
+            <Button type="submit" disabled={query.isFetching || indexerPick.none || !indexerPick.ready} title={indexerPick.none ? t('searchIndexers.noneHint') : undefined} data-testid="series-search-run">
               <SearchIcon className={query.isFetching ? 'animate-pulse' : undefined} />
               {query.isFetching ? t('search.searching') : t('search.searchAgain')}
             </Button>
@@ -174,7 +197,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
           </form>
         </search>
 
-        {query.isFetching && !data && <SearchSkeleton />}
+        {(query.isFetching || submitted === null) && !data && <SearchSkeleton />}
 
         {query.error && (
           <Alert variant="destructive">
@@ -246,6 +269,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
                       grabbed={grabbed.get(releaseKey(release))}
                       episodesLoaded={episodes.isSuccess}
                       onGrab={(versionId) => requestGrab(release, versionId)}
+                      onOverride={(versionId) => requestGrab(release, versionId, true)}
                     />
                   ))}
                 </TableBody>
@@ -267,6 +291,7 @@ function ReleaseRow({
   grabbed,
   episodesLoaded,
   onGrab,
+  onOverride,
 }: {
   release: SeriesRelease
   fits: ReturnType<typeof versionFits>
@@ -278,6 +303,8 @@ function ReleaseRow({
   /** The series' episodes are there to pick from. */
   episodesLoaded: boolean
   onGrab: (versionId: number) => void
+  /** Opens the grab with the quality and languages to set, for the suggested version. */
+  onOverride: (versionId: number) => void
 }) {
   const { t } = useTranslation()
   const good = fitsAny(release)
@@ -358,6 +385,11 @@ function ReleaseRow({
               </span>
             </DropdownMenuItem>
           ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem disabled={!target} onSelect={() => target && onOverride(target.id)} data-testid="series-grab-override">
+            <PencilLineIcon />
+            {t('grabOverride.menu')}
+          </DropdownMenuItem>
         </GrabSplitButton>
       </TableCell>
     </TableRow>

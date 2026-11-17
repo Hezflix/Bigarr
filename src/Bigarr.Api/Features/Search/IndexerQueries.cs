@@ -1,4 +1,7 @@
+using Bigarr.Api.Infrastructure;
+using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Indexers;
+using Microsoft.EntityFrameworkCore;
 
 namespace Bigarr.Api.Features.Search;
 
@@ -34,5 +37,35 @@ public static class IndexerQueries
                 return new IndexerQueryResult(indexer, [], new IndexerException(IndexerFailureKind.Unreachable, $"No answer within {PerIndexerTimeout.TotalSeconds:0} seconds."));
             }
         }));
+    }
+}
+
+/// <summary>The indexers an interactive search asks: every one with interactive search on, or the user's pick among them.</summary>
+public static class InteractiveIndexers
+{
+    /// <param name="indexerIds">The user's pick for this one search; null or empty asks every enabled indexer.</param>
+    public static async Task<Result<List<Indexer>>> SelectAsync(BigarrDbContext db, IReadOnlyCollection<int>? indexerIds, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        var enabled = await db.Indexers.AsNoTracking().Where(i => i.EnableInteractiveSearch).OrderBy(i => i.Priority).ToListAsync(ct);
+        if (enabled.Count == 0)
+        {
+            return Failure.Invalid("No indexer available", "No indexer has interactive search enabled. Add one in Settings → Indexers.");
+        }
+
+        if (indexerIds is not { Count: > 0 })
+        {
+            return Result<List<Indexer>>.Ok(enabled);
+        }
+
+        // A pick names indexers that can be searched: one deleted or switched off since the page loaded is refused, not
+        // silently dropped, so the results never claim to cover an indexer that was not asked.
+        var unknown = indexerIds.Where(id => enabled.All(i => i.Id != id)).Distinct().ToList();
+        if (unknown.Count > 0)
+        {
+            return Failure.Invalid("Unknown indexer", $"Indexer(s) {string.Join(", ", unknown)} do not exist or have interactive search off.");
+        }
+
+        return Result<List<Indexer>>.Ok(enabled.Where(i => indexerIds.Contains(i.Id)).ToList());
     }
 }
