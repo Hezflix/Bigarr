@@ -5005,6 +5005,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/languages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LanguageResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/customformats": {
         parameters: {
             query?: never;
@@ -11616,6 +11651,10 @@ export interface components {
             episodeIds?: null | number[];
             numbering?: null | components["schemas"]["EpisodeNumbering"];
             infoUrl?: null | string;
+            /** Format: int32 */
+            qualityId?: null | number;
+            languages?: null | string[];
+            episodesOverridden?: null | boolean;
             isSeries?: boolean;
         };
         GrabResponse: {
@@ -12023,6 +12062,11 @@ export interface components {
             plays: number;
         };
         JsonElement: unknown;
+        LanguageResponse: {
+            /** Format: int32 */
+            id: number;
+            name: string;
+        };
         /** @enum {unknown} */
         LibraryItemKind: "movie" | "series";
         LibrarySearchResponse: {

@@ -71,7 +71,19 @@ public sealed record GrabRequest(
     /// <summary>A series grab: which numbering the release matched its episodes on (the search returns it).</summary>
     Bigarr.Domain.Tv.EpisodeNumbering? Numbering = null,
     /// <summary>The release's page on the indexer, kept in the grab's history as <c>nzbInfoUrl</c> (Bazarr's release refiner reads it).</summary>
-    string? InfoUrl = null)
+    string? InfoUrl = null,
+    /// <summary>
+    /// Override (the interactive search, as Sonarr's "override and grab"): the quality the release really is, by quality id,
+    /// when its title reads wrong. Kept on the grab, shown in the history, and used by the import instead of the parse.
+    /// </summary>
+    int? QualityId = null,
+    /// <summary>Override: the languages the release really has, by name (<c>French</c>, <c>English</c>). Empty is refused: leave it out to keep the parse.</summary>
+    List<string>? Languages = null,
+    /// <summary>
+    /// Override, series: <see cref="EpisodeIds"/> are the user's choice over Bigarr's match. A single-file download is then
+    /// imported on them whatever its file is named.
+    /// </summary>
+    bool? EpisodesOverridden = null)
 {
     public bool IsSeries => EpisodeIds is { Count: > 0 };
 

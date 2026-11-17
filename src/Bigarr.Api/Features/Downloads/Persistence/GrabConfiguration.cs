@@ -20,6 +20,7 @@ public sealed class GrabConfiguration : IEntityTypeConfiguration<Grab>
         builder.Property(g => g.IndexerName).HasMaxLength(128);
         builder.Property(g => g.DownloadClientName).HasMaxLength(128);
         builder.Property(g => g.StatusMessages).HasJsonConversion();
+        builder.Property(g => g.LanguagesOverride).HasJsonConversion();
         builder.Ignore(g => g.IsActive);
 
         builder.HasIndex(g => g.DownloadId);

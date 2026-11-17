@@ -42,7 +42,8 @@ public sealed class SeriesShadowPickRecorder(BigarrDbContext db, CustomFormatSco
             ? await db.Indexers.AsNoTracking().Where(i => i.Id == request.IndexerId).Select(i => new { i.Id, i.Name }).FirstOrDefaultAsync(ct)
             : null;
         var parsed = SeriesReleaseJudge.TryParse(request.Title);
-        var quality = parsed?.Quality?.Quality;
+        // The user's quality and languages (an override from the interactive search) over the title's.
+        var quality = request.QualityId is { } overridden ? Bigarr.Parsing.Qualities.Quality.FindById(overridden) : parsed?.Quality?.Quality;
         var hasQuality = quality is not null && quality.Id != 0;
         var revision = parsed?.Quality?.Revision;
         var series = version.Series;
@@ -58,7 +59,8 @@ public sealed class SeriesShadowPickRecorder(BigarrDbContext db, CustomFormatSco
             score = ProfileRanking.FormatScore(version.QualityProfile, matched.Select(m => m.Id));
         }
 
-        var languages = (parsed?.Languages ?? []).Where(l => l.Id != Language.Unknown.Id).Select(l => l.Name).Distinct(StringComparer.Ordinal).ToList();
+        var languages = Downloads.GrabOverrides.Languages(request)
+            ?? (parsed?.Languages ?? []).Where(l => l.Id != Language.Unknown.Id).Select(l => l.Name).Distinct(StringComparer.Ordinal).ToList();
 
         var pick = new SeriesShadowPick
         {

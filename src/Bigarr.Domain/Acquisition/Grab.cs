@@ -39,6 +39,21 @@ public sealed class Grab
     /// <summary>Series grabs: which numbering the release matched its episodes on. Null for films.</summary>
     public Tv.EpisodeNumbering? Numbering { get; set; }
 
+    /// <summary>
+    /// The quality the user gave the release when grabbing it from the interactive search because the title reads wrong
+    /// (Sonarr's "override"): the parser's quality id. The import takes it over what the title or the file name says.
+    /// </summary>
+    public int? QualityOverride { get; set; }
+
+    /// <summary>The languages the user gave the release when grabbing it (names, as the parser spells them). The import takes them over the title's.</summary>
+    public List<string>? LanguagesOverride { get; set; }
+
+    /// <summary>
+    /// Series grabs: the user chose the episodes over Bigarr's match (or the release matched none). The import then puts a
+    /// single-file download on them whatever the file is named; the files of a pack still go by their names.
+    /// </summary>
+    public bool EpisodesOverridden { get; set; }
+
     /// <summary>Last poll where the client still listed this download. Drives the <see cref="GrabState.Removed"/> transition.</summary>
     public DateTime? LastSeenAt { get; set; }
 

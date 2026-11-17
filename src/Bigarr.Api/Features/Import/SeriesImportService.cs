@@ -165,7 +165,10 @@ public sealed class SeriesImportService(
         var claimed = new Dictionary<int, string>();
         foreach (var file in files)
         {
-            var (episodes, reason) = MapFile(file, files.Count, judge, grabEpisodeIds, releaseMapping, sceneSeason, version.Series.TvdbId is { } tvdb ? await SceneSeasonForFileAsync(tvdb, file, ct) : null);
+            var (episodes, reason) = grab.EpisodesOverridden && files.Count == 1 && grabEpisodeIds.Count > 0
+                // The user chose the episodes when grabbing (Sonarr's override): a single file goes to them, whatever it is named.
+                ? (judge.Episodes.Where(e => grabEpisodeIds.Contains(e.Id)).OrderBy(e => e.SeasonNumber).ThenBy(e => e.EpisodeNumber).ToList(), null)
+                : MapFile(file, files.Count, judge, grabEpisodeIds, releaseMapping, sceneSeason, version.Series.TvdbId is { } tvdb ? await SceneSeasonForFileAsync(tvdb, file, ct) : null);
             if (episodes is null)
             {
                 outcomes.Add(new SeriesFileOutcome(file.FullName, SeriesFileStatus.Failed, reason, []));
@@ -191,9 +194,9 @@ public sealed class SeriesImportService(
                 version.Id,
                 episodes.Select(e => e.Id).ToList(),
                 files.Count == 1 ? grab.ReleaseTitle : Path.GetFileNameWithoutExtension(file.Name),
-                QualityOf(releaseQuality, parsedFile?.Quality),
+                ImportService.Overridden(grab, QualityOf(releaseQuality, parsedFile?.Quality)),
                 Group(parsedFile) ?? Group(releaseParsed),
-                LanguagesOf(parsedFile) is { Count: > 0 } fileLanguages ? fileLanguages : LanguagesOf(releaseParsed),
+                LanguagesFor(grab, parsedFile, releaseParsed),
                 grab.IndexerFlags,
                 grab,
                 Force: false,
@@ -851,6 +854,15 @@ public sealed class SeriesImportService(
     }
 
     public static string? Group(ParsedEpisodeInfo? parsed) => string.IsNullOrWhiteSpace(parsed?.ReleaseGroup) ? null : parsed!.ReleaseGroup.Trim();
+
+    /// <summary>
+    /// A file's languages: those the user gave at grab time (an override from the interactive search), else the file
+    /// name's, else the release title's.
+    /// </summary>
+    public static List<string> LanguagesFor(Grab? grab, ParsedEpisodeInfo? file, ParsedEpisodeInfo? release) =>
+        grab?.LanguagesOverride is { Count: > 0 } chosen ? [.. chosen]
+        : LanguagesOf(file) is { Count: > 0 } fileLanguages ? fileLanguages
+        : LanguagesOf(release);
 
     public static List<string> LanguagesOf(ParsedEpisodeInfo? parsed) =>
         parsed?.Languages?.Where(l => l.Id > 0).Select(l => l.Name).Where(n => n is not null).Cast<string>().Distinct().ToList() ?? [];

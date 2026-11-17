@@ -213,6 +213,38 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
     }
 
     [Fact]
+    public async Task A_release_overridden_onto_another_episode_lands_there_with_the_quality_and_languages_given()
+    {
+        var client = await ClientAsync(factory);
+        await ConfigureAsync(client, _bin);
+        var series = await SeriesSetup.AddAsync(client, SeriesSearchTests.BreakingBad);
+        var downloadClient = await MockClientAsync(client);
+        var version = series.Versions.Single();
+        try
+        {
+            // The title says S04E05 in HDTV-720p; the user knows it is S04E06, a Bluray-1080p in French.
+            var e05 = await SeriesSetup.EpisodeAsync(client, series.Id, 4, 5);
+            var e06 = await SeriesSetup.EpisodeAsync(client, series.Id, 4, 6);
+            var request = Crafted("Breaking.Bad.S04E05.720p.HDTV.x264-GRP", version.Id, e06.Id) with { QualityId = 7, Languages = ["French"], EpisodesOverridden = true };
+            await GrabAndCompleteAsync(client, request);
+
+            var file = (await WaitForFilesAsync(client, series.Id, f => f.Any(x => x.SeasonNumber == 4))).Single(f => f.SeasonNumber == 4);
+            Assert.Equal("S04E06", file.Episodes);
+            Assert.Equal("Bluray-1080p", file.Quality);
+            Assert.Equal(["French"], file.Languages);
+            Assert.DoesNotContain((await client.GetFromJsonAsync<List<EpisodeResponse>>($"/api/v1/series/{series.Id}/episodes", Json))!.Single(e => e.Id == e05.Id).Versions, v => v.HasFile);
+
+            var grabbed = (await SeriesHistoryAsync(client, series.Id)).Single(h => h.EventType == HistoryEventType.Grabbed && h.SourceTitle == request.Title);
+            Assert.Equal("Bluray-1080p", grabbed.Data["quality"]);
+            Assert.Equal("quality,languages,episodes", grabbed.Data["overridden"]);
+        }
+        finally
+        {
+            await client.DeleteAsync($"/api/v1/downloadclients/{downloadClient.Id}");
+        }
+    }
+
+    [Fact]
     public async Task Anime_files_take_the_absolute_number_and_daily_files_the_air_date()
     {
         var client = await ClientAsync(factory);

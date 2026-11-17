@@ -255,7 +255,7 @@ public sealed class ImportService(
         var config = await settings.GetAsync(ct);
         var parsed = ReleaseMatcher.TryParse(grab.ReleaseTitle);
         var parsedFile = TryParsePath(video.FullName);
-        var quality = QualityOf(parsed, parsedFile);
+        var quality = Overridden(grab, QualityOf(parsed, parsedFile));
 
         MovieVersion? version = null;
         var targetId = grab.Targets.Select(t => (int?)t.TargetId).FirstOrDefault();
@@ -322,7 +322,10 @@ public sealed class ImportService(
         var revision = plan.Quality.Revision ?? new ParserRevision();
         var edition = string.IsNullOrWhiteSpace(plan.Parsed?.Edition) ? null : plan.Parsed!.Edition.Trim();
         var releaseGroup = string.IsNullOrWhiteSpace(plan.Parsed?.ReleaseGroup) ? null : plan.Parsed!.ReleaseGroup.Trim();
-        var languages = plan.Parsed?.Languages?.Where(l => l.Id > 0).Select(l => l.Name).Where(n => n is not null).Cast<string>().Distinct().ToList() ?? [];
+        // The languages the user gave at grab time (an override) over the title's.
+        var languages = plan.Grab?.LanguagesOverride is { Count: > 0 } chosen
+            ? [.. chosen]
+            : plan.Parsed?.Languages?.Where(l => l.Id > 0).Select(l => l.Name).Where(n => n is not null).Cast<string>().Distinct().ToList() ?? [];
 
         var calculator = await scorer.CalculatorAsync(ct);
         var matched = calculator.Match(CustomFormatScorer.FileInput(
@@ -822,6 +825,16 @@ public sealed class ImportService(
     }
 
     /// <summary>The release title knows the quality better than a file called <c>movie.mkv</c>; the file name fills in.</summary>
+    /// <summary>
+    /// The quality the user gave at grab time (an override from the interactive search) wins over the title's and the
+    /// file's: the user said the parse is wrong. The revision (proper, repack) stays the parsed one.
+    /// </summary>
+    public static QualityModel Overridden(Grab? grab, QualityModel parsed)
+    {
+        ArgumentNullException.ThrowIfNull(parsed);
+        return grab?.QualityOverride is { } id ? new QualityModel(ParserQuality.FindById(id), parsed.Revision ?? new ParserRevision()) : parsed;
+    }
+
     public static QualityModel QualityOf(ParsedMovieInfo? release, ParsedMovieInfo? file)
     {
         if (release?.Quality is { Quality.Id: not 0 })

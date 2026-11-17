@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
-import { CheckIcon, SearchIcon } from 'lucide-react'
+import { CheckIcon, PencilLineIcon, SearchIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, queue, search, series as seriesApi, type Series, type SeriesRelease, type SeriesVersion } from '@/api/client'
@@ -9,10 +9,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import type { GrabOverride } from '@/features/search/grabOverride'
 import { grabObjections, languagesComparator, qualityComparator } from '@/features/search/grabRules'
 import { IndexerPicker, useIndexerPick } from '@/features/search/IndexerPicker'
 import { FitCell } from '@/features/search/ReasonsDisplay'
@@ -99,8 +100,8 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
   }
 
   const grab = useMutation({
-    mutationFn: ({ release, versionId, episodeIds }: { release: SeriesRelease; versionId: number; episodeIds: number[] }) =>
-      queue.grab({ ...grabRequest(release, versionId), episodeIds, numbering: release.numbering }),
+    mutationFn: ({ release, versionId, episodeIds, override }: { release: SeriesRelease; versionId: number; episodeIds: number[]; override: GrabOverride }) =>
+      queue.grab({ ...grabRequest(release, versionId), episodeIds, numbering: release.numbering, ...override }),
     onSuccess: async (result, { release, versionId }) => {
       const version = versionById.get(versionId)?.name ?? ''
       setGrabbed((current) => new Map(current).set(releaseKey(release), { version, shadow: result.shadow }))
@@ -117,7 +118,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
   // Every grab asks which episodes it is for, at every search level: prefilled with Bigarr's match, else with the
   // scope's episodes (none for the whole series). The grab sends exactly the episodes ticked. A release the version
   // rejects (or that names another show) lists the reasons in the same dialog.
-  const requestGrab = (release: SeriesRelease, versionId: number) => {
+  const requestGrab = (release: SeriesRelease, versionId: number, overrideOpen = false) => {
     const mapped = release.episodes.length > 0
     const pickable = pickableEpisodes(episodes.data ?? [], versionId)
     const decision = release.versions.find((v) => v.versionId === versionId)
@@ -128,7 +129,9 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
       episodes: pickable,
       prefill: prefillEpisodeIds(release, scope, pickable),
       matched: mapped ? (release.episodesLabel ?? null) : null,
-      go: (episodeIds) => grab.mutate({ release, versionId, episodeIds }),
+      release,
+      overrideOpen,
+      go: (episodeIds, override) => grab.mutate({ release, versionId, episodeIds, override }),
     })
   }
 
@@ -266,6 +269,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
                       grabbed={grabbed.get(releaseKey(release))}
                       episodesLoaded={episodes.isSuccess}
                       onGrab={(versionId) => requestGrab(release, versionId)}
+                      onOverride={(versionId) => requestGrab(release, versionId, true)}
                     />
                   ))}
                 </TableBody>
@@ -287,6 +291,7 @@ function ReleaseRow({
   grabbed,
   episodesLoaded,
   onGrab,
+  onOverride,
 }: {
   release: SeriesRelease
   fits: ReturnType<typeof versionFits>
@@ -298,6 +303,8 @@ function ReleaseRow({
   /** The series' episodes are there to pick from. */
   episodesLoaded: boolean
   onGrab: (versionId: number) => void
+  /** Opens the grab with the quality and languages to set, for the suggested version. */
+  onOverride: (versionId: number) => void
 }) {
   const { t } = useTranslation()
   const good = fitsAny(release)
@@ -378,6 +385,11 @@ function ReleaseRow({
               </span>
             </DropdownMenuItem>
           ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem disabled={!target} onSelect={() => target && onOverride(target.id)} data-testid="series-grab-override">
+            <PencilLineIcon />
+            {t('grabOverride.menu')}
+          </DropdownMenuItem>
         </GrabSplitButton>
       </TableCell>
     </TableRow>

@@ -116,6 +116,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("EpisodesOverridden")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("GrabbedAt")
                         .HasColumnType("TEXT");
 
@@ -133,6 +136,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("LanguagesOverride")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("LastSeenAt")
                         .HasColumnType("TEXT");
 
@@ -140,6 +146,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("Protocol")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("QualityOverride")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("ReleaseGuid")
