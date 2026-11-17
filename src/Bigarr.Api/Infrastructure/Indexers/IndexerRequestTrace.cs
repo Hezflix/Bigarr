@@ -30,7 +30,7 @@ public sealed record IndexerRequestRecord(
     bool Skipped = false);
 
 /// <summary>
-/// Records the indexer requests of one interactive search, for its advanced view. Ambient (an <see cref="AsyncLocal{T}"/>)
+/// Records the indexer requests of one interactive search, for its "Show queries" view. Ambient (an <see cref="AsyncLocal{T}"/>)
 /// so the protocol clients and the gateway record without a new parameter on every method: a search that did not ask for
 /// it has no trace and every call below is a no-op. Steps nest the same way: the search names its phase (a fallback
 /// season), the criteria their numbering (XEM), the client its tier (ids, then titles).

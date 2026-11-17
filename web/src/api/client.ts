@@ -573,7 +573,7 @@ export type Release = Schemas['ReleaseResponse']
 
 export type SearchResult = Schemas['SearchResponse']
 
-/** One request sent to an indexer during an interactive search (advanced view), its URL redacted by the server. */
+/** One request sent to an indexer during an interactive search ("Show queries"), its URL redacted by the server. */
 export type IndexerQueryRequest = Schemas['IndexerRequestResponse']
 
 /** What one indexer was asked during an interactive search, and how many of its releases parsed, matched and were accepted. */

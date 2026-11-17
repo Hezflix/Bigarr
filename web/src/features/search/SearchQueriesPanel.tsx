@@ -9,21 +9,21 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { parameterLine, readAdvanced, reportTotals, requestState, writeAdvanced } from '@/features/search/advancedMode'
+import { parameterLine, readShowQueries, reportTotals, requestState, writeShowQueries } from '@/features/search/searchQueries'
 
-/** The advanced mode of the interactive search, remembered per browser. */
-export function useAdvancedSearch(): [boolean, (on: boolean) => void] {
-  const [on, setOn] = useState(readAdvanced)
+/** "Show queries" in the interactive search: what each indexer was asked, remembered per browser. */
+export function useShowQueries(): [boolean, (on: boolean) => void] {
+  const [on, setOn] = useState(readShowQueries)
   return [
     on,
     (next) => {
       setOn(next)
-      writeAdvanced(next)
+      writeShowQueries(next)
     },
   ]
 }
 
-export function AdvancedToggle({ checked, onChange, testId }: { checked: boolean; onChange: (on: boolean) => void; testId: string }) {
+export function ShowQueriesToggle({ checked, onChange, testId }: { checked: boolean; onChange: (on: boolean) => void; testId: string }) {
   const { t } = useTranslation()
   return (
     <Tooltip>

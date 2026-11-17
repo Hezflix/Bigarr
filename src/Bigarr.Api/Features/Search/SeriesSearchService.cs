@@ -25,7 +25,7 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
     private readonly ReleaseEvaluator _evaluator = ReleaseEvaluator.Interactive();
 
     /// <param name="orderSeason"><paramref name="seasonNumber"/> is a season of the series' alternative order (its page shows that order).</param>
-    /// <param name="includeQueries">Report what each indexer was asked (the advanced view).</param>
+    /// <param name="includeQueries">Report what each indexer was asked (the "Show queries" view).</param>
     public async Task<Result<SeriesSearchResponse>> SearchAsync(int seriesId, int? episodeId, int? seasonNumber, int? versionId, string? query, CancellationToken ct, bool orderSeason = false, bool includeQueries = false)
     {
         var targets = await targetsFactory.LoadAsync(seriesId, ct);

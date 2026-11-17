@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { IndexerQueryReport, IndexerQueryRequest } from '../src/api/client'
-import { advancedSearchKey, type KeyValueStore, parameterLine, readAdvanced, reportTotals, requestState, writeAdvanced } from '../src/features/search/advancedMode'
+import { showQueriesKey, type KeyValueStore, parameterLine, readShowQueries, reportTotals, requestState, writeShowQueries } from '../src/features/search/searchQueries'
 
 /** A Storage stand-in: a map, or one that throws like a browser with site data blocked. */
 const memoryStore = (): KeyValueStore & { data: Map<string, string> } => {
@@ -23,31 +23,31 @@ const blockedStore: KeyValueStore = {
   },
 }
 
-describe('advanced search toggle', () => {
+describe('show queries toggle', () => {
   test('is off by default', () => {
-    expect(readAdvanced(memoryStore())).toBe(false)
-    expect(readAdvanced(null)).toBe(false)
+    expect(readShowQueries(memoryStore())).toBe(false)
+    expect(readShowQueries(null)).toBe(false)
   })
 
   test('is remembered per viewer, on and off', () => {
     const store = memoryStore()
-    writeAdvanced(true, store)
-    expect(store.data.get(advancedSearchKey)).toBe('1')
-    expect(readAdvanced(store)).toBe(true)
+    writeShowQueries(true, store)
+    expect(store.data.get(showQueriesKey)).toBe('1')
+    expect(readShowQueries(store)).toBe(true)
 
-    writeAdvanced(false, store)
-    expect(readAdvanced(store)).toBe(false)
+    writeShowQueries(false, store)
+    expect(readShowQueries(store)).toBe(false)
   })
 
   test('a storage that throws reads as off and never breaks the toggle', () => {
-    expect(readAdvanced(blockedStore)).toBe(false)
-    expect(() => writeAdvanced(true, blockedStore)).not.toThrow()
-    expect(() => writeAdvanced(true, null)).not.toThrow()
+    expect(readShowQueries(blockedStore)).toBe(false)
+    expect(() => writeShowQueries(true, blockedStore)).not.toThrow()
+    expect(() => writeShowQueries(true, null)).not.toThrow()
   })
 
   test('works without a browser storage at all', () => {
-    expect(() => writeAdvanced(true)).not.toThrow()
-    expect(typeof readAdvanced()).toBe('boolean')
+    expect(() => writeShowQueries(true)).not.toThrow()
+    expect(typeof readShowQueries()).toBe('boolean')
   })
 })
 

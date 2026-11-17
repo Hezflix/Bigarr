@@ -38,7 +38,7 @@ public sealed record IndexerQueryReport(
     /// <summary>Those at least one version accepts.</summary>
     int Accepted);
 
-/// <summary>The advanced view of the interactive search: the requests of a <see cref="IndexerRequestTrace"/>, per indexer.</summary>
+/// <summary>The "Show queries" view of the interactive search: the requests of a <see cref="IndexerRequestTrace"/>, per indexer.</summary>
 public static class SearchQueryReports
 {
     /// <param name="outcomes">Per release kept: its indexer, whether it parsed, matched and was accepted.</param>

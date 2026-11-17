@@ -17,7 +17,7 @@ using static Bigarr.Api.Tests.Import.ImportTestHelpers;
 namespace Bigarr.Api.Tests.Search;
 
 /// <summary>
-/// The advanced view of the interactive search: what each indexer was asked, step by step, with the outcome, and never
+/// The "Show queries" view of the interactive search: what each indexer was asked, step by step, with the outcome, and never
 /// a secret. Torznab is answered by a stub that records the real query strings, so the report is checked against them.
 /// </summary>
 public sealed class SearchQueriesTests

@@ -2884,7 +2884,7 @@
     }
   },
   "searchQueries": {
-    "toggle": "Advanced",
+    "toggle": "Show queries",
     "toggleHint": "Also show what Bigarr asked each indexer: the requests, their URLs (keys hidden) and the outcome",
     "title": "Queries sent",
     "summary": "{{indexers}} indexer(s), {{requests}} request(s)",

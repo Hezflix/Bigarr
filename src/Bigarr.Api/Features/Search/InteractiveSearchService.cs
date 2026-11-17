@@ -23,7 +23,7 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
     private readonly ReleaseEvaluator _evaluator = ReleaseEvaluator.Interactive();
 
     /// <summary>Searches the film by its ids and titles, or by <paramref name="query"/> when the user typed one.</summary>
-    /// <param name="includeQueries">Report what each indexer was asked (the advanced view).</param>
+    /// <param name="includeQueries">Report what each indexer was asked (the "Show queries" view).</param>
     public async Task<Result<SearchResponse>> SearchAsync(int movieId, int? versionId, string? query, CancellationToken ct, bool includeQueries = false)
     {
         var movie = await contexts.MoviesWithVersions().FirstOrDefaultAsync(m => m.Id == movieId, ct);
