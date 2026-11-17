@@ -56,7 +56,9 @@ public sealed class SeriesShadowJudge(BigarrDbContext db, SeriesTargetsFactory t
 
         if (!special)
         {
-            var match = index.Find(parsed, release.TvdbId, release.ImdbId);
+            // Sonarr's history line names the show it grabbed for: its TVDB id stands in when the indexer gave none, so a
+            // title Bigarr spells another way still maps to the show (the index holds only this one).
+            var match = index.Find(parsed, release.TvdbId ?? tvdbId, release.ImdbId);
             if (match.Series is null)
             {
                 return Unmatched($"Title '{parsed.SeriesTitle}' does not match {series.Title} in Bigarr.");

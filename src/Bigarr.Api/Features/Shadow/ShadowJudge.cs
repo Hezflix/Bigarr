@@ -38,7 +38,7 @@ public sealed class ShadowJudge(BigarrDbContext db, TargetContextFactory context
         }
 
         var parsed = ReleaseMatcher.TryParse(release.Title);
-        var mismatch = ReleaseMatcher.Match(parsed, release, movie);
+        var mismatch = ReleaseMatcher.Match(parsed, KnownFilm(release, movie), movie);
         _calculator ??= await scorer.CalculatorAsync(ct);
         var formats = parsed is null ? [] : _calculator.Match(CustomFormatScorer.ReleaseInput(parsed, release, movie.Year, movie.OriginalLanguage));
         var quality = parsed?.Quality?.Quality is { } q && q.Name != "Unknown" ? q.Name : null;
@@ -65,6 +65,21 @@ public sealed class ShadowJudge(BigarrDbContext db, TargetContextFactory context
             file is null ? null : Bigarr.Parsing.Qualities.Quality.FindById(file.QualityId)?.Name,
             file is null ? null : ProfileRanking.FormatScore(decision.Target.Profile, file.CustomFormatIds),
             file?.IsPick ?? false);
+    }
+
+    /// <summary>
+    /// Radarr's history line names the film it grabbed for, so the release is that film's whatever its title says: a
+    /// title in another language, or spelled another way, must not turn Radarr's grab into "does not match". The film's
+    /// ids stand in for the indexer's when it gave none; ids the release or its title carry still settle it.
+    /// </summary>
+    private static ReleaseInfo KnownFilm(ReleaseInfo release, Movie movie)
+    {
+        if (release.TmdbId is > 0 || !string.IsNullOrWhiteSpace(release.ImdbId))
+        {
+            return release;
+        }
+
+        return new ReleaseInfo { Guid = release.Guid, Title = release.Title, IndexerName = release.IndexerName, TmdbId = movie.TmdbId };
     }
 
     private static BigarrVerdict Unmatched(string reason) => new(reason, false, [], 0, [], null, null, null, null);

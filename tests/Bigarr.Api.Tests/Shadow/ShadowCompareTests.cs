@@ -56,7 +56,7 @@ public sealed class ShadowCompareTests(ShadowApiFactory factory) : IClassFixture
                 Grabbed(202, 2, now, "The.Matrix.1999.1080p.BluRay.x264-SPARKS", "g-matrix-bluray", 7, "Bluray-1080p"),
                 // Bigarr's 1080p profile does not allow 2160p.
                 Grabbed(203, 4, now, "Fight.Club.1999.2160p.UHD.BluRay.x265-TERMiNAL", "g-fight-club", 19, "Bluray-2160p"),
-                // A title that is not Interstellar's: Bigarr would not even match it to the film.
+                // A title that is not Interstellar's: Radarr names the film, so Bigarr judges it for Interstellar all the same.
                 Grabbed(204, 5, now, "Gone.Girl.2014.1080p.BluRay.x264-GRP", "g-gone-girl", 7, "Bluray-1080p"),
             ]);
 
@@ -112,9 +112,10 @@ public sealed class ShadowCompareTests(ShadowApiFactory factory) : IClassFixture
             Assert.True(rejected.Sighting.Matched);
             Assert.False(rejected.Sighting.Verdict!.Approved);
 
-            var unmatched = radarrOnly[Interstellar];
-            Assert.NotNull(unmatched.Radarr!.Bigarr!.Unmatched);
-            Assert.Null(unmatched.Sighting); // never seen in Bigarr's feeds
+            var otherTitle = radarrOnly[Interstellar];
+            Assert.Null(otherTitle.Radarr!.Bigarr!.Unmatched);
+            Assert.True(otherTitle.Radarr.Bigarr.Approved, string.Join(" · ", otherTitle.Radarr.Bigarr.Rejections));
+            Assert.Null(otherTitle.Sighting); // never seen in Bigarr's feeds
 
             // Filters.
             var onlyRadarr = (await client.GetFromJsonAsync<CompareResponse>("/api/v1/shadow/compare?outcome=radarrOnly", Json))!;
