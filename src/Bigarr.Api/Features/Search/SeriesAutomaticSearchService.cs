@@ -82,7 +82,7 @@ public static class WholeSeriesSearch
 /// the episodes asked are grouped by season, a season with several of them is asked as a season (packs welcome), a lone
 /// episode as an episode; when the set holds at least two whole seasons the show is asked by its ids first, as above.
 /// Each round judges every release with the automatic rules for the version and takes the best ones without overlapping
-/// episodes (the RSS order: quality, custom format score, revision, packs first, fewer episodes, indexer priority,
+/// episodes (the RSS order: quality, custom format score, the season's release group, revision, packs first, fewer episodes, indexer priority,
 /// seeders), through <see cref="GrabService"/>: in shadow mode they become picks. A release matched on the series' order
 /// only and confirmed by nothing is held for the user (<see cref="HeldReleaseService"/>).
 /// </summary>
@@ -122,7 +122,11 @@ public sealed class SeriesAutomaticSearchService(
     /// Searches the given episodes for one version: those monitored (any, when the user asked) and without an active
     /// download. An episode with a file stays wanted: the version's profile decides whether a release upgrades it.
     /// </summary>
-    public async Task<SeriesAutomaticSearchResult> SearchEpisodesAsync(int versionId, IReadOnlyCollection<int> episodeIds, SearchTrigger trigger, CancellationToken ct)
+    /// <param name="align">
+    /// An "Align season" search: these seasons are realigned on their release group, and only releases of that group
+    /// are taken (<see cref="SeasonGroups.Realigns"/>).
+    /// </param>
+    public async Task<SeriesAutomaticSearchResult> SearchEpisodesAsync(int versionId, IReadOnlyCollection<int> episodeIds, SearchTrigger trigger, CancellationToken ct, IReadOnlySet<int>? align = null)
     {
         ArgumentNullException.ThrowIfNull(episodeIds);
         var seriesId = await db.SeriesVersions.AsNoTracking().Where(v => v.Id == versionId).Select(v => (int?)v.SeriesId).FirstOrDefaultAsync(ct);
@@ -131,7 +135,7 @@ public sealed class SeriesAutomaticSearchService(
             return new SeriesAutomaticSearchResult(0, string.Empty, versionId, string.Empty, 0, 0, 0, 0, 0, [], "Version not found.");
         }
 
-        return await SearchOneAsync(seriesId.Value, versionId, episodeIds.ToHashSet(), await ContextAsync(trigger, ct), ct);
+        return await SearchOneAsync(seriesId.Value, versionId, episodeIds.ToHashSet(), await ContextAsync(trigger, ct), ct, align);
     }
 
     private sealed record SearchContext(SearchTrigger Trigger, string TriggerName, List<Indexer> Indexers, ReleaseEvaluator Evaluator, CustomFormatCalculator Calculator);
@@ -153,7 +157,7 @@ public sealed class SeriesAutomaticSearchService(
             .Count(season => all.Where(e => e.SeasonNumber == season && e.HasAired(now)).All(e => ids.Contains(e.Id))) >= 2;
     }
 
-    private async Task<SeriesAutomaticSearchResult> SearchOneAsync(int seriesId, int versionId, IReadOnlySet<int>? asked, SearchContext context, CancellationToken ct)
+    private async Task<SeriesAutomaticSearchResult> SearchOneAsync(int seriesId, int versionId, IReadOnlySet<int>? asked, SearchContext context, CancellationToken ct, IReadOnlySet<int>? align = null)
     {
         var targets = await targetsFactory.LoadAsync(seriesId, ct);
         var version = targets?.Series.Versions.FirstOrDefault(v => v.Id == versionId);
@@ -215,27 +219,31 @@ public sealed class SeriesAutomaticSearchService(
                     continue;
                 }
 
-                var judgement = SeriesReleaseJudge.Judge(release, parsed, targets, match.SceneSeasonNumber, context.Calculator, context.Evaluator, minimumSeeders.GetValueOrDefault(release.IndexerId), scope, versionId, orderFallback: orderFallback);
+                var judgement = SeriesReleaseJudge.Judge(release, parsed, targets, match.SceneSeasonNumber, context.Calculator, context.Evaluator, minimumSeeders.GetValueOrDefault(release.IndexerId), scope, versionId, orderFallback: orderFallback, align: align);
                 if (judgement.HeldReason is not null && HeldReleaseService.OnlyHeld(judgement, versionId) && judgement.Episodes.Any(e => wantedIds.Contains(e.Id)))
                 {
                     heldReleases.Add((release, judgement));
                     logger.LogInformation("Series search ({Trigger}) for {Series} [{Version}]: {Title} held for a manual choice (matched on the series' order only)", context.TriggerName, series.Title, version.Name, release.Title);
                 }
 
-                if (judgement.IsMapped && judgement.Decisions.FirstOrDefault() is { Approved: true } decision && judgement.Episodes.Any(e => wantedIds.Contains(e.Id)))
+                if (judgement.IsMapped && judgement.Decisions.FirstOrDefault() is { Approved: true } decision && judgement.Episodes.Any(e => wantedIds.Contains(e.Id))
+                    && (align is null || (decision.Target.Episodes is { } coverage && SeasonGroups.Realigns(judgement.Parsed?.ReleaseGroup, coverage))))
                 {
                     approved.Add((release, judgement, decision));
                 }
             }
 
-            var ranked = approved
-                .OrderByDescending(a => ReleaseRanking.WeightOf(a.Judgement.Parsed?.Quality?.Quality?.Id ?? 0))
-                .ThenByDescending(a => a.Decision.CustomFormatScore)
-                .ThenByDescending(a => a.Judgement.Parsed?.Quality?.Revision?.Version ?? 1)
-                .ThenByDescending(a => a.Judgement.Parsed?.FullSeason ?? false)
-                .ThenBy(a => series.SeriesType == SeriesType.Anime ? -a.Judgement.Episodes.Count : a.Judgement.Episodes.Count)
-                .ThenBy(a => a.Release.IndexerPriority)
-                .ThenByDescending(a => a.Release.Seeders ?? 0)
+            var ranked = ReleaseRanking.OrderSeries(
+                    approved,
+                    a => a.Judgement.Parsed?.Quality?.Quality?.Id ?? 0,
+                    a => a.Decision.CustomFormatScore,
+                    a => a.Decision.Target.Episodes is { } coverage && SeasonGroups.Matches(a.Judgement.Parsed?.ReleaseGroup, coverage),
+                    a => a.Judgement.Parsed?.Quality?.Revision?.Version ?? 1,
+                    a => a.Judgement.Parsed?.FullSeason ?? false,
+                    a => a.Judgement.Episodes.Count,
+                    _ => series.SeriesType == SeriesType.Anime,
+                    a => a.Release.IndexerPriority,
+                    a => a.Release.Seeders ?? 0)
                 .ToList();
             foreach (var (release, judgement, _) in ranked)
             {
@@ -337,7 +345,7 @@ public sealed class SeriesAutomaticSearchService(
         var covered = wanted.Count(e => taken.Contains(e.Id));
         var coveredTargets = wanted.Where(e => taken.Contains(e.Id)).Select(e => targets.Slot(versionId, e.Id)!.Target.Id).ToList();
         var emptyTargets = wanted.Where(e => !taken.Contains(e.Id)).Select(e => targets.Slot(versionId, e.Id)!.Target.Id).ToList();
-        if (stop is null || covered > 0)
+        if (align is null && (stop is null || covered > 0))
         {
             await db.AcquisitionTargets.Where(t => coveredTargets.Contains(t.Id)).ExecuteUpdateAsync(s => s.SetProperty(t => t.LastSearchAt, now).SetProperty(t => t.SearchAttempts, 0), ct);
             await db.AcquisitionTargets.Where(t => emptyTargets.Contains(t.Id)).ExecuteUpdateAsync(s => s.SetProperty(t => t.LastSearchAt, now).SetProperty(t => t.SearchAttempts, t => t.SearchAttempts + 1), ct);

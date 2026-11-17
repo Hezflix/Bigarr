@@ -52,6 +52,43 @@ public sealed class SeriesTargets
         FirstSeasonNumber = Episodes.Where(e => e.SeasonNumber > 0).Select(e => (int?)e.SeasonNumber).Min();
         var pilot = Episodes.Where(e => e.SeasonNumber == FirstSeasonNumber).OrderBy(e => e.EpisodeNumber).FirstOrDefault();
         PilotAirDateUtc = pilot?.AirDateUtc ?? pilot?.AirDate?.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        _seasonGroups = slots.Values
+            .GroupBy(s => ((EpisodeTarget)s.Target).VersionId)
+            .ToDictionary(v => v.Key, v => GroupsOf(v));
+    }
+
+    private readonly Dictionary<int, IReadOnlyDictionary<int, string>> _seasonGroups;
+
+    /// <summary>
+    /// The version's group of each season (<see cref="SeasonGroups"/>), from what stands in each slot: a file on disk
+    /// counts once however many episodes it holds; a shadow pick counts once per episode (a pack becomes a file per
+    /// episode).
+    /// </summary>
+    public IReadOnlyDictionary<int, string> SeasonGroupsOf(int versionId) =>
+        _seasonGroups.GetValueOrDefault(versionId) ?? new Dictionary<int, string>();
+
+    /// <summary>The slots of one season of a version, in episode order (film-owned specials have none).</summary>
+    public List<EpisodeSlot> SeasonSlots(int versionId, int seasonNumber) =>
+        _slots.Values.Where(s => ((EpisodeTarget)s.Target).VersionId == versionId && s.SeasonNumber == seasonNumber).OrderBy(s => s.EpisodeNumber).ToList();
+
+    /// <summary>The release group of each file of the slots, as <see cref="SeasonGroups.Of"/> counts them.</summary>
+    public static IEnumerable<string?> FileGroups(IEnumerable<EpisodeSlot> slots) =>
+        slots.Where(s => s.File is not null)
+            .GroupBy(s => s.File!.IsPick ? $"pick:{s.EpisodeId}" : $"file:{((EpisodeTarget)s.Target).EpisodeFileId}", StringComparer.Ordinal)
+            .Select(f => f.First().File!.ReleaseGroup);
+
+    private static IReadOnlyDictionary<int, string> GroupsOf(IEnumerable<EpisodeSlot> slots)
+    {
+        var groups = new Dictionary<int, string>();
+        foreach (var season in slots.Where(s => s.File is not null && s.SeasonNumber > 0).GroupBy(s => s.SeasonNumber))
+        {
+            if (SeasonGroups.Of(season.Key, FileGroups(season)) is { } group)
+            {
+                groups[season.Key] = group;
+            }
+        }
+
+        return groups;
     }
 
     public int? FirstSeasonNumber { get; }
@@ -83,13 +120,16 @@ public sealed class SeriesTargets
         new[] { Series.OriginalTitle }.Concat(Series.AlternativeTitles.Select(a => a.Title)).OfType<string>().ToList(),
         Series.ImdbId);
 
+    public string QualityName(int qualityId) => _definitions.TryGetValue(qualityId, out var definition) ? definition.Name : $"#{qualityId}";
+
     public EpisodeSlot? Slot(int versionId, int episodeId) => _slots.GetValueOrDefault((versionId, episodeId));
 
     /// <summary>
     /// One context per version (default first) for the episodes a release covers. A version lacking a target for one
     /// of them (it should not happen: every version has one per episode) is left out.
     /// </summary>
-    public List<TargetContext> ContextsFor(IReadOnlyList<Episode> covered, int? versionId = null)
+    /// <param name="align">Seasons an "Align season" search realigns on their group, for <paramref name="versionId"/>.</param>
+    public List<TargetContext> ContextsFor(IReadOnlyList<Episode> covered, int? versionId = null, IReadOnlySet<int>? align = null)
     {
         ArgumentNullException.ThrowIfNull(covered);
 
@@ -131,6 +171,8 @@ public sealed class SeriesTargets
                     SeasonPackUpgradeThreshold = _media.SeasonPackUpgradeThreshold,
                     FirstSeasonNumber = FirstSeasonNumber,
                     PilotAirDateUtc = PilotAirDateUtc,
+                    SeasonGroups = SeasonGroupsOf(version.Id),
+                    AlignSeasons = align ?? new HashSet<int>(),
                 },
             });
         }

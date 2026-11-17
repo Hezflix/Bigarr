@@ -34,10 +34,14 @@ public sealed class UpgradableSpecification : IReleaseSpecification
             return null;
         }
 
+        var realigns = SeasonGroups.Realigns(candidate, episodes);
         var refused = new List<(EpisodeSlot Slot, Rejection Rejection)>();
         foreach (var slot in withFile)
         {
-            if (Check(candidate, target, slot.File!) is { } rejection)
+            var rejection = realigns && episodes.AlignSeasons.Contains(slot.SeasonNumber)
+                ? CheckAlignment(candidate, target, slot.File!, SeasonGroups.IsOffGroup(slot, episodes))
+                : Check(candidate, target, slot.File!);
+            if (rejection is not null)
             {
                 refused.Add((slot, rejection));
             }
@@ -83,6 +87,67 @@ public sealed class UpgradableSpecification : IReleaseSpecification
         return new Rejection(
             $"Not an upgrade for every episode it would replace ({upgradedCount}/{episodes.Slots.Count} upgradable): {first.Slot.Label}: {first.Rejection.Reason}"
             + (refused.Count > 1 ? $" (and {refused.Count - 1} more)" : string.Empty));
+    }
+
+    /// <summary>
+    /// A release of the season's group against a file of a season being aligned. It replaces a file of another group
+    /// when it is not worse: quality rank and custom format score at least the file's (the revision is not compared
+    /// across groups, and the cutoff does not stop it). A file already of the group, carried by a season pack, passes on
+    /// the same terms, or the pack would never go through; any real upgrade passes as usual.
+    /// </summary>
+    public static Rejection? CheckAlignment(ReleaseCandidate candidate, TargetContext target, ExistingFile file, bool offGroup)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(file);
+
+        if (Check(candidate, target, file) is null)
+        {
+            return null;
+        }
+
+        if (!target.Target.UpgradesAllowed)
+        {
+            return new Rejection(file.IsPick ? "One-shot version already has a pick" : "One-shot version already has its file");
+        }
+
+        var newQuality = candidate.Quality?.Quality;
+        if (newQuality is null || newQuality.Id == 0)
+        {
+            return null;
+        }
+
+        var noun = file.IsPick ? "picked" : "existing";
+        var profile = target.Profile;
+        var currentName = target.Definitions.TryGetValue(file.QualityId, out var def) ? def.Name : $"#{file.QualityId}";
+        if (ProfileRanking.RankOf(profile, newQuality.Id) < ProfileRanking.RankOf(profile, file.QualityId))
+        {
+            return new Rejection($"{newQuality.Name} is lower than the {noun} {currentName}: aligning on the season's group never lowers the quality");
+        }
+
+        var currentScore = ProfileRanking.FormatScore(profile, file.CustomFormatIds);
+        var newScore = ProfileRanking.FormatScore(profile, candidate.CustomFormatIds);
+        if (newScore < currentScore)
+        {
+            return new Rejection($"Custom format score {newScore} is lower than the {noun} {currentScore}: aligning on the season's group never lowers the score");
+        }
+
+        if (offGroup)
+        {
+            return null;
+        }
+
+        // Same group: never an older revision of its own release, and only a season pack brings it along with the
+        // files it realigns.
+        var newRevision = candidate.Quality!.Revision ?? new Revision();
+        if (newQuality.Id == file.QualityId && newRevision.CompareTo(new Revision(file.RevisionVersion, file.RevisionReal, file.IsRepack)) < 0)
+        {
+            return new Rejection($"{(file.IsPick ? "Picked" : "Existing")} {currentName} is a newer revision");
+        }
+
+        return candidate.ParsedEpisode?.FullSeason == true
+            ? null
+            : new Rejection($"Already from the season's group: not an upgrade over the {noun} {currentName}");
     }
 
     /// <summary>The film rule against one file (or pick).</summary>

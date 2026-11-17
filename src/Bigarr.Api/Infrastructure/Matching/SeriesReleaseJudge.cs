@@ -55,6 +55,7 @@ public static class SeriesReleaseJudge
 
     /// <param name="sceneSeasonNumber">The scene season the release's series title stands for (an XEM name like "Show S2").</param>
     /// <param name="orderFallback">Try the series' alternative order when TVDB numbering finds nothing (or nothing asked).</param>
+    /// <param name="align">Seasons an "Align season" search realigns on their group (with <paramref name="versionId"/>).</param>
     public static SeriesJudgement Judge(
         ReleaseInfo release,
         ParsedEpisodeInfo? parsed,
@@ -66,7 +67,8 @@ public static class SeriesReleaseJudge
         EpisodeSearchScope? scope = null,
         int? versionId = null,
         bool sceneSource = true,
-        bool orderFallback = false)
+        bool orderFallback = false,
+        IReadOnlySet<int>? align = null)
     {
         ArgumentNullException.ThrowIfNull(release);
         ArgumentNullException.ThrowIfNull(targets);
@@ -111,7 +113,7 @@ public static class SeriesReleaseJudge
             CustomFormatIds = formats.Select(f => f.Id).ToList(),
             Search = scope,
         };
-        var decisions = targets.ContextsFor(mapping.Episodes, versionId).Select(context => evaluator.Evaluate(candidate, context)).ToList();
+        var decisions = targets.ContextsFor(mapping.Episodes, versionId, align).Select(context => evaluator.Evaluate(candidate, context)).ToList();
         if (held is not null)
         {
             decisions = decisions.Select(d => d with { Rejections = [.. d.Rejections, new Rejection(held)] }).ToList();

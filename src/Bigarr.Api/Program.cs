@@ -225,6 +225,7 @@ builder.Services.AddScoped<SonarrFollower>();
 builder.Services.AddScoped<FollowedSonarrService>();
 builder.Services.AddScoped<SeriesCompareService>();
 builder.Services.AddScoped<SeriesAutomaticSearchService>();
+builder.Services.AddScoped<SeasonAlignmentService>();
 builder.Services.AddScoped<HeldReleaseService>();
 builder.Services.AddScoped<SeriesWantedService>();
 builder.Services.AddScoped<CalendarService>();

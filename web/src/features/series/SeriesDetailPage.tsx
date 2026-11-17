@@ -51,6 +51,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { formatBytes, formatDate } from '@/i18n'
 import { EpisodeDetailDialog } from './EpisodeDetailDialog'
 import { EpisodeProgress } from './EpisodeProgress'
+import { SeasonAlignButton, SeasonAlignDialog } from './SeasonAlignDialog'
 import { orderSeason } from './orderSeason'
 import { audioLabel, type EpisodeColumn, episodeColumns, type EpisodeStatus, episodeStatus, fileFlags, fileLanguages } from './episodeColumns'
 import { defaultEpisodeSort, type EpisodeSort, type EpisodeSortKey, nextEpisodeSort, sortEpisodes, sortStillShown } from './episodeSort'
@@ -909,6 +910,8 @@ function SeasonBlock({ series: s, season, version, episodes, files, loading, sho
   const monitored = state?.monitored ?? false
   const outside = season.seasonNumber === NOT_IN_ORDER
   const name = outside ? t('seriesOrder.notInOrderTitle') : season.seasonNumber === 0 ? t('seriesDetail.specials') : t('seriesDetail.season', { number: season.seasonNumber })
+  const [aligning, setAligning] = useState(false)
+  const alignable = !synthetic && !outside && season.seasonNumber > 0 && !!state?.seasonGroup && (state.offGroupEpisodes ?? 0) > 0
   const toggle = useMutation({
     mutationFn: () =>
       synthetic
@@ -920,7 +923,7 @@ function SeasonBlock({ series: s, season, version, episodes, files, loading, sho
 
   return (
     <Card className="gap-0 py-0" data-testid="season" data-season={season.seasonNumber}>
-      <div className="flex items-center gap-3 px-4 py-3">
+      <div className="flex items-center gap-2 px-4 py-3 sm:gap-3">
         <MonitorToggle
           monitored={monitored}
           label={t('seriesDetail.toggleSeason', { number: outside ? name : season.seasonNumber, version: version.name })}
@@ -941,12 +944,27 @@ function SeasonBlock({ series: s, season, version, episodes, files, loading, sho
         )}
         {state && <EpisodeProgress statistics={state.statistics} monitored={monitored} className="hidden w-36 sm:flex" />}
         {outside && <span className="hidden text-xs text-muted-foreground md:inline">{t('seriesOrder.notInOrderHint')}</span>}
+        {alignable && state?.seasonGroup && (
+          <SeasonAlignButton group={state.seasonGroup} count={state.offGroupEpisodes} season={name} onClick={() => setAligning(true)} />
+        )}
         {!outside ? (
           <InteractiveSearchButton iconOnly target={name} onClick={() => onSearch({ kind: 'season', season: season.seasonNumber, label: name, orderSeason: synthetic })} data-testid="season-search" />
         ) : (
           <span className="size-7" aria-hidden="true" />
         )}
       </div>
+      {alignable && (
+        <SeasonAlignDialog
+          seriesId={s.id}
+          versionId={version.id}
+          versionName={version.name}
+          seasonNumber={season.seasonNumber}
+          seasonName={name}
+          open={aligning}
+          onOpenChange={setAligning}
+          onDone={onChanged}
+        />
+      )}
       {open && (
         <div className="border-t">
           {loading ? (

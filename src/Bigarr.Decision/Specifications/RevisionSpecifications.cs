@@ -25,8 +25,15 @@ public sealed class RepackSpecification : IReleaseSpecification
             return null;
         }
 
+        var realigns = target.Episodes is { } episodes && SeasonGroups.Realigns(candidate, episodes);
         return RevisionUpgrade.FirstRefusal(target, quality, (file, noun) =>
         {
+            // An alignment replaces another group's file: a group change, judged by UpgradableSpecification.CheckAlignment.
+            if (realigns && target.Episodes!.Slots.Any(s => ReferenceEquals(s.File, file) && target.Episodes.AlignSeasons.Contains(s.SeasonNumber) && SeasonGroups.IsOffGroup(s, target.Episodes)))
+            {
+                return null;
+            }
+
             if (string.IsNullOrWhiteSpace(file.ReleaseGroup))
             {
                 return $"Repack, but the release group of the {noun} is unknown";
