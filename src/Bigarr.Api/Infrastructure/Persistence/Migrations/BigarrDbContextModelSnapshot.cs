@@ -18,6 +18,17 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.14");
 
+            modelBuilder.Entity("Bigarr.Api.Infrastructure.Persistence.PendingRepair", b =>
+                {
+                    b.Property<string>("Name")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Name");
+
+                    b.ToTable("PendingRepairs", (string)null);
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Acquisition.AcquisitionTarget", b =>
                 {
                     b.Property<int>("Id")

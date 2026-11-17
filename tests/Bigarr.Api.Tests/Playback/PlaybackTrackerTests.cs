@@ -275,6 +275,60 @@ public sealed class PlaybackTrackerTests : IAsyncLifetime, IDisposable
     }
 
     [Fact]
+    public async Task A_stale_opening_offset_is_not_progress_and_the_next_day_resume_continues_the_same_play()
+    {
+        // Plex opens the episode at 48 of 50 minutes (an earlier view's resume point), then the player jumps back to 4.
+        _plex.Set(new FakePlex.Stream("30", "s-30", "300", "2", "bob", "3001", ViewOffsetMs: Minutes(48)));
+        await ReconcileAsync();
+        _time.Advance(TimeSpan.FromSeconds(10));
+        await EventAsync("30", "300", "playing", Minutes(4));
+        _time.Advance(TimeSpan.FromMinutes(20));
+        await EventAsync("30", "300", "stopped", Minutes(24));
+
+        await using (var db = _database.CreateContext())
+        {
+            var play = await db.Plays.Include(p => p.Streams).SingleAsync();
+            Assert.False(play.Watched);
+            Assert.Equal(Minutes(24), play.MaxOffsetMs);
+            var stream = Assert.Single(play.Streams);
+            Assert.Equal(Minutes(4), stream.StartOffsetMs);
+            Assert.Equal(Minutes(24), stream.EndOffsetMs);
+        }
+
+        // The next day the rest, from where it stopped: the same play, now watched.
+        _time.Advance(TimeSpan.FromHours(20));
+        _plex.Set(new FakePlex.Stream("31", "s-31", "300", "2", "bob", "3001", ViewOffsetMs: Minutes(24)));
+        await ReconcileAsync();
+        _time.Advance(TimeSpan.FromMinutes(26));
+        await EventAsync("31", "300", "stopped", Minutes(50));
+
+        await using var after = _database.CreateContext();
+        var resumed = await after.Plays.Include(p => p.Streams).SingleAsync();
+        Assert.Equal(2, resumed.Streams.Count);
+        Assert.True(resumed.Watched);
+        Assert.Equal((20 * 60) + 10 + (26 * 60), resumed.PlayedSeconds);
+    }
+
+    [Fact]
+    public async Task An_opening_offset_played_past_counts_and_a_later_seek_back_keeps_the_furthest_point()
+    {
+        // A real resume at 30 minutes, played for five, then a seek back to 10: the 35 minutes reached stay.
+        _plex.Set(new FakePlex.Stream("32", "s-32", "300", "2", "bob", "3001", ViewOffsetMs: Minutes(30)));
+        await ReconcileAsync();
+        _time.Advance(TimeSpan.FromMinutes(5));
+        await EventAsync("32", "300", "playing", Minutes(35));
+        _time.Advance(TimeSpan.FromSeconds(10));
+        await EventAsync("32", "300", "playing", Minutes(10));
+        _time.Advance(TimeSpan.FromMinutes(2));
+        await EventAsync("32", "300", "stopped", Minutes(12));
+
+        await using var db = _database.CreateContext();
+        var play = await db.Plays.Include(p => p.Streams).SingleAsync();
+        Assert.Equal(Minutes(35), play.MaxOffsetMs);
+        Assert.Equal(Minutes(30), Assert.Single(play.Streams).StartOffsetMs);
+    }
+
+    [Fact]
     public async Task Without_a_known_file_the_library_tells_the_version_and_the_minimum_can_be_a_share()
     {
         _plex.Items["200"] = _plex.Items["200"] with { Parts = [new FakePlex.Part("2001", "/somewhere/else.mkv", "4k")] };

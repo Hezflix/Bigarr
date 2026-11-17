@@ -129,6 +129,8 @@ public sealed class BigarrDbContext : DbContext
 
     public DbSet<ScheduledJob> ScheduledJobs => Set<ScheduledJob>();
 
+    public DbSet<PendingRepair> PendingRepairs => Set<PendingRepair>();
+
     public DbSet<StandingHealthIssue> StandingHealthIssues => Set<StandingHealthIssue>();
 
     public DbSet<MediaServer> MediaServers => Set<MediaServer>();

@@ -297,7 +297,10 @@ caller's save.
 ### Session
 
 `PlaybackSession`: a row exists while the stream is open; closing deletes it. `State` is `Playing`, `Paused` or
-`Buffering`, with `PausedSince`, `PausedSeconds`, `LastSeenAt` and a `MaxOffsetMs` that only grows.
+`Buffering`, with `PausedSince`, `PausedSeconds`, `LastSeenAt` and a `MaxOffsetMs` that only grows once the opening
+offset is confirmed: until playback has gone 60 s past `StartOffsetMs`, an offset before it means Plex opened the
+stream on a stale position, and `StartOffsetMs` and `MaxOffsetMs` both move back to it
+([F23](#f23-a-stale-opening-offset-counted-as-progress)).
 
 | From | To | Trigger | Performed by |
 |---|---|---|---|
@@ -315,7 +318,7 @@ when Plex changes its own session id ([F22](#f22-a-new-plex-session-id-chopped-a
 ### Play, listener, backstop
 
 - `Play`: unfinished, then watched. Only an unfinished play absorbs a later stream of the same item, so watched is
-  terminal.
+  terminal. Watched and "continues" read `MaxOffsetMs`, which counts only positions reached by playing.
 - Listener per server, in memory (`PlaybackMonitor`): not followed, reconciling, listening, with a 60 s reconcile
   whether or not something plays ([F22](#f22-a-new-plex-session-id-chopped-a-viewing-into-pieces)); retries after 2 s
   (a working stream dropped) or 30 s.
@@ -702,6 +705,21 @@ Fix: a stream is its session key, rating key and user, like Tautulli; Plex's ses
 Test: `PlaybackTrackerTests.A_plex_session_id_changing_under_a_stream_that_goes_on_keeps_one_session_and_the_whole_time`,
 `PlaybackTrackerTests.An_idle_paused_stream_resumed_hours_later_under_a_new_plex_session_id_is_a_play_of_the_time_played`,
 `PlaybackApiTests.The_periodic_tick_finds_a_stream_no_event_announced_while_nothing_else_plays`.
+
+#### F23. A stale opening offset counted as progress
+
+Plex's first offset for a stream is often stale: an earlier view's resume point, or the position of the previous
+item on the same player, sometimes past the item's end. The tracker took it as the start and the furthest point, so a
+stream that jumped back and stopped at 28 % was watched, and the next day's resume became a second play because a
+watched play absorbs nothing.
+
+Fix: the opening offset counts only once playback goes 60 s past it; a jump back before that moves the start and the
+furthest point to the real position. A one-time repair (queued by its migration in `PendingRepairs`, run at startup,
+live plays only) gives older streams that start more than 60 s past their end the start "end minus played time",
+works out the play's furthest point and watched flag again, and joins a play back into the previous one of the same
+user and item when it continues it.
+Tests: `PlaybackTrackerTests.A_stale_opening_offset_is_not_progress_and_the_next_day_resume_continues_the_same_play`,
+`StaleStartRepairTests`.
 
 ### Open
 

@@ -1,5 +1,6 @@
 using Bigarr.Api.Features.Server.Tasks;
 using Bigarr.Api.Infrastructure.Auth;
+using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Playback;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -157,6 +158,7 @@ public static class PlaybackEndpoints
         services.AddScoped<LinkSuggestions>();
         services.AddScoped<SureMatches>();
         services.AddScoped<PlexHistoryBackstop>();
+        services.AddScoped<IStartupTask, Persistence.StaleStartRepair>();
         services.AddScoped<IScheduledJob, PlexHistoryJob>();
         services.AddScoped<ServerAccess>();
         services.AddScoped<IScheduledJob, ServerAccessJob>();
