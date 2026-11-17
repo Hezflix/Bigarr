@@ -643,7 +643,7 @@
     "button_other": "Align {{season}} on {{group}} ({{count}} episodes from another group)",
     "hint": "One release group per season: shows which episodes would be replaced by the season's group, before anything is searched.",
     "title": "Align {{season}}",
-    "description": "One release group per season, for the {{version}} version. The season's group has the most files (at least 3).",
+    "description": "One release group per season, for the {{version}} version: the group with the most files (at least 3), unless you choose another one below.",
     "groupFiles_one": "{{group}}: {{count}} file",
     "groupFiles_other": "{{group}}: {{count}} files",
     "aligned": "Every file of the season is already from {{group}}.",
@@ -669,7 +669,15 @@
     "autoOff": "Automatic alignment is off (Settings → Media management).",
     "givesUp": "Looked for until {{date}}",
     "gaveUp": "Given up: only this button looks for it now",
-    "kept": "Kept as is"
+    "kept": "Kept as is",
+    "chooseGroup": "Align on (select a group to choose it):",
+    "groupsLabel": "Release groups in the season:",
+    "majorityTag": "most",
+    "pinnedTag": "Chosen by you",
+    "pinnedNote": "{{group}} is chosen by you: the tie-break and the automatic alignment use it.",
+    "unpinTo": "Back to the group with the most files ({{group}})",
+    "unpin": "Back to the group with the most files",
+    "buttonChoose": "Choose the release group of {{season}}"
   },
   "status": {
     "pending": "Pending",

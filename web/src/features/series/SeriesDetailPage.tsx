@@ -911,7 +911,8 @@ function SeasonBlock({ series: s, season, version, episodes, files, loading, sho
   const outside = season.seasonNumber === NOT_IN_ORDER
   const name = outside ? t('seriesOrder.notInOrderTitle') : season.seasonNumber === 0 ? t('seriesDetail.specials') : t('seriesDetail.season', { number: season.seasonNumber })
   const [aligning, setAligning] = useState(false)
-  const alignable = !synthetic && !outside && season.seasonNumber > 0 && !!state?.seasonGroup && (state.offGroupEpisodes ?? 0) > 0
+  // A season with episodes off its group, or files from several groups to choose from (no majority yet, or a pin).
+  const alignable = !synthetic && !outside && season.seasonNumber > 0 && ((!!state?.seasonGroup && (state.offGroupEpisodes ?? 0) > 0) || !!state?.mixedGroups)
   const toggle = useMutation({
     mutationFn: () =>
       synthetic
@@ -944,8 +945,8 @@ function SeasonBlock({ series: s, season, version, episodes, files, loading, sho
         )}
         {state && <EpisodeProgress statistics={state.statistics} monitored={monitored} className="hidden w-36 sm:flex" />}
         {outside && <span className="hidden text-xs text-muted-foreground md:inline">{t('seriesOrder.notInOrderHint')}</span>}
-        {alignable && state?.seasonGroup && (
-          <SeasonAlignButton group={state.seasonGroup} count={state.offGroupEpisodes} season={name} kept={state.keepAsIs} onClick={() => setAligning(true)} />
+        {alignable && state && (
+          <SeasonAlignButton group={state.seasonGroup ?? null} count={state.offGroupEpisodes} season={name} kept={state.keepAsIs} onClick={() => setAligning(true)} />
         )}
         {!outside ? (
           <InteractiveSearchButton iconOnly target={name} onClick={() => onSearch({ kind: 'season', season: season.seasonNumber, label: name, orderSeason: synthetic })} data-testid="season-search" />

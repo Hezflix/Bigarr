@@ -160,6 +160,7 @@ public sealed class SeriesQueries(BigarrDbContext db, TimeProvider time)
             .ToDictionaryAsync(x => x.Season, ct);
 
         var groups = await Search.SeasonGroupIndex.LoadAsync(db, versions.Select(v => v.Id).ToList(), ct);
+        var mixed = await Search.SeasonGroupIndex.MixedAsync(db, versions.Select(v => v.Id).ToList(), ct);
         var seasons = series.Seasons.OrderBy(s => s.SeasonNumber).Select(season => new SeasonResponse(
             season.SeasonNumber,
             season.Title,
@@ -173,7 +174,9 @@ public sealed class SeriesQueries(BigarrDbContext db, TimeProvider time)
                 stats.GetValueOrDefault((v.Id, season.SeasonNumber)) ?? EpisodeStatistics.Empty,
                 groups.GetValueOrDefault((v.Id, season.SeasonNumber)).Group,
                 groups.GetValueOrDefault((v.Id, season.SeasonNumber)).OffGroup,
-                v.Seasons.FirstOrDefault(f => f.SeasonId == season.Id)?.KeepReleaseGroups ?? false)).ToList())).ToList();
+                v.Seasons.FirstOrDefault(f => f.SeasonId == season.Id)?.KeepReleaseGroups ?? false,
+                mixed.Contains((v.Id, season.SeasonNumber)),
+                season.SeasonNumber > 0 ? v.Seasons.FirstOrDefault(f => f.SeasonId == season.Id)?.PinnedReleaseGroup : null)).ToList())).ToList();
 
         return new SeriesResponse(
             series.Id,

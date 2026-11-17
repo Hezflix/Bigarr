@@ -1,10 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
-import { LayersIcon } from 'lucide-react'
+import { LayersIcon, PinIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, series as seriesApi } from '@/api/client'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -16,19 +15,21 @@ import { formatDateTime } from '@/i18n'
 
 /**
  * "Align season": one release group per season, as Sonarr users keep it by hand. The button shows on a season with a
- * group (most files, at least 3) and episodes from another one; the dialog is the dry run (which episodes, from which
- * group to which) and its button runs the search that takes only the group's releases.
+ * group (most files, at least 3, or the one the user chose) and episodes from another one, or files from several groups;
+ * the dialog lets the user choose the group (a chip per group), is the dry run (which episodes, from which group to
+ * which) and its button runs the search that takes only the group's releases.
  */
-export function SeasonAlignButton({ group, count, season, kept, onClick }: { group: string; count: number; season: string; kept?: boolean; onClick: () => void }) {
+export function SeasonAlignButton({ group, count, season, kept, onClick }: { group: string | null; count: number; season: string; kept?: boolean; onClick: () => void }) {
   const { t } = useTranslation()
-  const name = t('seasonAlign.button', { season, group, count })
+  // No group yet (a tie, or under 3 files): the dialog is where one is chosen.
+  const name = group && count > 0 ? t('seasonAlign.button', { season, group, count }) : t('seasonAlign.buttonChoose', { season })
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button type="button" variant="ghost" size="sm" className={cn('h-7 gap-1 px-1.5 text-xs sm:px-2', kept && 'text-muted-foreground')} aria-label={name} onClick={onClick} data-testid="season-align">
           <LayersIcon aria-hidden="true" />
           {/* The count where there is room; a phone keeps the icon (its name says how many). */}
-          <span className="hidden tabular-nums sm:inline">{count}</span>
+          {count > 0 && <span className="hidden tabular-nums sm:inline">{count}</span>}
         </Button>
       </TooltipTrigger>
       <TooltipContent className="max-w-72">
@@ -57,6 +58,14 @@ export function SeasonAlignDialog({ seriesId, versionId, versionName, seasonNumb
   const key = ['seasonAlignment', seriesId, versionId, seasonNumber]
   const keep = useMutation({
     mutationFn: (keepAsIs: boolean) => seriesApi.keepSeasonGroups(seriesId, versionId, seasonNumber, keepAsIs),
+    onSuccess: (next) => {
+      queryClient.setQueryData(key, next)
+      onDone()
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : t('common.unexpectedError')),
+  })
+  const pin = useMutation({
+    mutationFn: (group: string | null) => seriesApi.pinSeasonGroup(seriesId, versionId, seasonNumber, group),
     onSuccess: (next) => {
       queryClient.setQueryData(key, next)
       onDone()
@@ -98,13 +107,48 @@ export function SeasonAlignDialog({ seriesId, versionId, versionName, seasonNumb
           </div>
         ) : (
           <div className="flex min-w-0 flex-col gap-3 text-sm">
-            <div className="flex flex-wrap items-center gap-1.5">
-              {data.groups.map((g) => (
-                <Badge key={g.group} variant={g.group === data.seasonGroup ? 'default' : 'secondary'} className="tabular-nums">
-                  {t('seasonAlign.groupFiles', { group: g.group, count: g.files })}
-                </Badge>
-              ))}
-            </div>
+            {data.groups.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                {/* One toggle per group: pressing another than the season's pins it, the majority's chip unpins. */}
+                <fieldset className="min-w-0" data-testid="season-align-groups">
+                  <legend className="mb-1.5 text-xs text-muted-foreground">{seasonNumber > 0 ? t('seasonAlign.chooseGroup') : t('seasonAlign.groupsLabel')}</legend>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {data.groups.map((g) => {
+                      const chosen = data.seasonGroup !== null && sameGroup(g.group, data.seasonGroup)
+                      const majority = data.majorityGroup !== null && sameGroup(g.group, data.majorityGroup)
+                      const pinned = data.pinnedGroup !== null && sameGroup(g.group, data.pinnedGroup)
+                      return (
+                        <button
+                          key={g.group}
+                          type="button"
+                          aria-pressed={chosen}
+                          disabled={seasonNumber <= 0 || pin.isPending}
+                          onClick={() => !chosen && pin.mutate(majority ? null : g.group)}
+                          className={cn(
+                            'inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full border px-3 py-1 text-xs tabular-nums transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-default',
+                            chosen ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-secondary text-secondary-foreground hover:bg-secondary/70',
+                          )}
+                          data-testid="season-align-group"
+                          data-group={g.group}
+                        >
+                          <span className="truncate">{t('seasonAlign.groupFiles', { group: g.group, count: g.files })}</span>
+                          {majority && <span className={cn('rounded-full px-1.5 text-[10px] uppercase', chosen ? 'bg-primary-foreground/20' : 'bg-background/60')}>{t('seasonAlign.majorityTag')}</span>}
+                          {pinned && <PinIcon className="size-3" aria-label={t('seasonAlign.pinnedTag')} />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </fieldset>
+                {data.pinnedGroup && (
+                  <p className="text-xs text-muted-foreground" data-testid="season-align-pinned">
+                    {t('seasonAlign.pinnedNote', { group: data.pinnedGroup })}{' '}
+                    <button type="button" className="underline underline-offset-2 hover:text-foreground" onClick={() => pin.mutate(null)} disabled={pin.isPending} data-testid="season-align-unpin">
+                      {data.majorityGroup ? t('seasonAlign.unpinTo', { group: data.majorityGroup }) : t('seasonAlign.unpin')}
+                    </button>
+                  </p>
+                )}
+              </div>
+            )}
             {!data.seasonGroup ? (
               <p className="text-muted-foreground">{data.reason}</p>
             ) : data.episodes.length === 0 ? (
@@ -126,7 +170,7 @@ export function SeasonAlignDialog({ seriesId, versionId, versionName, seasonNumb
                       {data.episodes.map((e) => (
                         <TableRow key={e.episodeId} data-testid="season-align-episode">
                           <TableCell className="font-mono text-xs">{e.label}</TableCell>
-                          <TableCell className="max-w-40 truncate" title={e.title ?? undefined}>
+                          <TableCell className="max-w-44 whitespace-normal break-words" title={e.title ?? undefined}>
                             {e.currentGroup ?? <span className="text-muted-foreground">{t('seasonAlign.unknownGroup')}</span>}
                             {e.isPick && <span className="ml-1 text-xs text-muted-foreground">{t('seasonAlign.pick')}</span>}
                             {data.autoAlign && !data.keepAsIs && (e.gaveUp || e.givesUpAt) && (
@@ -183,3 +227,5 @@ export function SeasonAlignDialog({ seriesId, versionId, versionName, seasonNumb
     </Dialog>
   )
 }
+
+const sameGroup = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
