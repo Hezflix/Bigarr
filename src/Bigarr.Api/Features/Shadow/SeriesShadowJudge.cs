@@ -40,7 +40,7 @@ public sealed class SeriesShadowJudge(BigarrDbContext db, SeriesTargetsFactory t
 
         var series = targets.Series;
         var parsed = SeriesReleaseJudge.TryParse(release.Title);
-        var index = new SeriesTitleIndex([targets.Indexed], targets.SceneNames);
+        var index = await targetsFactory.IndexForAsync(targets, ct);
         int? sceneSeason = null;
         var special = false;
         if ((parsed is null || parsed.IsPossibleSpecialEpisode) && SeriesReleaseJudge.ParseSpecial(parsed, release.Title, targets) is { } byTitle)
@@ -57,8 +57,13 @@ public sealed class SeriesShadowJudge(BigarrDbContext db, SeriesTargetsFactory t
         if (!special)
         {
             // Sonarr's history line names the show it grabbed for: its TVDB id stands in when the indexer gave none, so a
-            // title Bigarr spells another way still maps to the show (the index holds only this one).
-            var match = index.Find(parsed, release.TvdbId ?? tvdbId, release.ImdbId);
+            // title Bigarr spells another way still maps to the show. A title naming a year twin still wins over the id.
+            var match = index.FindFor(targets.Indexed, parsed, release.TvdbId ?? tvdbId, release.ImdbId);
+            if (match.Series is null && match.Ambiguous.Count > 0)
+            {
+                return Unmatched($"Title '{parsed.SeriesTitle}' matches {string.Join(", ", match.Ambiguous.Select(SeriesTitleIndex.Label))} in Bigarr, not only {series.Title}.");
+            }
+
             if (match.Series is null)
             {
                 return Unmatched($"Title '{parsed.SeriesTitle}' does not match {series.Title} in Bigarr.");

@@ -116,7 +116,7 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
         var (found, results) = await WholeSeriesSearch.QueryAsync(indexers, criteria, gateway, ct);
         var calculator = await scorer.CalculatorAsync(ct);
         var minimumSeeders = indexers.ToDictionary(i => i.Id, i => i.MinimumSeeders);
-        var index = new SeriesTitleIndex([targets.Indexed], targets.SceneNames);
+        var index = await targetsFactory.IndexForAsync(targets, ct);
         var searchScope = new EpisodeSearchScope(scope switch { "episode" => EpisodeSearchKind.Episode, "season" => EpisodeSearchKind.Season, _ => EpisodeSearchKind.Series }, requested, seasonNumber, label);
         var releases = found.Select(release => Evaluate(release, targets, index, searchScope, versionId, minimumSeeders.GetValueOrDefault(release.IndexerId), calculator)).ToList();
 
@@ -220,7 +220,7 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
         // Sonarr: a name without an episode number (or with a possible special) may name a special by its title, when
         // the release is this show by TVDB id or by the start of its name.
         if ((parsed is null || parsed.IsPossibleSpecialEpisode)
-            && ((release.TvdbId is { } releaseTvdb && releaseTvdb == series.TvdbId) || index.FindInexact(release.Title) is not null)
+            && ((release.TvdbId is { } releaseTvdb && releaseTvdb == series.TvdbId) || index.FindInexact(release.Title)?.Id == series.Id)
             && SeriesReleaseJudge.ParseSpecial(parsed, release.Title, targets) is { } byTitle)
         {
             parsed = byTitle;
@@ -230,10 +230,14 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
 
         if (parsed is not null && !special)
         {
-            var match = index.Find(parsed, release.TvdbId, release.ImdbId);
+            var match = index.FindFor(targets.Indexed, parsed, release.TvdbId, release.ImdbId);
             if (release.TvdbId is { } tvdb && series.TvdbId is { } own && tvdb != own)
             {
                 rejections.Add(new RejectionResponse($"Release is TVDB {tvdb}, not {own}", false));
+            }
+            else if (match.Series is null && match.Ambiguous.Count > 0)
+            {
+                rejections.Add(new RejectionResponse($"Title '{parsed.SeriesTitle}' matches {string.Join(", ", match.Ambiguous.Select(SeriesTitleIndex.Label))}, not only {series.Title}", false));
             }
             else if (match.Series is null)
             {

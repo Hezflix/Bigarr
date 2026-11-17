@@ -176,6 +176,64 @@ public sealed class SeriesWantedAndHeldTests(SeriesApiFactory factory) : IClassF
         }
     }
 
+    [Fact]
+    public async Task A_name_two_shows_share_with_no_id_is_held_under_each_and_picking_one_drops_the_other()
+    {
+        var client = await ClientAsync(factory);
+        var firefly = await SeriesSetup.AddAsync(client, 78874);
+        var twin = await SeriesSetup.AddAsync(client, 424536);
+        await SeriesSetup.MockIndexerAsync(client);
+        var id = Guid.NewGuid().ToString("N")[..8];
+        var downloadClient = await client.PostAsJsonAsync("/api/v1/downloadclients", new DownloadClientRequest($"Mock twins {id}", DownloadClientImplementation.Mock, Category: $"films-{id}", SeriesCategory: $"tv-{id}"), Json);
+        Assert.Equal(HttpStatusCode.Created, downloadClient.StatusCode);
+
+        // A year twin, as TVDB's aliases make them: a second show that also answers "Firefly".
+        (string Title, string? Original, List<Bigarr.Domain.Movies.AlternativeTitle> Alternatives, int? Year) saved;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+            var row = await db.Series.SingleAsync(s => s.Id == twin.Id);
+            saved = (row.Title, row.OriginalTitle, row.AlternativeTitles, row.Year);
+            row.Title = "Firefly";
+            row.OriginalTitle = null;
+            row.AlternativeTitles = [];
+            row.Year = 2030;
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            const string release = "Firefly.S01E05.1080p.WEB-DL.DDP5.1.H.264-GRP";
+            await RssAsync([release]);
+
+            var held = (await client.GetFromJsonAsync<List<HeldReleaseResponse>>("/api/v1/series/held", Json))!.Where(h => h.Title == release).ToList();
+            Assert.Equal([firefly.Id, twin.Id], held.Select(h => h.SeriesId).Order());
+            Assert.All(held, h =>
+            {
+                Assert.Equal("S01E05", h.Episodes);
+                Assert.Equal("rss", h.Source);
+                Assert.StartsWith("Ambiguous: 'Firefly' is the name of several series (Firefly (2002), Firefly (2030))", h.Reason, StringComparison.Ordinal);
+            });
+            Assert.Empty(await GrabsAsync(release));
+
+            // The owner picks the show: its row is grabbed, the twin's row leaves the list.
+            var pick = held.Single(h => h.SeriesId == twin.Id);
+            var grab = await client.PostAsync($"/api/v1/series/held/{pick.Id}/grab", null);
+            Assert.True(grab.StatusCode == HttpStatusCode.OK, await grab.Content.ReadAsStringAsync());
+            Assert.DoesNotContain((await client.GetFromJsonAsync<List<HeldReleaseResponse>>("/api/v1/series/held?includeDismissed=true", Json))!, h => h.Title == release);
+            Assert.Single(await GrabsAsync(release));
+            Assert.True(await ActiveGrabsAsync(pick.VersionId) > 0);
+        }
+        finally
+        {
+            using var scope = factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+            var row = await db.Series.SingleAsync(s => s.Id == twin.Id);
+            (row.Title, row.OriginalTitle, row.AlternativeTitles, row.Year) = saved;
+            await db.SaveChangesAsync();
+        }
+    }
+
     private async Task<int> ActiveGrabsAsync(int versionId)
     {
         using var scope = factory.Services.CreateScope();
@@ -205,10 +263,10 @@ public sealed class SeriesWantedAndHeldTests(SeriesApiFactory factory) : IClassF
         await scope.ServiceProvider.GetRequiredService<SeriesRssPass>().RunAsync(feed, SeriesEndpointsTests.Now.UtcDateTime, new HashSet<string>(), CancellationToken.None);
     }
 
-    private async Task<List<Grab>> GrabsAsync()
+    private async Task<List<Grab>> GrabsAsync(string titleStart = "Breaking.Bad.S06E06")
     {
         using var scope = factory.Services.CreateScope();
-        return await scope.ServiceProvider.GetRequiredService<BigarrDbContext>().Grabs.AsNoTracking().Where(g => g.ReleaseTitle.StartsWith("Breaking.Bad.S06E06")).ToListAsync();
+        return await scope.ServiceProvider.GetRequiredService<BigarrDbContext>().Grabs.AsNoTracking().Where(g => g.ReleaseTitle.StartsWith(titleStart)).ToListAsync();
     }
 }
 

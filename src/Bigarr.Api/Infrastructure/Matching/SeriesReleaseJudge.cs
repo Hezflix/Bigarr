@@ -120,6 +120,9 @@ public static class SeriesReleaseJudge
         return new SeriesJudgement(parsed, mapping.Episodes, null, formats, decisions, VersionAttribution.Choose(decisions)) { Numbering = mapping.Numbering, HeldReason = held };
     }
 
+    /// <summary>{0}: the release's series title; {1}: the candidates with their years.</summary>
+    public const string AmbiguousSeriesMessage = "Ambiguous: '{0}' is the name of several series ({1}) and the release carries no id to pick one. Held for a manual choice: grab it under the right show";
+
     public const string HeldMessage = "Ambiguous: matched on the series' order only, nothing in the release confirms it (air date, episode title). Held for a manual choice";
 
     /// <summary>

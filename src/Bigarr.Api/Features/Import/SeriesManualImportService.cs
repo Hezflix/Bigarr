@@ -136,7 +136,7 @@ public sealed class SeriesManualImportService(
                 reason = match switch
                 {
                     { Series: not null } => null,
-                    { IsAmbiguous: true } => $"Several series match: {string.Join(", ", match.Ambiguous.Select(s => s.Title))}.",
+                    { IsAmbiguous: true } => $"Several series match: {string.Join(", ", match.Ambiguous.Select(SeriesTitleIndex.Label))}.",
                     _ when probe is null => "The name says no series or episode.",
                     _ => $"No series in the library matches '{probe.SeriesTitle}'.",
                 };

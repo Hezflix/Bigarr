@@ -208,6 +208,9 @@ public sealed class HeldReleaseService(BigarrDbContext db, GrabService grabs, Ti
         {
             db.ChangeTracker.Clear();
             await db.HeldReleases.Where(h => h.Id == id).ExecuteDeleteAsync(ct);
+
+            // A release held under several shows (a name they share): the user picked this one, the others go.
+            await db.HeldReleases.Where(h => h.Guid == row.Guid && h.IndexerId == row.IndexerId && h.SeriesId != row.SeriesId).ExecuteDeleteAsync(ct);
         }
 
         return grab;

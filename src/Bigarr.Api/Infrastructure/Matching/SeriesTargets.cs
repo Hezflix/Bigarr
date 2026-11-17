@@ -168,14 +168,45 @@ public sealed class SeriesTargetsFactory(BigarrDbContext db, CustomFormatScorer 
     /// <summary>Every series of the library by title, alias, TVDB id and IMDb id: how a release or a file finds its show.</summary>
     public async Task<SeriesTitleIndex> IndexAsync(CancellationToken ct)
     {
-        var series = await db.Series.AsNoTracking()
-            .Select(s => new { s.Id, s.TvdbId, s.ImdbId, s.Title, s.OriginalTitle, s.Year, s.AlternativeTitles })
-            .ToListAsync(ct);
+        var series = await IndexedSeriesAsync(null, ct);
         var tvdbIds = series.Where(s => s.TvdbId != null).Select(s => s.TvdbId!.Value).ToList();
         var aliases = await db.SceneNames.AsNoTracking().Where(n => tvdbIds.Contains(n.TvdbId)).ToListAsync(ct);
-        return new SeriesTitleIndex(
-            series.Select(s => new IndexedSeries(s.Id, s.TvdbId, s.Title, s.Year, new[] { s.OriginalTitle }.Concat(s.AlternativeTitles.Select(a => a.Title)).OfType<string>().ToList(), s.ImdbId)),
-            aliases.Select(a => new SceneAlias(a.TvdbId, a.Title, a.SceneSeasonNumber)));
+        return new SeriesTitleIndex(series, aliases.Select(a => new SceneAlias(a.TvdbId, a.Title, a.SceneSeasonNumber)));
+    }
+
+    /// <summary>
+    /// The index a lookup made for one show uses (a search, the shadow judge): the show with its XEM names, and its
+    /// twins, the other library series answering one of its names ("Scrubs" 2001 for "Scrubs" 2026). Without them a
+    /// release of the twin would pass for the show; see <see cref="SeriesTitleIndex.FindFor"/>.
+    /// </summary>
+    public Task<SeriesTitleIndex> IndexForAsync(SeriesTargets targets, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(targets);
+        return IndexForAsync(db, targets.Indexed, targets.SceneNames, ct);
+    }
+
+    /// <inheritdoc cref="IndexForAsync(SeriesTargets, CancellationToken)"/>
+    public static async Task<SeriesTitleIndex> IndexForAsync(BigarrDbContext db, IndexedSeries self, IReadOnlyList<SceneAlias> sceneNames, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(self);
+        var names = Names(self).ToHashSet(StringComparer.Ordinal);
+        var twins = (await IndexedSeriesAsync(db, self.Id, ct)).Where(s => Names(s).Any(names.Contains)).ToList();
+        return new SeriesTitleIndex([self, .. twins], sceneNames);
+
+        static IEnumerable<string> Names(IndexedSeries s) => new[] { s.Title }.Concat(s.AlternateTitles).Select(SeriesTitleIndex.Clean).Where(k => k.Length > 0);
+    }
+
+    private Task<List<IndexedSeries>> IndexedSeriesAsync(int? exceptId, CancellationToken ct) => IndexedSeriesAsync(db, exceptId, ct);
+
+    private static async Task<List<IndexedSeries>> IndexedSeriesAsync(BigarrDbContext db, int? exceptId, CancellationToken ct)
+    {
+        var series = await db.Series.AsNoTracking()
+            .Where(s => exceptId == null || s.Id != exceptId)
+            .Select(s => new { s.Id, s.TvdbId, s.ImdbId, s.Title, s.OriginalTitle, s.Year, s.AlternativeTitles })
+            .ToListAsync(ct);
+        return series
+            .Select(s => new IndexedSeries(s.Id, s.TvdbId, s.Title, s.Year, new[] { s.OriginalTitle }.Concat(s.AlternativeTitles.Select(a => a.Title)).OfType<string>().ToList(), s.ImdbId))
+            .ToList();
     }
 
     /// <param name="asOf">Shadow mode: only picks made before this time stand in for files.</param>

@@ -185,7 +185,7 @@ public sealed class SeriesAutomaticSearchService(
         }
 
         var minimumSeeders = indexers.ToDictionary(i => i.Id, i => i.MinimumSeeders);
-        var index = new SeriesTitleIndex([targets.Indexed], targets.SceneNames);
+        var index = await targetsFactory.IndexForAsync(targets, ct);
         var wantedIds = wanted.Select(e => e.Id).ToHashSet();
         var taken = new HashSet<int>();
         var picked = 0;
@@ -208,8 +208,7 @@ public sealed class SeriesAutomaticSearchService(
                     continue;
                 }
 
-                var match = index.Find(parsed, release.TvdbId, release.ImdbId);
-                SeriesMatchLog.ById(logger, match, parsed.SeriesTitle, release.TvdbId, release.ImdbId);
+                var match = index.FindFor(targets.Indexed, parsed, release.TvdbId, release.ImdbId);
                 SeriesMatchLog.ById(logger, match, parsed.SeriesTitle, release.TvdbId, release.ImdbId);
                 if (match.Series is null || (release.TvdbId is { } tvdb && series.TvdbId is { } own && tvdb != own))
                 {
