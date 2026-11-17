@@ -204,6 +204,11 @@ builder.Services.AddScoped<TautulliImportService>();
 builder.Services.AddSingleton<TautulliImportRunner>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<TautulliImportRunner>());
 
+// Moving in from Seerr (Overseerr, Jellyseerr): its users, requests, issues and Discover rows, read from a copy of its database.
+builder.Services.AddScoped<SeerrImportService>();
+builder.Services.AddSingleton<SeerrImportRunner>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<SeerrImportRunner>());
+
 // Shadow mode: the Radarrs Bigarr follows (history, grabs, library) to compare its picks with what they grab.
 builder.Services.AddSingleton<RadarrFollowMemory>();
 builder.Services.AddScoped<RadarrFollower>();

@@ -216,7 +216,7 @@ Invariants: the rows, and the events about their changes, commit in one save; th
 after it; a restart changes nothing ([F9](#f9-health-events-were-raised-again-at-every-restart)). Notices are stored
 but raise no event.
 
-### Library scan, Radarr / Sonarr / Tautulli import
+### Library scan, Radarr / Sonarr / Tautulli / Seerr import
 
 Explicit, in memory: `ScanState` and `RadarrImportState`, both `Idle`, `Queued`, `Running`, `Completed`, `Failed`.
 
@@ -227,8 +227,8 @@ Explicit, in memory: `ScanState` and `RadarrImportState`, both `Idle`, `Queued`,
 | `Running` | `Completed` | done | |
 | `Running` | `Failed` | exception or cancellation | every exit path sets a terminal state |
 
-The Tautulli runner has one more state, "uploading", taken under the same lock as the enqueue: no import starts while
-a file is being uploaded and no upload while an import is queued or running ([F11](#f11-tautulli-upload-replaced-or-deleted-by-a-running-import)).
+The Tautulli and Seerr runners have one more state, "uploading", taken under the same lock as the enqueue: no import
+starts while a file is being uploaded and no upload while an import is queued or running ([F11](#f11-tautulli-upload-replaced-or-deleted-by-a-running-import)).
 
 Invariants: one scan at a time; one import per kind; nothing is stuck across a restart because nothing is stored. A
 scan key can sit in the channel more than once (every request while `Queued` writes it again); the worker drops the
@@ -390,6 +390,7 @@ title, version slot (standard / 4K) and, for a series, set of seasons.
 | `Pending` | (deleted) | its author cancels | still `Pending`, author only |
 | `Approved` | `Failed` | the library add failed (no root folder, metadata provider down, title unknown) | in the same approval |
 | `Failed` | `Approved` | an approver retries | the add goes through this time |
+| none | `Pending`, `Approved`, `Declined` or `Failed` | the Seerr import (`SeerrImportService`) writes the row as Seerr had it (Seerr's "completed" is `Approved`) | not imported before (`SourceRef`); its title and requester exist in Seerr. No outbox event, no library add, no forward, no search |
 
 Derived, never stored (`RequestStates`): an `Approved` request shows `Processing`, `PartiallyAvailable` or
 `Available` from the library with Discover's availability rules, on the version slot it asked for and, for a series,
@@ -409,6 +410,10 @@ Invariants:
   request's library id and version name.
 - "Available" goes to the outbox once per request: `AvailableAt` is set by `RequestAvailabilityJob` when the derived
   state first reads `Available`, and never cleared.
+- An imported request is history: written straight to the table, never through `RequestService`, with Seerr's dates,
+  requester and approver. One Seerr already called available (completed, or its title available in that slot) or one
+  the library already holds in full gets `AvailableAt` at the import, so the job never announces it; any other
+  approved one is announced when the library first has it, as a request made in Bigarr would be.
 - Active (pending, approved, failed) requests hold their slot: the duplicate check reads them; a declined one does not,
   and neither counts a deleted (cancelled) one. Quotas count every request but declined ones over each window.
 - Shadow mode needs nothing of its own here: the search the approval enqueues goes through the grab choke point.
@@ -430,6 +435,7 @@ snapshot: path, size, quality, release, indexer, grab id).
 | none | `Open` | a user with "report issues" reports (`POST /issues`) | the title is in the library (TMDB id, or TVDB id for a series); the scope fits the title; the version, season or episode exists; a message |
 | `Open` | `Resolved` | the reporter or an approver resolves | still `Open` |
 | `Resolved` | `Open` | the reporter or an approver reopens | still `Resolved` |
+| none | `Open` or `Resolved` | the Seerr import writes the issue as Seerr had it, its first comment as its message, the others as its thread (a `Resolved` line for a resolved one) | not imported before (`SourceRef`); its title and reporter exist in Seerr. The title need not be in the library; no file snapshot (Seerr keeps none); no outbox event |
 
 Each transition adds a line to the thread (`IssueComment.Kind` `Resolved` / `Reopened`) and an outbox event
 (`issueResolved` / `issueReopened`); a report adds `issueCreated`, a comment `issueCommented`. Comments are written by

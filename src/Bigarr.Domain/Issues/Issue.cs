@@ -96,6 +96,9 @@ public sealed class Issue
 
     public Auth.User? ResolvedBy { get; set; }
 
+    /// <summary>Where an import brought this from (<c>seerr:{kind}:{id}</c>), so running the import again adds nothing twice; null when made in Bigarr.</summary>
+    public string? SourceRef { get; set; }
+
     public ICollection<IssueComment> Comments { get; set; } = [];
 }
 
@@ -174,4 +177,7 @@ public sealed class IssueComment
     public DateTime CreatedAt { get; set; }
 
     public DateTime? EditedAt { get; set; }
+
+    /// <summary>Where an import brought this from (<c>seerr:{kind}:{id}</c>), so running the import again adds nothing twice; null when made in Bigarr.</summary>
+    public string? SourceRef { get; set; }
 }

@@ -24,6 +24,8 @@ public sealed class IssueConfiguration : IEntityTypeConfiguration<Issue>
         builder.HasIndex(i => new { i.MediaType, i.TmdbId });
         builder.HasIndex(i => i.MovieId);
         builder.HasIndex(i => i.SeriesId);
+        builder.Property(i => i.SourceRef).HasMaxLength(64);
+        builder.HasIndex(i => i.SourceRef).IsUnique();
 
         // The library ids are references, not foreign keys: an issue outlives its title, its version and its file.
         builder.HasOne(i => i.ReportedBy).WithMany().HasForeignKey(i => i.ReportedById).OnDelete(DeleteBehavior.Cascade);
@@ -42,6 +44,8 @@ public sealed class IssueCommentConfiguration : IEntityTypeConfiguration<IssueCo
         builder.Property(c => c.Outcome).HasMaxLength(512);
         builder.Property(c => c.Detail).HasMaxLength(4096);
         builder.HasIndex(c => new { c.IssueId, c.CreatedAt });
+        builder.Property(c => c.SourceRef).HasMaxLength(64);
+        builder.HasIndex(c => c.SourceRef).IsUnique();
 
         builder.HasOne(c => c.Author).WithMany().HasForeignKey(c => c.AuthorId).OnDelete(DeleteBehavior.SetNull);
     }

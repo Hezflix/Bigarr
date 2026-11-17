@@ -69,6 +69,7 @@ export type NavPath =
   | '/settings/mediaservers'
   | '/settings/import-radarr'
   | '/settings/import-tautulli'
+  | '/settings/import-seerr'
   | '/settings/followed-radarrs'
   | '/settings/import-sonarr'
   | '/settings/followed-sonarrs'
@@ -160,6 +161,7 @@ export function useNavSections(): NavSection[] {
         { to: '/settings/security', label: t('nav.settingsSecurity'), icon: ShieldCheckIcon },
         { to: '/settings/import-radarr', label: t('nav.settingsImportRadarr'), icon: ImportIcon },
         { to: '/settings/import-tautulli', label: t('nav.settingsImportTautulli'), icon: HistoryIcon },
+        { to: '/settings/import-seerr', label: t('nav.settingsImportSeerr'), icon: InboxIcon },
         { to: '/settings/followed-radarrs', label: t('nav.settingsFollowedRadarrs'), icon: GitCompareArrowsIcon },
         { to: '/settings/import-sonarr', label: t('nav.settingsImportSonarr'), icon: ImportIcon },
         { to: '/settings/followed-sonarrs', label: t('nav.settingsFollowedSonarrs'), icon: GitCompareArrowsIcon },

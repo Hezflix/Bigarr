@@ -225,6 +225,7 @@ const securityRoute = createRoute({ getParentRoute: () => appRoute, path: '/sett
 const mediaServersRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/mediaservers', component: lazyRouteComponent(() => import('./features/settings/MediaServersPage'), 'MediaServersPage') })
 const importRadarrRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/import-radarr', component: lazyRouteComponent(() => import('./features/settings/ImportRadarrPage'), 'ImportRadarrPage') })
 const importTautulliRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/import-tautulli', component: lazyRouteComponent(() => import('./features/settings/ImportTautulliPage'), 'ImportTautulliPage') })
+const importSeerrRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/import-seerr', component: lazyRouteComponent(() => import('./features/settings/ImportSeerrPage'), 'ImportSeerrPage') })
 const followedRadarrsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/followed-radarrs', component: lazyRouteComponent(() => import('./features/settings/RadarrFollowPage'), 'RadarrFollowPage') })
 const importSonarrRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/import-sonarr', component: lazyRouteComponent(() => import('./features/settings/ImportSonarrPage'), 'ImportSonarrPage') })
 const followedSonarrsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/followed-sonarrs', component: lazyRouteComponent(() => import('./features/settings/SonarrFollowPage'), 'SonarrFollowPage') })
@@ -276,6 +277,7 @@ const router = createRouter({
       mediaServersRoute,
       importRadarrRoute,
       importTautulliRoute,
+      importSeerrRoute,
       followedRadarrsRoute,
       importSonarrRoute,
       followedSonarrsRoute,

@@ -26,6 +26,8 @@ public sealed class MediaRequestConfiguration : IEntityTypeConfiguration<MediaRe
         builder.HasIndex(r => new { r.MediaType, r.TmdbId });
         builder.HasIndex(r => new { r.RequestedById, r.CreatedAt });
         builder.HasIndex(r => r.Status);
+        builder.Property(r => r.SourceRef).HasMaxLength(64);
+        builder.HasIndex(r => r.SourceRef).IsUnique();
 
         builder.HasOne(r => r.RequestedBy).WithMany().HasForeignKey(r => r.RequestedById).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne(r => r.DecidedBy).WithMany().HasForeignKey(r => r.DecidedById).OnDelete(DeleteBehavior.SetNull);

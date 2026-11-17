@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Bigarr.Api.Features.Migration;
 
-/// <summary>Moving in from an existing Radarr or Sonarr: preview the mapping, run the import in the background, follow it.</summary>
+/// <summary>Moving in from an existing Radarr, Sonarr, Tautulli or Seerr: preview the mapping, run the import in the background, follow it.</summary>
 public static class MigrationEndpoints
 {
     public static IEndpointRouteBuilder MapMigration(this IEndpointRouteBuilder app)
@@ -33,6 +33,7 @@ public static class MigrationEndpoints
         group.MapGet("/status", Ok<RadarrImportStatusResponse> (RadarrImportRunner runner) => TypedResults.Ok(runner.Status()));
 
         app.MapTautulliImport();
+        app.MapSeerrImport();
 
         // Moving in from an existing Sonarr: the same three steps, for series.
         var sonarr = app.MapGroup("/api/v1/migration/sonarr").WithTags("Migration").RequireAuthorization(AuthPolicies.Api);
@@ -109,5 +110,54 @@ public static class MigrationEndpoints
         });
 
         group.MapGet("/status", Ok<TautulliImportStatusResponse> (TautulliImportRunner runner) => TypedResults.Ok(runner.Status()));
+    }
+
+    /// <summary>Moving in from Seerr: a copy of its database, typed as a path or uploaded, previewed, then imported in the background.</summary>
+    private static void MapSeerrImport(this IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("/api/v1/migration/seerr").WithTags("Migration").RequireAuthorization(AuthPolicies.Api);
+
+        group.MapPut("/upload", async Task<Results<Ok<SeerrUploadResponse>, ProblemHttpResult>> (HttpRequest http, SeerrImportService imports, SeerrImportRunner runner, CancellationToken ct) =>
+        {
+            if (!runner.TryBeginUpload())
+            {
+                return Infrastructure.Failure.Conflict("An import or an upload is running", "Wait for it to finish before uploading another database.").ToProblem();
+            }
+
+            try
+            {
+                if (http.HttpContext.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } limit)
+                {
+                    limit.MaxRequestBodySize = null;
+                }
+
+                return TypedResults.Ok(await imports.SaveUploadAsync(http.Body, ct));
+            }
+            finally
+            {
+                runner.EndUpload();
+            }
+        });
+
+        group.MapPost("/preview", async Task<Results<Ok<SeerrImportPreviewResponse>, ProblemHttpResult>> (SeerrImportPreviewRequest request, SeerrImportService imports, CancellationToken ct) =>
+        {
+            var result = await imports.PreviewAsync(request, ct);
+            return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
+        });
+
+        group.MapPost("/import", Results<Accepted<SeerrImportStatusResponse>, ProblemHttpResult> (SeerrImportRequest request, SeerrImportService imports, SeerrImportRunner runner) =>
+        {
+            if (imports.Validate(request) is { } invalid)
+            {
+                return invalid.ToProblem();
+            }
+
+            var status = runner.Enqueue(request);
+            return status is null
+                ? Infrastructure.Failure.Conflict("An import is already running", "Wait for it to finish before starting another one.").ToProblem()
+                : TypedResults.Accepted("/api/v1/migration/seerr/status", status);
+        });
+
+        group.MapGet("/status", Ok<SeerrImportStatusResponse> (SeerrImportRunner runner) => TypedResults.Ok(runner.Status()));
     }
 }
