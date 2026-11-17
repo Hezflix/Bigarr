@@ -42,4 +42,42 @@ public static class ReleaseRanking
             .ThenBy(r => anime(r) ? -episodeCount(r) : episodeCount(r))
             .ThenBy(indexerPriority)
             .ThenByDescending(seeders);
+
+    /// <summary>
+    /// Whether the season's group decided the choice of <paramref name="chosen"/>: it realigns files of another group, or
+    /// it beat a release of another group that was equal on quality and custom format score for some of the same
+    /// episodes. Null when the group played no part.
+    /// </summary>
+    public static Downloads.SeasonGroupChoice? SeasonGroupChoice<T>(
+        T chosen,
+        IEnumerable<T> ranked,
+        Func<T, Bigarr.Decision.EpisodeCoverage?> coverage,
+        Func<T, string?> releaseGroup,
+        Func<T, int> qualityId,
+        Func<T, int> customFormatScore,
+        Func<T, IEnumerable<int>> episodeIds)
+    {
+        ArgumentNullException.ThrowIfNull(ranked);
+        if (coverage(chosen) is not { } covered || !Bigarr.Decision.SeasonGroups.Matches(releaseGroup(chosen), covered))
+        {
+            return null;
+        }
+
+        var group = covered.SeasonGroups[covered.Slots[0].SeasonNumber];
+        if (Bigarr.Decision.SeasonGroups.Realigns(releaseGroup(chosen), covered))
+        {
+            return new Downloads.SeasonGroupChoice(group, true);
+        }
+
+        var weight = WeightOf(qualityId(chosen));
+        var score = customFormatScore(chosen);
+        var episodes = episodeIds(chosen).ToHashSet();
+        var beat = ranked.Any(other =>
+            !EqualityComparer<T>.Default.Equals(other, chosen)
+            && WeightOf(qualityId(other)) == weight
+            && customFormatScore(other) == score
+            && !Bigarr.Decision.SeasonGroups.Same(releaseGroup(other), group)
+            && episodeIds(other).Any(episodes.Contains));
+        return beat ? new Downloads.SeasonGroupChoice(group, false) : null;
+    }
 }
