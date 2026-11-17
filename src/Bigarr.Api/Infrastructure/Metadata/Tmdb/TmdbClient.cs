@@ -62,7 +62,7 @@ public sealed class TmdbClient(HttpClient http, IOptions<MetadataOptions> option
     /// <summary>Show details with its external ids (the TVDB bridge) and alternative titles.</summary>
     public async Task<TmdbTvDetails?> GetTvAsync(int tmdbId, CancellationToken cancellationToken)
     {
-        var url = $"tv/{tmdbId}?append_to_response=external_ids,alternative_titles&language={Uri.EscapeDataString(options.Value.Language)}";
+        var url = $"tv/{tmdbId}?append_to_response=external_ids,alternative_titles,translations&language={Uri.EscapeDataString(options.Value.Language)}";
         using var response = await http.GetAsync(url, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {

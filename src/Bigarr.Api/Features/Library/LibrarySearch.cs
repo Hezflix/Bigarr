@@ -50,13 +50,13 @@ public static class LibrarySearchEndpoints
         // Alternative titles are a JSON column: read whole, picked apart here. Images are another one, and only the few
         // rows that rank need their poster: they are read afterwards.
         var movies = (await db.Movies.AsNoTracking()
-                .Select(m => new { m.Id, m.Title, m.Year, m.AlternativeTitles })
+                .Select(m => new { m.Id, m.Title, m.OriginalTitle, m.Year, m.AlternativeTitles })
                 .ToListAsync(ct))
-            .Select(m => new LibraryTitleRow(m.Id, m.Title, m.Year, [], [.. m.AlternativeTitles.Select(a => a.Title)]));
+            .Select(m => new LibraryTitleRow(m.Id, m.Title, m.Year, [], OtherTitles(m.OriginalTitle, m.AlternativeTitles)));
         var series = (await db.Series.AsNoTracking()
-                .Select(s => new { s.Id, s.Title, s.Year, s.AlternativeTitles })
+                .Select(s => new { s.Id, s.Title, s.OriginalTitle, s.Year, s.AlternativeTitles })
                 .ToListAsync(ct))
-            .Select(s => new LibraryTitleRow(s.Id, s.Title, s.Year, [], [.. s.AlternativeTitles.Select(a => a.Title)]));
+            .Select(s => new LibraryTitleRow(s.Id, s.Title, s.Year, [], OtherTitles(s.OriginalTitle, s.AlternativeTitles)));
 
         var foundMovies = query.Rank(movies, LibraryItemKind.Movie, limit);
         var foundSeries = query.Rank(series, LibraryItemKind.Series, limit);
@@ -72,6 +72,13 @@ public static class LibrarySearchEndpoints
             [.. foundMovies.Select(r => r with { PosterUrl = posters.GetValueOrDefault(r.Id) })],
             [.. foundSeries.Select(r => r with { PosterUrl = seriesPosters.GetValueOrDefault(r.Id) })]));
     }
+
+    /// <summary>
+    /// What a film or series is also called: its original title (a Radarr or Sonarr import brings none among the alternative
+    /// ones) then the alternative titles, each once.
+    /// </summary>
+    private static List<string> OtherTitles(string? original, IEnumerable<AlternativeTitle> alternatives) =>
+        [.. new[] { original }.Concat(alternatives.Select(a => a.Title)).OfType<string>().Where(t => !string.IsNullOrWhiteSpace(t)).Distinct(StringComparer.OrdinalIgnoreCase)];
 
     private static string? Poster(List<MediaImage> images) => images.FirstOrDefault(i => i.Type == ImageType.Poster)?.RemoteUrl;
 }

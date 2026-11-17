@@ -43,6 +43,9 @@ public sealed class TmdbTvDetails
     public TmdbTvExternalIds? ExternalIds { get; set; }
 
     public TmdbTvAlternativeTitles? AlternativeTitles { get; set; }
+
+    /// <summary>The show's name in each language TMDB has.</summary>
+    public TmdbTvTranslations? Translations { get; set; }
 }
 
 public sealed class TmdbNetwork
@@ -77,6 +80,25 @@ public sealed class TmdbTvAlternativeTitles
 {
     /// <summary>TV alternative titles come under <c>results</c>, not <c>titles</c> as for films.</summary>
     public List<TmdbAlternativeTitle> Results { get; set; } = [];
+}
+
+public sealed class TmdbTvTranslations
+{
+    public List<TmdbTvTranslation> Translations { get; set; } = [];
+}
+
+public sealed class TmdbTvTranslation
+{
+    [JsonPropertyName("iso_639_1")]
+    public string? Iso6391 { get; set; }
+
+    public TmdbTvTranslationData? Data { get; set; }
+}
+
+public sealed class TmdbTvTranslationData
+{
+    /// <summary>TV translations carry <c>name</c>, where films' carry <c>title</c>.</summary>
+    public string? Name { get; set; }
 }
 
 public sealed class TmdbTvSeason
