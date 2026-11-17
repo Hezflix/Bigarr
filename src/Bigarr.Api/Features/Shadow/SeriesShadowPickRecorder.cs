@@ -87,6 +87,8 @@ public sealed class SeriesShadowPickRecorder(BigarrDbContext db, CustomFormatSco
             RevisionReal = hasQuality ? revision?.Real ?? 0 : null,
             IsRepack = revision?.IsRepack ?? false,
             ReleaseGroup = string.IsNullOrWhiteSpace(parsed?.ReleaseGroup) ? null : parsed!.ReleaseGroup,
+            SeasonGroup = request.SeasonGroup?.Group,
+            SeasonGroupRealigned = request.SeasonGroup?.Realigned ?? false,
             Languages = languages,
             CustomFormats = formats,
             CustomFormatScore = score,

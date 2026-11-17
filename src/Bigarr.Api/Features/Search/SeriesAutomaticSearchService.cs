@@ -253,7 +253,15 @@ public sealed class SeriesAutomaticSearchService(
                     continue;
                 }
 
-                var grab = await grabs.GrabAsync(GrabRequest.ForEpisodes(release, versionId, episodeIds, judgement.Numbering), context.TriggerName, ct);
+                var choice = ReleaseRanking.SeasonGroupChoice(
+                    ranked.First(r => ReferenceEquals(r.Release, release)),
+                    ranked,
+                    a => a.Decision.Target.Episodes,
+                    a => a.Judgement.Parsed?.ReleaseGroup,
+                    a => a.Judgement.Parsed?.Quality?.Quality?.Id ?? 0,
+                    a => a.Decision.CustomFormatScore,
+                    a => a.Judgement.Episodes.Select(e => e.Id));
+                var grab = await grabs.GrabAsync(GrabRequest.ForEpisodes(release, versionId, episodeIds, judgement.Numbering) with { SeasonGroup = choice }, context.TriggerName, ct);
                 if (!grab.IsSuccess)
                 {
                     var failure = grab.Failure!;

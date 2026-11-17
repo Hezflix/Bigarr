@@ -75,11 +75,15 @@ public sealed record SeriesCompareRowResponse(
     /// <summary>Sonarr-only rows: the RSS pass's sighting of Sonarr's release (null: never seen in Bigarr's feeds).</summary>
     CompareSightingResponse? Sighting,
     /// <summary>Sonarr-only rows with one grab: whether timing explains why Bigarr picked nothing.</summary>
-    CompareTimingNote? Timing);
+    CompareTimingNote? Timing,
+    /// <summary>Intended rows: why Bigarr chose differently on purpose (<see cref="SeriesCompareService.SeasonGroupReason"/>).</summary>
+    string? Reason = null,
+    /// <summary>Intended rows: the reason in words.</summary>
+    string? ReasonDetail = null);
 
-public sealed record SeriesCompareCounts(int Same, int Different, int BigarrOnly, int SonarrOnly)
+public sealed record SeriesCompareCounts(int Same, int Different, int BigarrOnly, int SonarrOnly, int Intended = 0)
 {
-    public int Total => Same + Different + BigarrOnly + SonarrOnly;
+    public int Total => Same + Different + BigarrOnly + SonarrOnly + Intended;
 }
 
 public sealed record SeriesCompareVersionSummary(string VersionName, SeriesCompareCounts Counts);
@@ -105,6 +109,42 @@ public sealed record SeriesCompareResponse(
 /// </summary>
 public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOptions> options, TimeProvider time)
 {
+    /// <summary>The reason of an intended row where the season's release group decided Bigarr's pick.</summary>
+    public const string SeasonGroupReason = "season-group";
+
+    /// <summary>
+    /// A different or Bigarr-only row is intended when every Bigarr pick on it was decided by the season's release
+    /// group and Sonarr took no release of that group: a different row where the group broke a tie or realigned, a
+    /// Bigarr-only row only for a realignment (Sonarr kept the other group's files). The reason and its words, or null.
+    /// </summary>
+    public static (string Reason, string Detail)? Intended(SeriesCompareOutcome outcome, IReadOnlyList<SeriesShadowPick> picks, IReadOnlyList<SonarrGrab> grabs)
+    {
+        ArgumentNullException.ThrowIfNull(picks);
+        ArgumentNullException.ThrowIfNull(grabs);
+        if (outcome is not (SeriesCompareOutcome.Different or SeriesCompareOutcome.BigarrOnly) || picks.Count == 0 || picks.Any(p => p.SeasonGroup is null))
+        {
+            return null;
+        }
+
+        var group = picks[0].SeasonGroup!;
+        if (picks.Any(p => !Bigarr.Decision.SeasonGroups.Same(p.SeasonGroup, group)) || grabs.Any(g => Bigarr.Decision.SeasonGroups.Same(g.ReleaseGroup, group)))
+        {
+            return null;
+        }
+
+        var realigned = picks.Any(p => p.SeasonGroupRealigned);
+        if (outcome == SeriesCompareOutcome.BigarrOnly && !realigned)
+        {
+            return null;
+        }
+
+        var others = grabs.Select(g => g.ReleaseGroup).Where(g => !string.IsNullOrWhiteSpace(g)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var detail = realigned
+            ? $"Bigarr replaced files of another group with {group}'s release, to keep one release group per season"
+            : $"Bigarr preferred {group}, the season's release group, over an equal release{(others.Count > 0 ? $" from {string.Join(", ", others)}" : string.Empty)}";
+        return (SeasonGroupReason, detail);
+    }
+
     /// <param name="tvdbId">One series only: the series page's own comparison.</param>
     public async Task<SeriesCompareResponse> CompareAsync(string? version, SeriesCompareOutcome? outcome, int days, int windowHours, int page, int pageSize, CancellationToken ct, int? tvdbId = null)
     {
@@ -140,6 +180,19 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
                 now)
             .Where(r => from is null || r.At >= from)
             .ToList();
+
+        // Differences Bigarr makes on purpose leave the mismatches for their own outcome, with their reason.
+        var reasons = new Dictionary<SeriesComparePairing.Row, (string Reason, string Detail)>(ReferenceEqualityComparer.Instance);
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var row = rows[i];
+            if (Intended(row.Outcome, row.Bigarr.Where(p => p.Id > 0).Select(p => picks[p.Id]).ToList(), row.Sonarr.Select(g => grabs[g.Id]).ToList()) is { } intended
+                && row.Bigarr.All(p => p.Id > 0))
+            {
+                rows[i] = row with { Outcome = SeriesCompareOutcome.Intended };
+                reasons[rows[i]] = intended;
+            }
+        }
 
         var summary = Count(rows);
         var byVersion = rows
@@ -185,7 +238,9 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
                 row.AlsoPicked.Select(p => p.Id < 0 ? ToResponse(filmPicks[p.Id]) : ToResponse(picks[p.Id])).ToList(),
                 lead,
                 seen,
-                row.Outcome == SeriesCompareOutcome.SonarrOnly && rowGrabs.Count == 1 ? Timing(rowGrabs[0], seen) : null);
+                row.Outcome == SeriesCompareOutcome.SonarrOnly && rowGrabs.Count == 1 ? Timing(rowGrabs[0], seen) : null,
+                reasons.TryGetValue(row, out var why) ? why.Reason : null,
+                reasons.TryGetValue(row, out var words) ? words.Detail : null);
         }).ToList();
 
         var versions = (await db.SeriesShadowPicks.AsNoTracking().Select(p => p.VersionName).Distinct().ToListAsync(ct))
@@ -275,7 +330,8 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
             list.Count(r => r.Outcome == SeriesCompareOutcome.Same),
             list.Count(r => r.Outcome == SeriesCompareOutcome.Different),
             list.Count(r => r.Outcome == SeriesCompareOutcome.BigarrOnly),
-            list.Count(r => r.Outcome == SeriesCompareOutcome.SonarrOnly));
+            list.Count(r => r.Outcome == SeriesCompareOutcome.SonarrOnly),
+            list.Count(r => r.Outcome == SeriesCompareOutcome.Intended));
     }
 
     /// <summary>The first sighting of each grab's release in Bigarr's feeds: same guid, same info hash, or same title.</summary>

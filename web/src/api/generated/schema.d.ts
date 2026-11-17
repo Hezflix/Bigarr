@@ -13971,6 +13971,11 @@ export interface components {
             bigarrOnly: number;
             /** Format: int32 */
             sonarrOnly: number;
+            /**
+             * Format: int32
+             * @default 0
+             */
+            intended: number;
             /** Format: int32 */
             total: number;
         };
@@ -14002,7 +14007,7 @@ export interface components {
             bigarr: null | components["schemas"]["BigarrVerdict"];
         };
         /** @enum {unknown} */
-        SeriesCompareOutcome: "same" | "different" | "bigarrOnly" | "sonarrOnly";
+        SeriesCompareOutcome: "same" | "different" | "bigarrOnly" | "sonarrOnly" | "intended";
         SeriesComparePickResponse: {
             /** Format: int32 */
             id: number;
@@ -14075,6 +14080,8 @@ export interface components {
             bigarrLeadSeconds: null | number;
             sighting: null | components["schemas"]["CompareSightingResponse"];
             timing: null | components["schemas"]["CompareTimingNote"];
+            reason: null | string;
+            reasonDetail: null | string;
         };
         SeriesCompareVersionSummary: {
             versionName: string;

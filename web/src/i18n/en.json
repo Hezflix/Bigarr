@@ -1911,13 +1911,18 @@
       "same": "Same release",
       "different": "Different release",
       "bigarrOnly": "Bigarr only",
-      "sonarrOnly": "Sonarr only"
+      "sonarrOnly": "Sonarr only",
+      "intended": "Intended"
     },
     "seriesOutcomeHints": {
       "same": "Both chose the same release",
       "different": "Both chose for these episodes, not the same release",
       "bigarrOnly": "Bigarr picked, Sonarr grabbed nothing",
-      "sonarrOnly": "Sonarr grabbed, Bigarr picked nothing"
+      "sonarrOnly": "Sonarr grabbed, Bigarr picked nothing",
+      "intended": "Bigarr chose differently on purpose, reason given"
+    },
+    "seriesReasons": {
+      "season-group": "One release group per season"
     },
     "seriesAgreement": "Bigarr picked the same release for {{percent}}% of the episode sets Sonarr grabbed ({{same}} of {{grabs}}).",
     "seriesNoGrabs": "No Sonarr grab in this period yet.",

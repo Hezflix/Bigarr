@@ -95,6 +95,21 @@ public sealed class SeasonAutoAlignmentTests(SeasonAutoAlignmentApiFactory facto
         var after = await RssPackAsync(client);
         Assert.Equal(version.Id, after.AttributedVersionId);
         Assert.NotNull(after.ShadowPickId);
+
+        // The pick says the season's group decided it; Compare shows it as an intended difference, not a mismatch.
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+            var pick = await db.SeriesShadowPicks.SingleAsync(p => p.Id == after.ShadowPickId);
+            Assert.Equal(("ROVERS", true), (pick.SeasonGroup, pick.SeasonGroupRealigned));
+        }
+
+        var compare = (await client.GetFromJsonAsync<Bigarr.Api.Features.Shadow.SeriesCompareResponse>($"/api/v1/shadow/compare/series?tvdbId={SeriesSearchTests.BreakingBad}", Json))!;
+        var row = Assert.Single(compare.Rows, r => r.Bigarr.Any(p => p.Id == after.ShadowPickId));
+        Assert.Equal(Bigarr.Api.Features.Shadow.SeriesCompareOutcome.Intended, row.Outcome);
+        Assert.Equal("season-group", row.Reason);
+        Assert.Equal(1, compare.Summary.Intended);
+        Assert.Equal(0, compare.Summary.BigarrOnly);
     }
 
     private static async Task<List<SeriesWantedItemResponse>> AlignWantedAsync(HttpClient client, int seriesId) =>

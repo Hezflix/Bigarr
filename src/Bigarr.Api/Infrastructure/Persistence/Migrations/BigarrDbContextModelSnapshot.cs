@@ -2903,6 +2903,12 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int?>("RevisionVersion")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("SeasonGroup")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("SeasonGroupRealigned")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("Seeders")
                         .HasColumnType("INTEGER");
 
