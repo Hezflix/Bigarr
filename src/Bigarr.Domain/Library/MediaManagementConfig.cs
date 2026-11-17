@@ -83,6 +83,19 @@ public sealed class MediaManagementConfig
     /// <summary>Percent of the pack's episodes that must be upgraded in <see cref="SeasonPackUpgrade.Threshold"/> mode.</summary>
     public double SeasonPackUpgradeThreshold { get; set; } = 100;
 
+    /// <summary>
+    /// Automatic season alignment (off by default): an episode whose file is from another release group than its
+    /// season's counts as not finished, so RSS and the searches keep looking for the season group's release, for
+    /// <see cref="SeasonAlignmentGiveUp"/> at most.
+    /// </summary>
+    public bool AlignSeasonGroups { get; set; }
+
+    /// <summary>When <see cref="AlignSeasonGroups"/> was last switched on: the give-up clock never starts before it.</summary>
+    public DateTime? AlignSeasonGroupsSince { get; set; }
+
+    /// <summary>How long an off-group episode is looked for automatically, from its file's arrival (or the switch, if later).</summary>
+    public static readonly TimeSpan SeasonAlignmentGiveUp = TimeSpan.FromDays(2);
+
     // ---- series naming (Sonarr's media management, defaults from Sonarr v4) -------------------------------------------
 
     public const string DefaultSeriesFolderTemplate = "{Series TitleYear}";

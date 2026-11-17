@@ -29,7 +29,7 @@ public sealed class RepackSpecification : IReleaseSpecification
         return RevisionUpgrade.FirstRefusal(target, quality, (file, noun) =>
         {
             // An alignment replaces another group's file: a group change, judged by UpgradableSpecification.CheckAlignment.
-            if (realigns && target.Episodes!.Slots.Any(s => ReferenceEquals(s.File, file) && target.Episodes.AlignSeasons.Contains(s.SeasonNumber) && SeasonGroups.IsOffGroup(s, target.Episodes)))
+            if (realigns && target.Episodes!.Slots.Any(s => ReferenceEquals(s.File, file) && SeasonGroups.Realigned(s, target.Episodes)))
             {
                 return null;
             }

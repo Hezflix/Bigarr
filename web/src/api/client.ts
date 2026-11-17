@@ -763,6 +763,7 @@ export type MediaManagementRequest = Pick<
   | 'seasonPackUpgradeThreshold'
   | 'replaceIllegalCharacters'
   | 'colonReplacement'
+  | 'alignSeasonGroups'
 >
 
 export type NamingPreview = Schemas['NamingPreviewResponse']
@@ -1676,6 +1677,9 @@ export const series = {
   alignment: (id: number, versionId: number, seasonNumber: number) =>
     api<SeasonAlignment>(`/api/v1/series/${id}/versions/${versionId}/seasons/${seasonNumber}/alignment`),
   /** Searches the off-group episodes of the season and takes only its group's releases (picked in shadow mode). */
+  /** "Keep as is": the automatic alignment leaves the season alone. Answers the new preview. */
+  keepSeasonGroups: (id: number, versionId: number, seasonNumber: number, keepAsIs: boolean) =>
+    put<SeasonAlignment>(`/api/v1/series/${id}/versions/${versionId}/seasons/${seasonNumber}/alignment`, { keepAsIs }),
   align: (id: number, versionId: number, seasonNumber: number) =>
     post<SeasonAlignmentResult>(`/api/v1/series/${id}/versions/${versionId}/seasons/${seasonNumber}/alignment`),
   lookup: (term: string) => api<SeriesLookupResult[]>(`/api/v1/series/lookup?term=${encodeURIComponent(term)}`),

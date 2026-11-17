@@ -1,6 +1,7 @@
 using Bigarr.Api.Infrastructure.Matching;
+using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Decision;
-using Bigarr.Domain.Tv;
+using Microsoft.EntityFrameworkCore;
 
 namespace Bigarr.Api.Features.Search;
 
@@ -8,7 +9,9 @@ namespace Bigarr.Api.Features.Search;
 public sealed record SeasonGroupCount(string Group, int Files);
 
 /// <summary>An episode whose file (or pick) is from another group than the season's: what an alignment replaces.</summary>
-public sealed record SeasonAlignmentEpisode(int EpisodeId, string Label, string? Title, string? CurrentGroup, string Quality, bool IsPick);
+/// <param name="GivesUpAt">With the automatic alignment on (and the season not kept): when it stops looking for this one.</param>
+/// <param name="GaveUp">The automatic alignment no longer looks for it; "Align season" still does.</param>
+public sealed record SeasonAlignmentEpisode(int EpisodeId, string Label, string? Title, string? CurrentGroup, string Quality, bool IsPick, DateTime? GivesUpAt = null, bool GaveUp = false);
 
 /// <summary>
 /// The dry run of "Align season": the season's group, how it was found, and the episodes a search would try to replace
@@ -23,7 +26,14 @@ public sealed record SeasonAlignmentResponse(
     string? Reason,
     int MinimumFiles,
     List<SeasonGroupCount> Groups,
-    List<SeasonAlignmentEpisode> Episodes);
+    List<SeasonAlignmentEpisode> Episodes,
+    /// <summary>The automatic alignment setting (Settings → Media management).</summary>
+    bool AutoAlign = false,
+    /// <summary>"Keep as is": the automatic alignment leaves this season alone.</summary>
+    bool KeepAsIs = false);
+
+/// <summary>"Keep as is" on or off for a season of a version.</summary>
+public sealed record SeasonAlignmentKeepRequest(bool KeepAsIs);
 
 /// <param name="Search">The search run for the off-group episodes; null when there was nothing to align.</param>
 public sealed record SeasonAlignmentResult(SeasonAlignmentResponse Preview, SeriesAutomaticSearchResult? Search);
@@ -34,7 +44,7 @@ public sealed record SeasonAlignmentResult(SeasonAlignmentResponse Preview, Seri
 /// there are several, so the group's season pack is welcome) and takes only releases of the season's group, at a
 /// quality and custom format score no lower than the file in place.
 /// </summary>
-public sealed class SeasonAlignmentService(SeriesTargetsFactory targetsFactory, SeriesAutomaticSearchService search)
+public sealed class SeasonAlignmentService(BigarrDbContext db, SeriesTargetsFactory targetsFactory, SeriesAutomaticSearchService search)
 {
     public async Task<SeasonAlignmentResponse?> PreviewAsync(int seriesId, int versionId, int seasonNumber, CancellationToken ct)
     {
@@ -55,6 +65,8 @@ public sealed class SeasonAlignmentService(SeriesTargetsFactory targetsFactory, 
         var counts = SeasonGroups.Count(SeriesTargets.FileGroups(slots));
         var group = targets.SeasonGroupsOf(versionId).GetValueOrDefault(seasonNumber);
         var episodes = new List<SeasonAlignmentEpisode>();
+        var keep = targets.KeepsReleaseGroups(versionId, seasonNumber);
+        var auto = targets.AutoAlignSeasons(versionId).Contains(seasonNumber);
         if (group is not null)
         {
             var titles = targets.Episodes.ToDictionary(e => e.Id, e => e.Title);
@@ -66,7 +78,9 @@ public sealed class SeasonAlignmentService(SeriesTargetsFactory targetsFactory, 
                     titles.GetValueOrDefault(s.EpisodeId),
                     string.IsNullOrWhiteSpace(s.File!.ReleaseGroup) ? null : s.File.ReleaseGroup,
                     targets.QualityName(s.File.QualityId),
-                    s.File.IsPick))
+                    s.File.IsPick,
+                    auto ? targets.AlignmentGivesUpAt(s) : null,
+                    auto && targets.AlignmentGaveUp(s)))
                 .ToList();
         }
 
@@ -78,7 +92,24 @@ public sealed class SeasonAlignmentService(SeriesTargetsFactory targetsFactory, 
             group is null ? SeasonGroups.WhyNone(seasonNumber, counts) : null,
             SeasonGroups.MinimumFiles,
             counts.Select(c => new SeasonGroupCount(c.Group, c.Files)).ToList(),
-            episodes);
+            episodes,
+            targets.AutoAlignEnabled,
+            keep);
+    }
+
+    /// <summary>Sets "keep as is" on a season of a version; null when the series, version or season is unknown.</summary>
+    public async Task<SeasonAlignmentResponse?> KeepAsync(int seriesId, int versionId, int seasonNumber, bool keep, CancellationToken ct)
+    {
+        var row = await db.SeriesVersionSeasons
+            .FirstOrDefaultAsync(s => s.VersionId == versionId && s.Version.SeriesId == seriesId && s.Season.SeasonNumber == seasonNumber, ct);
+        if (row is null)
+        {
+            return null;
+        }
+
+        row.KeepReleaseGroups = keep;
+        await db.SaveChangesAsync(ct);
+        return await PreviewAsync(seriesId, versionId, seasonNumber, ct);
     }
 
     /// <summary>Searches the off-group episodes of the season for its group's release; null when the series or version is unknown.</summary>
@@ -97,5 +128,32 @@ public sealed class SeasonAlignmentService(SeriesTargetsFactory targetsFactory, 
 
         var result = await search.SearchEpisodesAsync(versionId, preview.Episodes.Select(e => e.EpisodeId).ToList(), SearchTrigger.User, ct, new HashSet<int> { seasonNumber });
         return new SeasonAlignmentResult(preview, result);
+    }
+}
+
+/// <summary>
+/// The season groups of the files on disk, per (version, season), with how many episodes have a file from another
+/// group: the series page's summary and the Wanted list read it without loading every series graph.
+/// </summary>
+public static class SeasonGroupIndex
+{
+    public static async Task<Dictionary<(int VersionId, int SeasonNumber), (string? Group, int OffGroup)>> LoadAsync(BigarrDbContext db, IReadOnlyCollection<int>? versionIds, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        var rows = await db.EpisodeTargets.AsNoTracking()
+            .Where(t => (versionIds == null || versionIds.Contains(t.VersionId)) && t.EpisodeFileId != null && t.Episode.SeasonNumber > 0)
+            .Select(t => new { t.VersionId, t.Episode.SeasonNumber, FileId = t.EpisodeFileId!.Value, t.EpisodeFile!.ReleaseGroup })
+            .ToListAsync(ct);
+        var result = new Dictionary<(int, int), (string?, int)>();
+        foreach (var season in rows.GroupBy(r => (r.VersionId, r.SeasonNumber)))
+        {
+            var group = SeasonGroups.Of(season.Key.SeasonNumber, season.DistinctBy(r => r.FileId).Select(r => r.ReleaseGroup));
+            if (group is not null)
+            {
+                result[season.Key] = (group, season.Count(r => !SeasonGroups.Same(r.ReleaseGroup, group)));
+            }
+        }
+
+        return result;
     }
 }

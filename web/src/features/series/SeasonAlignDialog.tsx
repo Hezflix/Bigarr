@@ -1,27 +1,31 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { cn } from 'cn'
 import { LayersIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, series as seriesApi } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { formatDateTime } from '@/i18n'
 
 /**
  * "Align season": one release group per season, as Sonarr users keep it by hand. The button shows on a season with a
  * group (most files, at least 3) and episodes from another one; the dialog is the dry run (which episodes, from which
  * group to which) and its button runs the search that takes only the group's releases.
  */
-export function SeasonAlignButton({ group, count, season, onClick }: { group: string; count: number; season: string; onClick: () => void }) {
+export function SeasonAlignButton({ group, count, season, kept, onClick }: { group: string; count: number; season: string; kept?: boolean; onClick: () => void }) {
   const { t } = useTranslation()
   const name = t('seasonAlign.button', { season, group, count })
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-1.5 text-xs sm:px-2" aria-label={name} onClick={onClick} data-testid="season-align">
+        <Button type="button" variant="ghost" size="sm" className={cn('h-7 gap-1 px-1.5 text-xs sm:px-2', kept && 'text-muted-foreground')} aria-label={name} onClick={onClick} data-testid="season-align">
           <LayersIcon aria-hidden="true" />
           {/* The count where there is room; a phone keeps the icon (its name says how many). */}
           <span className="hidden tabular-nums sm:inline">{count}</span>
@@ -29,6 +33,7 @@ export function SeasonAlignButton({ group, count, season, onClick }: { group: st
       </TooltipTrigger>
       <TooltipContent className="max-w-72">
         <p className="font-medium">{name}</p>
+        {kept && <p>{t('seasonAlign.kept')}</p>}
         {t('seasonAlign.hint')}
       </TooltipContent>
     </Tooltip>
@@ -48,8 +53,18 @@ type Props = {
 
 export function SeasonAlignDialog({ seriesId, versionId, versionName, seasonNumber, seasonName, open, onOpenChange, onDone }: Props) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const key = ['seasonAlignment', seriesId, versionId, seasonNumber]
+  const keep = useMutation({
+    mutationFn: (keepAsIs: boolean) => seriesApi.keepSeasonGroups(seriesId, versionId, seasonNumber, keepAsIs),
+    onSuccess: (next) => {
+      queryClient.setQueryData(key, next)
+      onDone()
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : t('common.unexpectedError')),
+  })
   const preview = useQuery({
-    queryKey: ['seasonAlignment', seriesId, versionId, seasonNumber],
+    queryKey: key,
     queryFn: () => seriesApi.alignment(seriesId, versionId, seasonNumber),
     enabled: open,
     staleTime: 0,
@@ -114,6 +129,11 @@ export function SeasonAlignDialog({ seriesId, versionId, versionName, seasonNumb
                           <TableCell className="max-w-40 truncate" title={e.title ?? undefined}>
                             {e.currentGroup ?? <span className="text-muted-foreground">{t('seasonAlign.unknownGroup')}</span>}
                             {e.isPick && <span className="ml-1 text-xs text-muted-foreground">{t('seasonAlign.pick')}</span>}
+                            {data.autoAlign && !data.keepAsIs && (e.gaveUp || e.givesUpAt) && (
+                              <span className="block text-xs text-muted-foreground" data-testid="season-align-giveup">
+                                {e.gaveUp ? t('seasonAlign.gaveUp') : t('seasonAlign.givesUp', { date: formatDateTime(e.givesUpAt) })}
+                              </span>
+                            )}
                           </TableCell>
                           <TableCell className="font-medium">{data.seasonGroup}</TableCell>
                           <TableCell className="hidden text-muted-foreground sm:table-cell">{e.quality}</TableCell>
@@ -124,6 +144,24 @@ export function SeasonAlignDialog({ seriesId, versionId, versionName, seasonNumb
                 </div>
                 <p className="text-xs text-muted-foreground">{t('seasonAlign.rules')}</p>
               </>
+            )}
+            {data.seasonGroup && (
+              <div className="flex items-start gap-2 border-t pt-3">
+                <Checkbox
+                  id="season-align-keep"
+                  checked={data.keepAsIs}
+                  disabled={keep.isPending}
+                  onCheckedChange={(v) => keep.mutate(v === true)}
+                  className="mt-0.5"
+                  data-testid="season-align-keep"
+                />
+                <div className="grid gap-0.5">
+                  <Label htmlFor="season-align-keep" className="font-normal">
+                    {t('seasonAlign.keepAsIs')}
+                  </Label>
+                  <span className="text-xs text-muted-foreground">{data.autoAlign || data.keepAsIs ? t('seasonAlign.keepAsIsHint') : t('seasonAlign.autoOff')}</span>
+                </div>
+              </div>
             )}
           </div>
         )}

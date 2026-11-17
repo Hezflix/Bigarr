@@ -38,7 +38,7 @@ public sealed class UpgradableSpecification : IReleaseSpecification
         var refused = new List<(EpisodeSlot Slot, Rejection Rejection)>();
         foreach (var slot in withFile)
         {
-            var rejection = realigns && episodes.AlignSeasons.Contains(slot.SeasonNumber)
+            var rejection = realigns && SeasonGroups.Aligning(slot, episodes)
                 ? CheckAlignment(candidate, target, slot.File!, SeasonGroups.IsOffGroup(slot, episodes))
                 : Check(candidate, target, slot.File!);
             if (rejection is not null)
