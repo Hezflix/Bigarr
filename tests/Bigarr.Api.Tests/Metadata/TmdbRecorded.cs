@@ -56,6 +56,28 @@ public static class TmdbRecorded
     }
     """;
 
+    /// <summary>A film asked in French: the French title on top, the English one only among the translations.</summary>
+    public const string Movie603French = """
+    {
+      "id": 603,
+      "imdb_id": "tt0133093",
+      "original_language": "en",
+      "original_title": "The Matrix",
+      "release_date": "1999-03-31",
+      "status": "Released",
+      "title": "Matrix",
+      "alternative_titles": { "titles": [ { "iso_3166_1": "RU", "title": "Матрица", "type": "" } ] },
+      "translations": {
+        "translations": [
+          { "iso_3166_1": "US", "iso_639_1": "en", "name": "English", "english_name": "English", "data": { "homepage": "", "overview": "Set in the 22nd century...", "runtime": 136, "tagline": "", "title": "" } },
+          { "iso_3166_1": "GB", "iso_639_1": "en", "name": "English", "english_name": "English", "data": { "homepage": "", "overview": "", "runtime": 0, "tagline": "", "title": "The Matrix " } },
+          { "iso_3166_1": "FR", "iso_639_1": "fr", "name": "Français", "english_name": "French", "data": { "homepage": "", "overview": "", "runtime": 136, "tagline": "", "title": "Matrix" } },
+          { "iso_3166_1": "UA", "iso_639_1": "uk", "name": "Український", "english_name": "Ukrainian", "data": { "homepage": "", "overview": "", "runtime": 136, "tagline": "", "title": "Матриця" } }
+        ]
+      }
+    }
+    """;
+
     public const string SearchMatrix = """
     {
       "page": 1,

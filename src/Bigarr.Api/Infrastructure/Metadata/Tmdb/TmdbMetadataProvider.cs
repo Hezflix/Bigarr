@@ -64,13 +64,17 @@ public sealed class TmdbMetadataProvider(TmdbClient client, IOptions<MetadataOpt
             alternativeTitles.Add(new AlternativeTitle(d.OriginalTitle, null));
         }
 
-        foreach (var alt in d.AlternativeTitles?.Titles ?? [])
+        // Translations too, as Radarr matches releases against them: with a metadata language other than English, the
+        // English title a release carries is often only there, not in the alternative titles.
+        var titles = (d.AlternativeTitles?.Titles ?? []).Select(a => (Title: a.Title?.Trim(), Country: a.Iso31661))
+            .Concat((d.Translations?.Translations ?? []).Select(t => (Title: t.Data?.Title?.Trim(), Country: t.Iso31661)));
+        foreach (var (title, country) in titles)
         {
-            if (!string.IsNullOrWhiteSpace(alt.Title)
-                && !string.Equals(alt.Title, d.Title, StringComparison.OrdinalIgnoreCase)
-                && !alternativeTitles.Any(a => string.Equals(a.Title, alt.Title, StringComparison.OrdinalIgnoreCase)))
+            if (!string.IsNullOrWhiteSpace(title)
+                && !string.Equals(title, d.Title, StringComparison.OrdinalIgnoreCase)
+                && !alternativeTitles.Any(a => string.Equals(a.Title, title, StringComparison.OrdinalIgnoreCase)))
             {
-                alternativeTitles.Add(new AlternativeTitle(alt.Title, alt.Iso31661));
+                alternativeTitles.Add(new AlternativeTitle(title, country));
             }
         }
 

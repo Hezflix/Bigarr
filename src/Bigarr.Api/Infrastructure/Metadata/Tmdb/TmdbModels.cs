@@ -38,6 +38,9 @@ public sealed class TmdbMovieDetails
 
     public TmdbAlternativeTitles? AlternativeTitles { get; set; }
 
+    /// <summary>The film's title in each language TMDB has (empty when it is the original title).</summary>
+    public TmdbTranslations? Translations { get; set; }
+
     public TmdbReleaseDates? ReleaseDates { get; set; }
 
     public TmdbExternalIds? ExternalIds { get; set; }
@@ -70,6 +73,27 @@ public sealed class TmdbAlternativeTitle
     public string? Title { get; set; }
 
     public string? Type { get; set; }
+}
+
+public sealed class TmdbTranslations
+{
+    public List<TmdbTranslation> Translations { get; set; } = [];
+}
+
+public sealed class TmdbTranslation
+{
+    [JsonPropertyName("iso_3166_1")]
+    public string? Iso31661 { get; set; }
+
+    [JsonPropertyName("iso_639_1")]
+    public string? Iso6391 { get; set; }
+
+    public TmdbTranslationData? Data { get; set; }
+}
+
+public sealed class TmdbTranslationData
+{
+    public string? Title { get; set; }
 }
 
 public sealed class TmdbReleaseDates
