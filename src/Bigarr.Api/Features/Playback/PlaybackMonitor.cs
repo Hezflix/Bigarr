@@ -184,9 +184,18 @@ public sealed class PlaybackMonitor(IServiceScopeFactory scopeFactory, PlexClien
                             continue;
                         }
 
-                        if (await OnEventAsync(server, playing, gate, ct))
+                        try
                         {
-                            await ReconcileAsync(server, gate, ct);
+                            if (await OnEventAsync(server, playing, gate, ct))
+                            {
+                                await ReconcileAsync(server, gate, ct);
+                            }
+                        }
+                        catch (Exception ex) when (ex is not OperationCanceledException)
+                        {
+                            // The listener starts over on it; said here so it is not mistaken for a dropped connection.
+                            logger.LogInformation("A {State} event of stream {SessionKey} on {Server} failed: {Error}", playing.State, playing.SessionKey, server.Name, ex.Message);
+                            throw;
                         }
                     }
                 }
@@ -275,7 +284,7 @@ public sealed class PlaybackMonitor(IServiceScopeFactory scopeFactory, PlexClien
         }
         catch (Exception ex)
         {
-            logger.LogDebug("Periodic reconcile of {Server} failed, trying again at the next tick: {Error}", server.Name, ex.Message);
+            logger.LogInformation("Periodic reconcile of {Server} failed, trying again at the next tick: {Error}", server.Name, ex.Message);
         }
     }
 
