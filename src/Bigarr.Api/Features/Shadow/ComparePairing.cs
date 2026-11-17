@@ -18,12 +18,16 @@ public enum CompareOutcome
 /// <summary>
 /// Puts Radarr's grabs and Bigarr's picks side by side, per film and version (TMDB id + version name, so deletions and
 /// films Bigarr does not have yet still pair). The same release first (guid, info hash or title), then the closest pick in
-/// time within the window. A pick made while Radarr's download was still in flight, once the grab is paired, is listed
-/// with it ("also picked") rather than as Bigarr-only: Bigarr keeps judging a version Radarr is downloading for, since a
-/// pick changes nothing, and Radarr would have refused most of those. Pure, so the rules are tested on their own.
+/// time within the window, else Bigarr's latest pick of the 14 days before (Bigarr was first). A pick made while
+/// Radarr's download was still in flight, once the grab is paired, is listed with it ("also picked") rather than as
+/// Bigarr-only: Bigarr keeps judging a version Radarr is downloading for, since a pick changes nothing, and Radarr would
+/// have refused most of those. Pure, so the rules are tested on their own.
 /// </summary>
 public static class ComparePairing
 {
+    /// <summary>How long before Radarr's grab a pick still counts as Bigarr first when nothing paired in the window.</summary>
+    public static readonly TimeSpan EarlierPickLimit = TimeSpan.FromDays(14);
+
     public sealed record Grab(int Id, int TmdbId, string Version, DateTime At, string? Guid, string? InfoHash, string Title, DateTime? ResolvedAt, bool InFlight);
 
     public sealed record Pick(int Id, int TmdbId, string Version, DateTime At, string? Guid, string? InfoHash, string Title);
@@ -80,6 +84,26 @@ public static class ComparePairing
             {
                 used.Add(other.Id);
                 paired[grab.Id] = (other, CompareOutcome.Different);
+            }
+        }
+
+        // A grab nothing paired with in the window: Bigarr's latest pick of the 14 days before it still counts.
+        // In shadow mode a pick downloads nothing, so Radarr grabbing the film later means Bigarr was first. Not a pick
+        // another grab of Radarr's came after (that grab owns the question), nor one made while an earlier grab was
+        // downloading (it is listed with that grab).
+        foreach (var grab in grabs.Where(g => !paired.ContainsKey(g.Id)))
+        {
+            var earlier = picks
+                .Where(p => !used.Contains(p.Id) && p.At < grab.At && grab.At - p.At <= EarlierPickLimit)
+                .Where(p => !grabs.Any(g => g.Id != grab.Id && p.At <= g.At && g.At < grab.At))
+                .Where(p => !grabs.Any(g => g.Id != grab.Id && paired.ContainsKey(g.Id) && g.At <= p.At && p.At <= End(g, window, now)))
+                .OrderByDescending(p => p.At)
+                .ThenByDescending(p => p.Id)
+                .FirstOrDefault();
+            if (earlier is not null)
+            {
+                used.Add(earlier.Id);
+                paired[grab.Id] = (earlier, SameRelease(grab, earlier) ? CompareOutcome.Same : CompareOutcome.Different);
             }
         }
 

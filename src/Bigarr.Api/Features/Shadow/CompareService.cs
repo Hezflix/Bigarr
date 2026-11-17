@@ -126,12 +126,14 @@ public sealed class CompareService(BigarrDbContext db, IOptions<ShadowOptions> o
 
         var grabs = (await grabQuery.ToListAsync(ct)).ToDictionary(g => g.Id);
         var picks = (await pickQuery.ToListAsync(ct)).ToDictionary(p => p.Id);
+        await LoadEarlierAsync(grabs, picks, loadFrom, version, ct);
         var pairs = ComparePairing.Match(
                 grabs.Values.Select(g => new ComparePairing.Grab(g.Id, g.TmdbId, g.VersionName, g.GrabbedAt, g.ReleaseGuid, g.InfoHash, g.ReleaseTitle, g.ResolvedAt, g.State == RadarrGrabState.Grabbed)),
                 picks.Values.Select(p => new ComparePairing.Pick(p.Id, p.TmdbId, p.VersionName, p.PickedAt, p.ReleaseGuid, p.InfoHash, p.ReleaseTitle)),
                 window,
                 now)
-            .Where(p => from is null || p.At >= from)
+            // A row belongs to the period when either side does: a grab in it paired with a pick from before still shows.
+            .Where(p => from is null || p.At >= from || p.Radarr?.At >= from)
             .ToList();
 
         var summary = Count(pairs);
@@ -180,6 +182,39 @@ public sealed class CompareService(BigarrDbContext db, IOptions<ShadowOptions> o
             .ToList();
 
         return new CompareResponse(from, now, (int)window.TotalHours, options.Value.Enabled, versions, summary, byVersion, rows, filtered.Count, page, pageSize);
+    }
+
+    /// <summary>
+    /// For the films and versions Radarr grabbed in the period, Bigarr's latest pick from before it (and Radarr's latest
+    /// grab from before it, which would own that pick), back to <see cref="ComparePairing.EarlierPickLimit"/> before it.
+    /// </summary>
+    private async Task LoadEarlierAsync(Dictionary<int, RadarrGrab> grabs, Dictionary<int, ShadowPick> picks, DateTime loadFrom, string? version, CancellationToken ct)
+    {
+        if (loadFrom == DateTime.MinValue || grabs.Count == 0)
+        {
+            return;
+        }
+
+        var keys = grabs.Values.Select(g => (g.TmdbId, g.VersionName)).ToHashSet();
+        var tmdbIds = keys.Select(k => k.TmdbId).Distinct().ToList();
+        var since = loadFrom - ComparePairing.EarlierPickLimit;
+        var olderPicks = db.ShadowPicks.AsNoTracking().Where(p => p.PickedAt < loadFrom && p.PickedAt >= since && tmdbIds.Contains(p.TmdbId));
+        var olderGrabs = db.RadarrGrabs.AsNoTracking().Include(g => g.FollowedRadarr).Where(g => g.GrabbedAt < loadFrom && g.GrabbedAt >= since && tmdbIds.Contains(g.TmdbId));
+        if (!string.IsNullOrWhiteSpace(version))
+        {
+            olderPicks = olderPicks.Where(p => p.VersionName == version);
+            olderGrabs = olderGrabs.Where(g => g.VersionName == version);
+        }
+
+        foreach (var pick in (await olderPicks.ToListAsync(ct)).Where(p => keys.Contains((p.TmdbId, p.VersionName))).GroupBy(p => (p.TmdbId, p.VersionName)).Select(g => g.MaxBy(p => (p.PickedAt, p.Id))!))
+        {
+            picks.TryAdd(pick.Id, pick);
+        }
+
+        foreach (var grab in (await olderGrabs.ToListAsync(ct)).Where(g => keys.Contains((g.TmdbId, g.VersionName))).GroupBy(g => (g.TmdbId, g.VersionName)).Select(g => g.MaxBy(x => (x.GrabbedAt, x.Id))!))
+        {
+            grabs.TryAdd(grab.Id, grab);
+        }
     }
 
     private static CompareTimingNote Timing(RadarrGrab grab, CompareSightingResponse? seen) => CompareTiming.Note(

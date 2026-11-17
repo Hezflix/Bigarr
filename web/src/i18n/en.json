@@ -1761,7 +1761,7 @@
     "allVersions": "All versions",
     "window": "Pairing window",
     "windowHours": "{{hours}} h window",
-    "windowHint": "How far apart a grab and a pick of the same film and version can be and still be compared. Picks made while Radarr's download was in flight stay with its grab.",
+    "windowHint": "How far apart a grab and a pick of the same film and version can be and still be compared. Picks made while Radarr's download was in flight stay with its grab. A grab with no pick in the window pairs with Bigarr's latest pick of the 14 days before it, unless another grab came between.",
     "refresh": "Refresh",
     "outcome": "Outcome",
     "all": "All",

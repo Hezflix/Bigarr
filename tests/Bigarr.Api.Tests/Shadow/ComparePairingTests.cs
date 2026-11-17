@@ -104,4 +104,56 @@ public sealed class ComparePairingTests
         Assert.Equal(11, upgrade.Bigarr!.Id);
         Assert.Equal(T0.AddHours(36), upgrade.At);
     }
+
+    [Fact]
+    public void A_pick_days_before_radarrs_grab_is_bigarr_first_not_two_lone_rows()
+    {
+        // Bigarr picked the film, Radarr did nothing; three days later Radarr grabbed it.
+        var pairs = Match([G(1, 72, "Radarr's")], [P(10, 0, "Bigarr's")], Window, Now);
+
+        var pair = Assert.Single(pairs);
+        Assert.Equal(CompareOutcome.Different, pair.Outcome);
+        Assert.Equal(10, pair.Bigarr!.Id);
+        Assert.Equal(T0, pair.At);
+
+        // The same release, picked long before: the same, not "Radarr only".
+        Assert.Equal(CompareOutcome.Same, Assert.Single(Match([G(1, 72, "X", guid: "x")], [P(10, 0, "X", guid: "x")], Window, Now)).Outcome);
+
+        // The latest earlier pick is the one that pairs; the older one stays Bigarr's alone.
+        var latest = Match([G(1, 100, "R")], [P(10, 0, "Old"), P(11, 50, "Newer")], Window, Now);
+        Assert.Equal(11, latest.Single(p => p.Radarr is not null).Bigarr!.Id);
+        Assert.Equal(10, Assert.Single(latest, p => p.Outcome == CompareOutcome.BigarrOnly).Bigarr!.Id);
+    }
+
+    [Fact]
+    public void An_earlier_pick_counts_up_to_fourteen_days_before_the_grab()
+    {
+        var limit = EarlierPickLimit.TotalHours;
+        var now = T0.AddDays(30);
+
+        Assert.Equal(10, Assert.Single(Match([G(1, limit, "R")], [P(10, 0, "B")], Window, now)).Bigarr!.Id);
+
+        var tooOld = Match([G(1, limit + 1, "R")], [P(10, 0, "B")], Window, now);
+        Assert.Equal(CompareOutcome.RadarrOnly, tooOld.Single(p => p.Radarr is not null).Outcome);
+        Assert.Equal(CompareOutcome.BigarrOnly, tooOld.Single(p => p.Radarr is null).Outcome);
+    }
+
+    [Fact]
+    public void An_earlier_pick_does_not_jump_over_another_grab()
+    {
+        // Radarr grabbed at 48 h (nothing around it), then again at 120 h: Bigarr's pick at 0 h is only ahead of the first.
+        var pairs = Match([G(1, 48, "First", resolvedHours: 50), G(2, 120, "Second")], [P(10, 0, "Bigarr's")], Window, Now);
+
+        Assert.Equal(10, pairs.Single(p => p.Radarr?.Id == 1).Bigarr!.Id);
+        Assert.Equal(CompareOutcome.RadarrOnly, pairs.Single(p => p.Radarr?.Id == 2).Outcome);
+
+        // A pick made while a paired grab was downloading stays "also picked" with it, not ahead of the next grab.
+        var during = Match(
+            [G(1, 0, "A", guid: "a", resolvedHours: 60), G(2, 200, "B")],
+            [P(10, 0.1, "A", guid: "a"), P(11, 40, "During")],
+            Window,
+            Now.AddDays(10));
+        Assert.Equal(11, Assert.Single(during.Single(p => p.Radarr?.Id == 1).AlsoPicked).Id);
+        Assert.Equal(CompareOutcome.RadarrOnly, during.Single(p => p.Radarr?.Id == 2).Outcome);
+    }
 }
