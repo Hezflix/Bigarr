@@ -1,28 +1,21 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Loader2Icon, PlusIcon } from 'lucide-react'
-import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { library, type LibrarySearchResult } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import { CommandGroup, CommandItem } from '@/components/ui/command'
 import { useDebounced } from '@/hooks/useDebounced'
+import { contentScore, contentTier } from './filter'
 import type { PaletteTarget } from './target'
 
 /** The shortest term worth asking the server about: one letter matches half the library. */
 export const minContentTerm = 2
 
-type Props = {
-  query: string
-  onSelect: (target: PaletteTarget) => void
-  /** Told the first film or series once the rows of the current term arrive, for the palette to select it. */
-  onFirstResult: (value: string) => void
-}
+/** The value carries how well the hit matches (`exact`, `prefix`…): cmdk ranks it against pages and actions with that. */
+const itemValue = (item: LibrarySearchResult, term: string) => `content:${item.kind}:${item.id}:${contentTier(term, item.matchedTitle ?? item.title)}`
 
-const itemValue = (item: LibrarySearchResult) => `content:${item.kind}:${item.id}`
-
-/** Films and series of the library matching the query. */
-export function ContentGroups({ query, onSelect, onFirstResult }: Props) {
-  const { t } = useTranslation()
+/** Films and series of the library matching the query, searched on the server a moment after typing stops. */
+export function useContentSearch(query: string) {
   const term = query.trim()
   const debounced = useDebounced(term, 150)
   const enabled = debounced.length >= minContentTerm
@@ -36,33 +29,51 @@ export function ContentGroups({ query, onSelect, onFirstResult }: Props) {
     placeholderData: keepPreviousData,
   })
 
-  // cmdk keeps the selected entry while new ones appear above it: without this the "Add" entry, there first, stays
-  // selected and Enter would add instead of opening the film that was found.
-  const fresh = enabled && !results.isPlaceholderData ? results.data : undefined
-  useEffect(() => {
-    const first = fresh?.movies[0] ?? fresh?.series[0]
-    if (first) onFirstResult(itemValue(first))
-  }, [fresh, onFirstResult])
+  const shown = term.length >= minContentTerm && enabled
+  const movies = shown ? (results.data?.movies ?? []) : []
+  const series = shown ? (results.data?.series ?? []) : []
+  const first = movies[0] ?? series[0]
+  return {
+    term,
+    debounced,
+    movies,
+    series,
+    searching: results.isFetching || debounced !== term,
+    /** The first film or series and how well it matches; the rows of the current term only, not the previous term's kept while loading. */
+    fresh: enabled && !results.isPlaceholderData ? results.data : undefined,
+    /** The first row shown (whatever term it is for) and how well it matches, for ranking the groups. */
+    top: first ? { value: itemValue(first, debounced), score: contentScore(contentTier(debounced, first.matchedTitle ?? first.title)) } : null,
+  }
+}
 
+export type ContentSearch = ReturnType<typeof useContentSearch>
+
+/** The first film or series of fresh results, and its value, for the palette to select. */
+export function firstResult(fresh: ContentSearch['fresh'], term: string): { value: string; score: number } | null {
+  const first = fresh?.movies[0] ?? fresh?.series[0]
+  if (!first) return null
+  return { value: itemValue(first, term), score: contentScore(contentTier(term, first.matchedTitle ?? first.title)) }
+}
+
+/** Films and series of the library matching the query. */
+export function ContentGroups({ search, onSelect }: { search: ContentSearch; onSelect: (target: PaletteTarget) => void }) {
+  const { t } = useTranslation()
+  const { term, debounced, movies, series, searching } = search
   if (term.length < minContentTerm) return null
-
-  const movies = enabled ? (results.data?.movies ?? []) : []
-  const series = enabled ? (results.data?.series ?? []) : []
-  const searching = results.isFetching || debounced !== term
 
   return (
     <>
       {movies.length > 0 && (
         <CommandGroup heading={t('palette.content.movies')}>
           {movies.map((item) => (
-            <ContentItem key={item.id} item={item} onSelect={() => onSelect({ kind: 'movie', id: item.id })} />
+            <ContentItem key={item.id} item={item} term={debounced} onSelect={() => onSelect({ kind: 'movie', id: item.id })} />
           ))}
         </CommandGroup>
       )}
       {series.length > 0 && (
         <CommandGroup heading={t('palette.content.series')}>
           {series.map((item) => (
-            <ContentItem key={item.id} item={item} onSelect={() => onSelect({ kind: 'series', id: item.id })} />
+            <ContentItem key={item.id} item={item} term={debounced} onSelect={() => onSelect({ kind: 'series', id: item.id })} />
           ))}
         </CommandGroup>
       )}
@@ -91,10 +102,10 @@ export function AddGroup({ query, onSelect }: { query: string; onSelect: (target
   )
 }
 
-function ContentItem({ item, onSelect }: { item: LibrarySearchResult; onSelect: () => void }) {
+function ContentItem({ item, term, onSelect }: { item: LibrarySearchResult; term: string; onSelect: () => void }) {
   const { t } = useTranslation()
   return (
-    <CommandItem value={itemValue(item)} onSelect={onSelect} className="py-1!" data-testid={`palette-${item.kind}-${item.id}`}>
+    <CommandItem value={itemValue(item, term)} onSelect={onSelect} className="py-1!" data-testid={`palette-${item.kind}-${item.id}`}>
       <Poster url={item.posterUrl} title={item.title} size="thumb" className="rounded-sm" />
       <span className="flex min-w-0 flex-col">
         <span className="truncate">
