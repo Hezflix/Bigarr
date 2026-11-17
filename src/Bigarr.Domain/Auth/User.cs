@@ -34,6 +34,9 @@ public sealed class User
     /// </summary>
     public List<string>? DiscordMentions { get; set; }
 
+    /// <summary>Where an import brought this from (<c>seerr:{kind}:{id}</c>), so running the import again adds nothing twice; null when made in Bigarr.</summary>
+    public string? SourceRef { get; set; }
+
     public ICollection<ApiKey> ApiKeys { get; set; } = [];
 
     public bool IsDisabled => DisabledAt is not null;

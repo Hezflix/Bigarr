@@ -18,6 +18,8 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.ComplexProperty(u => u.Quota);
         builder.Property(u => u.DiscordUserId).HasMaxLength(20);
         builder.Property(u => u.DiscordMentions).HasJsonConversion();
+        builder.Property(u => u.SourceRef).HasMaxLength(64);
+        builder.HasIndex(u => u.SourceRef).IsUnique();
         builder.Ignore(u => u.IsDisabled);
         builder.Ignore(u => u.HasPassword);
         builder.Ignore(u => u.Effective);

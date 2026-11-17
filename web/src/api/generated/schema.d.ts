@@ -8615,6 +8615,154 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/migration/seerr/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SeerrUploadResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/migration/seerr/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SeerrImportPreviewRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SeerrImportPreviewResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/migration/seerr/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SeerrImportRequest"];
+                };
+            };
+            responses: {
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SeerrImportStatusResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/migration/seerr/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SeerrImportStatusResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/migration/sonarr/preview": {
         parameters: {
             query?: never;
@@ -13833,6 +13981,176 @@ export interface components {
             monitored: boolean;
             statistics: components["schemas"]["EpisodeStatistics"];
         };
+        SeerrImportIssue: {
+            kind: string;
+            /** Format: int32 */
+            seerrId: number;
+            what: string;
+            reason: string;
+        };
+        SeerrImportPreviewRequest: {
+            path: string;
+        };
+        SeerrImportPreviewResponse: {
+            flavor: string;
+            users: components["schemas"]["SeerrUserLine"][];
+            requests: components["schemas"]["SeerrRequestCounts"];
+            issues: components["schemas"]["SeerrIssueCounts"];
+            titlesNotInLibrary: components["schemas"]["SeerrTitleLine"][];
+            /** Format: int32 */
+            titlesToAskTmdb: number;
+            sliders: components["schemas"]["SeerrSliderLine"][];
+            skipped: components["schemas"]["SeerrSkippedLine"][];
+            notImported: components["schemas"]["SeerrNotImported"][];
+        };
+        SeerrImportRequest: {
+            path: string;
+            /** @default true */
+            askTmdb: boolean;
+            /** @default true */
+            importSliders: boolean;
+        };
+        SeerrImportStatusResponse: {
+            state: components["schemas"]["RadarrImportState"];
+            /** Format: date-time */
+            startedAt: null | string;
+            /** Format: date-time */
+            finishedAt: null | string;
+            /** Format: int32 */
+            total: number;
+            /** Format: int32 */
+            processed: number;
+            /** Format: int32 */
+            usersAdded: number;
+            /** Format: int32 */
+            usersMatched: number;
+            /** Format: int32 */
+            usersUpdated: number;
+            /** Format: int32 */
+            requestsAdded: number;
+            /** Format: int32 */
+            issuesAdded: number;
+            /** Format: int32 */
+            commentsAdded: number;
+            /** Format: int32 */
+            slidersAdded: number;
+            /** Format: int32 */
+            slidersUpdated: number;
+            /** Format: int32 */
+            alreadyImported: number;
+            /** Format: int32 */
+            skipped: number;
+            /** Format: int32 */
+            titlesFromTmdb: number;
+            current: null | string;
+            error: null | string;
+            issues: components["schemas"]["SeerrImportIssue"][];
+            uploadDeleted: boolean;
+        };
+        SeerrIssueCounts: {
+            /** Format: int32 */
+            total: number;
+            /** Format: int32 */
+            open: number;
+            /** Format: int32 */
+            resolved: number;
+            /** Format: int32 */
+            comments: number;
+            /** Format: int32 */
+            inLibrary: number;
+            /** Format: int32 */
+            notInLibrary: number;
+            /** Format: int32 */
+            alreadyImported: number;
+            /** Format: int32 */
+            commentsAlreadyImported: number;
+            /** Format: int32 */
+            skipped: number;
+        };
+        SeerrNotImported: {
+            what: string;
+            /** Format: int32 */
+            count: number;
+            why: string;
+        };
+        SeerrRequestCounts: {
+            /** Format: int32 */
+            total: number;
+            /** Format: int32 */
+            movies: number;
+            /** Format: int32 */
+            series: number;
+            /** Format: int32 */
+            fourK: number;
+            /** Format: int32 */
+            pending: number;
+            /** Format: int32 */
+            approved: number;
+            /** Format: int32 */
+            declined: number;
+            /** Format: int32 */
+            failed: number;
+            /** Format: int32 */
+            completed: number;
+            /** Format: int32 */
+            inLibrary: number;
+            /** Format: int32 */
+            notInLibrary: number;
+            /** Format: int32 */
+            alreadyImported: number;
+            /** Format: int32 */
+            skipped: number;
+            /** Format: int32 */
+            overlappingBigarr: number;
+        };
+        SeerrSkippedLine: {
+            kind: string;
+            /** Format: int32 */
+            seerrId: number;
+            what: string;
+            reason: string;
+        };
+        SeerrSliderLine: {
+            name: string;
+            title: null | string;
+            enabled: boolean;
+            kind: null | string;
+            value: null | string;
+            skipped: null | string;
+        };
+        SeerrTitleLine: {
+            mediaType: components["schemas"]["RequestMediaType"];
+            /** Format: int32 */
+            tmdbId: number;
+            /** Format: int32 */
+            tvdbId: null | number;
+            /** Format: int32 */
+            requests: number;
+            /** Format: int32 */
+            issues: number;
+        };
+        SeerrUploadResponse: {
+            path: string;
+            /** Format: int64 */
+            bytes: number;
+        };
+        SeerrUserLine: {
+            /** Format: int32 */
+            seerrId: number;
+            name: string;
+            match: components["schemas"]["SeerrUserMatch"];
+            bigarrUsername: string;
+            role: components["schemas"]["UserRole"];
+            permissions: components["schemas"]["UserPermissions"];
+            discordId: boolean;
+            /** Format: int32 */
+            requests: number;
+            /** Format: int32 */
+            issues: number;
+            skipped: string[];
+        };
+        /** @enum {unknown} */
+        SeerrUserMatch: "alreadyImported" | "plexId" | "username" | "owner" | "newPlex" | "newWithoutSignIn";
         SeriesAutomaticSearchResult: {
             /** Format: int32 */
             seriesId: number;
@@ -15194,6 +15512,14 @@ export interface components {
         UserNotificationsDto: {
             discordUserId: null | string;
             mentions: string[];
+        };
+        UserPermissions: {
+            requestFilms: boolean;
+            requestSeries: boolean;
+            request4K: boolean;
+            autoApproveFilms: boolean;
+            autoApproveSeries: boolean;
+            reportIssues: boolean;
         };
         UserResponse: {
             /** Format: int32 */

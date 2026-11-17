@@ -131,6 +131,9 @@ public sealed class MediaRequest
     /// <summary>When the library first had all of it; the "available" event goes out once.</summary>
     public DateTime? AvailableAt { get; set; }
 
+    /// <summary>Where an import brought this from (<c>seerr:{kind}:{id}</c>), so running the import again adds nothing twice; null when made in Bigarr.</summary>
+    public string? SourceRef { get; set; }
+
     /// <summary>A request that still holds its slot: a new one for the same title, version (and season) is refused.</summary>
     public bool IsActive => Status is RequestStatus.Pending or RequestStatus.Approved or RequestStatus.Failed;
 }

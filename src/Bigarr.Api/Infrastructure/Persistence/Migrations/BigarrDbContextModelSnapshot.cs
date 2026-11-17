@@ -345,6 +345,10 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int>("Role")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("SourceRef")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Username")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -391,6 +395,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         });
 
                     b.HasKey("Id");
+
+                    b.HasIndex("SourceRef")
+                        .IsUnique();
 
                     b.HasIndex("Username")
                         .IsUnique();
@@ -912,6 +919,10 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int?>("SeriesVersionId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("SourceRef")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Status")
                         .HasColumnType("INTEGER");
 
@@ -947,6 +958,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("ResolvedById");
 
                     b.HasIndex("SeriesId");
+
+                    b.HasIndex("SourceRef")
+                        .IsUnique();
 
                     b.HasIndex("MediaType", "TmdbId");
 
@@ -994,9 +1008,16 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("SourceRef")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AuthorId");
+
+                    b.HasIndex("SourceRef")
+                        .IsUnique();
 
                     b.HasIndex("IssueId", "CreatedAt");
 
@@ -2369,6 +2390,10 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int?>("SeriesId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("SourceRef")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Status")
                         .HasColumnType("INTEGER");
 
@@ -2396,6 +2421,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("DecidedById");
+
+                    b.HasIndex("SourceRef")
+                        .IsUnique();
 
                     b.HasIndex("Status");
 

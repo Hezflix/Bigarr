@@ -1113,10 +1113,10 @@ export type TautulliImportStatus = Schemas['TautulliImportStatusResponse']
 export type TautulliUpload = Schemas['TautulliUploadResponse']
 
 /** Sends the raw file as the body, reporting the share sent so far (0–1): a Tautulli database runs to hundreds of megabytes. */
-function uploadTautulli(file: File, onProgress: (share: number) => void): Promise<TautulliUpload> {
+function uploadDatabase<T>(url: string, file: File, onProgress: (share: number) => void): Promise<T> {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest()
-    request.open('PUT', '/api/v1/migration/tautulli/upload')
+    request.open('PUT', url)
     request.withCredentials = true
     request.setRequestHeader('Content-Type', 'application/octet-stream')
     request.upload.onprogress = (e) => {
@@ -1130,7 +1130,7 @@ function uploadTautulli(file: File, onProgress: (share: number) => void): Promis
         body = undefined
       }
       if (request.status >= 200 && request.status < 300) {
-        resolve(body as TautulliUpload)
+        resolve(body as T)
         return
       }
       const problem = body as Problem | undefined
@@ -1142,11 +1142,34 @@ function uploadTautulli(file: File, onProgress: (share: number) => void): Promis
 }
 
 export const tautulliImport = {
-  upload: uploadTautulli,
+  upload: (file: File, onProgress: (share: number) => void) => uploadDatabase<TautulliUpload>('/api/v1/migration/tautulli/upload', file, onProgress),
   preview: (body: TautulliImportPreviewRequest) => post<TautulliImportPreview>('/api/v1/migration/tautulli/preview', body),
   /** Queues the import (202); 409 when one is already running. */
   start: (body: TautulliImportRequest) => post<TautulliImportStatus>('/api/v1/migration/tautulli/import', body),
   status: () => api<TautulliImportStatus>('/api/v1/migration/tautulli/status'),
+}
+
+// ---- migration (import from Seerr) ------------------------------------------
+
+export type SeerrImportPreview = Schemas['SeerrImportPreviewResponse']
+
+export type SeerrImportRequest = Schemas['SeerrImportRequest']
+
+export type SeerrImportStatus = Schemas['SeerrImportStatusResponse']
+
+export type SeerrUserLine = Schemas['SeerrUserLine']
+
+export type SeerrUserMatch = Schemas['SeerrUserMatch']
+
+export type SeerrUpload = Schemas['SeerrUploadResponse']
+
+export const seerrImport = {
+  /** A copy of Seerr's db.sqlite3, sent as the raw body. */
+  upload: (file: File, onProgress: (share: number) => void) => uploadDatabase<SeerrUpload>('/api/v1/migration/seerr/upload', file, onProgress),
+  preview: (path: string) => post<SeerrImportPreview>('/api/v1/migration/seerr/preview', { path }),
+  /** Queues the import (202); 409 when one is already running. */
+  start: (body: SeerrImportRequest) => post<SeerrImportStatus>('/api/v1/migration/seerr/import', body),
+  status: () => api<SeerrImportStatus>('/api/v1/migration/seerr/status'),
 }
 
 // ---- migration (import from Sonarr) ----------------------------------------
