@@ -32,6 +32,6 @@ export function orderSeason(s: Series, number: number, episodes: Episode[], file
     episodeCount: episodes.length,
     airedEpisodeCount: episodes.filter((e) => e.hasAired).length,
     // A season of another order has no release group of its own: alignment works on TVDB seasons.
-    versions: s.versions.map((v) => ({ versionId: v.id, ...stats(v.id), seasonGroup: null, offGroupEpisodes: 0 })),
+    versions: s.versions.map((v) => ({ versionId: v.id, ...stats(v.id), seasonGroup: null, offGroupEpisodes: 0, keepAsIs: false })),
   }
 }

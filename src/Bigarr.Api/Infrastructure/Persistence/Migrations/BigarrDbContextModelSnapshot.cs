@@ -1008,6 +1008,12 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int>("Id")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("AlignSeasonGroups")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("AlignSeasonGroupsSince")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("AnimeEpisodeTemplate")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -4035,6 +4041,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("SeasonId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("KeepReleaseGroups")
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("Monitored")

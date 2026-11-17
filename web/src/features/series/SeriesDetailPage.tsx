@@ -945,7 +945,7 @@ function SeasonBlock({ series: s, season, version, episodes, files, loading, sho
         {state && <EpisodeProgress statistics={state.statistics} monitored={monitored} className="hidden w-36 sm:flex" />}
         {outside && <span className="hidden text-xs text-muted-foreground md:inline">{t('seriesOrder.notInOrderHint')}</span>}
         {alignable && state?.seasonGroup && (
-          <SeasonAlignButton group={state.seasonGroup} count={state.offGroupEpisodes} season={name} onClick={() => setAligning(true)} />
+          <SeasonAlignButton group={state.seasonGroup} count={state.offGroupEpisodes} season={name} kept={state.keepAsIs} onClick={() => setAligning(true)} />
         )}
         {!outside ? (
           <InteractiveSearchButton iconOnly target={name} onClick={() => onSearch({ kind: 'season', season: season.seasonNumber, label: name, orderSeason: synthetic })} data-testid="season-search" />

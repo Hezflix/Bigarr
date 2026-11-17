@@ -37,4 +37,7 @@ public sealed class SeriesVersionSeason
     public Season Season { get; set; } = null!;
 
     public bool Monitored { get; set; }
+
+    /// <summary>"Keep as is": the automatic season alignment leaves this season of the version alone.</summary>
+    public bool KeepReleaseGroups { get; set; }
 }

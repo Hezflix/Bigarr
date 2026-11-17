@@ -86,6 +86,13 @@ public static class SearchEndpoints
             .WithTags("Search")
             .RequireAuthorization(AuthPolicies.Api);
 
+        // "Keep as is": the automatic alignment leaves the season alone (the button still works).
+        app.MapPut("/api/v1/series/{id:int}/versions/{versionId:int}/seasons/{seasonNumber:int}/alignment", async Task<Results<Ok<SeasonAlignmentResponse>, NotFound>> (
+                int id, int versionId, int seasonNumber, SeasonAlignmentKeepRequest request, SeasonAlignmentService alignment, CancellationToken ct) =>
+                await alignment.KeepAsync(id, versionId, seasonNumber, request.KeepAsIs, ct) is { } preview ? TypedResults.Ok(preview) : TypedResults.NotFound())
+            .WithTags("Search")
+            .RequireAuthorization(AuthPolicies.Api);
+
         app.MapPost("/api/v1/series/{id:int}/versions/{versionId:int}/seasons/{seasonNumber:int}/alignment", async Task<Results<Ok<SeasonAlignmentResult>, NotFound>> (
                 int id, int versionId, int seasonNumber, SeasonAlignmentService alignment, CancellationToken ct) =>
                 await alignment.AlignAsync(id, versionId, seasonNumber, ct) is { } result ? TypedResults.Ok(result) : TypedResults.NotFound())

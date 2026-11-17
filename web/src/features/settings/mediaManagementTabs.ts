@@ -20,6 +20,7 @@ export const filmFieldScope: Record<keyof MediaManagementRequest, Scope> = {
   colonReplacement: 'films',
   seasonPackUpgrade: 'series',
   seasonPackUpgradeThreshold: 'series',
+  alignSeasonGroups: 'series',
   transferMode: 'both',
   recycleBinPath: 'both',
   recycleBinRetentionDays: 'both',

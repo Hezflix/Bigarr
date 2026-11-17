@@ -15,6 +15,7 @@ const saved: MediaManagementRequest = {
   seasonPackUpgradeThreshold: 100,
   replaceIllegalCharacters: true,
   colonReplacement: 'delete',
+  alignSeasonGroups: false,
 }
 
 const none = (over: Partial<Record<Scope, boolean>> = {}): Record<Scope, boolean> => ({ films: false, series: false, both: false, ...over })
@@ -27,6 +28,7 @@ describe('dirtyScopes', () => {
   test('each field marks the tab it lives in', () => {
     expect(dirtyScopes({ ...saved, fileNameTemplate: 'x' }, saved, false)).toEqual(none({ films: true }))
     expect(dirtyScopes({ ...saved, seasonPackUpgrade: 'any' }, saved, false)).toEqual(none({ series: true }))
+    expect(dirtyScopes({ ...saved, alignSeasonGroups: true }, saved, false)).toEqual(none({ series: true }))
     expect(dirtyScopes({ ...saved, extraFileExtensions: 'srt,nfo' }, saved, false)).toEqual(none({ both: true }))
   })
 
