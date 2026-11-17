@@ -163,6 +163,34 @@ public sealed class PlaybackApiTests(BigarrApiFactory factory) : IClassFixture<B
     }
 
     [Fact]
+    public async Task The_periodic_tick_finds_a_stream_no_event_announced_while_nothing_else_plays()
+    {
+        var session = await CompatTestHelpers.SessionAsync(factory);
+        await using var plex = await FakePlex.StartAsync();
+        plex.Items["800"] = new FakePlex.Item("800", "Quiet Film", 2023, 6_000_000, "3", [new FakePlex.Part("8001", "/media/movies/Quiet Film (2023)/Quiet.Film.2023.1080p.mkv", "1080")]);
+        var body = new { name = "Plex quiet", kind = "plex", url = plex.Url, token = FakePlex.Token, enabled = true };
+        var created = await session.PostAsJsonAsync("/api/v1/mediaservers", body);
+        var serverId = (await created.ReadJsonAsync()).GetProperty("id").GetInt32();
+        await plex.WaitForListenerAsync();
+
+        // The stream is listed, but its events came before Plex listed it, or were lost: none arrives now.
+        plex.Set(new FakePlex.Stream("81", "s-81", "800", "10", "gus", "8001", State: "paused"));
+        Bigarr.Domain.MediaServers.MediaServer server;
+        using (var scope = factory.Services.CreateScope())
+        {
+            server = await scope.ServiceProvider.GetRequiredService<BigarrDbContext>().MediaServers.AsNoTracking().SingleAsync(s => s.Id == serverId);
+        }
+
+        using var gate = new SemaphoreSlim(1, 1);
+        var monitor = factory.Services.GetRequiredService<Bigarr.Api.Features.Playback.PlaybackMonitor>();
+        await monitor.ReconcileTickAsync(server, gate, CancellationToken.None);
+
+        var now = await (await session.GetAsync("/api/v1/playback/sessions")).ReadJsonAsync();
+        Assert.Contains(now.GetProperty("sessions").EnumerateArray(), s => s.GetProperty("user").GetProperty("name").GetString() == "gus");
+        Assert.Equal(HttpStatusCode.OK, (await session.PutAsJsonAsync($"/api/v1/mediaservers/{serverId}", body with { enabled = false })).StatusCode);
+    }
+
+    [Fact]
     public async Task A_refresh_tick_that_fails_while_something_plays_does_not_end_the_refresh()
     {
         var session = await CompatTestHelpers.SessionAsync(factory);
@@ -193,7 +221,7 @@ public sealed class PlaybackApiTests(BigarrApiFactory factory) : IClassFixture<B
             down = true;
             using var gate = new SemaphoreSlim(1, 1);
             var monitor = factory.Services.GetRequiredService<Bigarr.Api.Features.Playback.PlaybackMonitor>();
-            await monitor.ReconcileIfPlayingAsync(server, gate, CancellationToken.None);
+            await monitor.ReconcileTickAsync(server, gate, CancellationToken.None);
             Assert.Equal(1, gate.CurrentCount);
 
             Assert.Equal(HttpStatusCode.OK, (await session.PutAsJsonAsync($"/api/v1/mediaservers/{serverId}", new { name = "Plex ticking", kind = "plex", url = server.Url, token = FakePlex.Token, enabled = false })).StatusCode);

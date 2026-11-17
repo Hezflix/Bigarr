@@ -301,7 +301,7 @@ caller's save.
 
 | From | To | Trigger | Performed by |
 |---|---|---|---|
-| none | open | a stream in the server's list that matches no open session | `PlaybackTracker.ReconcileAsync` |
+| none | open | a stream in the server's list that matches no open session (same session key, rating key and user; Plex's session id only after a 2 min gap) | `PlaybackTracker.ReconcileAsync` |
 | open | open | list refresh or a `playing` event | `PlaybackTracker` |
 | open | closed, play recorded | `stopped` event, or gone from the list (closed as of `LastSeenAt`) | `PlaybackTracker.CloseAsync` |
 | open | closed, no play | same, when too short or history is off | `PlaybackTracker.CloseAsync` |
@@ -309,14 +309,16 @@ caller's save.
 
 Invariants: one writer per server (a gate per listener; there is no unique index on the session key); closing a
 session and recording its play are one save; every open session belongs to a followed server (guarded since
-[F6](#f6-disabling-a-media-server-left-its-streams-on-now-playing-for-ever)).
+[F6](#f6-disabling-a-media-server-left-its-streams-on-now-playing-for-ever)); a stream that goes on keeps its session
+when Plex changes its own session id ([F22](#f22-a-new-plex-session-id-chopped-a-viewing-into-pieces)).
 
 ### Play, listener, backstop
 
 - `Play`: unfinished, then watched. Only an unfinished play absorbs a later stream of the same item, so watched is
   terminal.
 - Listener per server, in memory (`PlaybackMonitor`): not followed, reconciling, listening, with a 60 s reconcile
-  while something plays; retries after 2 s (a working stream dropped) or 30 s.
+  whether or not something plays ([F22](#f22-a-new-plex-session-id-chopped-a-viewing-into-pieces)); retries after 2 s
+  (a working stream dropped) or 30 s.
 - Backstop checkpoint `MediaServer.PlayHistoryCheckedUntil`: advances only after a full pass.
 
 A failed tick of the 60 s reconcile is only that tick's loss, and the backstop never adds a play for a viewing whose
@@ -687,6 +689,20 @@ blocklist entry.
 Fix: the torrent leaves the client after the commit; a client that refuses is noted on the grab and its journal line.
 Test: `FailedHandlingTests.A_failed_torrent_only_leaves_its_client_once_the_failure_is_recorded`.
 
+#### F22. A new Plex session id chopped a viewing into pieces
+
+A stream was the same only while Plex's own session id stayed the same, and Plex changes it under a stream that goes
+on (a transcode restarted by a seek or a quality change, a player reconnecting). Each change closed the session as of
+its last sighting and opened a new one, and pieces under the minimum were dropped: a viewing lost time, or all of it.
+The 60 s list read also ran only while a session was open, so a stream whose events came before Plex listed it (or
+were lost) stayed unseen until another event.
+
+Fix: a stream is its session key, rating key and user, like Tautulli; Plex's session id only tells a new stream after
+2 minutes unseen (a Plex restart reusing its keys). The list is read every 60 s in any case.
+Test: `PlaybackTrackerTests.A_plex_session_id_changing_under_a_stream_that_goes_on_keeps_one_session_and_the_whole_time`,
+`PlaybackTrackerTests.An_idle_paused_stream_resumed_hours_later_under_a_new_plex_session_id_is_a_play_of_the_time_played`,
+`PlaybackApiTests.The_periodic_tick_finds_a_stream_no_event_announced_while_nothing_else_plays`.
+
 ### Open
 
 What is known and not fixed:
@@ -697,6 +713,10 @@ What is known and not fixed:
 - The in-memory event stream is at most once: a subscriber that falls 256 events behind drops the oldest, and the UI
   does not refetch on reconnect. Suspected only; whether a bulk operation can outrun a subscriber was not measured.
 - Two follows may share a version name; the pick view is selected by version name only. Reported, not re-read.
+- Playback: some viewings recorded by Tautulli are missed, often the first of an evening, with the next item on the
+  same player recorded from where the missed one ended. One case had its session opened, idle for hours, then closed
+  without a play. Not reproduced; the Information lines on new streams and closes without a play should explain the
+  next one.
 
 ### Checked and sound
 

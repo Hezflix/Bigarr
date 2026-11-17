@@ -14,7 +14,8 @@ public sealed record ListenerStatus(bool Connected, string? Error, DateTime Sinc
 /// <list type="number">
 /// <item>read the list of streams and reconcile (after a restart, a reconnection, or while the event stream is down);</item>
 /// <item>listen to the server-sent <c>playing</c> events, reading the list again when one is about an unknown stream
-/// or a changed state, and every minute while something plays;</item>
+/// or a changed state, and every minute in any case (like Tautulli's poller), so a stream whose events were missed is
+/// still found;</item>
 /// <item>on any failure, wait 30 s and start over: while Plex refuses the event stream, that is a poll every 30 s.</item>
 /// </list>
 /// It only reads from Plex, so it runs in shadow mode too. A server whose URL or token changes is followed anew.
@@ -28,7 +29,7 @@ public sealed class PlaybackMonitor(IServiceScopeFactory scopeFactory, PlexClien
     /// <summary>A stream that worked and dropped (a proxy timeout, a Plex restart) is opened again this soon, quietly.</summary>
     public static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(2);
 
-    public static readonly TimeSpan ReconcileWhilePlaying = TimeSpan.FromSeconds(60);
+    public static readonly TimeSpan ReconcileEvery = TimeSpan.FromSeconds(60);
 
     private readonly Dictionary<int, Listener> _listeners = [];
 
@@ -165,7 +166,7 @@ public sealed class PlaybackMonitor(IServiceScopeFactory scopeFactory, PlexClien
 
                 await ReconcileAsync(server, gate, ct);
                 using var listening = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                var periodic = ReconcileWhilePlayingAsync(server, gate, listening.Token);
+                var periodic = ReconcilePeriodicallyAsync(server, gate, listening.Token);
                 try
                 {
                     await foreach (var playing in plex.PlayingEventsAsync(server, listening.Token))
@@ -241,14 +242,14 @@ public sealed class PlaybackMonitor(IServiceScopeFactory scopeFactory, PlexClien
         }
     }
 
-    private async Task ReconcileWhilePlayingAsync(MediaServer server, SemaphoreSlim gate, CancellationToken ct)
+    private async Task ReconcilePeriodicallyAsync(MediaServer server, SemaphoreSlim gate, CancellationToken ct)
     {
         try
         {
-            using var timer = new PeriodicTimer(ReconcileWhilePlaying, time);
+            using var timer = new PeriodicTimer(ReconcileEvery, time);
             while (await timer.WaitForNextTickAsync(ct))
             {
-                await ReconcileIfPlayingAsync(server, gate, ct);
+                await ReconcileTickAsync(server, gate, ct);
             }
         }
         catch (OperationCanceledException)
@@ -258,25 +259,18 @@ public sealed class PlaybackMonitor(IServiceScopeFactory scopeFactory, PlexClien
     }
 
     /// <summary>
-    /// One tick of the refresh while something plays. A tick that fails (a slow answer, a 5xx) is only that tick's
-    /// loss: ending the refresh on it would leave a stream whose "stopped" event was lost open until the event
+    /// One tick of the periodic list read. It runs whether or not a session is open: a new stream is otherwise found
+    /// only through an event about it, and a stream whose first events came before Plex listed it (or were lost) would
+    /// stay unseen until the next stream on the same player. A tick that fails (a slow answer, a 5xx) is only that
+    /// tick's loss: ending the refresh on it would leave a stream whose "stopped" event was lost open until the event
     /// connection itself drops, which a server that merely hiccuped never does.
     /// </summary>
-    public async Task ReconcileIfPlayingAsync(MediaServer server, SemaphoreSlim gate, CancellationToken ct)
+    public async Task ReconcileTickAsync(MediaServer server, SemaphoreSlim gate, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(server);
         try
         {
-            bool playing;
-            await using (var scope = scopeFactory.CreateAsyncScope())
-            {
-                playing = await scope.ServiceProvider.GetRequiredService<BigarrDbContext>().PlaybackSessions.AnyAsync(s => s.MediaServerId == server.Id, ct);
-            }
-
-            if (playing)
-            {
-                await ReconcileAsync(server, gate, ct);
-            }
+            await ReconcileAsync(server, gate, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
