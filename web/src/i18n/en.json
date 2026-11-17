@@ -3061,7 +3061,9 @@
       "specials": "Specials",
       "episodeCount_one": "{{count}} episode",
       "episodeCount_other": "{{count}} episodes",
-      "typeForEpisodes": "Type s2e5, 2x05 or a title to find an episode."
+      "episodePlaceholder": "Episode number or title",
+      "pickEpisode": "Pick an episode of {{season}} (Tab, → or Cmd/Ctrl+Enter)",
+      "typeForEpisodes": "Type s2e5, 2x5, 2 5 or a title to find an episode."
     }
   },
   "users": {

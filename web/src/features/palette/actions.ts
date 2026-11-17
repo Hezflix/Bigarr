@@ -27,6 +27,11 @@ export type PaletteParamOption = {
   group: string
   /** Long lists (episodes) only show once something is typed. */
   onlyWhenTyping?: boolean
+  /**
+   * Tab, → or Cmd/Ctrl+Enter on this option lists these instead (a season's episodes), under `label`; Enter still runs
+   * the option itself. A touch screen has the button on the row.
+   */
+  narrow?: { label: string; options: PaletteParamOption[] }
 }
 
 /** What Tab asks for, as in Raycast's arguments. */
