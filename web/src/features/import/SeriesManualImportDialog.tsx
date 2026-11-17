@@ -14,14 +14,14 @@ import {
   type SeriesManualImportItem,
   type SeriesManualImportResult,
 } from '@/api/client'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ImportFileCell, ImportFooter, ImportListingState, ImportPathForm, ImportQualityCell, rejectedStyle, type TransferChoice } from '@/features/import/manualImportParts'
+import { ImportFileCell, ImportFooter, ImportListingState, ImportPathForm, ImportQualityCell, type TransferChoice } from '@/features/import/manualImportParts'
+import { ReasonList } from '@/features/search/ReasonsDisplay'
 
 
 type Selection = { selected: boolean; seriesId: number | null; versionId: number | null; episodeIds: number[]; qualityId: number; extras: string[] }
@@ -149,13 +149,7 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
                         className="max-w-[22rem]"
                       >
                         {file.rejections.length > 0 && selection.seriesId === file.seriesId && (
-                          <span className="mt-1 flex flex-wrap gap-1">
-                            {file.rejections.map((reason) => (
-                              <Badge key={reason} variant="outline" className={cn('max-w-[20rem] whitespace-normal text-left', rejectedStyle)}>
-                                {reason}
-                              </Badge>
-                            ))}
-                          </span>
+                          <ReasonList reasons={file.rejections} temporary className="mt-1 max-w-[20rem] text-xs" />
                         )}
                       </ImportFileCell>
                       <ImportQualityCell value={selection.qualityId} onChange={(qualityId) => update(file.path, { qualityId })} qualities={qualities.data ?? []} />

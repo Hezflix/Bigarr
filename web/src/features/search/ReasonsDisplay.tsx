@@ -6,10 +6,26 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { TableCell } from '@/components/ui/table'
 import type { FitStatus, VersionFit } from '@/features/search/rejectionReasons'
 
-const statusText: Record<FitStatus, string> = {
+export const statusText: Record<FitStatus, string> = {
   accepted: 'text-emerald-700 dark:text-emerald-300',
   temporary: 'text-amber-700 dark:text-amber-300',
   rejected: 'text-red-700/80 dark:text-red-300/80',
+}
+
+/** One rejection reason as light text: red when it rules the release out, amber when it will pass (e.g. a download already running). */
+export function ReasonText({ reason, temporary = false, className }: { reason: string; temporary?: boolean; className?: string }) {
+  return <span className={cn('[overflow-wrap:anywhere]', temporary ? statusText.temporary : statusText.rejected, className)}>{reason}</span>
+}
+
+/** Reasons one under the other, as light text. */
+export function ReasonList({ reasons, temporary = false, className }: { reasons: string[]; temporary?: boolean; className?: string }) {
+  return (
+    <span className={cn('flex flex-col gap-0.5', className)}>
+      {reasons.map((reason) => (
+        <ReasonText key={reason} reason={reason} temporary={temporary} />
+      ))}
+    </span>
+  )
 }
 
 function StatusIcon({ status }: { status: FitStatus }) {
@@ -18,7 +34,7 @@ function StatusIcon({ status }: { status: FitStatus }) {
 }
 
 /** "2160p · Score 40": a version's verdict icon, name and score, the line the cell shows per version. */
-function VersionLine({ fit, strong }: { fit: VersionFit; strong: boolean }) {
+export function VersionLine({ fit, strong }: { fit: VersionFit; strong: boolean }) {
   const { t } = useTranslation()
   return (
     <span className="flex h-5 min-w-0 items-center gap-1">

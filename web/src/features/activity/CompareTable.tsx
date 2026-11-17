@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatGap, TimingNote } from '@/features/activity/TimingNote'
+import { ReasonList } from '@/features/search/ReasonsDisplay'
 import { formatAge, formatBytes, formatDateTime } from '@/i18n'
 
 export const outcomeStyles: Record<CompareOutcome, string> = {
@@ -21,7 +22,6 @@ export const outcomeStyles: Record<CompareOutcome, string> = {
 }
 const formatStyle = 'border-violet-600/30 bg-violet-500/10 text-violet-700 dark:border-violet-400/30 dark:text-violet-300'
 const okStyle = 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300'
-const rejectStyle = 'border-red-600/30 bg-red-500/10 text-red-700 dark:border-red-400/30 dark:text-red-300'
 
 function leadText(t: TFunction, row: CompareRow): string | null {
   if (row.bigarrLeadSeconds === null) return null
@@ -291,19 +291,14 @@ function VerdictText({ grab, versionName }: { grab: CompareGrab; versionName: st
   return (
     <span className="flex flex-col gap-1">
       <span className="flex flex-wrap items-center gap-1">
-        {verdict.approved ? (
+        {verdict.approved && (
           <Badge variant="outline" className={okStyle}>
             {verdict.attributedVersion && verdict.attributedVersion !== versionName ? t('compare.approvedElsewhere', { version: verdict.attributedVersion }) : t('compare.approved')}
           </Badge>
-        ) : (
-          verdict.rejections.map((reason) => (
-            <Badge key={reason} variant="outline" className={cn('whitespace-normal text-left', rejectStyle)}>
-              {reason}
-            </Badge>
-          ))
         )}
         <span className="tabular-nums text-muted-foreground">{t('search.score', { score: verdict.customFormatScore })}</span>
       </span>
+      {!verdict.approved && <ReasonList reasons={verdict.rejections} />}
       {verdict.customFormats.length > 0 && <Formats names={verdict.customFormats} score={null} />}
       <span className="text-muted-foreground">
         {verdict.currentQuality
@@ -401,13 +396,7 @@ function RadarrOnlyWhy({ row }: { row: CompareRow }) {
             {!sighting.matched ? (
               <span className="text-red-700 dark:text-red-300">{t('compare.seenUnmatched', { reason: sighting.unmatchedReason ?? '?' })}</span>
             ) : verdict && !verdict.approved ? (
-              <span className="flex flex-wrap gap-1">
-                {verdict.rejections.map((reason) => (
-                  <Badge key={reason} variant="outline" className={cn('whitespace-normal text-left', rejectStyle)}>
-                    {reason}
-                  </Badge>
-                ))}
-              </span>
+              <ReasonList reasons={verdict.rejections} />
             ) : sighting.attributedVersion && sighting.attributedVersion !== row.versionName ? (
               <span>{t('compare.seenElsewhere', { version: sighting.attributedVersion })}</span>
             ) : (

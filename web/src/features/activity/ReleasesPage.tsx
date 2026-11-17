@@ -14,7 +14,9 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { approvedStyle as grabStyle, permanentStyle, temporaryStyle } from '@/features/search/releaseTable'
+import { ReasonText, VersionLine } from '@/features/search/ReasonsDisplay'
+import { versionFits } from '@/features/search/rejectionReasons'
+import { approvedStyle as grabStyle } from '@/features/search/releaseTable'
 import { formatAge, formatBytes, formatDateTime } from '@/i18n'
 
 const pickStyle = 'border-violet-600/30 bg-violet-500/15 text-violet-700 dark:border-violet-400/30 dark:text-violet-300'
@@ -117,7 +119,7 @@ export function ReleasesPage() {
                 <TableHead>{t('search.size')}</TableHead>
                 <TableHead>{t('search.peers')}</TableHead>
                 <TableHead>{t('rss.movie')}</TableHead>
-                <TableHead>{t('search.verdict')}</TableHead>
+                <TableHead className="hidden 2xl:table-cell">{t('search.verdict')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -155,7 +157,7 @@ function ReleaseRow({ release }: { release: RssRelease }) {
           <TooltipContent>{formatDateTime(release.publishDate)}</TooltipContent>
         </Tooltip>
       </TableCell>
-      <TableCell className="min-w-[22rem] align-top whitespace-normal">
+      <TableCell className="min-w-[15rem] align-top whitespace-normal md:min-w-[22rem]">
         <span className={cn('flex items-start gap-1 break-all', wouldGrab && 'font-medium text-foreground')}>
           {release.infoUrl ? (
             <a href={release.infoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline-offset-4 hover:underline">
@@ -180,6 +182,10 @@ function ReleaseRow({ release }: { release: RssRelease }) {
           ))}
           {details.length > 0 && <span className="text-xs text-muted-foreground">{details.join(' · ')}</span>}
         </span>
+        {/* Below 2xl the Verdict column would sit off-screen in the scrolling table: the same verdict goes under the title. */}
+        <div className="mt-2 2xl:hidden">
+          <Verdict release={release} />
+        </div>
       </TableCell>
       <TableCell className="align-top whitespace-nowrap">{release.indexer}</TableCell>
       <TableCell className="align-top whitespace-nowrap">{formatBytes(release.size)}</TableCell>
@@ -204,46 +210,61 @@ function ReleaseRow({ release }: { release: RssRelease }) {
           <span className="text-xs">{release.unmatchedReason}</span>
         )}
       </TableCell>
-      <TableCell className="min-w-[16rem] align-top whitespace-normal">
-        {grabbed ? (
-          <Badge variant="outline" className={grabStyle}>
-            {t('rss.grabbed', { version: release.attributedVersionName ?? '' })}
-          </Badge>
-        ) : picked ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge variant="outline" className={pickStyle}>
-                {t('rss.picked', { version: release.attributedVersionName ?? '' })}
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-xs">{t('rss.pickedHint')}</TooltipContent>
-          </Tooltip>
-        ) : wouldGrab ? (
-          <span className="flex flex-col items-start gap-1">
-            <Badge variant="outline" className={attributedStyle}>
-              {t('rss.attributed', { version: release.attributedVersionName ?? '' })}
-            </Badge>
-            {release.grabError && <span className="text-xs text-muted-foreground">{release.grabError}</span>}
-          </span>
-        ) : release.movie || (release.series && release.episodes) ? (
-          <ul className="flex flex-col gap-1">
-            {release.versions.map((v) => (
-              <li key={v.versionId} className="flex flex-wrap items-center gap-1">
-                <span className="text-xs font-medium">
-                  {v.versionName} <span className="font-normal text-muted-foreground">· {t('search.score', { score: v.customFormatScore })}</span>
-                </span>
-                {v.rejections.map((rej) => (
-                  <Badge key={rej.reason} variant="outline" className={cn('whitespace-normal text-left', rej.temporary ? temporaryStyle : permanentStyle)}>
-                    {rej.reason}
-                  </Badge>
-                ))}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <span className="text-xs">{t('rss.noMatch')}</span>
-        )}
+      <TableCell className="hidden min-w-[16rem] align-top whitespace-normal 2xl:table-cell">
+        <Verdict release={release} />
       </TableCell>
     </TableRow>
+  )
+}
+
+/**
+ * What the loop made of a release: grabbed, picked, attributed, or each version's verdict. A rejected version lists its
+ * reasons as light text under its line, so no tag has to fit in the cell.
+ */
+function Verdict({ release }: { release: RssRelease }) {
+  const { t } = useTranslation()
+  const wouldGrab = release.attributedVersionId !== null
+  const judged = !wouldGrab && !!(release.movie || (release.series && release.episodes))
+  if (release.grabId !== null) {
+    return (
+      <Badge variant="outline" className={grabStyle}>
+        {t('rss.grabbed', { version: release.attributedVersionName ?? '' })}
+      </Badge>
+    )
+  }
+  if (release.shadowPickId !== null) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge variant="outline" className={pickStyle}>
+            {t('rss.picked', { version: release.attributedVersionName ?? '' })}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs">{t('rss.pickedHint')}</TooltipContent>
+      </Tooltip>
+    )
+  }
+  if (wouldGrab) {
+    return (
+      <span className="flex flex-col items-start gap-1">
+        <Badge variant="outline" className={attributedStyle}>
+          {t('rss.attributed', { version: release.attributedVersionName ?? '' })}
+        </Badge>
+        {release.grabError && <span className="text-xs text-muted-foreground">{release.grabError}</span>}
+      </span>
+    )
+  }
+  if (!judged) return <span className="text-xs">{t('rss.noMatch')}</span>
+  return (
+    <ul className="flex flex-col gap-1" data-testid="rss-verdicts">
+      {versionFits(release.versions, [], '').map((fit) => (
+        <li key={fit.versionId} className="flex flex-col gap-0.5">
+          <VersionLine fit={fit} strong={false} />
+          {fit.reasons.map((r) => (
+            <ReasonText key={r.reason} reason={r.reason} temporary={r.temporary} className="pl-[1.125rem] text-xs" />
+          ))}
+        </li>
+      ))}
+    </ul>
   )
 }
