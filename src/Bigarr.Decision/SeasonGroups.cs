@@ -116,8 +116,34 @@ public static class SeasonGroups
     public static bool Realigns(string? releaseGroup, EpisodeCoverage episodes)
     {
         ArgumentNullException.ThrowIfNull(episodes);
-        return episodes.Slots.Any(s => episodes.AlignSeasons.Contains(s.SeasonNumber))
-            && Matches(releaseGroup, episodes)
-            && episodes.Slots.Any(s => episodes.AlignSeasons.Contains(s.SeasonNumber) && IsOffGroup(s, episodes));
+        return Matches(releaseGroup, episodes) && episodes.Slots.Any(s => Realigned(s, episodes));
+    }
+
+    /// <summary>The slot's season is being aligned and the episode was not given up on.</summary>
+    public static bool Aligning(EpisodeSlot slot, EpisodeCoverage episodes)
+    {
+        ArgumentNullException.ThrowIfNull(slot);
+        ArgumentNullException.ThrowIfNull(episodes);
+        return episodes.AlignSeasons.Contains(slot.SeasonNumber) && !episodes.AlignGivenUp.Contains(slot.EpisodeId);
+    }
+
+    /// <summary>An off-group file the alignment replaces: its season is being aligned and it was not given up on.</summary>
+    public static bool Realigned(EpisodeSlot slot, EpisodeCoverage episodes) => Aligning(slot, episodes) && IsOffGroup(slot, episodes);
+
+    /// <summary>
+    /// The automatic alignment's give-up rule: an off-group file is looked for during <paramref name="giveUp"/> from
+    /// when it arrived, or from when the setting was switched on if that is later. A file of unknown date counts from
+    /// the switch.
+    /// </summary>
+    public static bool GaveUp(DateTime? fileAdded, DateTime? enabledSince, TimeSpan giveUp, DateTime now)
+    {
+        var start = (fileAdded, enabledSince) switch
+        {
+            ({ } added, { } since) => added > since ? added : since,
+            ({ } added, null) => added,
+            (null, { } since) => since,
+            _ => now,
+        };
+        return now - start > giveUp;
     }
 }

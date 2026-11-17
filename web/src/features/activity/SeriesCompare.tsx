@@ -17,7 +17,7 @@ import { ReasonList } from '@/features/search/ReasonsDisplay'
 import { formatBytes, formatDateTime } from '@/i18n'
 
 const pageSize = 50
-const outcomes: SeriesCompareOutcome[] = ['same', 'different', 'bigarrOnly', 'sonarrOnly']
+const outcomes: SeriesCompareOutcome[] = ['same', 'different', 'intended', 'bigarrOnly', 'sonarrOnly']
 const periods = [1, 7, 30, 90, 0] as const
 const windows = [6, 24, 72] as const
 
@@ -26,6 +26,8 @@ export const seriesOutcomeStyles: Record<SeriesCompareOutcome, string> = {
   different: 'border-amber-600/30 bg-amber-500/15 text-amber-700 dark:border-amber-400/30 dark:text-amber-300',
   bigarrOnly: 'border-violet-600/30 bg-violet-500/15 text-violet-700 dark:border-violet-400/30 dark:text-violet-300',
   sonarrOnly: 'border-sky-600/30 bg-sky-500/15 text-sky-700 dark:border-sky-400/30 dark:text-sky-300',
+  // A difference Bigarr makes on purpose (one release group per season): neutral, not a warning.
+  intended: 'border-slate-500/30 bg-slate-500/15 text-slate-700 dark:border-slate-400/30 dark:text-slate-300',
 }
 const okStyle = 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300'
 
@@ -189,7 +191,7 @@ function Summary({ counts, active, onPick }: { counts: SeriesCompareCounts; acti
   const agreement = grabs > 0 ? Math.round((counts.same / grabs) * 100) : null
   return (
     <div className="flex flex-col gap-2" data-testid="series-compare-summary">
-      <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {outcomes.map((o) => (
           <button
             key={o}
@@ -280,6 +282,11 @@ export function SeriesCompareTable({ rows, showSeries = true }: { rows: SeriesCo
                     <Badge variant="outline" className={seriesOutcomeStyles[row.outcome]}>
                       {t(`compare.seriesOutcomes.${row.outcome}`)}
                     </Badge>
+                    {row.reason && (
+                      <span className="mt-1 block max-w-48 text-xs whitespace-normal text-muted-foreground" title={row.reasonDetail ?? undefined} data-testid="series-compare-reason">
+                        {t(`compare.seriesReasons.${row.reason}`, { defaultValue: row.reason })}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="min-w-[13rem] max-w-[24rem] align-top whitespace-normal">
                     {row.sonarr.length === 0 ? <span className="text-muted-foreground">{t('compare.nothing')}</span> : row.sonarr.map((g) => <ReleaseLine key={g.id} title={g.title} pack={g.fullSeason} quality={g.quality} />)}
@@ -310,6 +317,7 @@ export function SeriesCompareTable({ rows, showSeries = true }: { rows: SeriesCo
                           {row.sonarr.length === 0 && <p className="text-sm text-muted-foreground">{t('compare.whyNotSonarr')}: {t('compare.nothing')}</p>}
                           {row.timing && row.timing.kind !== 'neverSeen' && <TimingNote note={row.timing} app="Sonarr" className="text-sm" />}
                           {row.sighting === null && row.outcome === 'sonarrOnly' && <p className="text-xs text-muted-foreground">{t('compare.neverSeen')}</p>}
+                          {row.reasonDetail && <p className="text-sm">{row.reasonDetail}.</p>}
                           {row.sighting && (
                             <p className="text-xs text-muted-foreground">
                               {t('compare.seen', { date: formatDateTime(row.sighting.seenAt), indexer: row.sighting.indexer })}

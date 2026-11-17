@@ -146,6 +146,31 @@ public sealed class SeasonGroupTests
         Assert.Contains(older.Rejections, r => r.Reason.Contains("S04E01: Existing WEBDL-1080p is a newer revision", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void The_automatic_alignment_gives_up_two_days_after_the_file_or_the_switch()
+    {
+        var twoDays = TimeSpan.FromDays(2);
+        var added = Now.AddDays(-1);
+        Assert.False(SeasonGroups.GaveUp(added, null, twoDays, Now));
+        Assert.True(SeasonGroups.GaveUp(added, null, twoDays, Now.AddDays(1).AddMinutes(1)));
+
+        // An old file gets its two days from the switch, not from its own arrival.
+        Assert.False(SeasonGroups.GaveUp(Now.AddDays(-30), Now.AddHours(-1), twoDays, Now));
+        Assert.True(SeasonGroups.GaveUp(Now.AddDays(-30), Now.AddDays(-3), twoDays, Now));
+        Assert.False(SeasonGroups.GaveUp(null, Now.AddDays(-1), twoDays, Now));
+    }
+
+    [Fact]
+    public void A_given_up_episode_is_judged_as_an_ordinary_file_again()
+    {
+        var release = Candidate("Show.S04E10.1080p.WEB-DL.DDP5.1.H.264-TLC");
+        var context = Context([new Ep(4, 10, File("Tsundere-raws"))], groups: new() { [4] = "TLC" }, align: [4]);
+        var givenUp = context with { Episodes = context.Episodes! with { AlignGivenUp = new HashSet<int> { 410 } } };
+
+        Assert.True(Interactive.Evaluate(release, context).Approved);
+        Assert.Contains(Interactive.Evaluate(release, givenUp).Rejections, r => r.Reason == "Not an upgrade over the existing WEBDL-1080p");
+    }
+
     // ---- helpers ----------------------------------------------------------------------------------------------------
 
     private static QualityProfile Profile() => new()

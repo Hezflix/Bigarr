@@ -323,7 +323,41 @@ export interface paths {
                 };
             };
         };
-        put?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                    versionId: number;
+                    seasonNumber: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SeasonAlignmentKeepRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SeasonAlignmentResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         post: {
             parameters: {
                 query?: never;
@@ -12450,6 +12484,7 @@ export interface components {
             seasonPackUpgradeThreshold?: null | number;
             replaceIllegalCharacters?: null | boolean;
             colonReplacement?: null | components["schemas"]["ColonReplacement"];
+            alignSeasonGroups?: null | boolean;
         };
         MediaManagementResponse: {
             renameFiles: boolean;
@@ -12475,6 +12510,8 @@ export interface components {
             /** @default true */
             replaceIllegalCharacters: boolean;
             colonReplacement: components["schemas"]["ColonReplacement"];
+            /** @default false */
+            alignSeasonGroups: boolean;
         };
         MediaRequestPage: {
             /** Format: int32 */
@@ -13891,6 +13928,13 @@ export interface components {
             currentGroup: null | string;
             quality: string;
             isPick: boolean;
+            /** Format: date-time */
+            givesUpAt: null | string;
+            /** @default false */
+            gaveUp: boolean;
+        };
+        SeasonAlignmentKeepRequest: {
+            keepAsIs: boolean;
         };
         SeasonAlignmentResponse: {
             /** Format: int32 */
@@ -13905,6 +13949,10 @@ export interface components {
             minimumFiles: number;
             groups: components["schemas"]["SeasonGroupCount"][];
             episodes: components["schemas"]["SeasonAlignmentEpisode"][];
+            /** @default false */
+            autoAlign: boolean;
+            /** @default false */
+            keepAsIs: boolean;
         };
         SeasonAlignmentResult: {
             preview: components["schemas"]["SeasonAlignmentResponse"];
@@ -13946,6 +13994,8 @@ export interface components {
              * @default 0
              */
             offGroupEpisodes: number;
+            /** @default false */
+            keepAsIs: boolean;
         };
         SeriesAutomaticSearchResult: {
             /** Format: int32 */
@@ -14003,6 +14053,11 @@ export interface components {
             bigarrOnly: number;
             /** Format: int32 */
             sonarrOnly: number;
+            /**
+             * Format: int32
+             * @default 0
+             */
+            intended: number;
             /** Format: int32 */
             total: number;
         };
@@ -14034,7 +14089,7 @@ export interface components {
             bigarr: null | components["schemas"]["BigarrVerdict"];
         };
         /** @enum {unknown} */
-        SeriesCompareOutcome: "same" | "different" | "bigarrOnly" | "sonarrOnly";
+        SeriesCompareOutcome: "same" | "different" | "bigarrOnly" | "sonarrOnly" | "intended";
         SeriesComparePickResponse: {
             /** Format: int32 */
             id: number;
@@ -14107,6 +14162,8 @@ export interface components {
             bigarrLeadSeconds: null | number;
             sighting: null | components["schemas"]["CompareSightingResponse"];
             timing: null | components["schemas"]["CompareTimingNote"];
+            reason: null | string;
+            reasonDetail: null | string;
         };
         SeriesCompareVersionSummary: {
             versionName: string;
@@ -14659,6 +14716,7 @@ export interface components {
             searchAttempts: number;
             /** Format: date-time */
             nextSearchAt: null | string;
+            alignTo: null | string;
         };
         SeriesWantedPageResponse: {
             items: components["schemas"]["SeriesWantedItemResponse"][];

@@ -191,6 +191,7 @@ function toRequest(config: MediaManagement): MediaManagementRequest {
     seasonPackUpgradeThreshold: config.seasonPackUpgradeThreshold,
     replaceIllegalCharacters: config.replaceIllegalCharacters,
     colonReplacement: config.colonReplacement,
+    alignSeasonGroups: config.alignSeasonGroups,
   }
 }
 
@@ -580,6 +581,26 @@ function MediaManagementForm({ film, series }: { film: MediaManagement; series: 
     </Group>
   )
 
+  const seasonGroups = (
+    <Group title={t('mediaManagement.seasonGroups')} testId="season-groups">
+      <div className="flex items-start gap-2">
+        <Checkbox
+          id="mm-align-groups"
+          checked={filmForm.alignSeasonGroups}
+          onCheckedChange={(v) => setFilmForm({ ...filmForm, alignSeasonGroups: v === true })}
+          className="mt-0.5"
+          data-testid="mm-align-groups"
+        />
+        <div className="grid gap-0.5">
+          <Label htmlFor="mm-align-groups" className="font-normal">
+            {t('mediaManagement.alignSeasonGroups')}
+          </Label>
+          <span className="max-w-3xl text-xs text-muted-foreground">{t('mediaManagement.alignSeasonGroupsHint')}</span>
+        </div>
+      </div>
+    </Group>
+  )
+
   // ---- films and series --------------------------------------------------------------------------------------------
 
   const transfer = (
@@ -687,6 +708,7 @@ function MediaManagementForm({ film, series }: { film: MediaManagement; series: 
         <ScopePanel scope="series">
           {seriesNamingGroup}
           {seasonPacks}
+          {seasonGroups}
         </ScopePanel>
       )}
 

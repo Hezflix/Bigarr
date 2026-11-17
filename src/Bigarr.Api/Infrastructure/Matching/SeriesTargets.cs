@@ -128,7 +128,51 @@ public sealed class SeriesTargets
     /// One context per version (default first) for the episodes a release covers. A version lacking a target for one
     /// of them (it should not happen: every version has one per episode) is left out.
     /// </summary>
-    /// <param name="align">Seasons an "Align season" search realigns on their group, for <paramref name="versionId"/>.</param>
+    /// <summary>
+    /// The seasons of a version the automatic alignment works on: every season with a group, but those kept as they
+    /// are; none while the setting is off.
+    /// </summary>
+    public IReadOnlySet<int> AutoAlignSeasons(int versionId)
+    {
+        if (!_media.AlignSeasonGroups || Series.Versions.FirstOrDefault(v => v.Id == versionId) is not { } version)
+        {
+            return new HashSet<int>();
+        }
+
+        var kept = version.Seasons.Where(s => s.KeepReleaseGroups && s.Season is not null).Select(s => s.Season.SeasonNumber).ToHashSet();
+        return SeasonGroupsOf(versionId).Keys.Where(n => !kept.Contains(n)).ToHashSet();
+    }
+
+    /// <summary>The automatic alignment setting.</summary>
+    public bool AutoAlignEnabled => _media.AlignSeasonGroups;
+
+    /// <summary>"Keep as is" on that season of the version.</summary>
+    public bool KeepsReleaseGroups(int versionId, int seasonNumber) =>
+        Series.Versions.FirstOrDefault(v => v.Id == versionId)?.Seasons.Any(s => s.KeepReleaseGroups && s.Season?.SeasonNumber == seasonNumber) ?? false;
+
+    /// <summary>The automatic alignment gave up on this off-group file (<see cref="SeasonGroups.GaveUp"/>).</summary>
+    public bool AlignmentGaveUp(EpisodeSlot slot)
+    {
+        ArgumentNullException.ThrowIfNull(slot);
+        return slot.File is { } file
+            && SeasonGroups.GaveUp(file.DateAdded, _media.AlignSeasonGroupsSince, Bigarr.Domain.Library.MediaManagementConfig.SeasonAlignmentGiveUp, _now);
+    }
+
+    /// <summary>When the automatic alignment stops looking for this file's replacement, for the preview.</summary>
+    public DateTime? AlignmentGivesUpAt(EpisodeSlot slot)
+    {
+        ArgumentNullException.ThrowIfNull(slot);
+        if (slot.File is not { } file || !_media.AlignSeasonGroups)
+        {
+            return null;
+        }
+
+        var since = _media.AlignSeasonGroupsSince;
+        var start = file.DateAdded is { } added && (since is null || added > since) ? added : since ?? _now;
+        return start + Bigarr.Domain.Library.MediaManagementConfig.SeasonAlignmentGiveUp;
+    }
+
+    /// <param name="align">Seasons an "Align season" search realigns on their group, for <paramref name="versionId"/>: no give-up there.</param>
     public List<TargetContext> ContextsFor(IReadOnlyList<Episode> covered, int? versionId = null, IReadOnlySet<int>? align = null)
     {
         ArgumentNullException.ThrowIfNull(covered);
@@ -153,6 +197,13 @@ public sealed class SeriesTargets
             }
 
             var present = slots.Select(s => s!).ToList();
+            var manual = versionId is not null ? align ?? new HashSet<int>() : new HashSet<int>();
+            var auto = AutoAlignSeasons(version.Id);
+            var alignSeasons = manual.Union(auto).ToHashSet();
+            var givenUp = present
+                .Where(s => auto.Contains(s.SeasonNumber) && !manual.Contains(s.SeasonNumber) && AlignmentGaveUp(s))
+                .Select(s => s.EpisodeId)
+                .ToHashSet();
             contexts.Add(new TargetContext(
                 present[0].Target,
                 version.QualityProfile,
@@ -172,7 +223,8 @@ public sealed class SeriesTargets
                     FirstSeasonNumber = FirstSeasonNumber,
                     PilotAirDateUtc = PilotAirDateUtc,
                     SeasonGroups = SeasonGroupsOf(version.Id),
-                    AlignSeasons = align ?? new HashSet<int>(),
+                    AlignSeasons = alignSeasons,
+                    AlignGivenUp = givenUp,
                 },
             });
         }
@@ -192,6 +244,7 @@ public sealed class SeriesTargetsFactory(BigarrDbContext db, CustomFormatScorer 
             .Include(s => s.Episodes)
             .Include(s => s.Versions).ThenInclude(v => v.QualityProfile).ThenInclude(p => p.FormatScores)
             .Include(s => s.Versions).ThenInclude(v => v.Episodes).ThenInclude(t => t.EpisodeFile!).ThenInclude(f => f.Quality)
+            .Include(s => s.Versions).ThenInclude(v => v.Seasons).ThenInclude(vs => vs.Season)
             .AsSplitQuery();
 
     public async Task<SeriesTargets?> LoadAsync(int seriesId, CancellationToken ct)

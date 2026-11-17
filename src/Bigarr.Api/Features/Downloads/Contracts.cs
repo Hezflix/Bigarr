@@ -87,6 +87,10 @@ public sealed record GrabRequest(
 {
     public bool IsSeries => EpisodeIds is { Count: > 0 };
 
+    /// <summary>Set by the automatic paths when the season's release group decided the choice; recorded on a shadow pick, never read from a client.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public SeasonGroupChoice? SeasonGroup { get; init; }
+
     public static GrabRequest ForEpisodes(ReleaseInfo release, int seriesVersionId, IEnumerable<int> episodeIds, Bigarr.Domain.Tv.EpisodeNumbering? numbering = null) =>
         From(release, seriesVersionId) with { EpisodeIds = episodeIds.Distinct().ToList(), Numbering = numbering };
 
@@ -162,3 +166,6 @@ public sealed record QueueResponse(
     long Revision,
     List<QueueItemResponse> Items,
     List<QueueClientStatusResponse> Clients);
+
+/// <summary>Why the season's group decided a series grab: a broken tie, or an alignment replacing another group's files.</summary>
+public sealed record SeasonGroupChoice(string Group, bool Realigned);

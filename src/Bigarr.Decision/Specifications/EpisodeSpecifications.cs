@@ -134,7 +134,7 @@ public sealed class AnimeVersionUpgradeSpecification : IReleaseSpecification
             }
 
             // An alignment replaces another group's file with the season group's release: a group change, not a v2.
-            if (realigns && episodes.AlignSeasons.Contains(slot.SeasonNumber) && SeasonGroups.IsOffGroup(slot, episodes))
+            if (realigns && SeasonGroups.Realigned(slot, episodes))
             {
                 continue;
             }

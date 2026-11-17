@@ -662,7 +662,13 @@
     "grabbed_other": "{{group}}: {{count}} episodes grabbed.",
     "picked_one": "{{group}}: {{count}} episode picked.",
     "picked_other": "{{group}}: {{count}} episodes picked.",
-    "notFound": "No release from {{group}} to take yet. {{detail}}"
+    "notFound": "No release from {{group}} to take yet. {{detail}}",
+    "keepAsIs": "Keep as is",
+    "keepAsIsHint": "The automatic alignment leaves this season alone. This button still works.",
+    "autoOff": "Automatic alignment is off (Settings → Media management).",
+    "givesUp": "Looked for until {{date}}",
+    "gaveUp": "Given up: only this button looks for it now",
+    "kept": "Kept as is"
   },
   "status": {
     "pending": "Pending",
@@ -1493,7 +1499,10 @@
       "any": "Any one episode"
     },
     "seasonPackUpgradeThreshold": "Threshold (%)",
-    "seasonPackUpgradeHint": "When a season pack counts as an upgrade over the episode files it would replace, as in Sonarr. Episodes without a file always count as upgraded. “Any one episode” may replace better files with worse ones."
+    "seasonPackUpgradeHint": "When a season pack counts as an upgrade over the episode files it would replace, as in Sonarr. Episodes without a file always count as upgraded. “Any one episode” may replace better files with worse ones.",
+    "seasonGroups": "Release group per season",
+    "alignSeasonGroups": "Align seasons on their release group automatically",
+    "alignSeasonGroupsHint": "An episode whose file comes from another release group than the rest of its season (the group with the most files, at least 3) counts as not finished: RSS and the searches keep looking for that group's release, at a quality and custom format score no lower than the file in place. Bigarr gives up after 2 days. Specials are left out, and a season set to “Keep as is” is left alone."
   },
   "wanted": {
     "title": "Wanted",
@@ -1902,13 +1911,18 @@
       "same": "Same release",
       "different": "Different release",
       "bigarrOnly": "Bigarr only",
-      "sonarrOnly": "Sonarr only"
+      "sonarrOnly": "Sonarr only",
+      "intended": "Intended"
     },
     "seriesOutcomeHints": {
       "same": "Both chose the same release",
       "different": "Both chose for these episodes, not the same release",
       "bigarrOnly": "Bigarr picked, Sonarr grabbed nothing",
-      "sonarrOnly": "Sonarr grabbed, Bigarr picked nothing"
+      "sonarrOnly": "Sonarr grabbed, Bigarr picked nothing",
+      "intended": "Bigarr chose differently on purpose, reason given"
+    },
+    "seriesReasons": {
+      "season-group": "One release group per season"
     },
     "seriesAgreement": "Bigarr picked the same release for {{percent}}% of the episode sets Sonarr grabbed ({{same}} of {{grabs}}).",
     "seriesNoGrabs": "No Sonarr grab in this period yet.",

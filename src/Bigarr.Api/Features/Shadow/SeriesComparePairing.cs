@@ -13,6 +13,12 @@ public enum SeriesCompareOutcome
 
     /// <summary>Sonarr grabbed, Bigarr picked nothing for those episodes around then.</summary>
     SonarrOnly = 4,
+
+    /// <summary>
+    /// A difference Bigarr means to make, with its reason (<see cref="SeriesCompareRowResponse.Reason"/>): e.g. keeping
+    /// one release group per season where Sonarr took another group's release or kept another group's files.
+    /// </summary>
+    Intended = 5,
 }
 
 /// <summary>

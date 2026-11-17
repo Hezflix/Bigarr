@@ -27,7 +27,9 @@ public sealed record MediaManagementResponse(
     /// <summary>Radarr's "Replace Illegal Characters" (film names): on replaces them, off removes them.</summary>
     bool ReplaceIllegalCharacters = true,
     /// <summary>Radarr's "Colon Replacement" (film names): delete, dash, spaceDash, spaceDashSpace or smart.</summary>
-    ColonReplacement ColonReplacement = ColonReplacement.Smart);
+    ColonReplacement ColonReplacement = ColonReplacement.Smart,
+    /// <summary>Automatic season alignment: off-group episodes count as not finished, for two days at most.</summary>
+    bool AlignSeasonGroups = false);
 
 public sealed record MediaManagementRequest(
     bool RenameFiles,
@@ -47,7 +49,9 @@ public sealed record MediaManagementRequest(
     /// <summary>Null leaves the setting as it is.</summary>
     bool? ReplaceIllegalCharacters = null,
     /// <summary>Not <c>custom</c>: Radarr has none. Null leaves the setting as it is.</summary>
-    ColonReplacement? ColonReplacement = null);
+    ColonReplacement? ColonReplacement = null,
+    /// <summary>Null leaves the setting as it is.</summary>
+    bool? AlignSeasonGroups = null);
 
 /// <summary>Draft film templates and naming settings; a null template is not previewed, null settings are Radarr's defaults, a null title is the sample film.</summary>
 public sealed record NamingPreviewRequest(

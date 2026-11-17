@@ -50,10 +50,17 @@ public sealed record EpisodeCoverage(
     public IReadOnlyDictionary<int, string> SeasonGroups { get; init; } = new Dictionary<int, string>();
 
     /// <summary>
-    /// Seasons whose off-group files a release from the season's group may replace at equal quality and score (an
-    /// "Align season" search). Empty everywhere else: the group then only breaks ties between releases.
+    /// Seasons whose off-group files a release from the season's group may replace at equal quality and score: an
+    /// "Align season" search, or every season with a group when the automatic alignment is on (but those kept as they
+    /// are). Empty otherwise: the group then only breaks ties between releases.
     /// </summary>
     public IReadOnlySet<int> AlignSeasons { get; init; } = new HashSet<int>();
+
+    /// <summary>
+    /// Shared episode ids the automatic alignment gave up on (the season's group never released them in time): their
+    /// files are judged as ordinary files again, whatever <see cref="AlignSeasons"/> says.
+    /// </summary>
+    public IReadOnlySet<int> AlignGivenUp { get; init; } = new HashSet<int>();
 
     public string Describe() => Describe(Slots);
 

@@ -66,6 +66,15 @@ public sealed class SeriesShadowPick
 
     public string? ReleaseGroup { get; set; }
 
+    /// <summary>
+    /// The season's release group when it decided this pick: a tie broken in its favour, or files of another group
+    /// replaced (<see cref="SeasonGroupRealigned"/>). Activity → Compare shows such a difference with Sonarr as intended.
+    /// </summary>
+    public string? SeasonGroup { get; set; }
+
+    /// <summary>The pick replaces files of another group with the season group's release (an alignment).</summary>
+    public bool SeasonGroupRealigned { get; set; }
+
     public List<string> Languages { get; set; } = [];
 
     public List<string> CustomFormats { get; set; } = [];

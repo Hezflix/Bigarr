@@ -4,6 +4,7 @@ using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Decision;
 using Bigarr.Decision.CustomFormats;
 using Bigarr.Domain.Acquisition;
+using Bigarr.Domain.Library;
 using Bigarr.Domain.Movies;
 using Bigarr.Domain.Quality;
 using Microsoft.EntityFrameworkCore;
@@ -33,7 +34,12 @@ public sealed record SeriesWantedItemResponse(
     DateTime? LastSearchAt,
     int SearchAttempts,
     /// <summary>When the missing/cutoff-unmet job may search it again; null means at its next pass.</summary>
-    DateTime? NextSearchAt);
+    DateTime? NextSearchAt,
+    /// <summary>
+    /// Set when the file meets the cutoff but comes from another release group than its season's, and the automatic
+    /// alignment looks for that group's release (until it gives up): the group it waits for.
+    /// </summary>
+    string? AlignTo = null);
 
 public sealed record SeriesWantedPageResponse(List<SeriesWantedItemResponse> Items, int Total, int Page, int PageSize);
 
@@ -49,7 +55,9 @@ public sealed record SeriesWantedGroup(int VersionId, int SeriesId, List<int> Ep
 /// cutoff, quality then custom format score, while upgrades are allowed (cutoff unmet). Computed, not stored, from light
 /// rows like the film list (PR #27): SQL keeps the candidate pairs, the cutoff is judged in memory, and an episode file's
 /// custom formats are matched only when its score decides, remembered between requests (<see cref="EpisodeFileFormatMatches"/>).
-/// Sorted like Sonarr's Wanted: most recently aired first.
+/// Sorted like Sonarr's Wanted: most recently aired first. With the automatic season alignment on, a file at the cutoff
+/// but from another release group than its season's (<see cref="SeasonGroups"/>) is cutoff unmet too, until the
+/// alignment gives up on it, unless its season is kept as it is.
 /// </summary>
 public sealed class SeriesWantedService(BigarrDbContext db, CustomFormatScorer scorer, EpisodeFileFormatMatches matches, IOptions<SearchOptions> options, TimeProvider time)
 {
@@ -130,6 +138,7 @@ public sealed class SeriesWantedService(BigarrDbContext db, CustomFormatScorer s
                 t.Version.QualityProfileId,
                 t.LastSearchAt,
                 t.SearchAttempts,
+                t.EpisodeFile == null ? null : t.EpisodeFile.DateAdded,
                 t.EpisodeFile == null
                     ? null
                     : new EpisodeFileRow(
@@ -151,6 +160,7 @@ public sealed class SeriesWantedService(BigarrDbContext db, CustomFormatScorer s
         int Score(EpisodeFileRow file, QualityProfile profile) =>
             ProfileRanking.FormatScore(profile, matches.Match(file, definitions.GetValueOrDefault(file.QualityId), formats.Item1!, formats.Item2!));
         var list = new WantedList([], profiles, definitions, Score);
+        var align = await AlignmentAsync(rows, now, ct);
 
         foreach (var row in rows.OrderByDescending(r => r.AirDateUtc).ThenBy(r => r.SeriesId).ThenBy(r => r.SeasonNumber).ThenBy(r => r.EpisodeNumber).ThenBy(r => r.VersionId))
         {
@@ -166,14 +176,14 @@ public sealed class SeriesWantedService(BigarrDbContext db, CustomFormatScorer s
             {
                 // At the cutoff quality the score decides, unless no score this profile gives can fall short of it.
                 var lowest = profile.FormatScores.Where(s => s.Score < 0).Sum(s => s.Score);
-                if (profile.CutoffFormatScore <= lowest)
+                var finished = profile.CutoffFormatScore <= lowest || (score = Score(row.File, profile)) >= profile.CutoffFormatScore;
+                if (finished)
                 {
-                    continue;
-                }
+                    if (align(row) is { } group)
+                    {
+                        list.Rows.Add(new WantedRow(row, WantedFilter.CutoffUnmet, score, group));
+                    }
 
-                score = Score(row.File, profile);
-                if (score >= profile.CutoffFormatScore)
-                {
                     continue;
                 }
             }
@@ -226,7 +236,8 @@ public sealed class SeriesWantedService(BigarrDbContext db, CustomFormatScorer s
                 WantedService.CutoffName(profile, list.Definitions),
                 row.LastSearchAt,
                 row.SearchAttempts,
-                SearchBackoff.NextAllowed(row.LastSearchAt, row.SearchAttempts, settings));
+                SearchBackoff.NextAllowed(row.LastSearchAt, row.SearchAttempts, settings),
+                w.AlignTo);
         }).ToList();
     }
 
@@ -241,9 +252,40 @@ public sealed class SeriesWantedService(BigarrDbContext db, CustomFormatScorer s
         int QualityProfileId,
         DateTime? LastSearchAt,
         int SearchAttempts,
+        DateTime? FileAdded,
         EpisodeFileRow? File);
 
-    private sealed record WantedRow(TargetRow Row, WantedFilter Kind, int? Score);
+    private sealed record WantedRow(TargetRow Row, WantedFilter Kind, int? Score, string? AlignTo = null);
+
+    /// <summary>
+    /// The automatic alignment's verdict per row: the season group its file should come from, or null (setting off,
+    /// no group, already of the group, season kept as it is, given up after <see cref="MediaManagementConfig.SeasonAlignmentGiveUp"/>).
+    /// </summary>
+    private async Task<Func<TargetRow, string?>> AlignmentAsync(List<TargetRow> rows, DateTime now, CancellationToken ct)
+    {
+        var media = await db.MediaManagement.AsNoTracking().FirstOrDefaultAsync(c => c.Id == MediaManagementConfig.SingletonId, ct);
+        if (media is not { AlignSeasonGroups: true } || rows.All(r => r.File is null))
+        {
+            return _ => null;
+        }
+
+        var versionIds = rows.Where(r => r.File is not null).Select(r => r.VersionId).Distinct().ToList();
+        var groups = await SeasonGroupIndex.LoadAsync(db, versionIds, ct);
+        var kept = (await db.SeriesVersionSeasons.AsNoTracking()
+                .Where(s => versionIds.Contains(s.VersionId) && s.KeepReleaseGroups)
+                .Select(s => new { s.VersionId, s.Season.SeasonNumber })
+                .ToListAsync(ct))
+            .Select(k => (k.VersionId, k.SeasonNumber))
+            .ToHashSet();
+        return row =>
+            row.File is { } file
+            && groups.GetValueOrDefault((row.VersionId, row.SeasonNumber)).Group is { } group
+            && !SeasonGroups.Same(file.ReleaseGroup, group)
+            && !kept.Contains((row.VersionId, row.SeasonNumber))
+            && !SeasonGroups.GaveUp(row.FileAdded, media.AlignSeasonGroupsSince, MediaManagementConfig.SeasonAlignmentGiveUp, now)
+                ? group
+                : null;
+    }
 
     private sealed record WantedList(List<WantedRow> Rows, Dictionary<int, QualityProfile> Profiles, Dictionary<int, QualityDefinition> Definitions, Func<EpisodeFileRow, QualityProfile, int> Score);
 }

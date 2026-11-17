@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Bigarr.Api.Features.Import;
 
 /// <summary>The single media management row: created on first read, validated on write.</summary>
-public sealed class MediaManagementService(BigarrDbContext db, IMediaInfoReader probe)
+public sealed class MediaManagementService(BigarrDbContext db, IMediaInfoReader probe, TimeProvider time)
 {
     public async Task<MediaManagementConfig> GetAsync(CancellationToken ct)
     {
@@ -105,6 +105,13 @@ public sealed class MediaManagementService(BigarrDbContext db, IMediaInfoReader 
         config.ColonReplacement = request.ColonReplacement ?? config.ColonReplacement;
         config.SeasonPackUpgrade = request.SeasonPackUpgrade ?? config.SeasonPackUpgrade;
         config.SeasonPackUpgradeThreshold = request.SeasonPackUpgradeThreshold ?? config.SeasonPackUpgradeThreshold;
+        if (request.AlignSeasonGroups is { } align && align != config.AlignSeasonGroups)
+        {
+            // The give-up clock starts at the switch: files already in place get their two days from now on.
+            config.AlignSeasonGroups = align;
+            config.AlignSeasonGroupsSince = align ? time.GetUtcNow().UtcDateTime : null;
+        }
+
         config.RenameFiles = request.RenameFiles;
         config.FileNameTemplate = request.FileNameTemplate.Trim();
         config.FolderNameTemplate = request.FolderNameTemplate.Trim();
@@ -137,7 +144,8 @@ public sealed class MediaManagementService(BigarrDbContext db, IMediaInfoReader 
             config.SeasonPackUpgrade,
             config.SeasonPackUpgradeThreshold,
             config.ReplaceIllegalCharacters,
-            config.ColonReplacement);
+            config.ColonReplacement,
+            config.AlignSeasonGroups);
     }
 
     // ---- series naming ------------------------------------------------------------------------------------------------
