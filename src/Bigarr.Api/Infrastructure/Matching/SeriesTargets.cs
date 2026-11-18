@@ -52,20 +52,41 @@ public sealed class SeriesTargets
         FirstSeasonNumber = Episodes.Where(e => e.SeasonNumber > 0).Select(e => (int?)e.SeasonNumber).Min();
         var pilot = Episodes.Where(e => e.SeasonNumber == FirstSeasonNumber).OrderBy(e => e.EpisodeNumber).FirstOrDefault();
         PilotAirDateUtc = pilot?.AirDateUtc ?? pilot?.AirDate?.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        _seasonGroups = slots.Values
+        _majorityGroups = slots.Values
             .GroupBy(s => ((EpisodeTarget)s.Target).VersionId)
             .ToDictionary(v => v.Key, v => GroupsOf(v));
+        _pinnedGroups = series.Versions.ToDictionary(
+            v => v.Id,
+            v => (IReadOnlyDictionary<int, string>)v.Seasons
+                .Where(s => s.Season is { SeasonNumber: > 0 } && !string.IsNullOrWhiteSpace(s.PinnedReleaseGroup))
+                .ToDictionary(s => s.Season.SeasonNumber, s => s.PinnedReleaseGroup!.Trim()));
+        _seasonGroups = series.Versions.ToDictionary(
+            v => v.Id,
+            v => (IReadOnlyDictionary<int, string>)MajorityGroupsOf(v.Id)
+                .Concat(PinnedGroupsOf(v.Id))
+                .GroupBy(g => g.Key)
+                .ToDictionary(g => g.Key, g => g.Last().Value));
     }
 
+    private readonly Dictionary<int, IReadOnlyDictionary<int, string>> _majorityGroups;
+    private readonly Dictionary<int, IReadOnlyDictionary<int, string>> _pinnedGroups;
     private readonly Dictionary<int, IReadOnlyDictionary<int, string>> _seasonGroups;
 
     /// <summary>
-    /// The version's group of each season (<see cref="SeasonGroups"/>), from what stands in each slot: a file on disk
-    /// counts once however many episodes it holds; a shadow pick counts once per episode (a pack becomes a file per
-    /// episode).
+    /// The version's group of each season: the group the user pinned, else the one with the most files
+    /// (<see cref="SeasonGroups"/>), from what stands in each slot: a file on disk counts once however many episodes it
+    /// holds; a shadow pick counts once per episode (a pack becomes a file per episode).
     /// </summary>
     public IReadOnlyDictionary<int, string> SeasonGroupsOf(int versionId) =>
         _seasonGroups.GetValueOrDefault(versionId) ?? new Dictionary<int, string>();
+
+    /// <summary>The group with the most files of each season, pins aside.</summary>
+    public IReadOnlyDictionary<int, string> MajorityGroupsOf(int versionId) =>
+        _majorityGroups.GetValueOrDefault(versionId) ?? new Dictionary<int, string>();
+
+    /// <summary>The groups the user pinned, by season.</summary>
+    public IReadOnlyDictionary<int, string> PinnedGroupsOf(int versionId) =>
+        _pinnedGroups.GetValueOrDefault(versionId) ?? new Dictionary<int, string>();
 
     /// <summary>The slots of one season of a version, in episode order (film-owned specials have none).</summary>
     public List<EpisodeSlot> SeasonSlots(int versionId, int seasonNumber) =>

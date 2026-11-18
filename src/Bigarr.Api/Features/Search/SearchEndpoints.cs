@@ -93,6 +93,18 @@ public static class SearchEndpoints
             .WithTags("Search")
             .RequireAuthorization(AuthPolicies.Api);
 
+        // The release group the season aligns to: one of its files' groups, pinned; null goes back to the most files.
+        app.MapPut("/api/v1/series/{id:int}/versions/{versionId:int}/seasons/{seasonNumber:int}/alignment/group", async Task<Results<Ok<SeasonAlignmentResponse>, NotFound, ProblemHttpResult>> (
+                int id, int versionId, int seasonNumber, SeasonAlignmentGroupRequest request, SeasonAlignmentService alignment, CancellationToken ct) =>
+                await alignment.PinAsync(id, versionId, seasonNumber, request.Group, ct) switch
+                {
+                    null => TypedResults.NotFound(),
+                    { IsSuccess: true } ok => TypedResults.Ok(ok.Value!),
+                    { } failed => failed.Failure!.ToProblem(),
+                })
+            .WithTags("Search")
+            .RequireAuthorization(AuthPolicies.Api);
+
         app.MapPost("/api/v1/series/{id:int}/versions/{versionId:int}/seasons/{seasonNumber:int}/alignment", async Task<Results<Ok<SeasonAlignmentResult>, NotFound>> (
                 int id, int versionId, int seasonNumber, SeasonAlignmentService alignment, CancellationToken ct) =>
                 await alignment.AlignAsync(id, versionId, seasonNumber, ct) is { } result ? TypedResults.Ok(result) : TypedResults.NotFound())

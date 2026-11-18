@@ -1714,6 +1714,9 @@ export const series = {
   /** "Keep as is": the automatic alignment leaves the season alone. Answers the new preview. */
   keepSeasonGroups: (id: number, versionId: number, seasonNumber: number, keepAsIs: boolean) =>
     put<SeasonAlignment>(`/api/v1/series/${id}/versions/${versionId}/seasons/${seasonNumber}/alignment`, { keepAsIs }),
+  /** Pins the season to a release group present in it; null (or the group with the most files) follows the files again. Answers the new preview. */
+  pinSeasonGroup: (id: number, versionId: number, seasonNumber: number, group: string | null) =>
+    put<SeasonAlignment>(`/api/v1/series/${id}/versions/${versionId}/seasons/${seasonNumber}/alignment/group`, { group }),
   align: (id: number, versionId: number, seasonNumber: number) =>
     post<SeasonAlignmentResult>(`/api/v1/series/${id}/versions/${versionId}/seasons/${seasonNumber}/alignment`),
   lookup: (term: string) => api<SeriesLookupResult[]>(`/api/v1/series/lookup?term=${encodeURIComponent(term)}`),

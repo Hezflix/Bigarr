@@ -4083,6 +4083,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<bool>("Monitored")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("PinnedReleaseGroup")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("VersionId", "SeasonId");
 
                     b.HasIndex("SeasonId");

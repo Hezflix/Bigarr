@@ -148,7 +148,9 @@ public sealed record SeriesVersionResponse(
 /// <param name="SeasonGroup">The release group with the most files of the season (at least 3, specials never), null without one.</param>
 /// <param name="OffGroupEpisodes">Episodes whose file is from another group (or an unknown one): what "Align season" would replace.</param>
 /// <param name="KeepAsIs">"Keep as is": the automatic season alignment leaves this season alone.</param>
-public sealed record SeasonVersionState(int VersionId, bool Monitored, EpisodeStatistics Statistics, string? SeasonGroup = null, int OffGroupEpisodes = 0, bool KeepAsIs = false);
+/// <param name="MixedGroups">Files of the season come from several release groups: a group can be chosen in "Align season".</param>
+/// <param name="PinnedGroup">The release group the user chose for the season; it is then the <paramref name="SeasonGroup"/>.</param>
+public sealed record SeasonVersionState(int VersionId, bool Monitored, EpisodeStatistics Statistics, string? SeasonGroup = null, int OffGroupEpisodes = 0, bool KeepAsIs = false, bool MixedGroups = false, string? PinnedGroup = null);
 
 public sealed record SeasonResponse(
     int SeasonNumber,

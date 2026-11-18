@@ -40,4 +40,10 @@ public sealed class SeriesVersionSeason
 
     /// <summary>"Keep as is": the automatic season alignment leaves this season of the version alone.</summary>
     public bool KeepReleaseGroups { get; set; }
+
+    /// <summary>
+    /// A release group the user chose for this season of the version, in place of the one with the most files: the
+    /// tie-break, the alignment and its give-up use it while it is set. Null follows the files.
+    /// </summary>
+    public string? PinnedReleaseGroup { get; set; }
 }

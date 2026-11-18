@@ -395,6 +395,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/series/{id}/versions/{versionId}/seasons/{seasonNumber}/alignment/group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                    versionId: number;
+                    seasonNumber: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SeasonAlignmentGroupRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SeasonAlignmentResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/movies/{id}/search": {
         parameters: {
             query?: never;
@@ -14081,6 +14131,9 @@ export interface components {
             /** @default false */
             gaveUp: boolean;
         };
+        SeasonAlignmentGroupRequest: {
+            group: null | string;
+        };
         SeasonAlignmentKeepRequest: {
             keepAsIs: boolean;
         };
@@ -14101,6 +14154,8 @@ export interface components {
             autoAlign: boolean;
             /** @default false */
             keepAsIs: boolean;
+            majorityGroup: null | string;
+            pinnedGroup: null | string;
         };
         SeasonAlignmentResult: {
             preview: components["schemas"]["SeasonAlignmentResponse"];
@@ -14144,6 +14199,9 @@ export interface components {
             offGroupEpisodes: number;
             /** @default false */
             keepAsIs: boolean;
+            /** @default false */
+            mixedGroups: boolean;
+            pinnedGroup: null | string;
         };
         SeerrImportIssue: {
             kind: string;
