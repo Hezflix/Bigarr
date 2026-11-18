@@ -10,6 +10,15 @@ public sealed class PlayRules(PlaybackSettings settings)
     /// <summary>A stop this close to the end counts as the end (Tautulli: 10 s).</summary>
     public static readonly TimeSpan SnapToEnd = TimeSpan.FromSeconds(10);
 
+    /// <summary>
+    /// How far playback must go past a stream's opening offset before that offset counts as reached: a jump back
+    /// before it sooner means the server reported a stale position (an earlier view's resume point, another item's).
+    /// </summary>
+    public static readonly TimeSpan OpeningConfirmed = TimeSpan.FromSeconds(60);
+
+    /// <summary>A recorded stream whose start is this far past its end opened on a stale offset (repair of older plays).</summary>
+    public static readonly TimeSpan StaleStartTolerance = TimeSpan.FromSeconds(60);
+
     public PlaybackSettings Settings { get; } = settings ?? throw new ArgumentNullException(nameof(settings));
 
     /// <summary>Seconds a session must last, pauses excluded. A share of an unknown duration falls back to the default seconds.</summary>

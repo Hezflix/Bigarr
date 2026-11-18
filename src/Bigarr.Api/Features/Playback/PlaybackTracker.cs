@@ -330,9 +330,22 @@ public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLib
         session.LastSeenAt = now;
     }
 
+    /// <summary>
+    /// Progress counts once it was reached by playing. Plex's first offset for a stream is often stale (an earlier
+    /// view's resume point, or the previous item's position on the same player) and the player then jumps to the real
+    /// one: until playback has gone <see cref="PlayRules.OpeningConfirmed"/> past the opening offset, an offset before
+    /// it means the opening was never played, and the stream starts where it really is.
+    /// </summary>
     private static void Move(PlaybackSession session, long offsetMs)
     {
         session.ViewOffsetMs = offsetMs;
+        if (offsetMs < session.StartOffsetMs && session.MaxOffsetMs - session.StartOffsetMs < PlayRules.OpeningConfirmed.TotalMilliseconds)
+        {
+            session.StartOffsetMs = offsetMs;
+            session.MaxOffsetMs = offsetMs;
+            return;
+        }
+
         session.MaxOffsetMs = Math.Max(session.MaxOffsetMs, offsetMs);
     }
 
