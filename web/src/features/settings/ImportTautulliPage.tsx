@@ -16,6 +16,9 @@ import { isImportBusy, useImportRun } from '@/features/settings/importWizard'
 import { Toggle } from '@/features/settings/RadarrMapping'
 import { formatBytes, formatDate } from '@/i18n'
 
+/** The picker also lists these files, so the database can be clicked rather than typed. */
+const TAUTULLI_DB_EXTENSIONS = ['.db', '.sqlite']
+
 type Step = 'source' | 'preview'
 
 const staleAfterImport = ['playback'] as const
@@ -157,7 +160,7 @@ function SourceStep({
 
       <div className="grid grid-cols-1 content-start gap-2">
         <Label htmlFor="tautulli-path">{t('importTautulli.path')}</Label>
-        <PathPicker id="tautulli-path" value={path} onChange={onPath} placeholder="/config/tautulli.db" testId="tautulli-path" />
+        <PathPicker id="tautulli-path" value={path} onChange={onPath} placeholder="/config/tautulli.db" testId="tautulli-path" fileExtensions={TAUTULLI_DB_EXTENSIONS} />
         <p className="text-xs text-muted-foreground">{t('importTautulli.pathHint')}</p>
       </div>
 
