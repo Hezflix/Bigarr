@@ -822,6 +822,8 @@
     "browse": "Browse…",
     "browseTitle": "Choose a folder",
     "browseHint": "The folders below are the ones Bigarr can see, on the machine it runs on.",
+    "browseFileTitle": "Choose a file",
+    "browseFileHint": "The folders and files below are the ones Bigarr can see, on the machine it runs on. Click a file to use it.",
     "mounts": "Mount points",
     "up": "Up one level",
     "empty": "No sub-folder here.",

@@ -1,29 +1,19 @@
 import { useMemo, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from 'cn'
-import { CornerLeftUpIcon, FolderIcon, FolderSearchIcon, HardDriveIcon } from 'lucide-react'
+import { CornerLeftUpIcon, FileIcon, FolderIcon, FolderSearchIcon, HardDriveIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { ApiError, filesystem, type FileSystemItem } from '@/api/client'
+import { ApiError, filesystem } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-
-/** The separator the typed path already uses; a Windows server answers with backslashes. */
-function separatorOf(path: string): string {
-  return path.includes('\\') && !path.includes('/') ? '\\' : '/'
-}
+import { acceptedPath, type PathEntry, pathEntries } from './pathPickerModel'
 
 /** Split what was typed into the folder to list and the name being written inside it. */
 function splitPath(value: string): { dir: string; leaf: string } {
   const cut = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'))
   return cut < 0 ? { dir: '', leaf: value } : { dir: value.slice(0, cut + 1), leaf: value.slice(cut + 1) }
-}
-
-/** Chosen folders keep a trailing separator so the next keystroke goes one level deeper. */
-function asPrefix(path: string): string {
-  const separator = separatorOf(path)
-  return path.endsWith(separator) ? path : path + separator
 }
 
 type PathPickerProps = {
@@ -34,38 +24,39 @@ type PathPickerProps = {
   className?: string
   disabled?: boolean
   testId?: string
+  /** Also offer the files with one of these extensions (e.g. `['.sqlite3', '.db']`); without it only folders show. */
+  fileExtensions?: readonly string[]
 }
 
 /**
  * A path input that reads the server's filesystem: it suggests the folders under what has been typed,
- * and opens a browser for the times one would rather click than type.
+ * and opens a browser for the times one would rather click than type. With `fileExtensions` it picks a file instead.
  */
-export function PathPicker({ value, onChange, id, placeholder, className, disabled, testId }: PathPickerProps) {
+export function PathPicker({ value, onChange, id, placeholder, className, disabled, testId, fileExtensions }: PathPickerProps) {
   const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false)
   const [browsing, setBrowsing] = useState(false)
   const [highlight, setHighlight] = useState(0)
   const { dir, leaf } = splitPath(value)
+  const includeFiles = (fileExtensions?.length ?? 0) > 0
 
   // Keyed on the folder, not on every keystroke: typing inside it filters the listing already in hand.
   const listing = useQuery({
-    queryKey: ['filesystem', dir],
-    queryFn: () => filesystem.browse(dir),
+    queryKey: ['filesystem', dir, includeFiles],
+    queryFn: () => filesystem.browse(dir, includeFiles),
     enabled: open && !disabled,
     staleTime: 15_000,
     retry: false,
   })
 
-  const suggestions = useMemo(() => {
-    const folders = listing.data?.directories ?? []
-    const needle = leaf.toLowerCase()
-    return folders.filter((d) => d.name.toLowerCase().startsWith(needle))
-  }, [listing.data, leaf])
+  const suggestions = useMemo(() => pathEntries(listing.data, leaf, fileExtensions), [listing.data, leaf, fileExtensions])
 
-  const accept = (item: FileSystemItem) => {
-    onChange(asPrefix(item.path))
+  const accept = (item: PathEntry) => {
+    onChange(acceptedPath(item))
     setHighlight(0)
+    // A folder keeps the suggestions open for the next level; a file is the end of the path.
+    if (item.kind === 'file') setOpen(false)
     inputRef.current?.focus()
   }
 
@@ -153,7 +144,11 @@ export function PathPicker({ value, onChange, id, placeholder, className, disabl
                 onClick={() => accept(item)}
                 onBlur={onBlur}
               >
-                <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                {item.kind === 'file' ? (
+                  <FileIcon className="size-3.5 shrink-0 text-primary" data-testid="path-suggestion-file" />
+                ) : (
+                  <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                )}
                 <span className="truncate">{item.name}</span>
               </button>
             ))}
@@ -169,6 +164,7 @@ export function PathPicker({ value, onChange, id, placeholder, className, disabl
       {browsing && (
         <BrowseDialog
           start={value}
+          fileExtensions={fileExtensions}
           onPick={(path) => {
             onChange(path)
             setBrowsing(false)
@@ -181,20 +177,37 @@ export function PathPicker({ value, onChange, id, placeholder, className, disabl
   )
 }
 
-/** Click your way down the server's folders; the mount points are the top of the tree. */
-function BrowseDialog({ start, onPick, onClose }: { start: string; onPick: (path: string) => void; onClose: () => void }) {
+/** Click your way down the server's folders; the mount points are the top of the tree. With extensions, a click on a file picks it. */
+function BrowseDialog({
+  start,
+  fileExtensions,
+  onPick,
+  onClose,
+}: {
+  start: string
+  fileExtensions?: readonly string[]
+  onPick: (path: string) => void
+  onClose: () => void
+}) {
   const { t } = useTranslation()
   const [path, setPath] = useState(start)
-  const listing = useQuery({ queryKey: ['filesystem', path], queryFn: () => filesystem.browse(path), staleTime: 15_000, retry: false })
+  const includeFiles = (fileExtensions?.length ?? 0) > 0
+  const listing = useQuery({
+    queryKey: ['filesystem', path, includeFiles],
+    queryFn: () => filesystem.browse(path, includeFiles),
+    staleTime: 15_000,
+    retry: false,
+  })
   const data = listing.data
   const atMounts = data?.path === ''
+  const files = includeFiles ? pathEntries(data, '', fileExtensions).filter((e) => e.kind === 'file') : []
 
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{t('pathPicker.browseTitle')}</DialogTitle>
-          <DialogDescription>{t('pathPicker.browseHint')}</DialogDescription>
+          <DialogTitle>{t(includeFiles ? 'pathPicker.browseFileTitle' : 'pathPicker.browseTitle')}</DialogTitle>
+          <DialogDescription>{t(includeFiles ? 'pathPicker.browseFileHint' : 'pathPicker.browseHint')}</DialogDescription>
         </DialogHeader>
 
         <p className="truncate rounded-md bg-muted px-2 py-1.5 font-mono text-xs" data-testid="browse-current">
@@ -234,16 +247,31 @@ function BrowseDialog({ start, onPick, onClose }: { start: string; onPick: (path
               <span className="truncate font-mono text-xs">{item.name}</span>
             </button>
           ))}
-          {data && data.directories.length === 0 && <p className="px-2 py-1.5 text-sm text-muted-foreground">{t('pathPicker.empty')}</p>}
+          {files.map((item) => (
+            <button
+              key={item.path}
+              type="button"
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent/60"
+              onClick={() => onPick(item.path)}
+              data-testid="browse-file"
+            >
+              <FileIcon className="size-4 shrink-0 text-primary" />
+              <span className="truncate font-mono text-xs">{item.name}</span>
+            </button>
+          ))}
+          {data && data.directories.length === 0 && files.length === 0 && <p className="px-2 py-1.5 text-sm text-muted-foreground">{t('pathPicker.empty')}</p>}
         </div>
 
         <DialogFooter>
           <Button type="button" variant="ghost" onClick={onClose}>
             {t('common.cancel')}
           </Button>
-          <Button type="button" disabled={!data || atMounts} onClick={() => data && onPick(data.path)} data-testid="browse-select">
-            {t('pathPicker.select')}
-          </Button>
+          {/* Picking a file is a click on it: a folder is not an answer there. */}
+          {!includeFiles && (
+            <Button type="button" disabled={!data || atMounts} onClick={() => data && onPick(data.path)} data-testid="browse-select">
+              {t('pathPicker.select')}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

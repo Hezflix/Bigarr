@@ -16,6 +16,9 @@ import { isImportBusy, useImportRun } from '@/features/settings/importWizard'
 import { Toggle } from '@/features/settings/RadarrMapping'
 import { formatBytes } from '@/i18n'
 
+/** The picker also lists these files, so the database can be clicked rather than typed. */
+const SEERR_DB_EXTENSIONS = ['.sqlite3', '.sqlite', '.db']
+
 type Step = 'source' | 'preview'
 
 const staleAfterImport = ['requests', 'issues', 'users', 'discover'] as const
@@ -103,7 +106,7 @@ function SourceStep({ path, onPath, onPreview }: { path: string; onPath: (path: 
     <form className="flex max-w-xl flex-col gap-5" onSubmit={submit} data-testid="seerr-source-form">
       <div className="grid grid-cols-1 content-start gap-2">
         <Label htmlFor="seerr-path">{t('importSeerr.path')}</Label>
-        <PathPicker id="seerr-path" value={path} onChange={onPath} placeholder="/config/db/db.sqlite3" testId="seerr-path" />
+        <PathPicker id="seerr-path" value={path} onChange={onPath} placeholder="/config/db/db.sqlite3" testId="seerr-path" fileExtensions={SEERR_DB_EXTENSIONS} />
         <p className="text-xs text-muted-foreground">{t('importSeerr.pathHint')}</p>
       </div>
 
