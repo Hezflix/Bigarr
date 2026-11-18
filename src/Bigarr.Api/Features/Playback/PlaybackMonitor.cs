@@ -14,7 +14,7 @@ public sealed record ListenerStatus(bool Connected, string? Error, DateTime Sinc
 /// <list type="number">
 /// <item>read the list of streams and reconcile (after a restart, a reconnection, or while the event stream is down);</item>
 /// <item>listen to the server-sent <c>playing</c> events, reading the list again when one is about an unknown stream
-/// or a changed state, and every minute in any case (like Tautulli's poller), so a stream whose events were missed is
+/// or a changed state, and every minute in any case, so a stream whose events were missed is
 /// still found;</item>
 /// <item>on any failure, wait 30 s and start over: while Plex refuses the event stream, that is a poll every 30 s.</item>
 /// </list>
