@@ -37,7 +37,7 @@ public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLib
         var seen = new HashSet<PlaybackSession>();
         foreach (var stream in live)
         {
-            var session = open.FirstOrDefault(o => !seen.Contains(o) && IsSame(o, stream));
+            var session = open.FirstOrDefault(o => !seen.Contains(o) && IsSame(o, stream, now));
             if (session is null)
             {
                 LogReplaced(open.Where(o => !seen.Contains(o) && o.SessionKey == stream.SessionKey), stream);
@@ -206,14 +206,23 @@ public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLib
         await db.PlaybackSettings.AsNoTracking().FirstOrDefaultAsync(s => s.Id == PlaybackSettings.SingletonId, ct) ?? PlaybackSettings.Default();
 
     /// <summary>
-    /// Same stream: Plex reuses session keys after a restart and moves a player to the next episode under the same key,
-    /// so the rating key, the user and Plex's own session id must agree too.
+    /// Plex's own session id may change under a stream that goes on (a transcode restarted by a seek or a quality
+    /// change, a player reconnecting): it only tells a new stream when the session was not seen for this long, which
+    /// is what a restart of Plex reusing its session keys looks like. The list is read every minute, and a playing or
+    /// paused stream sends an event about every 10 s, so a stream that goes on is never this stale.
     /// </summary>
-    private static bool IsSame(PlaybackSession session, PlexSession stream) =>
+    public static readonly TimeSpan ServerSessionIdGap = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// Same stream, after Tautulli: the session key and the rating key (Plex moves a player to the next episode under
+    /// the same key), and the user. Plex's own session id counts only after a gap (<see cref="ServerSessionIdGap"/>).
+    /// </summary>
+    private static bool IsSame(PlaybackSession session, PlexSession stream, DateTime now) =>
         session.SessionKey == stream.SessionKey
         && session.RatingKey == stream.RatingKey
         && session.User.ExternalId == stream.UserId
-        && (session.ServerSessionId is null || stream.SessionId is null || session.ServerSessionId == stream.SessionId);
+        && (session.ServerSessionId is null || stream.SessionId is null || session.ServerSessionId == stream.SessionId
+            || now - session.LastSeenAt <= ServerSessionIdGap);
 
     /// <summary>
     /// A stream that matches no open session while one holds its session key: says which of the rating key, the user
@@ -288,7 +297,7 @@ public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLib
     private static void Refresh(PlaybackSession session, PlexSession stream, DateTime now)
     {
         ApplyState(session, stream.State, stream.ViewOffsetMs, now);
-        session.ServerSessionId ??= stream.SessionId;
+        session.ServerSessionId = stream.SessionId ?? session.ServerSessionId;
 
         // The list carries the live part (player, network, decision); the source and file were read once, at the start.
         var source = session.Details;

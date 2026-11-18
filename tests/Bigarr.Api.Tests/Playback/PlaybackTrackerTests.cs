@@ -172,6 +172,66 @@ public sealed class PlaybackTrackerTests : IAsyncLifetime, IDisposable
     }
 
     [Fact]
+    public async Task A_plex_session_id_changing_under_a_stream_that_goes_on_keeps_one_session_and_the_whole_time()
+    {
+        // A transcode restarted by seeks or quality changes: Plex gives the stream a new session id every minute.
+        _plex.Set(new FakePlex.Stream("40", "s-40a", "100", "2", "bob", "1001"));
+        await ReconcileAsync();
+        foreach (var (id, minute) in new[] { ("s-40b", 1), ("s-40c", 2), ("s-40d", 3), ("s-40e", 4) })
+        {
+            _time.Advance(TimeSpan.FromSeconds(30));
+            await EventAsync("40", "100", "playing", Minutes(minute) - 30_000);
+            _time.Advance(TimeSpan.FromSeconds(30));
+            _plex.Set(new FakePlex.Stream("40", id, "100", "2", "bob", "1001", ViewOffsetMs: Minutes(minute)));
+            Assert.Equal(1, await ReconcileAsync());
+        }
+
+        await using (var db = _database.CreateContext())
+        {
+            var session = await db.PlaybackSessions.SingleAsync();
+            Assert.Equal("s-40e", session.ServerSessionId);
+            Assert.Equal(_time.GetUtcNow().UtcDateTime.AddMinutes(-4), session.StartedAt);
+        }
+
+        Assert.DoesNotContain(_log.Lines, l => l.Contains(" is new although ", StringComparison.Ordinal));
+        _time.Advance(TimeSpan.FromMinutes(1));
+        await EventAsync("40", "100", "stopped", Minutes(5));
+
+        // Before: five one-minute pieces, each under the two-minute minimum, so no play at all.
+        await using var after = _database.CreateContext();
+        var play = await after.Plays.Include(p => p.Streams).SingleAsync();
+        Assert.Equal(5 * 60, play.PlayedSeconds);
+        Assert.Single(play.Streams);
+    }
+
+    [Fact]
+    public async Task An_idle_paused_stream_resumed_hours_later_under_a_new_plex_session_id_is_a_play_of_the_time_played()
+    {
+        _plex.Set(new FakePlex.Stream("41", "s-41a", "100", "2", "bob", "1001", State: "paused"));
+        await ReconcileAsync();
+
+        // Two hours paused in a browser tab: Plex keeps reporting it, the list is read every minute.
+        for (var minute = 1; minute <= 120; minute++)
+        {
+            _time.Advance(TimeSpan.FromMinutes(1));
+            await EventAsync("41", "100", "paused", 0);
+        }
+
+        // Pressing play restarts the stream under a new Plex session id.
+        Assert.True(await EventAsync("41", "100", "playing", 0));
+        _plex.Set(new FakePlex.Stream("41", "s-41b", "100", "2", "bob", "1001"));
+        Assert.Equal(1, await ReconcileAsync());
+        _time.Advance(TimeSpan.FromMinutes(4));
+        await EventAsync("41", "100", "stopped", Minutes(4));
+
+        await using var db = _database.CreateContext();
+        var play = await db.Plays.SingleAsync();
+        Assert.Equal(4 * 60, play.PlayedSeconds);
+        Assert.Equal(120 * 60, play.PausedSeconds);
+        Assert.Empty(db.PlaybackSessions);
+    }
+
+    [Fact]
     public async Task A_short_session_is_no_play_and_a_resumed_view_continues_the_unfinished_play()
     {
         // Under two minutes: nothing.
