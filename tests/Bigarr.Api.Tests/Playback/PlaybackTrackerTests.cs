@@ -25,6 +25,7 @@ public sealed class PlaybackTrackerTests : IAsyncLifetime, IDisposable
     private readonly SqliteTestDatabase _database = new();
     private readonly MutableTimeProvider _time = new(new DateTimeOffset(2026, 3, 14, 20, 0, 0, TimeSpan.Zero));
     private readonly LiveTranscodes _transcodes = new();
+    private readonly ListLogger<PlaybackTracker> _log = new();
     private readonly ServiceProvider _services = new ServiceCollection().AddHttpClient().BuildServiceProvider();
     private FakePlex _plex = null!;
     private MediaServer _server = null!;
@@ -295,6 +296,30 @@ public sealed class PlaybackTrackerTests : IAsyncLifetime, IDisposable
     }
 
     [Fact]
+    public async Task A_new_stream_on_an_open_key_and_a_close_without_a_play_say_why_at_information()
+    {
+        _plex.Set(new FakePlex.Stream("30", "s-30", "100", "2", "bob", "1001"));
+        await ReconcileAsync();
+        _time.Advance(TimeSpan.FromSeconds(40));
+        await EventAsync("30", "100", "paused", 40_000);
+        _time.Advance(TimeSpan.FromSeconds(20));
+
+        // Another film on the same key: the log names what differed, and why the first made no play.
+        _plex.Set(new FakePlex.Stream("30", "s-31", "200", "2", "bob", "2001"));
+        await ReconcileAsync();
+        Assert.Contains(_log.Lines, l => l.Contains("Stream 30 is new although The Matrix was open on that key", StringComparison.Ordinal)
+            && l.Contains("rating key 100 -> 200", StringComparison.Ordinal)
+            && l.Contains("Plex session id s-30 -> s-31", StringComparison.Ordinal)
+            && !l.Contains("user ", StringComparison.Ordinal));
+        Assert.Contains(_log.Lines, l => l.Contains("bob played The Matrix for 40 s: not a play (under the 120 s minimum; 0 s paused", StringComparison.Ordinal)
+            && l.Contains("replaced by another stream on its session key", StringComparison.Ordinal));
+
+        _time.Advance(TimeSpan.FromSeconds(30));
+        await EventAsync("30", "200", "stopped", 30_000);
+        Assert.Contains(_log.Lines, l => l.Contains("for 30 s: not a play", StringComparison.Ordinal) && l.Contains("by a stopped event", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Plays_sort_by_any_column_both_ways_and_keep_newest_first_as_the_default()
     {
         await using (var db = _database.CreateContext())
@@ -379,7 +404,7 @@ public sealed class PlaybackTrackerTests : IAsyncLifetime, IDisposable
     }
 
     private PlaybackTracker Tracker(BigarrDbContext db, PlexClient plex) =>
-        new(db, plex, new PlexLibraries(plex, _time, NullLogger<PlexLibraries>.Instance), new VersionResolver(db), _transcodes, _time, NullLogger<PlaybackTracker>.Instance);
+        new(db, plex, new PlexLibraries(plex, _time, NullLogger<PlexLibraries>.Instance), new VersionResolver(db), _transcodes, _time, _log);
 
     private static long Minutes(int minutes) => minutes * 60_000L;
 

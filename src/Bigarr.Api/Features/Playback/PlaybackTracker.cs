@@ -40,6 +40,7 @@ public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLib
             var session = open.FirstOrDefault(o => !seen.Contains(o) && IsSame(o, stream));
             if (session is null)
             {
+                LogReplaced(open.Where(o => !seen.Contains(o) && o.SessionKey == stream.SessionKey), stream);
                 session = await OpenAsync(server, stream, now, ct);
             }
             else
@@ -54,7 +55,8 @@ public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLib
 
         foreach (var gone in open.Where(o => !seen.Contains(o)))
         {
-            await CloseAsync(gone, gone.LastSeenAt, ct);
+            var replaced = live.Any(l => l.SessionKey == gone.SessionKey);
+            await CloseAsync(gone, gone.LastSeenAt, ct, replaced ? CloseCause.Replaced : CloseCause.Gone);
             transcodes.Set(server.Id, gone.SessionKey, null);
         }
 
@@ -91,7 +93,7 @@ public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLib
                 Move(session, offset);
             }
 
-            await CloseAsync(session, now, ct);
+            await CloseAsync(session, now, ct, CloseCause.StoppedEvent);
             transcodes.Set(server.Id, session.SessionKey, null);
             return false;
         }
@@ -103,11 +105,24 @@ public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLib
         return changed;
     }
 
+    /// <summary>What ended a session, for the log line that says why it made no play.</summary>
+    public enum CloseCause
+    {
+        /// <summary>Plex sent a <c>stopped</c> event: the session ends now.</summary>
+        StoppedEvent,
+
+        /// <summary>The stream left the server's list: the session ends when it was last seen.</summary>
+        Gone,
+
+        /// <summary>Another stream took its session key: the session ends when it was last seen.</summary>
+        Replaced,
+    }
+
     /// <summary>
     /// Ends a session at <paramref name="stoppedAt"/>: a play when it lasted long enough, nothing otherwise. Returns the
     /// play it went into.
     /// </summary>
-    public async Task<Play?> CloseAsync(PlaybackSession session, DateTime stoppedAt, CancellationToken ct)
+    public async Task<Play?> CloseAsync(PlaybackSession session, DateTime stoppedAt, CancellationToken ct, CloseCause cause = CloseCause.Gone)
     {
         ArgumentNullException.ThrowIfNull(session);
 
@@ -129,7 +144,21 @@ public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLib
         if (!session.User.KeepHistory || !rules.IsLongEnough(played, item.DurationMs))
         {
             await db.SaveChangesAsync(ct);
-            logger.LogDebug("{User} played {Title} for {Seconds} s: not a play", session.User.ShownName, item.Title, played);
+            logger.LogInformation(
+                "{User} played {Title} for {Seconds} s: not a play ({Reason}; {Paused} s paused, started {StartedAt:HH:mm:ss}, stopped {StoppedAt:HH:mm:ss} {How})",
+                session.User.ShownName,
+                item.Title,
+                played,
+                session.User.KeepHistory ? $"under the {rules.MinimumSeconds(item.DurationMs)} s minimum" : "history is off for this user",
+                session.PausedSeconds,
+                session.StartedAt,
+                stoppedAt,
+                cause switch
+                {
+                    CloseCause.StoppedEvent => "by a stopped event",
+                    CloseCause.Replaced => "as last seen, replaced by another stream on its session key",
+                    _ => "as last seen, gone from the list",
+                });
             return null;
         }
 
@@ -185,6 +214,40 @@ public sealed class PlaybackTracker(BigarrDbContext db, PlexClient plex, PlexLib
         && session.RatingKey == stream.RatingKey
         && session.User.ExternalId == stream.UserId
         && (session.ServerSessionId is null || stream.SessionId is null || session.ServerSessionId == stream.SessionId);
+
+    /// <summary>
+    /// A stream that matches no open session while one holds its session key: says which of the rating key, the user
+    /// and Plex's session id differed, so a reopened viewing can be told from a next episode or a Plex restart.
+    /// </summary>
+    private void LogReplaced(IEnumerable<PlaybackSession> sameKey, PlexSession stream)
+    {
+        foreach (var old in sameKey)
+        {
+            var differs = new List<string>();
+            if (old.RatingKey != stream.RatingKey)
+            {
+                differs.Add($"rating key {old.RatingKey} -> {stream.RatingKey}");
+            }
+
+            if (old.User.ExternalId != stream.UserId)
+            {
+                differs.Add($"user {old.User.ShownName} -> {stream.UserName}");
+            }
+
+            if (old.ServerSessionId is not null && stream.SessionId is not null && old.ServerSessionId != stream.SessionId)
+            {
+                differs.Add($"Plex session id {old.ServerSessionId} -> {stream.SessionId}");
+            }
+
+            logger.LogInformation(
+                "Stream {SessionKey} is new although {Title} was open on that key since {StartedAt:HH:mm:ss} (last seen {LastSeenAt:HH:mm:ss}): {Differences}",
+                stream.SessionKey,
+                old.Item.Title,
+                old.StartedAt,
+                old.LastSeenAt,
+                string.Join(", ", differs));
+        }
+    }
 
     private async Task<PlaybackSession> OpenAsync(MediaServer server, PlexSession stream, DateTime now, CancellationToken ct)
     {
