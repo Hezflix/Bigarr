@@ -1,3 +1,5 @@
+using Bigarr.Domain.Scheduling;
+
 namespace Bigarr.Api.Features.Server.Health;
 
 /// <summary>The last health check, in memory, for the pages. What was standing before it is in the database (<c>StandingHealthIssues</c>).</summary>
@@ -28,10 +30,11 @@ public sealed class HealthState
         }
     }
 
-    /// <summary>The same issue from one check to the next: its source and its wording.</summary>
-    public static bool Same(string source, string message, HealthIssue issue)
+    /// <summary>The same issue from one check to the next: its source and its key, or its wording when it has no key.</summary>
+    public static bool Same(StandingHealthIssue standing, HealthIssue issue)
     {
+        ArgumentNullException.ThrowIfNull(standing);
         ArgumentNullException.ThrowIfNull(issue);
-        return string.Equals(source, issue.Source, StringComparison.Ordinal) && string.Equals(message, issue.Message, StringComparison.Ordinal);
+        return string.Equals(standing.Source, issue.Source, StringComparison.Ordinal) && string.Equals(standing.Key ?? standing.Message, issue.Identity, StringComparison.Ordinal);
     }
 }

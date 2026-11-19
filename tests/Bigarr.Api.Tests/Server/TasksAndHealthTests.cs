@@ -84,6 +84,41 @@ public sealed class TasksAndHealthTests(BigarrApiFactory factory) : IClassFixtur
         }
     }
 
+    [Fact]
+    public async Task An_issue_whose_wording_changes_between_checks_is_raised_once()
+    {
+        var clock = new Indexers.MutableTimeProvider(DateTimeOffset.UtcNow);
+        await using var app = new ConfiguredBigarrApiFactory(null, new Dictionary<string, string>
+        {
+            // The RSS check only speaks when the scheduler is on; no pass runs in the test, so the sync is overdue.
+            ["Bigarr:Scheduler:Enabled"] = "true",
+            ["Bigarr:Rss:InitialDelaySeconds"] = "3600",
+        }, time: clock);
+        var client = await ClientAsync(app);
+        await AddMockIndexerAsync(client, "Mock health rss");
+
+        clock.Advance(TimeSpan.FromMinutes(40));
+        var first = (await (await client.PostAsync("/api/v1/health/check", null)).Content.ReadFromJsonAsync<HealthResponse>(Json))!;
+        clock.Advance(TimeSpan.FromMinutes(10));
+        var second = (await (await client.PostAsync("/api/v1/health/check", null)).Content.ReadFromJsonAsync<HealthResponse>(Json))!;
+
+        // The count of minutes in the text moved on, the issue did not.
+        var before = Assert.Single(first.Issues, i => i.Source == "rss");
+        var after = Assert.Single(second.Issues, i => i.Source == "rss");
+        Assert.NotEqual(before.Message, after.Message);
+
+        Assert.Equal(1, await EventsAsync(app, "healthIssue", "rss"));
+        Assert.Equal(0, await EventsAsync(app, "healthRestored", "rss"));
+    }
+
+    private static async Task<int> EventsAsync(BigarrApiFactory app, string type, string source)
+    {
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<Bigarr.Api.Infrastructure.Persistence.BigarrDbContext>();
+        var marker = $"\"source\":\"{source}\"";
+        return await db.Outbox.AsNoTracking().Where(e => e.Type == type).CountAsync(e => e.Payload.Contains(marker));
+    }
+
     private static async Task<int> EventsAsync(BigarrApiFactory app, string type)
     {
         using var scope = app.Services.CreateScope();

@@ -16,5 +16,8 @@ public sealed class StandingHealthIssue
 
     public required string Message { get; set; }
 
+    /// <summary>What identifies the issue when its wording varies between checks; null compares by <see cref="Message"/>.</summary>
+    public string? Key { get; set; }
+
     public DateTime RaisedAt { get; set; }
 }
