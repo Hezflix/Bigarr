@@ -56,6 +56,58 @@ public sealed partial class FileTransfer(ILogger<FileTransfer> logger)
         }
     }
 
+    /// <summary>
+    /// Puts <paramref name="source"/> where another file already is. The new file is brought in full next to it under the
+    /// partial name first; only then does <paramref name="retireExisting"/> take the old one away and the new one takes
+    /// its name. A transfer that fails leaves the old file untouched.
+    /// </summary>
+    public async Task<TransferOutcome> ReplaceAsync(string source, string destination, TransferMode mode, Action retireExisting, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(retireExisting);
+        var staged = destination + PartialSuffix;
+
+        // A leftover of a killed run.
+        TryDelete(staged);
+
+        // If this throws, nothing else has been touched.
+        var outcome = await TransferAsync(source, staged, mode, ct);
+
+        try
+        {
+            retireExisting();
+            File.Move(staged, destination, overwrite: false);
+            return outcome;
+        }
+        catch
+        {
+            if (File.Exists(destination))
+            {
+                // The old file was not retired: the staged one goes away, or back where it came from.
+                if (outcome == TransferOutcome.Moved)
+                {
+                    try
+                    {
+                        File.Move(staged, source, overwrite: false);
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        // left under the partial name; the original error is the one that matters
+                    }
+                }
+                else
+                {
+                    TryDelete(staged);
+                }
+            }
+            else
+            {
+                logger.LogWarning("The replaced file {Destination} is gone but the new file could not take its name; it stays at {Staged}", destination, staged);
+            }
+
+            throw;
+        }
+    }
+
     /// <summary>Same inode, two names: the seed and the library share the bytes. False with the reason when the OS refuses.</summary>
     public static bool TryHardlink(string source, string destination, out string? reason)
     {
