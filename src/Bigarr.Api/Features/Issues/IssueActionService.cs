@@ -48,13 +48,13 @@ public sealed class IssueActionService(
 
     /// <summary>
     /// Who owns the issue's files when it is not Bigarr: the followed Radarr/Sonarr carrying its version (by name), else
-    /// shadow mode.
+    /// shadow mode when the issue's kind (film or series) is still in it.
     /// </summary>
     public async Task<string?> ManagedByAsync(Issue issue, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(issue);
         var (radarr, sonarr) = await FollowedAsync(issue, ct);
-        return radarr?.Name ?? sonarr?.Name ?? (shadow.Value.Enabled ? Shadow : null);
+        return radarr?.Name ?? sonarr?.Name ?? (shadow.Value.InShadow(series: issue.MediaType != RequestMediaType.Movie) ? Shadow : null);
     }
 
     /// <summary>The enabled followed Radarr (film) or Sonarr (series) that carries the issue's version, when there is one.</summary>

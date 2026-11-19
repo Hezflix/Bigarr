@@ -248,7 +248,7 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
             .OrderBy(v => v, StringComparer.Ordinal)
             .ToList();
 
-        return new SeriesCompareResponse(from, now, (int)window.TotalHours, options.Value.Enabled, versions, summary, byVersion, responses, filtered.Count, page, pageSize);
+        return new SeriesCompareResponse(from, now, (int)window.TotalHours, options.Value.SeriesInShadow, versions, summary, byVersion, responses, filtered.Count, page, pageSize);
     }
 
     /// <summary>A film pick shown as the Bigarr side of a special that is that film (ids negated so they never clash).</summary>

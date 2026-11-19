@@ -224,7 +224,7 @@ public sealed class SeriesRssPass(
             await held.RecordAsync(group.Key.VersionId, group.Key.SeriesId, group.Select(h => (h.Release, h.Judgement)).ToList(), RssSyncService.GrabTrigger, ct);
         }
 
-        if (sightings.Enabled)
+        if (sightings.ForSeries)
         {
             await sightings.RecordAsync(judged.Select(j => (j.Entry, j.Release, (int?)null, j.Targets?.Series.TvdbId)), now, ct);
         }

@@ -107,7 +107,7 @@ public sealed class SeriesFilmLinkRunner(SeriesFilmLinkQueue queue, EventStream 
             {
                 try
                 {
-                    if (shadow.Value.Enabled)
+                    if (shadow.Value.AnyInShadow)
                     {
                         continue;
                     }
@@ -159,7 +159,7 @@ public sealed class SeriesFilmLinkJob(SeriesFilmLinker linker, IOptions<ShadowOp
 
     public async Task<string?> RunAsync(CancellationToken ct)
     {
-        if (shadow.Value.Enabled)
+        if (shadow.Value.AnyInShadow)
         {
             return "Shadow mode: no file touched";
         }

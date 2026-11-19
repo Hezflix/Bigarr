@@ -15129,6 +15129,10 @@ export interface components {
              */
             sonarrGrabs: number;
             sonarrs: null | components["schemas"]["FollowedSonarrResponse"][];
+            /** @default false */
+            films: boolean;
+            /** @default false */
+            series: boolean;
         };
         SightingVerdict: {
             versionName: string;
@@ -15460,6 +15464,10 @@ export interface components {
             /** @default false */
             shadowEnabled: boolean;
             seriesMetadataProvider: null | string;
+            /** @default false */
+            shadowFilms: boolean;
+            /** @default false */
+            shadowSeries: boolean;
         };
         TagRequest: {
             label: string;

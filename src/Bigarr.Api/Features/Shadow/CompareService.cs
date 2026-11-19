@@ -181,7 +181,7 @@ public sealed class CompareService(BigarrDbContext db, IOptions<ShadowOptions> o
             .OrderBy(v => v, StringComparer.Ordinal)
             .ToList();
 
-        return new CompareResponse(from, now, (int)window.TotalHours, options.Value.Enabled, versions, summary, byVersion, rows, filtered.Count, page, pageSize);
+        return new CompareResponse(from, now, (int)window.TotalHours, options.Value.FilmsInShadow, versions, summary, byVersion, rows, filtered.Count, page, pageSize);
     }
 
     /// <summary>

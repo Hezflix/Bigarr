@@ -265,7 +265,7 @@ public sealed class SonarrFollower(
     /// </summary>
     private async Task<int> SearchOnAddAsync(FollowedSonarr follow, List<int> tvdbIds, CancellationToken ct)
     {
-        if (tvdbIds.Count == 0 || !options.Value.Enabled)
+        if (tvdbIds.Count == 0 || !options.Value.SeriesInShadow)
         {
             return 0;
         }

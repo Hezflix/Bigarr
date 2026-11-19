@@ -23,10 +23,14 @@ public sealed record SystemStatusResponse(
     string MetadataProvider,
     /// <summary><c>Bigarr:Scheduler:Enabled</c>: when false no task runs on its own (RSS sync, searches, health check, maintenance, backups); each runs only when triggered, but for the read-only Plex watch history.</summary>
     bool SchedulerEnabled,
-    /// <summary><c>Bigarr:Shadow:Enabled</c>: grabs are recorded as picks and nothing is sent to a download client.</summary>
+    /// <summary><c>Bigarr:Shadow</c>: grabs are recorded as picks and nothing is sent to a download client, for films, series or both.</summary>
     bool ShadowEnabled = false,
     /// <summary><c>tvdb+tmdb</c>, <c>tvdb</c>, <c>tmdb</c> or <c>fixtures</c>: where series numbering comes from.</summary>
-    string? SeriesMetadataProvider = null);
+    string? SeriesMetadataProvider = null,
+    /// <summary>Film grabs are recorded as picks (<c>Bigarr:Shadow:Films</c>, else <c>Bigarr:Shadow:Enabled</c>).</summary>
+    bool ShadowFilms = false,
+    /// <summary>Series grabs are recorded as picks (<c>Bigarr:Shadow:Series</c>, else <c>Bigarr:Shadow:Enabled</c>).</summary>
+    bool ShadowSeries = false);
 
 public static class SystemEndpoints
 {
@@ -55,6 +59,8 @@ public static class SystemEndpoints
             ConfigDirectory: Path.GetFullPath(options.Value.ConfigDirectory),
             MetadataProvider: metadata.Name,
             SchedulerEnabled: scheduler.Value.Enabled,
-            ShadowEnabled: shadow.Value.Enabled,
-            SeriesMetadataProvider: seriesMetadata.Name));
+            ShadowEnabled: shadow.Value.AnyInShadow,
+            SeriesMetadataProvider: seriesMetadata.Name,
+            ShadowFilms: shadow.Value.FilmsInShadow,
+            ShadowSeries: shadow.Value.SeriesInShadow));
 }

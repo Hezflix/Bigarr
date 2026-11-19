@@ -76,25 +76,47 @@ public sealed class HealthCheckService(
         }
 
         var clients = await db.DownloadClients.AsNoTracking().ToListAsync(ct);
-        if (shadow.Value.Enabled)
+        var mode = shadow.Value;
+        if (mode.FilmsInShadow && mode.SeriesInShadow)
         {
             // A choice, not a fault: no badge, no notification, and the missing client is expected.
-            issues.Add(new HealthIssue("shadow", HealthIssueType.Notice, "Shadow mode: Bigarr records what it would grab (Activity → Compare) and sends nothing to a download client. Set Bigarr__Shadow__Enabled=false to grab for real."));
-        }
-        else if (!clients.Any(c => c.Enabled))
-        {
-            issues.Add(new HealthIssue("downloadClients", HealthIssueType.Warning, "No download client is enabled: releases cannot be grabbed. Add one in Settings → Download clients."));
+            issues.Add(new HealthIssue("shadow", HealthIssueType.Notice, "Shadow mode: Bigarr records what it would grab (Activity → Compare) and sends nothing to a download client. Set Bigarr__Shadow__Enabled=false to grab for real, or Bigarr__Shadow__Films=false (or Series) for one kind."));
         }
         else
         {
-            foreach (var status in queue.ClientStatuses().Where(s => !s.Healthy))
+            if (mode.AnyInShadow)
             {
-                issues.Add(new HealthIssue("downloadClients", HealthIssueType.Error, $"Download client {status.Name} is unreachable: {status.LastError}"));
+                // One kind live, the other still compared: the client is needed, and the notice says which kind waits.
+                var (kept, live) = mode.FilmsInShadow ? ("Films", "series") : ("Series", "films");
+                issues.Add(new HealthIssue("shadow", HealthIssueType.Notice, $"Shadow mode for {kept.ToLowerInvariant()} only: Bigarr grabs {live} for real and records what it would grab for {kept.ToLowerInvariant()} (Activity → Compare). Set Bigarr__Shadow__{kept}=false to grab them too."));
             }
 
-            if (clients.Any(c => c.Enabled && c.Implementation == DownloadClientImplementation.Mock))
+            // Following is for comparing: once a kind grabs for real, a followed app of that kind is a second downloader.
+            if (!mode.FilmsInShadow && await db.FollowedRadarrs.AnyAsync(r => r.Enabled, ct))
             {
-                issues.Add(new HealthIssue("mock", HealthIssueType.Notice, "A mock download client is configured: its downloads complete on their own and produce a two-second clip."));
+                issues.Add(new HealthIssue("followedRadarrs", HealthIssueType.Warning, "Bigarr grabs films for real but still follows a Radarr: if that Radarr runs, both download the same films. Stop it and disable it in Settings → Followed Radarrs."));
+            }
+
+            if (!mode.SeriesInShadow && await db.FollowedSonarrs.AnyAsync(r => r.Enabled, ct))
+            {
+                issues.Add(new HealthIssue("followedSonarrs", HealthIssueType.Warning, "Bigarr grabs series for real but still follows a Sonarr: if that Sonarr runs, both download the same episodes. Stop it and disable it in Settings → Followed Sonarrs."));
+            }
+
+            if (!clients.Any(c => c.Enabled))
+            {
+                issues.Add(new HealthIssue("downloadClients", HealthIssueType.Warning, "No download client is enabled: releases cannot be grabbed. Add one in Settings → Download clients."));
+            }
+            else
+            {
+                foreach (var status in queue.ClientStatuses().Where(s => !s.Healthy))
+                {
+                    issues.Add(new HealthIssue("downloadClients", HealthIssueType.Error, $"Download client {status.Name} is unreachable: {status.LastError}"));
+                }
+
+                if (clients.Any(c => c.Enabled && c.Implementation == DownloadClientImplementation.Mock))
+                {
+                    issues.Add(new HealthIssue("mock", HealthIssueType.Notice, "A mock download client is configured: its downloads complete on their own and produce a two-second clip."));
+                }
             }
         }
 

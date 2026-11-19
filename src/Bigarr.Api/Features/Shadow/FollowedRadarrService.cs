@@ -28,14 +28,16 @@ public sealed class FollowedRadarrService(
     public const int MaxNameLength = 64;
 
     public async Task<ShadowStatusResponse> StatusAsync(CancellationToken ct) => new(
-        options.Value.Enabled,
+        options.Value.AnyInShadow,
         await db.ShadowPicks.CountAsync(ct),
         await db.ShadowPicks.MaxAsync(p => (DateTime?)p.PickedAt, ct),
         await db.RadarrGrabs.CountAsync(ct),
         await db.ReleaseSightings.CountAsync(ct),
         await ListAsync(ct),
         await db.SeriesShadowPicks.CountAsync(ct),
-        await db.SonarrGrabs.CountAsync(ct));
+        await db.SonarrGrabs.CountAsync(ct),
+        Films: options.Value.FilmsInShadow,
+        Series: options.Value.SeriesInShadow);
 
     public async Task<List<FollowedRadarrResponse>> ListAsync(CancellationToken ct)
     {

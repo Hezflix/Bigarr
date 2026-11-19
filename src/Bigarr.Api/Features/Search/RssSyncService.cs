@@ -280,7 +280,7 @@ public sealed class RssSyncService(
                 state.Upsert(stored);
             }
 
-            if (sightings.Enabled)
+            if (sightings.ForFilms)
             {
                 var tmdbIds = movies.ToDictionary(m => m.Id, m => m.TmdbId);
                 await sightings.RecordAsync(judged.Select(j => (j.Entry, j.Release, j.Entry.Movie is { } movie ? tmdbIds.GetValueOrDefault(movie.Id) : (int?)null, (int?)null)), now, ct);

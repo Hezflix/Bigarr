@@ -58,7 +58,7 @@ public static class SeriesFilmEndpoints
 
     /// <summary>Runs the link keeper now, over every link (what the scheduled job does). Shadow mode touches nothing.</summary>
     private static async Task<Ok<LinkPass>> ReconcileAsync(SeriesFilmLinker linker, Microsoft.Extensions.Options.IOptions<Shadow.ShadowOptions> shadow, CancellationToken ct) =>
-        TypedResults.Ok(shadow.Value.Enabled ? new LinkPass(0, 0, 0, 0) : await linker.ReconcileAllAsync(ct));
+        TypedResults.Ok(shadow.Value.AnyInShadow ? new LinkPass(0, 0, 0, 0) : await linker.ReconcileAllAsync(ct));
 
     /// <summary>Every candidate of every show and what linking it would do on disk (a dry run of the keeper: nothing is written).</summary>
     private static async Task<Ok<SeriesFilmReviewResponse>> ReviewAsync(SeriesFilmPlanner planner, CancellationToken ct) =>

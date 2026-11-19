@@ -128,9 +128,9 @@ export function RadarrFollowPage() {
 
       {s && (
         <Alert className="max-w-3xl" data-testid="shadow-mode-status">
-          <AlertTitle>{s.enabled ? t('radarrFollow.shadowOn') : t('radarrFollow.shadowOff')}</AlertTitle>
+          <AlertTitle>{s.films ? t('radarrFollow.shadowOn') : t('radarrFollow.shadowOff')}</AlertTitle>
           <AlertDescription>
-            {s.enabled ? t('radarrFollow.shadowOnHint', { picks: s.picks, grabs: s.radarrGrabs }) : t('radarrFollow.shadowOffHint')}
+            {s.films ? t('radarrFollow.shadowOnHint', { picks: s.picks, grabs: s.radarrGrabs }) : t('radarrFollow.shadowOffHint')}
           </AlertDescription>
         </Alert>
       )}

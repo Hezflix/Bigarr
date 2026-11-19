@@ -59,7 +59,7 @@ public sealed class TargetContextFactory(BigarrDbContext db, CustomFormatScorer 
         var today = DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime);
         var calculator = await scorer.CalculatorAsync(ct);
         var formatNames = await scorer.NamesAsync(ct);
-        var picks = picksBefore is { } before && shadow.Value.Enabled ? await LatestPicksAsync(movies, before, ct) : [];
+        var picks = picksBefore is { } before && shadow.Value.FilmsInShadow ? await LatestPicksAsync(movies, before, ct) : [];
 
         var result = new Dictionary<int, List<TargetContext>>();
         foreach (var movie in movies)

@@ -1829,7 +1829,7 @@
     "noGrabs": "No Radarr grab in this period yet.",
     "empty": "Nothing to compare yet: Bigarr's picks come from its RSS passes, Radarr's grabs from the followed Radarrs' history.",
     "emptyFiltered": "No row with this outcome.",
-    "shadowOffHint": "Bigarr grabs for real, so it records no pick to compare: set Bigarr__Shadow__Enabled=true to run it next to Radarr.",
+    "shadowOffHint": "Bigarr grabs these for real, so it records no pick to compare: set Bigarr__Shadow__Enabled=true (or Bigarr__Shadow__Films, Bigarr__Shadow__Series for one kind) to run it next to Radarr or Sonarr.",
     "noRadarr": "No Radarr is followed",
     "noRadarrHint": "Radarr's grabs come from the Radarrs Bigarr follows:",
     "movie": "Film",
@@ -2021,10 +2021,10 @@
     "webhookCopied": "Webhook URL copied.",
     "webhookLast": "Webhook: {{event}} on {{date}}",
     "webhookNever": "Webhook: no call yet",
-    "shadowOn": "Shadow mode is on",
+    "shadowOn": "Shadow mode is on for films",
     "shadowOnHint": "Bigarr records what it would grab ({{picks}} picks so far) and sends nothing to a download client; {{grabs}} Radarr grabs read so far.",
-    "shadowOff": "Shadow mode is off",
-    "shadowOffHint": "Bigarr grabs for real. Following a Radarr is meant for shadow mode, next to it: set Bigarr__Shadow__Enabled=true so Bigarr records its picks instead."
+    "shadowOff": "Shadow mode is off for films",
+    "shadowOffHint": "Bigarr grabs films for real. Following a Radarr is meant for shadow mode, next to it: set Bigarr__Shadow__Films=true (or Bigarr__Shadow__Enabled=true) so Bigarr records its film picks instead."
   },
   "importRadarr": {
     "title": "Import from Radarr",
@@ -2698,10 +2698,10 @@
     "webhookCopied": "Webhook URL copied.",
     "webhookLast": "Webhook: {{event}} on {{date}}",
     "webhookNever": "Webhook: no call yet",
-    "shadowOn": "Shadow mode is on",
+    "shadowOn": "Shadow mode is on for series",
     "shadowOnHint": "Bigarr records what it would grab ({{picks}} series picks so far) and sends nothing to a download client; {{grabs}} Sonarr grabs read so far.",
-    "shadowOff": "Shadow mode is off",
-    "shadowOffHint": "Bigarr grabs for real. Following a Sonarr is meant for shadow mode, next to it: set Bigarr__Shadow__Enabled=true so Bigarr records its picks instead."
+    "shadowOff": "Shadow mode is off for series",
+    "shadowOffHint": "Bigarr grabs series for real. Following a Sonarr is meant for shadow mode, next to it: set Bigarr__Shadow__Series=true (or Bigarr__Shadow__Enabled=true) so Bigarr records its series picks instead."
   },
   "importSonarr": {
     "title": "Import from Sonarr",

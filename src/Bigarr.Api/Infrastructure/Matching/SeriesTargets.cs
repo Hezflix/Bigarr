@@ -347,7 +347,7 @@ public sealed class SeriesTargetsFactory(BigarrDbContext db, CustomFormatScorer 
         var active = (await db.GrabTargets.AsNoTracking().Where(t => t.Active && targetIds.Contains(t.TargetId)).Select(t => t.TargetId).ToListAsync(ct)).ToHashSet();
         var calculator = await scorer.CalculatorAsync(ct);
         var formatNames = await scorer.NamesAsync(ct);
-        var picks = withPicks && shadow.Value.Enabled ? await LatestPicksAsync(targetIds, asOf, ct) : [];
+        var picks = withPicks && shadow.Value.SeriesInShadow ? await LatestPicksAsync(targetIds, asOf, ct) : [];
         var tvdbIds = series.Where(s => s.TvdbId is not null).Select(s => s.TvdbId!.Value).ToList();
         var sceneNames = (await db.SceneNames.AsNoTracking().Where(n => tvdbIds.Contains(n.TvdbId)).ToListAsync(ct))
             .Select(n => new SceneAlias(n.TvdbId, n.Title, n.SceneSeasonNumber))

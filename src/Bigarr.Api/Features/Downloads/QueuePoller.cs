@@ -1,6 +1,7 @@
 using Bigarr.Api.Features.Blocklist;
 using Bigarr.Api.Features.Import;
 using Bigarr.Api.Features.Search;
+using Bigarr.Api.Features.Shadow;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Downloads;
 using Bigarr.Api.Infrastructure.Events;
@@ -33,6 +34,7 @@ public sealed class QueuePoller(
     BlocklistService blocklist,
     OutboxWriter outbox,
     IOptions<DownloadsOptions> options,
+    IOptions<ShadowOptions> shadow,
     TimeProvider time,
     ILogger<QueuePoller> logger)
 {
@@ -42,6 +44,17 @@ public sealed class QueuePoller(
 
     /// <summary>A grab the client does not list yet is given this long before absences count.</summary>
     public static readonly TimeSpan FreshGrabGrace = TimeSpan.FromSeconds(45);
+
+    /// <summary>
+    /// The torrents of a kind still in shadow mode are not Bigarr's to watch: it grabs none there, so whatever sits in that
+    /// category was added by hand or by the app it is compared with, and is neither shown, adopted nor imported. Only
+    /// matters once films and series leave shadow mode at different times (<see cref="ShadowOptions"/>).
+    /// </summary>
+    private IReadOnlyList<DownloadItem> OutsideShadow(DownloadClient client, IReadOnlyList<DownloadItem> items)
+    {
+        var mode = shadow.Value;
+        return mode.AnyInShadow ? items.Where(i => !mode.InShadow(series: client.IsSeriesCategory(i.Category))).ToList() : items;
+    }
 
     public async Task<QueueResponse> PollAsync(CancellationToken ct)
     {
@@ -67,7 +80,7 @@ public sealed class QueuePoller(
         {
             try
             {
-                answered[client.Id] = await resolver.For(client).GetItemsAsync(client, ct);
+                answered[client.Id] = OutsideShadow(client, await resolver.For(client).GetItemsAsync(client, ct));
                 state.RecordClient(client.Id, client.Name, null, now);
             }
             catch (DownloadClientException ex)
