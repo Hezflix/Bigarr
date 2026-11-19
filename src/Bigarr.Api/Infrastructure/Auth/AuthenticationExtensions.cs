@@ -72,7 +72,8 @@ public static class AuthenticationExtensions
         var adminApi = new AuthorizationPolicyBuilder(AuthSchemes.Session, AuthSchemes.ApiKey).RequireAuthenticatedUser().RequireRole(admin).Build();
         var builder = services.AddAuthorizationBuilder()
             .AddPolicy(AuthPolicies.Session, p => p.AddAuthenticationSchemes(AuthSchemes.Session).RequireAuthenticatedUser().RequireRole(admin))
-            .AddPolicy(AuthPolicies.ApiKey, p => p.AddAuthenticationSchemes(AuthSchemes.ApiKey).RequireAuthenticatedUser())
+            // A key opens these surfaces only while its owner is an admin.
+            .AddPolicy(AuthPolicies.ApiKey, p => p.AddAuthenticationSchemes(AuthSchemes.ApiKey).RequireAuthenticatedUser().RequireRole(admin))
             .AddPolicy(AuthPolicies.Api, adminApi)
             .AddPolicy(AuthPolicies.SignedIn, p => p.AddAuthenticationSchemes(AuthSchemes.Session, AuthSchemes.ApiKey).RequireAuthenticatedUser())
             .AddPolicy(AuthPolicies.ManageRequests, p => p.AddAuthenticationSchemes(AuthSchemes.Session, AuthSchemes.ApiKey)
