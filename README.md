@@ -71,7 +71,7 @@ On first start an `admin` account is created. Set `Bigarr__InitialAdminPassword`
 
 ## Deployment
 
-A multi-arch image (amd64, arm64) is published to `ghcr.io/hezflix/bigarr` on every merge to `main`. See [`deploy/docker-compose.example.yml`](deploy/docker-compose.example.yml). Downloads and libraries must live under **one shared mount**, otherwise hardlinks are impossible and imports fall back to copies.
+A multi-arch image (amd64, arm64) is published to `ghcr.io/hezflix/bigarr`: `edge` (and `sha-<commit>`) on every merge to `main`, and a release on every `v*` tag (`v0.1.0` gives `0.1.0` and `0.1`, the version shown in System → Status). Pin a release to run Bigarr for real; `edge` moves with every merge. See [`deploy/docker-compose.example.yml`](deploy/docker-compose.example.yml). Downloads and libraries must live under **one shared mount**, otherwise hardlinks are impossible and imports fall back to copies.
 
 Behind a reverse proxy, forward `X-Forwarded-For` and `X-Forwarded-Proto` (Traefik and nginx do by default): Bigarr trusts them from any address, marks the session cookie Secure on https and logs the real client on a failed login. An SSO in front of Bigarr (oauth2-proxy, Authelia…) must leave `/radarr` and `/sonarr` alone, or the apps must reach Bigarr over the internal network: those paths are protected by the API key, and Seerr, Bazarr and Prowlarr cannot sign in to an SSO.
 
