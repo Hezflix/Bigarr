@@ -127,9 +127,9 @@ export function SonarrFollowPage() {
 
       {s && (
         <Alert className="max-w-3xl" data-testid="shadow-mode-status">
-          <AlertTitle>{s.enabled ? t('sonarrFollow.shadowOn') : t('sonarrFollow.shadowOff')}</AlertTitle>
+          <AlertTitle>{s.series ? t('sonarrFollow.shadowOn') : t('sonarrFollow.shadowOff')}</AlertTitle>
           <AlertDescription>
-            {s.enabled ? t('sonarrFollow.shadowOnHint', { picks: s.seriesPicks, grabs: s.sonarrGrabs }) : t('sonarrFollow.shadowOffHint')}
+            {s.series ? t('sonarrFollow.shadowOnHint', { picks: s.seriesPicks, grabs: s.sonarrGrabs }) : t('sonarrFollow.shadowOffHint')}
           </AlertDescription>
         </Alert>
       )}

@@ -235,7 +235,7 @@ public sealed class RadarrFollower(
     /// </summary>
     private async Task<int> SearchOnAddAsync(FollowedRadarr follow, List<int> tmdbIds, CancellationToken ct)
     {
-        if (tmdbIds.Count == 0 || !options.Value.Enabled)
+        if (tmdbIds.Count == 0 || !options.Value.FilmsInShadow)
         {
             return 0;
         }

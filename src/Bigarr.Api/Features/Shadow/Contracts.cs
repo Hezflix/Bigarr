@@ -43,7 +43,10 @@ public sealed record FollowedRadarrResponse(
 
 public sealed record FollowedRadarrTestResponse(string? AppName, string? Version, int Movies);
 
-/// <summary>Shadow mode at a glance: is it on, how much each side has recorded, who is followed.</summary>
+/// <summary>
+/// Shadow mode at a glance: is it on (<c>Enabled</c>: for at least one kind; <c>Films</c> and <c>Series</c>: per kind),
+/// how much each side has recorded, who is followed.
+/// </summary>
 public sealed record ShadowStatusResponse(
     bool Enabled,
     int Picks,
@@ -53,4 +56,6 @@ public sealed record ShadowStatusResponse(
     List<FollowedRadarrResponse> Radarrs,
     int SeriesPicks = 0,
     int SonarrGrabs = 0,
-    List<FollowedSonarrResponse>? Sonarrs = null);
+    List<FollowedSonarrResponse>? Sonarrs = null,
+    bool Films = false,
+    bool Series = false);

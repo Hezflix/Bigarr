@@ -70,7 +70,7 @@ public sealed class GrabService(
             return Failure.Conflict("Already downloading", $"Version {version.Name} of {version.Movie.Title} already has an active download. Remove it from the queue first.");
         }
 
-        if (shadow.Value.Enabled)
+        if (shadow.Value.FilmsInShadow)
         {
             var pick = await picks.RecordAsync(version, request, trigger, ct);
             return Result<GrabResponse>.Ok(new GrabResponse(null, null, null, null, null, pick.PickedAt, pick.Id));
@@ -225,7 +225,7 @@ public sealed class GrabService(
             target.Version = version;
         }
 
-        if (shadow.Value.Enabled)
+        if (shadow.Value.SeriesInShadow)
         {
             var pick = await seriesPicks.RecordAsync(version, targets, request, trigger, ct);
             return Result<GrabResponse>.Ok(new GrabResponse(null, null, null, null, null, pick.PickedAt, pick.Id));

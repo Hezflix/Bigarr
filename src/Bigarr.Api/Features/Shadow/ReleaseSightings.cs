@@ -19,7 +19,11 @@ public sealed class ReleaseSightings(BigarrDbContext db, IOptions<ShadowOptions>
     private const int GuidLength = 1024;
     private const int LookupChunk = 500;
 
-    public bool Enabled => options.Value.Enabled;
+    /// <summary>The film RSS pass keeps its releases while films are in shadow mode.</summary>
+    public bool ForFilms => options.Value.FilmsInShadow;
+
+    /// <summary>The series RSS pass keeps its releases while series are in shadow mode.</summary>
+    public bool ForSeries => options.Value.SeriesInShadow;
 
     /// <param name="seen">Each release of the pass with its verdicts and the TMDB id of the film (or TVDB id of the series) it was matched to.</param>
     public async Task RecordAsync(IEnumerable<(RssReleaseResponse Entry, ReleaseInfo Release, int? TmdbId, int? TvdbId)> seen, DateTime now, CancellationToken ct)

@@ -53,7 +53,7 @@ public sealed class SeriesFilmPlanner(BigarrDbContext db, IOptions<ShadowOptions
     /// <summary>Would linking this special now adopt its file (so the film need not be searched)? False in shadow mode.</summary>
     public async Task<bool> WillAdoptAsync(int episodeId, Movie? movie, CancellationToken ct)
     {
-        if (shadow.Value.Enabled)
+        if (shadow.Value.AnyInShadow)
         {
             return false;
         }
@@ -106,7 +106,7 @@ public sealed class SeriesFilmPlanner(BigarrDbContext db, IOptions<ShadowOptions
             .ToListAsync(ct);
         if (candidates.Count == 0)
         {
-            return new SeriesFilmReviewResponse(shadow.Value.Enabled, config.AutoAddSeriesFilms, []);
+            return new SeriesFilmReviewResponse(shadow.Value.AnyInShadow, config.AutoAddSeriesFilms, []);
         }
 
         var seriesIds = candidates.Select(e => e.SeriesId).Distinct().ToList();
@@ -169,7 +169,7 @@ public sealed class SeriesFilmPlanner(BigarrDbContext db, IOptions<ShadowOptions
                 plan));
         }
 
-        return new SeriesFilmReviewResponse(shadow.Value.Enabled, config.AutoAddSeriesFilms, rows);
+        return new SeriesFilmReviewResponse(shadow.Value.AnyInShadow, config.AutoAddSeriesFilms, rows);
     }
 
     /// <summary>The linker's rules (<see cref="SeriesFilmLinker"/>), run on paper for one special.</summary>
@@ -195,7 +195,7 @@ public sealed class SeriesFilmPlanner(BigarrDbContext db, IOptions<ShadowOptions
             steps.Add(movie is null ? new FilmFileStep(FilmFileStepKind.AddFilm, To: newFilmFolder) : new FilmFileStep(FilmFileStepKind.ReuseFilm));
         }
 
-        if (shadow.Value.Enabled)
+        if (shadow.Value.AnyInShadow)
         {
             steps.Add(new FilmFileStep(FilmFileStepKind.ShadowNoFiles));
             return steps;
