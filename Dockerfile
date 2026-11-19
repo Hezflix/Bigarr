@@ -12,6 +12,8 @@ RUN bun run build
 # ---- backend -----------------------------------------------------------------
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 ARG TARGETARCH
+# Set by CI for a release (the v* tag without its v); empty for edge builds, which keep the project's version.
+ARG VERSION=
 WORKDIR /repo
 COPY global.json Directory.Build.props BannedSymbols.txt Bigarr.slnx ./
 COPY src/Bigarr.Domain/Bigarr.Domain.csproj src/Bigarr.Domain/
@@ -21,7 +23,7 @@ COPY src/Bigarr.Api/Bigarr.Api.csproj src/Bigarr.Api/
 RUN dotnet restore src/Bigarr.Api -a $TARGETARCH
 COPY src/ src/
 COPY --from=web /repo/src/Bigarr.Api/wwwroot src/Bigarr.Api/wwwroot
-RUN dotnet publish src/Bigarr.Api -a $TARGETARCH -c Release --no-restore -o /app
+RUN dotnet publish src/Bigarr.Api -a $TARGETARCH -c Release --no-restore -o /app ${VERSION:+-p:Version=$VERSION}
 
 # ---- runtime -----------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final
