@@ -11,5 +11,6 @@ public sealed class StandingHealthIssueConfiguration : IEntityTypeConfiguration<
         builder.ToTable("StandingHealthIssues");
         builder.Property(i => i.Source).HasMaxLength(64);
         builder.Property(i => i.Message).HasMaxLength(2048);
+        builder.Property(i => i.Key).HasMaxLength(256);
     }
 }
