@@ -224,6 +224,34 @@ public sealed class UsersAndRolesTests
     }
 
     [Fact]
+    public async Task A_demoted_admin_s_key_no_longer_opens_the_compat_surfaces()
+    {
+        await using var env = await Env.StartAsync();
+        await env.OpenToNewAccountsAsync(PermissionsDto.From(UserPermissions.Defaults()));
+        env.PlexTv.Share(FakePlexTvSignIn.Friend, FakePlex.MachineIdentifier);
+        var friend = env.Factory.CreateClientWithCookies();
+        Assert.Equal("signedIn", await env.SignInAsync(friend, FakePlexTvSignIn.Friend));
+        var id = (await friend.GetFromJsonAsync<MeResponse>("/api/v1/auth/me"))!.Id;
+        var permissions = PermissionsDto.From(UserPermissions.Defaults());
+
+        // Made an admin for a while, the friend creates an API key that opens both compat surfaces.
+        await env.Admin.PutAsJsonAsync($"/api/v1/users/{id}", new { role = "admin", permissions });
+        var (keyClient, _) = await CompatTestHelpers.KeyClientAsync(env.Factory, friend, "friend-script", "default", header: true);
+        Assert.Equal(HttpStatusCode.OK, (await keyClient.GetAsync("/radarr/api/v3/system/status")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await keyClient.GetAsync("/sonarr/api/v3/system/status")).StatusCode);
+
+        // Back to an ordinary user: the key is still valid but no longer allowed on those surfaces.
+        await env.Admin.PutAsJsonAsync($"/api/v1/users/{id}", new { role = "user", permissions });
+        Assert.Equal(HttpStatusCode.Forbidden, (await keyClient.GetAsync("/radarr/api/v3/system/status")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await keyClient.GetAsync("/sonarr/api/v3/system/status")).StatusCode);
+
+        // Promoted again, the same key works again.
+        await env.Admin.PutAsJsonAsync($"/api/v1/users/{id}", new { role = "admin", permissions });
+        Assert.Equal(HttpStatusCode.OK, (await keyClient.GetAsync("/radarr/api/v3/system/status")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await keyClient.GetAsync("/sonarr/api/v3/system/status")).StatusCode);
+    }
+
+    [Fact]
     public async Task A_disabled_local_user_cannot_sign_in_with_the_password()
     {
         await using var env = await Env.StartAsync();
@@ -350,7 +378,7 @@ public sealed class UsersAndRolesTests
             var policies = endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Select(a => a.Policy).ToList();
             if (policies.Count == 0 || policies.All(p => p is null || adminPolicies.Contains(p) || p == AuthPolicies.ApiKey))
             {
-                continue; // the fallback (admin), an admin policy, or the API key surfaces (unchanged)
+                continue; // the fallback (admin), an admin policy, or the API key surfaces (admin keys only)
             }
 
             opened.Add(name);

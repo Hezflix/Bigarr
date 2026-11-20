@@ -363,7 +363,9 @@ See [F10](#f10-shadow-follow-searches-and-views-were-lost-for-good).
   refused once the password changes ([F20](#f20-a-password-change-did-not-end-other-sessions)) or the user is disabled.
   It also carries the user's role and permissions: when the admin changes them, the next request reissues the cookie
   with the current ones (`SessionStamps` keeps each user's state in memory, refreshed by `Changed` on every edit). API
-  key: active, then revoked, checked on every request; a disabled user's keys are refused too.
+  key: active, then revoked, checked on every request; a disabled user's keys are refused too. A key follows its
+  owner's role at each request: demoted from admin, it is refused on the Radarr and Sonarr surfaces; promoted again,
+  accepted ([F24](#f24-a-demoted-admins-api-key-kept-the-compat-surfaces)).
 - User: active ⇄ disabled (`DisabledAt`), by the admin only, never the admin's own account; no delete. Role (admin,
   request manager, user) and permissions change freely, except the admin's own role. A Plex account linked to no one
   creates its user (role user, default permissions) on its first sign-in, only when new Plex accounts are let in and
@@ -720,6 +722,16 @@ works out the play's furthest point and watched flag again, and joins a play bac
 user and item when it continues it.
 Tests: `PlaybackTrackerTests.A_stale_opening_offset_is_not_progress_and_the_next_day_resume_continues_the_same_play`,
 `StaleStartRepairTests`.
+
+#### F24. A demoted admin's API key kept the compat surfaces
+
+The policy on the `/radarr` and `/sonarr` surfaces (and their hubs and cover routes) checked that the key was valid
+and its owner not disabled, but not the owner's role. A user made an admin who created a key and was then moved back
+to an ordinary role kept full access to those surfaces, which can delete films with their files and rewrite indexers.
+
+Fix: the `ApiKey` policy requires the admin role, read from the owner at each request. A key is not revoked by a
+demotion: it works again if its owner is made admin again, like a disabled user's.
+Test: `UsersAndRolesTests.A_demoted_admin_s_key_no_longer_opens_the_compat_surfaces`.
 
 ### Open
 
