@@ -785,6 +785,22 @@ standing under new wording updates the stored text with no event. Rows from befo
 by their text, so a varying one is resolved and raised one last time, then is stable.
 Test: `TasksAndHealthTests.An_issue_whose_wording_changes_between_checks_is_raised_once`.
 
+#### F29. Linking a special to a film recycled the special's file before the hardlink was made
+
+When the film and the special both have a file, the film's wins and the special's own file goes to the recycle bin.
+The pass retired the special's file and its row first and only then tried the hardlink, which is never replaced by a
+copy. Where the film and the series live on different filesystems (or the destination refuses the new name) the
+hardlink failed after the special's file was gone, for good without a recycle bin, and every later pass failed the same
+way.
+
+Fix: the hardlink is made first, under a hidden `.bigarr-adopt-` name in the destination's own folder. Only when it
+exists is the special's file recycled, its row removed and saved, and anything untracked at the destination recycled;
+then the hidden name is renamed into place. A refused hardlink, or a bin that cannot take the file, leaves the special
+as it was and shows in the link error. A previous film link (only another name for the film's bytes) is still removed
+first. A process killed between the hardlink and the rename leaves a hidden name, one more name for the film's bytes,
+which scans skip (hidden file) and nothing cleans.
+Test: `SeriesFilmRefusedHardlinkTests.When_both_have_a_file_and_the_hardlink_is_refused_the_special_keeps_its_file`.
+
 ### Open
 
 What is known and not fixed:
