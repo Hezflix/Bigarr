@@ -2,8 +2,11 @@ using System.Net;
 using System.Net.Http.Json;
 using Bigarr.Api.Features.Compat.Radarr;
 using Bigarr.Api.Features.Indexers;
+using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Tests.Auth;
 using Bigarr.Domain.Indexers;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using static Bigarr.Api.Tests.Compat.CompatTestHelpers;
 
 namespace Bigarr.Api.Tests.Compat;
@@ -62,7 +65,12 @@ public sealed class ProwlarrPushTests(BigarrApiFactory factory) : IClassFixture<
         var stored = (await session.GetFromJsonAsync<IndexerResponse>($"/api/v1/indexers/{id}", Json))!;
         Assert.Equal("Nyaa.si (Prowlarr)", stored.Name);
         Assert.Equal("http://prowlarr:9696/7", stored.BaseUrl);
-        Assert.Equal("prowlarr-key", stored.ApiKey);
+        Assert.Equal("********", stored.ApiKey); // the settings API never sends a key back; Prowlarr reads it from its own surface
+        using (var scope = factory.Services.CreateScope())
+        {
+            Assert.Equal("prowlarr-key", (await scope.ServiceProvider.GetRequiredService<BigarrDbContext>().Indexers.AsNoTracking().SingleAsync(i => i.Id == id)).ApiKey);
+        }
+
         Assert.Equal([2000, 2010, 2040], stored.Categories);
         Assert.Equal(2, stored.MinimumSeeders);
         Assert.Equal(1.5, stored.SeedRatio);

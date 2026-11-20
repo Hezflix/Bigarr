@@ -7,7 +7,7 @@ import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { formatTime } from '@/i18n'
 import { toast } from 'sonner'
-import { ApiError, indexers, type Indexer, type IndexerImplementation, type IndexerRequest, type IndexerTestResult } from '@/api/client'
+import { ApiError, indexers, KEY_MASK, type Indexer, type IndexerImplementation, type IndexerRequest, type IndexerTestResult } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -324,7 +324,7 @@ function IndexerDialog({ indexer, onClose, onSaved }: { indexer: Indexer | null;
     },
   })
   const test = useMutation({
-    mutationFn: () => indexers.test(payload()),
+    mutationFn: () => indexers.test(payload(), indexer?.id),
     onSuccess: (result) => {
       toast.success(testSummary(t, result))
       // Empty series fields take what the caps list, so the user sees (and can trim) what searches will use.
@@ -404,6 +404,7 @@ function IndexerDialog({ indexer, onClose, onSaved }: { indexer: Indexer | null;
                     autoComplete="off"
                     value={form.apiKey ?? ''}
                     onChange={(e) => set('apiKey', e.target.value)}
+                    onFocus={() => form.apiKey === KEY_MASK && set('apiKey', '')}
                   />
                 </div>
               </>

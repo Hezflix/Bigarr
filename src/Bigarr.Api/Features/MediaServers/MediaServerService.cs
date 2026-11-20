@@ -1,5 +1,6 @@
 using Bigarr.Api.Features.Playback;
 using Bigarr.Api.Infrastructure;
+using Bigarr.Api.Infrastructure.Http;
 using Bigarr.Api.Infrastructure.MediaServers;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.MediaServers;
@@ -26,6 +27,11 @@ public sealed class MediaServerService(BigarrDbContext db, MediaServerClients cl
         if (Validate(request) is { } invalid)
         {
             return invalid;
+        }
+
+        if (SecretMask.Kept(request.Token))
+        {
+            return Failure.Invalid("Type the token", "A new media server cannot reuse a stored token: type it.");
         }
 
         var name = request.Name.Trim();
@@ -94,6 +100,23 @@ public sealed class MediaServerService(BigarrDbContext db, MediaServerClients cl
 
             server = new MediaServer { Name = request.Name.Trim(), Url = request.Url.Trim(), Token = request.Token.Trim() };
             Apply(server, request);
+
+            // The form of a saved server holds the mask: the test uses the stored token.
+            if (SecretMask.Kept(request.Token))
+            {
+                if (id is null)
+                {
+                    return Failure.Invalid("Type the token to test", "The token is stored on the server: type it, or test the saved server.");
+                }
+
+                var stored = await db.MediaServers.AsNoTracking().Where(s => s.Id == id).Select(s => new { s.Token }).FirstOrDefaultAsync(ct);
+                if (stored is null)
+                {
+                    return Failure.NotFound("Media server");
+                }
+
+                server.Token = stored.Token;
+            }
         }
         else
         {
@@ -181,7 +204,11 @@ public sealed class MediaServerService(BigarrDbContext db, MediaServerClients cl
         server.Name = request.Name.Trim();
         server.Kind = request.Kind;
         server.Url = request.Url.Trim();
-        server.Token = request.Token.Trim();
+        if (!SecretMask.Kept(request.Token))
+        {
+            server.Token = request.Token.Trim();
+        }
+
         server.Enabled = request.Enabled;
         server.PathMappings = (request.PathMappings ?? []).Select(m => new PathMapping(m.From.Trim(), m.To.Trim())).ToList();
     }
@@ -194,7 +221,7 @@ public sealed class MediaServerService(BigarrDbContext db, MediaServerClients cl
             server.Name,
             server.Kind,
             server.Url,
-            server.Token,
+            SecretMask.Of(server.Token) ?? string.Empty,
             server.Enabled,
             server.PathMappings.Select(m => new PathMappingDto(m.From, m.To)).ToList(),
             server.LastRefreshAt,

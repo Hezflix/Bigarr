@@ -36,10 +36,10 @@ public static class IndexersEndpoints
             return result.IsSuccess ? TypedResults.NoContent() : result.Failure!.ToProblem();
         });
 
-        // Test an unsaved configuration (the form) or a saved indexer (the row).
-        group.MapPost("/test", async Task<Results<Ok<IndexerTestResponse>, ProblemHttpResult>> (IndexerRequest request, IndexerService indexers, CancellationToken ct) =>
+        // Test an unsaved configuration (the form) or a saved indexer (the row). The form of a saved indexer passes its id: a masked key then means the stored one.
+        group.MapPost("/test", async Task<Results<Ok<IndexerTestResponse>, ProblemHttpResult>> (IndexerRequest request, int? id, IndexerService indexers, CancellationToken ct) =>
         {
-            var result = await indexers.TestAsync(request, null, ct);
+            var result = await indexers.TestAsync(request, id, ct);
             return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
         });
 

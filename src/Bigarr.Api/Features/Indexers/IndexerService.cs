@@ -1,4 +1,5 @@
 using Bigarr.Api.Infrastructure;
+using Bigarr.Api.Infrastructure.Http;
 using Bigarr.Api.Infrastructure.Indexers;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Indexers;
@@ -11,19 +12,20 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
 {
     public const int MaxNameLength = 128;
 
-    public async Task<List<IndexerResponse>> ListAsync(CancellationToken ct)
+    /// <param name="revealSecrets">Only the Radarr/Sonarr-compatible surfaces pass true: Prowlarr compares the API key it pushed. The Bigarr API masks it.</param>
+    public async Task<List<IndexerResponse>> ListAsync(CancellationToken ct, bool revealSecrets = false)
     {
         var indexers = await db.Indexers.AsNoTracking().OrderBy(i => i.Priority).ThenBy(i => i.Name).ToListAsync(ct);
-        return indexers.Select(ToResponse).ToList();
+        return indexers.Select(i => ToResponse(i, revealSecrets)).ToList();
     }
 
-    public async Task<IndexerResponse?> GetAsync(int id, CancellationToken ct)
+    public async Task<IndexerResponse?> GetAsync(int id, CancellationToken ct, bool revealSecrets = false)
     {
         var indexer = await db.Indexers.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct);
-        return indexer is null ? null : ToResponse(indexer);
+        return indexer is null ? null : ToResponse(indexer, revealSecrets);
     }
 
-    public async Task<Result<IndexerResponse>> AddAsync(IndexerRequest request, CancellationToken ct)
+    public async Task<Result<IndexerResponse>> AddAsync(IndexerRequest request, CancellationToken ct, bool revealSecrets = false)
     {
         var invalid = Validate(request);
         if (invalid is not null)
@@ -37,7 +39,12 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
             && await db.Indexers.Where(i => i.ProwlarrId == prowlarrId).Select(i => (int?)i.Id).FirstOrDefaultAsync(ct) is { } linked)
         {
             logger.LogInformation("Prowlarr indexer {ProwlarrId} is already indexer {Id}: updating it instead of adding another", prowlarrId, linked);
-            return await UpdateAsync(linked, request, ct);
+            return await UpdateAsync(linked, request, ct, revealSecrets);
+        }
+
+        if (SecretMask.Kept(request.ApiKey))
+        {
+            return Failure.Invalid("Type the API key", "A new indexer cannot reuse a stored API key: type it.");
         }
 
         if (await db.Indexers.AnyAsync(i => i.Name == request.Name.Trim(), ct))
@@ -50,10 +57,10 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
         db.Indexers.Add(indexer);
         await db.SaveChangesAsync(ct);
         logger.LogInformation("Indexer {Name} ({Implementation}) added", indexer.Name, indexer.Implementation);
-        return Result<IndexerResponse>.Ok(ToResponse(indexer));
+        return Result<IndexerResponse>.Ok(ToResponse(indexer, revealSecrets));
     }
 
-    public async Task<Result<IndexerResponse>> UpdateAsync(int id, IndexerRequest request, CancellationToken ct)
+    public async Task<Result<IndexerResponse>> UpdateAsync(int id, IndexerRequest request, CancellationToken ct, bool revealSecrets = false)
     {
         var invalid = Validate(request);
         if (invalid is not null)
@@ -80,7 +87,7 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
         indexer.Name = request.Name.Trim();
         Apply(indexer, request);
         await db.SaveChangesAsync(ct);
-        return Result<IndexerResponse>.Ok(ToResponse(indexer));
+        return Result<IndexerResponse>.Ok(ToResponse(indexer, revealSecrets));
     }
 
     public async Task<Result<bool>> DeleteAsync(int id, CancellationToken ct)
@@ -103,23 +110,8 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
     public async Task<Result<IndexerTestResponse>> TestAsync(IndexerRequest? request, int? id, CancellationToken ct)
     {
         Indexer indexer;
-        if (id is not null)
+        if (request is not null)
         {
-            var saved = await db.Indexers.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct);
-            if (saved is null)
-            {
-                return Failure.NotFound("Indexer");
-            }
-
-            indexer = saved;
-        }
-        else
-        {
-            if (request is null)
-            {
-                return Failure.Invalid("Nothing to test", "Send the indexer configuration in the body.");
-            }
-
             var invalid = Validate(request);
             if (invalid is not null)
             {
@@ -128,12 +120,39 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
 
             indexer = new Indexer { Name = request.Name.Trim() };
             Apply(indexer, request);
+
+            // The form of a saved indexer holds the mask: the test uses the stored key.
+            if (SecretMask.Kept(request.ApiKey))
+            {
+                if (id is null)
+                {
+                    return Failure.Invalid("Type the API key to test", "The API key is stored on the server: type it, or test the saved indexer.");
+                }
+
+                var stored = await db.Indexers.AsNoTracking().Where(i => i.Id == id).Select(i => new { i.ApiKey }).FirstOrDefaultAsync(ct);
+                if (stored is null)
+                {
+                    return Failure.NotFound("Indexer");
+                }
+
+                indexer.ApiKey = stored.ApiKey;
+            }
+        }
+        else
+        {
+            var saved = id is null ? null : await db.Indexers.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id, ct);
+            if (saved is null)
+            {
+                return id is null ? Failure.Invalid("Nothing to test", "Send the indexer configuration in the body.") : Failure.NotFound("Indexer");
+            }
+
+            indexer = saved;
         }
 
         try
         {
             var (capabilities, recent) = await gateway.TestAsync(indexer, ct);
-            if (id is not null)
+            if (request is null && id is not null)
             {
                 await FillSeriesCategoriesAsync(id.Value, capabilities, ct);
             }
@@ -193,7 +212,7 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
         }
     }
 
-    public IndexerResponse ToResponse(Indexer indexer)
+    public IndexerResponse ToResponse(Indexer indexer, bool revealSecrets = false)
     {
         var status = gateway.Status(indexer.Id);
         return new IndexerResponse(
@@ -202,7 +221,7 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
             indexer.Implementation,
             indexer.BaseUrl,
             indexer.ApiPath,
-            indexer.ApiKey,
+            revealSecrets ? indexer.ApiKey : SecretMask.Of(indexer.ApiKey),
             indexer.Categories,
             indexer.Priority,
             indexer.EnableRss,
@@ -298,7 +317,11 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
         indexer.Implementation = request.Implementation;
         indexer.BaseUrl = request.Implementation == IndexerImplementation.Torznab ? request.BaseUrl!.Trim().TrimEnd('/') : null;
         indexer.ApiPath = string.IsNullOrWhiteSpace(request.ApiPath) ? "/api" : "/" + request.ApiPath.Trim().Trim('/');
-        indexer.ApiKey = string.IsNullOrWhiteSpace(request.ApiKey) ? null : request.ApiKey.Trim();
+        if (!SecretMask.Kept(request.ApiKey))
+        {
+            indexer.ApiKey = string.IsNullOrWhiteSpace(request.ApiKey) ? null : request.ApiKey.Trim();
+        }
+
         if (request.Categories is not null)
         {
             indexer.Categories = request.Categories.Count > 0 ? request.Categories.Distinct().OrderBy(c => c).ToList() : [.. Indexer.DefaultCategories];

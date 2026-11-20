@@ -3,8 +3,11 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Bigarr.Api.Features.Downloads;
+using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Tests.Auth;
 using Bigarr.Domain.Downloads;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Bigarr.Api.Tests.Downloads;
 
@@ -74,6 +77,65 @@ public sealed class DownloadClientsEndpointsTests(BigarrApiFactory factory) : IC
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/v1/downloadclients/{qbt.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/v1/downloadclients/{qbt.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsync("/api/v1/downloadclients/999999/test", null)).StatusCode);
+    }
+
+    [Fact]
+    public async Task The_password_is_never_sent_back_and_the_mask_keeps_it()
+    {
+        var client = await ClientAsync();
+        const string mask = "********";
+
+        var created = await client.PostAsJsonAsync("/api/v1/downloadclients",
+            new DownloadClientRequest("Masked qBittorrent", DownloadClientImplementation.QBittorrent, Host: "qbt.local", Password: "placeholder-secret", Category: "masked-movies", Priority: 7), Json);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var added = (await created.Content.ReadFromJsonAsync<DownloadClientResponse>(Json))!;
+        Assert.Equal(mask, added.Password);
+
+        Assert.Equal(mask, (await client.GetFromJsonAsync<DownloadClientResponse>($"/api/v1/downloadclients/{added.Id}", Json))!.Password);
+        var list = (await client.GetFromJsonAsync<List<DownloadClientResponse>>("/api/v1/downloadclients", Json))!;
+        Assert.Equal(mask, list.Single(c => c.Id == added.Id).Password);
+        Assert.DoesNotContain("placeholder-secret", await client.GetStringAsync("/api/v1/downloadclients"));
+
+        // The mask sent back means "unchanged".
+        var kept = await client.PutAsJsonAsync($"/api/v1/downloadclients/{added.Id}",
+            new DownloadClientRequest("Masked qBittorrent", DownloadClientImplementation.QBittorrent, Host: "qbt.local", Password: mask, Category: "masked-films", Priority: 7), Json);
+        Assert.Equal(HttpStatusCode.OK, kept.StatusCode);
+        var stored = await StoredAsync(added.Id);
+        Assert.Equal("placeholder-secret", stored.Password);
+        Assert.Equal("masked-films", stored.Category);
+
+        // A new value replaces it, an empty one clears it.
+        var replaced = await client.PutAsJsonAsync($"/api/v1/downloadclients/{added.Id}",
+            new DownloadClientRequest("Masked qBittorrent", DownloadClientImplementation.QBittorrent, Host: "qbt.local", Password: "other-placeholder", Category: "masked-films", Priority: 7), Json);
+        Assert.Equal(HttpStatusCode.OK, replaced.StatusCode);
+        Assert.Equal("other-placeholder", (await StoredAsync(added.Id)).Password);
+
+        var cleared = await client.PutAsJsonAsync($"/api/v1/downloadclients/{added.Id}",
+            new DownloadClientRequest("Masked qBittorrent", DownloadClientImplementation.QBittorrent, Host: "qbt.local", Password: "", Category: "masked-films", Priority: 7), Json);
+        Assert.Equal(HttpStatusCode.OK, cleared.StatusCode);
+        Assert.Null((await cleared.Content.ReadFromJsonAsync<DownloadClientResponse>(Json))!.Password);
+        Assert.Null((await StoredAsync(added.Id)).Password);
+
+        // The mask cannot be the secret of a new client, nor of a test that has no saved client to take it from.
+        var refused = await client.PostAsJsonAsync("/api/v1/downloadclients",
+            new DownloadClientRequest("Masked again", DownloadClientImplementation.QBittorrent, Host: "qbt.local", Password: mask, Category: "masked-movies", Priority: 8), Json);
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        var refusedTest = await client.PostAsJsonAsync("/api/v1/downloadclients/test",
+            new DownloadClientRequest("Masked again", DownloadClientImplementation.QBittorrent, Host: "qbt.local", Password: mask), Json);
+        Assert.Equal(HttpStatusCode.BadRequest, refusedTest.StatusCode);
+        Assert.Contains("Type the password", await refusedTest.Content.ReadAsStringAsync());
+        var unknown = await client.PostAsJsonAsync("/api/v1/downloadclients/test?id=999999",
+            new DownloadClientRequest("Masked again", DownloadClientImplementation.QBittorrent, Host: "qbt.local", Password: mask), Json);
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+
+        await client.DeleteAsync($"/api/v1/downloadclients/{added.Id}");
+    }
+
+    private async Task<DownloadClient> StoredAsync(int id)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+        return await db.DownloadClients.AsNoTracking().SingleAsync(c => c.Id == id);
     }
 
     [Fact]

@@ -570,8 +570,8 @@ export const indexers = {
   add: (body: IndexerRequest) => post<Indexer>('/api/v1/indexers', body),
   update: (id: number, body: IndexerRequest) => put<Indexer>(`/api/v1/indexers/${id}`, body),
   remove: (id: number) => del(`/api/v1/indexers/${id}`),
-  /** Tests an unsaved configuration: what the form calls. */
-  test: (body: IndexerRequest) => post<IndexerTestResult>('/api/v1/indexers/test', body),
+  /** Tests an unsaved configuration: what the form calls. Pass the id of the indexer being edited: a masked API key then means its stored key. */
+  test: (body: IndexerRequest, id?: number) => post<IndexerTestResult>(`/api/v1/indexers/test${id === undefined ? '' : `?id=${id}`}`, body),
   testSaved: (id: number) => post<IndexerTestResult>(`/api/v1/indexers/${id}/test`),
 }
 
@@ -692,8 +692,8 @@ export const downloadClients = {
   add: (body: DownloadClientRequest) => post<DownloadClient>('/api/v1/downloadclients', body),
   update: (id: number, body: DownloadClientRequest) => put<DownloadClient>(`/api/v1/downloadclients/${id}`, body),
   remove: (id: number) => del(`/api/v1/downloadclients/${id}`),
-  /** Tests an unsaved configuration: what the form calls. */
-  test: (body: DownloadClientRequest) => post<DownloadClientTestResult>('/api/v1/downloadclients/test', body),
+  /** Tests an unsaved configuration: what the form calls. Pass the id of the client being edited: a masked password then means its stored password. */
+  test: (body: DownloadClientRequest, id?: number) => post<DownloadClientTestResult>(`/api/v1/downloadclients/test${id === undefined ? '' : `?id=${id}`}`, body),
   testSaved: (id: number) => post<DownloadClientTestResult>(`/api/v1/downloadclients/${id}/test`),
   /** The mock client is driven by hand, like a user would in qBittorrent. */
   mock: {
@@ -1409,8 +1409,8 @@ export const mediaServers = {
   add: (body: MediaServerRequest) => post<MediaServer>('/api/v1/mediaservers', body),
   update: (id: number, body: MediaServerRequest) => put<MediaServer>(`/api/v1/mediaservers/${id}`, body),
   remove: (id: number) => del(`/api/v1/mediaservers/${id}`),
-  /** Tests an unsaved configuration: what the form calls. */
-  test: (body: MediaServerRequest) => post<MediaServerTestResult>('/api/v1/mediaservers/test', body),
+  /** Tests an unsaved configuration: what the form calls. Pass the id of the server being edited: a masked token then means its stored token. */
+  test: (body: MediaServerRequest, id?: number) => post<MediaServerTestResult>(`/api/v1/mediaservers/test${id === undefined ? '' : `?id=${id}`}`, body),
   testSaved: (id: number) => post<MediaServerTestResult>(`/api/v1/mediaservers/${id}/test`),
   /** A full scan of the server's movie libraries, now. */
   refresh: (id: number) => post<MediaServer>(`/api/v1/mediaservers/${id}/refresh`),

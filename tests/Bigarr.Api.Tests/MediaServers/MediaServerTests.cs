@@ -11,6 +11,7 @@ using Bigarr.Domain.Events;
 using Bigarr.Domain.Library;
 using Bigarr.Domain.MediaServers;
 using Bigarr.Domain.Movies;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Bigarr.Api.Tests.MediaServers;
@@ -197,6 +198,56 @@ public sealed class MediaServerTests(BigarrApiFactory factory) : IClassFixture<B
         var refresh = await plex.WaitForAsync(r => r.Path == "/library/sections/2/refresh" && r.Query.Contains("path=", StringComparison.Ordinal));
         Assert.Contains(Uri.EscapeDataString("/mnt/media/tv/Breaking Bad (2008)/Season 1"), refresh.Query, StringComparison.Ordinal);
         Assert.DoesNotContain(plex.Requests, r => r.Path == "/library/sections/1/refresh");
+    }
+
+    [Fact]
+    public async Task The_token_is_never_sent_back_and_the_mask_keeps_it()
+    {
+        var session = await CompatTestHelpers.SessionAsync(factory);
+        await using var plex = await FakeHttpServer.StartAsync();
+        plex.Responder = Plex;
+        const string mask = "********";
+
+        var created = await session.PostAsJsonAsync("/api/v1/mediaservers", new { name = "Masked Plex", kind = "plex", url = plex.Url, token = "plex-token", enabled = false });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var added = await created.ReadJsonAsync();
+        var id = added.GetProperty("id").GetInt32();
+        Assert.Equal(mask, added.GetProperty("token").GetString());
+
+        Assert.Equal(mask, (await session.GetFromJsonAsync<JsonElement>($"/api/v1/mediaservers/{id}")).GetProperty("token").GetString());
+        var list = await session.GetFromJsonAsync<JsonElement>("/api/v1/mediaservers");
+        Assert.Equal(mask, list.EnumerateArray().Single(s => s.GetProperty("id").GetInt32() == id).GetProperty("token").GetString());
+        Assert.DoesNotContain("plex-token", await session.GetStringAsync("/api/v1/mediaservers"));
+
+        // The mask sent back means "unchanged": the server still accepts the connection test with the stored token.
+        var kept = await session.PutAsJsonAsync($"/api/v1/mediaservers/{id}", new { name = "Masked Plex renamed", kind = "plex", url = plex.Url, token = mask, enabled = false });
+        Assert.Equal(HttpStatusCode.OK, kept.StatusCode);
+        var stored = await StoredAsync(id);
+        Assert.Equal("plex-token", stored.Token);
+        Assert.Equal("Masked Plex renamed", stored.Name);
+        var tested = await session.PostAsJsonAsync($"/api/v1/mediaservers/test?id={id}", new { name = "Masked Plex renamed", kind = "plex", url = plex.Url, token = mask, enabled = false });
+        Assert.Equal(HttpStatusCode.OK, tested.StatusCode);
+
+        // The mask cannot be the token of a new server, nor of a test that has no saved server to take it from.
+        var refused = await session.PostAsJsonAsync("/api/v1/mediaservers", new { name = "Masked again", kind = "plex", url = plex.Url, token = mask, enabled = false });
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        var refusedTest = await session.PostAsJsonAsync("/api/v1/mediaservers/test", new { name = "Masked again", kind = "plex", url = plex.Url, token = mask, enabled = false });
+        Assert.Equal(HttpStatusCode.BadRequest, refusedTest.StatusCode);
+        Assert.Contains("Type the token", await refusedTest.Content.ReadAsStringAsync());
+        var unknown = await session.PostAsJsonAsync("/api/v1/mediaservers/test?id=999999", new { name = "Masked again", kind = "plex", url = plex.Url, token = mask, enabled = false });
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+
+        // A new value replaces it.
+        var replaced = await session.PutAsJsonAsync($"/api/v1/mediaservers/{id}", new { name = "Masked Plex renamed", kind = "plex", url = plex.Url, token = "other-placeholder", enabled = false });
+        Assert.Equal(HttpStatusCode.OK, replaced.StatusCode);
+        Assert.Equal("other-placeholder", (await StoredAsync(id)).Token);
+    }
+
+    private async Task<MediaServer> StoredAsync(int id)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+        return await db.MediaServers.AsNoTracking().SingleAsync(s => s.Id == id);
     }
 
     private static ServerEvent Event(DomainEvent domainEvent) => new(1, domainEvent.Type, EventJson.Serialize(domainEvent), DateTime.UtcNow);

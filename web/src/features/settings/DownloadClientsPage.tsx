@@ -4,7 +4,7 @@ import { FlaskConicalIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, downloadClients, type DownloadClient, type DownloadClientImplementation, type DownloadClientRequest, type DownloadClientTestResult } from '@/api/client'
+import { ApiError, downloadClients, KEY_MASK, type DownloadClient, type DownloadClientImplementation, type DownloadClientRequest, type DownloadClientTestResult } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -251,7 +251,7 @@ function DownloadClientDialog({ client, onClose, onSaved }: { client: DownloadCl
     },
   })
   const test = useMutation({
-    mutationFn: () => downloadClients.test(payload()),
+    mutationFn: () => downloadClients.test(payload(), client?.id),
     onSuccess: (result) => toast.success(testSummary(t, result)),
     onError: (e) => toast.error(e instanceof ApiError ? e.message : t('downloadClients.testFailed')),
   })
@@ -318,7 +318,14 @@ function DownloadClientDialog({ client, onClose, onSaved }: { client: DownloadCl
                 </div>
                 <div className="grid grid-cols-1 content-start gap-2">
                   <Label htmlFor="dc-password">{t('downloadClients.password')}</Label>
-                  <Input id="dc-password" type="password" value={form.password ?? ''} onChange={(e) => set('password', e.target.value)} autoComplete="new-password" />
+                  <Input
+                    id="dc-password"
+                    type="password"
+                    value={form.password ?? ''}
+                    onChange={(e) => set('password', e.target.value)}
+                    onFocus={() => form.password === KEY_MASK && set('password', '')}
+                    autoComplete="new-password"
+                  />
                   <p className="text-xs text-muted-foreground">{t('downloadClients.passwordHint')}</p>
                 </div>
               </>

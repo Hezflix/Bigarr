@@ -3,8 +3,11 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Bigarr.Api.Features.Indexers;
+using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Tests.Auth;
 using Bigarr.Domain.Indexers;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Bigarr.Api.Tests.Indexers;
 
@@ -60,6 +63,60 @@ public sealed class IndexersEndpointsTests(BigarrApiFactory factory) : IClassFix
     }
 
     [Fact]
+    public async Task The_api_key_is_never_sent_back_and_the_mask_keeps_it()
+    {
+        var client = await ClientAsync();
+        const string mask = "********";
+
+        var created = await client.PostAsJsonAsync("/api/v1/indexers", new IndexerRequest("Masked indexer", IndexerImplementation.Mock, ApiKey: "placeholder-secret", Priority: 11), Json);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var added = (await created.Content.ReadFromJsonAsync<IndexerResponse>(Json))!;
+        Assert.Equal(mask, added.ApiKey);
+
+        Assert.Equal(mask, (await client.GetFromJsonAsync<IndexerResponse>($"/api/v1/indexers/{added.Id}", Json))!.ApiKey);
+        var list = (await client.GetFromJsonAsync<List<IndexerResponse>>("/api/v1/indexers", Json))!;
+        Assert.Equal(mask, list.Single(i => i.Id == added.Id).ApiKey);
+        Assert.DoesNotContain("placeholder-secret", await client.GetStringAsync("/api/v1/indexers"));
+
+        // The mask sent back means "unchanged".
+        var kept = await client.PutAsJsonAsync($"/api/v1/indexers/{added.Id}", new IndexerRequest("Masked indexer", IndexerImplementation.Mock, ApiKey: mask, Priority: 12), Json);
+        Assert.Equal(HttpStatusCode.OK, kept.StatusCode);
+        var stored = await StoredAsync(added.Id);
+        Assert.Equal("placeholder-secret", stored.ApiKey);
+        Assert.Equal(12, stored.Priority);
+
+        // A new value replaces it, an empty one clears it.
+        var replaced = await client.PutAsJsonAsync($"/api/v1/indexers/{added.Id}", new IndexerRequest("Masked indexer", IndexerImplementation.Mock, ApiKey: "other-placeholder", Priority: 12), Json);
+        Assert.Equal(HttpStatusCode.OK, replaced.StatusCode);
+        Assert.Equal("other-placeholder", (await StoredAsync(added.Id)).ApiKey);
+
+        var cleared = await client.PutAsJsonAsync($"/api/v1/indexers/{added.Id}", new IndexerRequest("Masked indexer", IndexerImplementation.Mock, ApiKey: "", Priority: 12), Json);
+        Assert.Equal(HttpStatusCode.OK, cleared.StatusCode);
+        Assert.Null((await cleared.Content.ReadFromJsonAsync<IndexerResponse>(Json))!.ApiKey);
+        Assert.Null((await StoredAsync(added.Id)).ApiKey);
+
+        // The mask cannot be the key of a new indexer, nor of a test that has no saved indexer to take it from.
+        var refused = await client.PostAsJsonAsync("/api/v1/indexers", new IndexerRequest("Masked again", IndexerImplementation.Mock, ApiKey: mask), Json);
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        var refusedTest = await client.PostAsJsonAsync("/api/v1/indexers/test", new IndexerRequest("Masked again", IndexerImplementation.Mock, ApiKey: mask), Json);
+        Assert.Equal(HttpStatusCode.BadRequest, refusedTest.StatusCode);
+        Assert.Contains("Type the API key", await refusedTest.Content.ReadAsStringAsync());
+        var unknown = await client.PostAsJsonAsync("/api/v1/indexers/test?id=999999", new IndexerRequest("Masked again", IndexerImplementation.Mock, ApiKey: mask), Json);
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+        var known = await client.PostAsJsonAsync($"/api/v1/indexers/test?id={added.Id}", new IndexerRequest("Masked indexer", IndexerImplementation.Mock, ApiKey: mask), Json);
+        Assert.Equal(HttpStatusCode.OK, known.StatusCode);
+
+        await client.DeleteAsync($"/api/v1/indexers/{added.Id}");
+    }
+
+    private async Task<Indexer> StoredAsync(int id)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+        return await db.Indexers.AsNoTracking().SingleAsync(i => i.Id == id);
+    }
+
+    [Fact]
     public async Task Torznab_indexers_need_a_valid_url_and_sane_numbers()
     {
         var client = await ClientAsync();
@@ -87,7 +144,8 @@ public sealed class IndexersEndpointsTests(BigarrApiFactory factory) : IClassFix
         var indexer = (await ok.Content.ReadFromJsonAsync<IndexerResponse>(Json))!;
         Assert.Equal("http://prowlarr:9696/1", indexer.BaseUrl);
         Assert.Equal("/api", indexer.ApiPath);
-        Assert.Equal("secret", indexer.ApiKey);
+        Assert.Equal("********", indexer.ApiKey);
+        Assert.Equal("secret", (await StoredAsync(indexer.Id)).ApiKey);
 
         await client.DeleteAsync($"/api/v1/indexers/{indexer.Id}");
     }

@@ -848,6 +848,23 @@ Fix: the imports and searches are queued right after the commit, then the remova
 catches everything: the grab's note and its journal line say the torrent could not be removed and the poll goes on.
 Test: `FailedHandlingTests.A_failed_download_whose_removal_blows_up_is_still_searched_again_and_says_it_was_not_removed`.
 
+#### F33. The download client password, indexer API key and media server token came back in clear
+
+The settings API returned each stored credential on every read, to anything that can read it (an API key pasted into
+another application, a browser extension, a shared screen with the network tab open).
+
+Fix: on the Bigarr API (`/api/v1`) a response carries a fixed mask (`SecretMask`) where a secret is stored, and a request that sends the mask back
+means "unchanged"; an empty value clears the secret and anything else replaces it. A new resource cannot be created with
+the mask. The `/test` routes take the id of the saved resource being edited: a masked secret is then replaced by the
+stored one for the test, and refused without an id. The `/radarr` and `/sonarr` compat surfaces (admin API keys only)
+keep returning the indexer key, as before, because Prowlarr compares it: `IndexerService` reads and writes take
+`revealSecrets`, which only those routes pass. The compat surfaces expose no download client password or media server
+token.
+Tests: `DownloadClientsEndpointsTests.The_password_is_never_sent_back_and_the_mask_keeps_it`,
+`ProwlarrPushTests.Prowlarr_can_push_update_and_remove_torznab_indexers` (the compat surface still returns the real key),
+`IndexersEndpointsTests.The_api_key_is_never_sent_back_and_the_mask_keeps_it`,
+`MediaServerTests.The_token_is_never_sent_back_and_the_mask_keeps_it`.
+
 ### Open
 
 What is known and not fixed:
