@@ -298,7 +298,7 @@ public sealed class SeriesFilmAdoptTests(BigarrApiFactory factory) : IClassFixtu
         return path;
     }
 
-    private static async Task ConfigureAsync(HttpClient client, string bin)
+    internal static async Task ConfigureAsync(HttpClient client, string bin)
     {
         var response = await client.PutAsJsonAsync("/api/v1/mediamanagement", new MediaManagementRequest(true, MediaManagementConfig.DefaultFileNameTemplate, MediaManagementConfig.DefaultFolderNameTemplate, TransferMode.HardlinkOrCopy, bin, 7), Json);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -352,5 +352,76 @@ public sealed class SeriesFilmShadowFilesTests(ShadowApiFactory factory) : IClas
         Assert.Contains((await SeriesFilmAdoptTests.FilesAsync(client, series.Id)).Files, f => f.EpisodeIds.Contains(serenity.EpisodeId) && f.LinkedFromPath is null);
         Assert.Null((await GetMovieAsync(client, row.MovieId!.Value)).Versions.Single().File);
         Assert.Empty(Directory.GetFileSystemEntries(filmRoot.Path, "*", SearchOption.AllDirectories));
+    }
+}
+
+/// <summary>
+/// Its own fixture: the film and the special it links are the ones another test of this file adopts and replaces, and the
+/// database is shared by every test of a class.
+/// </summary>
+public sealed class SeriesFilmRefusedHardlinkTests(BigarrApiFactory factory) : IClassFixture<BigarrApiFactory>, IDisposable
+{
+    private const int DemonSlayer = 348545;
+    private const int InfinityCastle = 1311031;
+
+    private readonly string _films = Directory.CreateTempSubdirectory("bigarr-films-").FullName;
+    private readonly string _shows = Directory.CreateTempSubdirectory("bigarr-shows-").FullName;
+    private readonly string _bin = Directory.CreateTempSubdirectory("bigarr-films-bin-").FullName;
+    private readonly string _downloads = Directory.CreateTempSubdirectory("bigarr-films-dl-").FullName;
+
+    public void Dispose()
+    {
+        foreach (var dir in new[] { _films, _shows, _bin, _downloads })
+        {
+            TryDelete(dir);
+        }
+    }
+
+    [Fact]
+    public async Task When_both_have_a_file_and_the_hardlink_is_refused_the_special_keeps_its_file()
+    {
+        if (OperatingSystem.IsWindows() || Environment.UserName == "root")
+        {
+            return; // permissions are what refuse the hardlink here
+        }
+
+        var client = await ClientAsync(factory);
+        await SeriesFilmAdoptTests.ConfigureAsync(client, _bin);
+        var (filmRoot, showRoot) = await SeriesFilmFlowTests.RootsAsync(client, _films, _shows);
+        var series = await SeriesFilmAdoptTests.SeriesAsync(client, DemonSlayer, showRoot.Id);
+        var version = series.Versions.Single();
+        var castle = (await SeriesFilmFlowTests.FilmsAsync(client, series.Id)).Films.Single(f => f.Label == "S00E16");
+
+        var (hd, _) = await ProfilesAsync(client);
+        var movie = await AddMovieAsync(client, InfinityCastle, hd, filmRoot.Id);
+        var filmVersion = movie.Versions.Single();
+        var download = Path.Combine(_downloads, "Demon.Slayer.Infinity.Castle.2025.1080p.WEB-DL-GRP.mkv");
+        await File.WriteAllTextAsync(download, "the film's own bytes");
+        var manual = await client.PostAsJsonAsync("/api/v1/manualimport", new ManualImportRequest([new ManualImportItemRequest(download, filmVersion.Id, ParserQuality.WEBDL1080p.Id)], TransferMode.Copy), Json);
+        Assert.Equal(HttpStatusCode.OK, manual.StatusCode);
+        await WaitForFileAsync(client, movie.Id, filmVersion.Id);
+
+        // The special's own file sits outside the folder the film's hardlink goes to, and that folder refuses new names:
+        // the bin could take the special's file, the hardlink could not (what a different filesystem does, without one).
+        var specialPath = await SeriesFilmAdoptTests.PlantSpecialFileAsync(factory.Services, series.Id, version.Id, castle.EpisodeId, "Old/Demon Slayer - S00E16 - Infinity Castle HDTV-720p.mkv", ParserQuality.HDTV720p.Id);
+        var specialsFolder = Path.Combine(version.RootFolderPath, version.FolderName, MediaManagementConfig.DefaultSpecialsFolderName);
+        Directory.CreateDirectory(specialsFolder);
+        File.SetUnixFileMode(specialsFolder, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+        try
+        {
+            Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/v1/series-films/link", new LinkSeriesFilmsRequest([castle.EpisodeId]), Json)).StatusCode);
+            var error = await WaitUntilAsync(async () => (await SeriesFilmFlowTests.FilmsAsync(client, series.Id)).Films.Single(f => f.EpisodeId == castle.EpisodeId).Link!.LinkError, "the refused hardlink");
+            Assert.Contains("cannot hardlink", error, StringComparison.Ordinal);
+
+            // Nothing was retired before the hardlink failed: same file, same bytes, same record, nothing in the bin.
+            Assert.True(File.Exists(specialPath));
+            Assert.Equal("the special's own bytes", await File.ReadAllTextAsync(specialPath));
+            Assert.Contains((await SeriesFilmAdoptTests.FilesAsync(client, series.Id)).Files, f => f.EpisodeIds.Contains(castle.EpisodeId) && f.LinkedFromPath is null);
+            Assert.Empty(Directory.GetFiles(_bin, "*", SearchOption.AllDirectories));
+        }
+        finally
+        {
+            File.SetUnixFileMode(specialsFolder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
     }
 }

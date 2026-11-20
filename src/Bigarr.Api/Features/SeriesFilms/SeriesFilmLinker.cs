@@ -186,47 +186,72 @@ public sealed class SeriesFilmLinker(BigarrDbContext db, RecycleBin recycleBin, 
                 continue;
             }
 
-            if (current is { IsFilmLink: false })
+            if (current is { IsFilmLink: false } && current.Episodes.Any(t => t.EpisodeId != link.EpisodeId))
             {
-                if (current.Episodes.Any(t => t.EpisodeId != link.EpisodeId))
-                {
-                    failure = $"{version.Name}: the special shares a file with other episodes ({current.RelativePath}); left as is";
-                    pass.Failed++;
-                    continue;
-                }
-
-                // The special had a file of its own: the film's replaces it, through the recycle bin.
-                recycleBin.RemoveFile(Path.Combine(folder, current.RelativePath), config.RecycleBinPath, version.RootFolder.Path);
-                db.EpisodeFiles.Remove(current);
-                target.EpisodeFile = null;
-                target.EpisodeFileId = null;
-                pass.Removed++;
+                failure = $"{version.Name}: the special shares a file with other episodes ({current.RelativePath}); left as is";
+                pass.Failed++;
+                continue;
             }
-            else if (current is { IsFilmLink: true })
+
+            if (current is { IsFilmLink: true })
             {
+                // Only another name for the film's bytes: removing it loses nothing, even when the new hardlink fails.
                 RemoveLinkedFile(current, target, folder, pass);
-            }
-
-            if (current is not null)
-            {
-                // The new hardlink's row may take the old one's name (a re-import keeping its name): the removal goes first.
+                current = null;
                 await db.SaveChangesAsync(ct);
             }
 
-            if (File.Exists(destination))
-            {
-                // Something untracked sits where the special goes: it goes to the bin rather than being overwritten.
-                recycleBin.RemoveFile(destination, config.RecycleBinPath, version.RootFolder.Path);
-            }
-
+            // The hardlink comes first, under a hidden name beside its destination (a hardlink fails across filesystems and
+            // is never replaced by a copy): nothing of the special's own is retired before the film's bytes are there.
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            if (!FileTransfer.TryHardlink(src.Path, destination, out var reason))
+            var staging = Path.Combine(Path.GetDirectoryName(destination)!, AdoptPrefix + Guid.NewGuid().ToString("N") + extension);
+            if (!FileTransfer.TryHardlink(src.Path, staging, out var reason))
             {
                 failure = $"{version.Name}: cannot hardlink {src.Path} to {destination} ({reason}); not copied";
                 logger.LogWarning("Series film link {LinkId}: {Failure}", link.Id, failure);
                 pass.Failed++;
                 continue;
             }
+
+            try
+            {
+                if (current is not null)
+                {
+                    // The special had a file of its own: the film's replaces it, through the recycle bin.
+                    recycleBin.RemoveFile(Path.Combine(folder, current.RelativePath), config.RecycleBinPath, version.RootFolder.Path);
+                    db.EpisodeFiles.Remove(current);
+                    target.EpisodeFile = null;
+                    target.EpisodeFileId = null;
+                    pass.Removed++;
+
+                    // The new hardlink's row may take the old one's name (a re-import keeping its name): the removal goes first.
+                    await db.SaveChangesAsync(ct);
+                }
+
+                if (File.Exists(destination))
+                {
+                    // Something untracked sits where the special goes: it goes to the bin rather than being overwritten.
+                    recycleBin.RemoveFile(destination, config.RecycleBinPath, version.RootFolder.Path);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                try
+                {
+                    File.Delete(staging);
+                }
+                catch (IOException)
+                {
+                    // Best effort: the staging name is one more name for the film's bytes.
+                }
+
+                failure = $"{version.Name}: cannot replace {destination} ({ex.Message}); left as is";
+                logger.LogWarning(ex, "Series film link {LinkId}: {Failure}", link.Id, failure);
+                pass.Failed++;
+                continue;
+            }
+
+            File.Move(staging, destination, overwrite: false);
 
             var file = new EpisodeFile
             {
