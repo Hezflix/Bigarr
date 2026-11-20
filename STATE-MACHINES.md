@@ -281,7 +281,7 @@ switch, holding the previous numbers and every file move.
 
 | From | To | Trigger | Guard |
 |---|---|---|---|
-| order A | order B, change journaled, files moved | apply | B differs from A; one writer per show (`SeriesFileGate`, shared with rename, refresh and "add version") |
+| order A | order B, change journaled, files moved | apply | B differs from A; one writer per show (`SeriesFileGate`, shared with rename, reassign, refresh and "add version") |
 | latest change applied | undone (`UndoneAt`), order A, files back | undo | latest change of the show, not undone; a file moved since is left alone |
 
 Invariants: only the latest change can be undone, once; a journaled move is a move that happened; an apply and its
@@ -800,6 +800,16 @@ as it was and shows in the link error. A previous film link (only another name f
 first. A process killed between the hardlink and the rename leaves a hidden name, one more name for the film's bytes,
 which scans skip (hidden file) and nothing cleans.
 Test: `SeriesFilmRefusedHardlinkTests.When_both_have_a_file_and_the_hardlink_is_refused_the_special_keeps_its_file`.
+
+#### F30. Reassigning a file skipped the show's gate and could leave its rename unsaved
+
+"Reassign file" was the one writer of a show's files that did not take the show's turn (`SeriesFileGate`), so it could
+interleave with an order switch, its undo or a rename. It also saved the row after renaming the file on disk with the
+request's token: a caller that went away in between left the file under its new name and the row under the old one.
+
+Fix: reassign takes the show's turn before it loads the show, and the save that follows the move ignores the
+request's token. The first save (the episode links) still honours it: nothing on disk has changed by then.
+Test: `ConcurrentSeriesWritersTests.A_reassign_waits_for_the_writer_that_holds_the_show`.
 
 ### Open
 

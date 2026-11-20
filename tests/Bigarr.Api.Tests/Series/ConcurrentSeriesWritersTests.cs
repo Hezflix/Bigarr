@@ -1,11 +1,14 @@
 using System.Net.Http.Json;
+using Bigarr.Api.Features.Import;
 using Bigarr.Api.Features.Quality;
 using Bigarr.Api.Features.Series;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Tests.Search;
+using Bigarr.Domain.Tv;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using static Bigarr.Api.Tests.Import.ImportTestHelpers;
+using ParserQuality = Bigarr.Parsing.Qualities.Quality;
 
 namespace Bigarr.Api.Tests.Series;
 
@@ -49,5 +52,52 @@ public sealed class ConcurrentSeriesWritersTests(SeriesApiFactory factory) : ICl
         var pairs = await read.EpisodeTargets.AsNoTracking().Where(t => versions.Contains(t.VersionId)).Select(t => new { t.VersionId, t.EpisodeId }).ToListAsync();
         Assert.Equal(episodes.Count * versions.Count, pairs.Distinct().Count());
         Assert.Equal(pairs.Count, pairs.Distinct().Count());
+    }
+
+    [Fact]
+    public async Task A_reassign_waits_for_the_writer_that_holds_the_show()
+    {
+        var client = await ClientAsync(factory);
+        var series = await SeriesSetup.AddAsync(client, SeriesSearchTests.BreakingBad);
+        var version = series.Versions.OrderBy(v => v.Id).First(); // the other test in this class may have added a version
+        var second = (await SeriesSetup.EpisodeAsync(client, series.Id, 1, 2)).Id;
+
+        int fileId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+            var target = await db.EpisodeTargets.Include(t => t.Episode).SingleAsync(t => t.VersionId == version.Id && t.Episode.SeriesId == series.Id && t.Episode.SeasonNumber == 1 && t.Episode.EpisodeNumber == 1);
+            var file = new EpisodeFile
+            {
+                VersionId = version.Id,
+                RelativePath = "Season 1/Breaking Bad - S01E01 - Pilot Bluray-1080p.mkv",
+                SeasonNumber = 1,
+                Size = 4096,
+                QualityId = ParserQuality.Bluray1080p.Id,
+                OriginalReleaseTitle = "Breaking.Bad.S01E01.1080p.BluRay.x264-GRP",
+                ReleaseGroup = "GRP",
+            };
+            target.EpisodeFile = file;
+            await db.SaveChangesAsync();
+            fileId = file.Id;
+        }
+
+        // Another writer of the show holds its turn.
+        using var reassignScope = factory.Services.CreateScope();
+        var order = reassignScope.ServiceProvider.GetRequiredService<SeriesOrderService>();
+        var turn = await SeriesFileGate.EnterAsync(series.Id, CancellationToken.None);
+        Task<Bigarr.Api.Infrastructure.Result<OrderFileResult>> reassign;
+        try
+        {
+            reassign = order.ReassignFileAsync(series.Id, fileId, new ReassignEpisodeFileRequest([second], Rename: false), CancellationToken.None);
+            Assert.NotSame(reassign, await Task.WhenAny(reassign, Task.Delay(300)));
+        }
+        finally
+        {
+            turn.Dispose();
+        }
+
+        var result = await reassign;
+        Assert.True(result.IsSuccess);
     }
 }

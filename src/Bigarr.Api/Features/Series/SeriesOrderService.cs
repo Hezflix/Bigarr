@@ -306,6 +306,7 @@ public sealed class SeriesOrderService(
             return Failure.Invalid("No episode", "Choose the episodes this file holds.");
         }
 
+        using var turn = await SeriesFileGate.EnterAsync(seriesId, ct);
         var series = await LoadAsync(seriesId, tracking: true, ct);
         var entry = series?.Versions.SelectMany(v => v.Files.Select(f => (Version: v, File: f))).FirstOrDefault(x => x.File.Id == fileId);
         if (series is null || entry is null || entry.Value.File is null)
@@ -352,7 +353,8 @@ public sealed class SeriesOrderService(
             var target = await renamer.TargetPathAsync(config, series, version, file, ct);
             var moved = renamer.Move(series, version, file, target, now);
             renamer.PublishRenamed();
-            await db.SaveChangesAsync(ct);
+            // The file has moved: the row follows, whatever the request says by now.
+            await db.SaveChangesAsync(CancellationToken.None);
             SeriesRenameService.RemoveEmptySeasonFolders(SeriesRenameService.Folder(version));
             result = new OrderFileResult(file.Id, from, file.RelativePath, moved.Renamed, moved.Error);
         }
