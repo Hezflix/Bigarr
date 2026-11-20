@@ -12,7 +12,7 @@ RUN bun run build
 # ---- backend -----------------------------------------------------------------
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 ARG TARGETARCH
-# Set by CI for a release (the v* tag without its v); empty for edge builds, which keep the project's version.
+# Set by CI to the release version (X.Y.Z); empty for local builds, which keep the project's version.
 ARG VERSION=
 WORKDIR /repo
 COPY global.json Directory.Build.props BannedSymbols.txt Bigarr.slnx ./
