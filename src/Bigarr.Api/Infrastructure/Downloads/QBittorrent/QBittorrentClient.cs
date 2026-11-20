@@ -121,15 +121,16 @@ public sealed class QBittorrentClient(IHttpClientFactory httpClientFactory, Torr
         }
 
         // Adding is asynchronous on qBittorrent's side; a magnet needs its metadata before it shows up in some versions.
+        // The torrent is already added, so the check runs to its end whatever the caller does.
         for (var attempt = 0; attempt < 5; attempt++)
         {
-            var listed = await GetTorrentsAsync(client, hash, cancellationToken);
+            var listed = await GetTorrentsAsync(client, hash, CancellationToken.None);
             if (listed.Any(t => string.Equals(t.Hash, hash, StringComparison.OrdinalIgnoreCase)))
             {
                 return hash;
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(300 * (attempt + 1)), time, cancellationToken);
+            await Task.Delay(TimeSpan.FromMilliseconds(300 * (attempt + 1)), time, CancellationToken.None);
         }
 
         logger.LogInformation("qBittorrent accepted {Hash} but does not list it yet; the queue tracker will pick it up", hash);
