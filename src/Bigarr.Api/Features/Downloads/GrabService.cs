@@ -120,6 +120,10 @@ public sealed class GrabService(
             return new Failure(StatusCodes.Status502BadGateway, "No download client accepted the release", string.Join(" · ", errors));
         }
 
+        // The client has the torrent: from here the grab is recorded whatever the request says by now. A caller that went
+        // away must not leave a download nobody tracks.
+        ct = CancellationToken.None;
+
         var now = time.GetUtcNow().UtcDateTime;
         var grab = new Grab
         {
@@ -254,6 +258,10 @@ public sealed class GrabService(
         {
             return failure;
         }
+
+        // The client has the torrent: from here the grab is recorded whatever the request says by now. A caller that went
+        // away must not leave a download nobody tracks.
+        ct = CancellationToken.None;
 
         var now = time.GetUtcNow().UtcDateTime;
         var grab = new Grab

@@ -97,6 +97,9 @@ Invariants:
 5. An `ImportPending` grab whose download is complete is queued at every poll until it leaves that state.
 6. Failed handling commits state, blocklist, history and event together; the torrent leaves its client and the
    replacement search is queued only after that commit ([F21](#f21-failed-handling-removed-the-torrent-before-its-own-save)).
+7. Once a download client has accepted the torrent, the grab row is written whatever the caller does: the grab runs on
+   no cancellation token after the send, and the qBittorrent check that follows the add does not stop either
+   ([F30](#f30-a-grab-whose-caller-went-away-after-the-send-left-an-untracked-download)).
 
 A failed grab whose torrent has left the client stays `ImportFailed` or `DownloadFailed` in the table and is simply no
 longer shown (`QueuePoller.cs:173-177`). That is by design.
@@ -732,6 +735,19 @@ to an ordinary role kept full access to those surfaces, which can delete films w
 Fix: the `ApiKey` policy requires the admin role, read from the owner at each request. A key is not revoked by a
 demotion: it works again if its owner is made admin again, like a disabled user's.
 Test: `UsersAndRolesTests.A_demoted_admin_s_key_no_longer_opens_the_compat_surfaces`.
+
+#### F30. A grab whose caller went away after the send left an untracked download
+
+The torrent was sent to the client, then the grab row was written (two saves and a commit) on the caller's cancellation
+token, and the qBittorrent client's check that the torrent is listed (up to about 4.5 s) used it too. A caller that
+went away in that window, such as an aborted `POST /api/v1/grab`, RSS sync or search request, left a download with no
+`Grab` row: the version looked idle, the next RSS pass or search grabbed again, and the orphan was later adopted by
+title, possibly for another version than the one chosen.
+
+Fix: once a client accepted the torrent, `GrabService` (films and series) goes on with no cancellation token, and the
+qBittorrent add check runs to its end. Everything before the send stays cancellable.
+Test: `InterruptedGrabTests.A_grab_whose_caller_goes_away_once_the_client_has_the_torrent_is_still_recorded` (film
+path; the series path has the same two lines and is covered by the existing series grab tests).
 
 ### Open
 
