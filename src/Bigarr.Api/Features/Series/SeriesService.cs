@@ -599,6 +599,14 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         try
         {
             found = series.TvdbId is { } tvdbId ? await metadata.GetByTvdbIdAsync(tvdbId, withEpisodes: true, ct) : null;
+
+            // A TVDB id that answers nothing: TVDB may have replaced the show. TVDB itself finds it again by IMDb id,
+            // which does not depend on TMDB having caught up with the new TVDB id (nor on a TMDB key).
+            if (found is null && series.TvdbId is not null && series.ImdbId is { Length: > 0 } imdbId)
+            {
+                found = await metadata.GetByImdbIdAsync(imdbId, withEpisodes: true, ct);
+            }
+
             if (found is null && series.TmdbId is { } tmdbId)
             {
                 found = await metadata.GetByTmdbIdAsync(tmdbId, withEpisodes: true, ct);
@@ -638,9 +646,30 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         var hadEpisodes = series.Episodes.Count > 0;
 
         var before = series.Episodes.Count;
+
+        // TVDB replaced the show (a duplicate removed, the show recreated): the stored TVDB id now answers nothing and the
+        // show comes back under its new id, through its IMDb id or TMDB. Its episodes carry new TVDB ids too, so the stored ones match
+        // by number, confirmed by the air date or the title, like episodes without ids (Sonarr follows such a move too).
+        var replacedTvdbId = series.TvdbId is { } oldTvdbId && found.TvdbId is { } newTvdbId && oldTvdbId != newTvdbId ? series.TvdbId : null;
+        if (replacedTvdbId is not null)
+        {
+            // The new id may already be another show of the library (added on its own since): the two are not merged
+            // here. Refused, nothing changed, said in the log and the health check until the user sorts it out.
+            if (await db.Series.Where(s => s.Id != seriesId && s.TvdbId == found.TvdbId).Select(s => s.Title).FirstOrDefaultAsync(ct) is { } other)
+            {
+                var conflict = $"{series.Title}: TVDB replaced show {replacedTvdbId} by {found.TvdbId}, which is already in the library as {other}; refused, nothing changed";
+                db.ChangeTracker.Clear();
+                await db.Series.Where(s => s.Id == seriesId).ExecuteUpdateAsync(u => u.SetProperty(s => s.RefreshRefusedDetail, conflict), ct);
+                logger.LogWarning("Series refresh refused for {Detail}", conflict);
+                return new Failure(StatusCodes.Status409Conflict, "Refresh refused", conflict);
+            }
+
+            logger.LogWarning("{Series}: TVDB replaced show {Old} by {New}; episodes matched by number", series.Title, replacedTvdbId, found.TvdbId);
+        }
+
         series.ApplyMetadata(found, Now);
         series.LastMetadataRefreshAt = Now;
-        var sync = SyncCatalogue(series, found, series.Episodes.ToList());
+        var sync = SyncCatalogue(series, found, series.Episodes.ToList(), staleTvdbIds: replacedTvdbId is not null);
 
         // Safety net: a refresh that would drop most of a show's episodes and bring as many new ones is not an update
         // but a different numbering (ids that no longer match): nothing is changed, the health check says it.
@@ -773,8 +802,10 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
     /// <summary>
     /// Brings seasons and episodes in line with the provider. An episode keeps its row (and every version's state) as
     /// long as its TVDB id is listed, whatever its number becomes; without TVDB ids the TMDB id, then the number, match.
+    /// With <paramref name="staleTvdbIds"/> (TVDB replaced the show), the stored TVDB ids belong to the old show: an
+    /// episode the TVDB id does not match is matched by number, confirmed by the air date or the title.
     /// </summary>
-    private CatalogueChanges SyncCatalogue(Series series, SeriesMetadata found, IReadOnlyCollection<Episode> existing)
+    private CatalogueChanges SyncCatalogue(Series series, SeriesMetadata found, IReadOnlyCollection<Episode> existing, bool staleTvdbIds = false)
     {
         var seasons = series.Seasons.ToDictionary(s => s.SeasonNumber);
         var newSeasons = new List<Season>();
@@ -815,9 +846,10 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             {
                 episode = c;
             }
-            else if (info.TvdbId is null && ConfirmedByNumber(existing, matched, info) is { } d)
+            else if ((info.TvdbId is null || staleTvdbIds) && ConfirmedByNumber(existing, matched, info) is { } d)
             {
-                // No id to go by: the same numbers confirmed by the air date (±2 days) or the title (S6's linking rule).
+                // No id to go by (or only the replaced show's): the same numbers confirmed by the air date (±2 days) or
+                // the title (S6's linking rule).
                 episode = d;
             }
 

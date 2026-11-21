@@ -204,6 +204,41 @@ public sealed class SeriesMetadataProviderTests
     }
 
     [Fact]
+    public async Task An_imdb_id_finds_the_show_on_tvdb_numbered_by_tvdb()
+    {
+        var routes = BreakingBadRoutes(remoteIdAnswer: TvdbRecorded.RemoteIdSeries81189);
+        var provider = Provider(routes);
+
+        var series = await provider.GetByImdbIdAsync("tt0903747", withEpisodes: true, CancellationToken.None);
+
+        Assert.Equal("tvdb+tmdb", series!.Source);
+        Assert.Equal(81189, series.TvdbId);
+        Assert.Equal(349232, series.Episodes.Single(e => e.SeasonNumber == 1 && e.EpisodeNumber == 1).TvdbId);
+        Assert.Contains(routes.Requests, r => r.Path == "/v4/search/remoteid/tt0903747");
+    }
+
+    [Theory]
+    [InlineData("""{"status":"success","data":[{"movie":{"id":5}},{"episode":{"id":6}}]}""")]
+    [InlineData("""{"status":"success","data":[{"series":{"id":81189}},{"series":{"id":475214}}]}""")]
+    [InlineData("""{"status":"success","data":[]}""")]
+    public async Task An_imdb_id_matching_no_single_show_finds_nothing(string answer)
+    {
+        var provider = Provider(BreakingBadRoutes(remoteIdAnswer: answer));
+
+        Assert.Null(await provider.GetByImdbIdAsync("tt0903747", withEpisodes: true, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task A_show_whose_own_imdb_id_differs_is_not_taken()
+    {
+        var routes = BreakingBadRoutes(remoteIdAnswer: TvdbRecorded.RemoteIdSeries81189);
+        var provider = Provider(routes);
+
+        // TVDB lists show 81189 under another id it merely mentions: 81189's own IMDb id is tt0903747.
+        Assert.Null(await provider.GetByImdbIdAsync("tt0903747x", withEpisodes: true, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task A_show_tvdb_lacks_is_numbered_by_tmdb_alone()
     {
         var routes = BreakingBadRoutes(tvdbKnowsTheShow: false);
@@ -251,7 +286,7 @@ public sealed class SeriesMetadataProviderTests
 
     // ---- plumbing ---------------------------------------------------------------------------------------------------
 
-    private static Stub BreakingBadRoutes(bool tvdbKnowsTheShow = true) => new(request =>
+    private static Stub BreakingBadRoutes(bool tvdbKnowsTheShow = true, string? remoteIdAnswer = null) => new(request =>
     {
         var path = request.RequestUri!.AbsolutePath;
         var appends = Query(request, "append_to_response") ?? string.Empty;
@@ -260,6 +295,7 @@ public sealed class SeriesMetadataProviderTests
             "/v4/login" => Json(Login("token-1")),
             "/v4/series/81189/extended" => tvdbKnowsTheShow ? Json(TvdbRecorded.SeriesExtended81189) : NotFound(TvdbRecorded.NotFound),
             "/v4/series/81189/episodes/default/eng" => Json(TvdbRecorded.Episodes81189),
+            "/v4/search/remoteid/tt0903747" or "/v4/search/remoteid/tt0903747x" when remoteIdAnswer is not null => Json(remoteIdAnswer),
             "/3/tv/1396" when appends.Contains("season/", StringComparison.Ordinal) => Json(TvdbRecorded.TmdbTv1396Seasons),
             "/3/tv/1396" => Json(TvdbRecorded.TmdbTv1396),
             _ => NotFound(),

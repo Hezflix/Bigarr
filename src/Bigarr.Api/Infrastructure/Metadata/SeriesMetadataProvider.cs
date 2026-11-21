@@ -47,11 +47,36 @@ public sealed class SeriesMetadataProvider(
         }
 
         var series = await tvdb.GetSeriesAsync(tvdbId, cancellationToken);
-        if (series is null)
+        return series is null ? null : await WithTmdbAsync(series, withEpisodes, cancellationToken);
+    }
+
+    /// <summary>
+    /// TVDB's remote-id search mixes shows, films and episodes: only a single show is taken, and only when its own IMDb
+    /// id is the one asked (a show that merely mentions it does not count).
+    /// </summary>
+    public async Task<SeriesMetadata?> GetByImdbIdAsync(string imdbId, bool withEpisodes, CancellationToken cancellationToken)
+    {
+        if (tvdb is null || !imdbId.StartsWith("tt", StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
 
+        var shows = (await tvdb.SearchByRemoteIdAsync(imdbId, cancellationToken)).Select(h => h.Series?.Id ?? 0).Where(id => id > 0).Distinct().ToList();
+        if (shows.Count != 1)
+        {
+            return null;
+        }
+
+        var series = await tvdb.GetSeriesAsync(shows[0], cancellationToken);
+        return series is not null && string.Equals(ImdbIdOf(series.RemoteIds), imdbId, StringComparison.OrdinalIgnoreCase)
+            ? await WithTmdbAsync(series, withEpisodes, cancellationToken)
+            : null;
+    }
+
+    /// <summary>A TVDB show completed by TMDB (found through TVDB's link, or TMDB's own lookup by TVDB id).</summary>
+    private async Task<SeriesMetadata> WithTmdbAsync(TvdbSeriesExtended series, bool withEpisodes, CancellationToken cancellationToken)
+    {
+        var tvdbId = series.Id;
         var tmdbId = TmdbIdOf(series.RemoteIds);
         TmdbTvDetails? tv = null;
         if (tmdb is not null)

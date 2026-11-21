@@ -6,6 +6,28 @@ namespace Bigarr.Api.Tests.Metadata;
 /// </summary>
 public static class TvdbRecorded
 {
+    /// <summary><c>GET /v4/search/remoteid/tt0903747</c>, trimmed: one record, only its <c>series</c> set.</summary>
+    public const string RemoteIdSeries81189 = """
+    {
+      "status": "success",
+      "data": [
+        {
+          "series": {
+            "id": 81189,
+            "name": "Breaking Bad",
+            "slug": "breaking-bad",
+            "firstAired": "2008-01-20",
+            "year": "2008"
+          },
+          "people": null,
+          "movie": null,
+          "episode": null,
+          "company": null
+        }
+      ]
+    }
+    """;
+
     /// <summary><c>GET /v4/series/81189/extended?meta=translations&amp;short=true</c>, trimmed.</summary>
     public const string SeriesExtended81189 = """
     {
