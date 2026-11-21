@@ -23,7 +23,8 @@ namespace Bigarr.Api.Features.Migration;
 /// saved play rules, a film's version told by the library's folders or the played resolution.</item>
 /// </list>
 /// Each stream remembers its row (<c>tautulli:&lt;id&gt;</c>), so a second run adds only rows Tautulli recorded since.
-/// A play Bigarr followed live wins over a row of the same user and item at the same time.
+/// A play Bigarr followed live wins over a row of the same user and item at the same time, and so does a stream it
+/// followed live into a play imported before (a viewing resumed live goes on that play).
 /// </summary>
 public sealed class TautulliImportService(
     BigarrDbContext db,
@@ -98,7 +99,7 @@ public sealed class TautulliImportService(
                     continue;
                 }
 
-                if (!group.Any(r => context.Imported.ContainsKey(r.Id)) && context.OverlapsLive(users[head.UserId], plan.RatingKey, head.StartedAt, group.Max(r => r.StoppedAt)))
+                if (context.FreshRows(group, users[head.UserId], plan.RatingKey).Count == 0)
                 {
                     overlapping++;
                     continue;
@@ -287,20 +288,21 @@ public sealed class TautulliImportService(
             return;
         }
 
-        var fresh = group.Where(r => !context.Imported.ContainsKey(r.Id)).ToList();
-        if (fresh.Count == 0)
+        if (group.All(r => context.Imported.ContainsKey(r.Id)))
         {
             progress.AlreadyImported();
             return;
         }
 
-        var userId = users[head.UserId];
-        var existingPlayId = group.Select(r => context.Imported.TryGetValue(r.Id, out var playId) ? playId : (int?)null).FirstOrDefault(id => id is not null);
-        if (existingPlayId is null && context.OverlapsLive(externalIds[head.UserId], plan.RatingKey, head.StartedAt, group.Max(r => r.StoppedAt)))
+        var fresh = context.FreshRows(group, externalIds[head.UserId], plan.RatingKey);
+        if (fresh.Count == 0)
         {
             progress.OverlappingLive();
             return;
         }
+
+        var userId = users[head.UserId];
+        var existingPlayId = group.Select(r => context.Imported.TryGetValue(r.Id, out var playId) ? playId : (int?)null).FirstOrDefault(id => id is not null);
 
         var duration = plan.DurationMs ?? group.Max(r => r.MediaDurationMs);
         ResolvedVersion? version = null;
@@ -349,7 +351,7 @@ public sealed class TautulliImportService(
             // before stopped, the first one the time played before its end.
             var start = previousEnd is { } resumedAt && resumedAt <= end ? resumedAt : Math.Max(0, end - played * 1000L);
             previousEnd = end;
-            if (context.Imported.ContainsKey(row.Id))
+            if (!fresh.Contains(row))
             {
                 continue;
             }
@@ -642,6 +644,12 @@ public sealed class TautulliImportService(
             .Where(p => p.Source == PlaySource.Live && p.User.MediaServerId == server.Id)
             .Select(p => new { p.User.ExternalId, p.Item.RatingKey, p.StartedAt, p.StoppedAt })
             .ToListAsync(ct);
+
+        // A viewing resumed live goes on the play it resumes, an imported one included: its streams have no key.
+        live.AddRange(await db.PlayStreams.AsNoTracking()
+            .Where(s => s.ExternalKey == null && s.Play.Source != PlaySource.Live && s.Play.User.MediaServerId == server.Id)
+            .Select(s => new { s.Play.User.ExternalId, s.Play.Item.RatingKey, s.StartedAt, s.StoppedAt })
+            .ToListAsync(ct));
         return new Context(
             films,
             imported,
@@ -756,6 +764,21 @@ public sealed class TautulliImportService(
     {
         public bool OverlapsLive(string externalId, string ratingKey, DateTime startedAt, DateTime stoppedAt) =>
             Live.TryGetValue((externalId, ratingKey), out var plays) && plays.Any(p => p.StartedAt < stoppedAt && p.StoppedAt > startedAt);
+
+        /// <summary>
+        /// The rows of a group still to import. A new play is left out whole when Bigarr followed it live; a play
+        /// imported before only gains the rows Bigarr did not follow live.
+        /// </summary>
+        public List<TautulliRow> FreshRows(List<TautulliRow> group, string externalId, string ratingKey)
+        {
+            var fresh = group.Where(r => !Imported.ContainsKey(r.Id)).ToList();
+            if (fresh.Count == group.Count)
+            {
+                return OverlapsLive(externalId, ratingKey, group[0].StartedAt, group.Max(r => r.StoppedAt)) ? [] : fresh;
+            }
+
+            return fresh.Where(r => !OverlapsLive(externalId, ratingKey, r.StartedAt, r.StoppedAt)).ToList();
+        }
     }
 
     private sealed class ItemPlan(TautulliItem source)

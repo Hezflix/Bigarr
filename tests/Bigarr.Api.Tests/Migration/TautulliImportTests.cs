@@ -247,6 +247,44 @@ public sealed class TautulliImportTests(BigarrApiFactory factory) : IClassFixtur
         Assert.Equal(0, fromUpload.GetProperty("playsAdded").GetInt32());
         Assert.True(fromUpload.GetProperty("uploadDeleted").GetBoolean());
         Assert.False(File.Exists(uploaded));
+
+        // Bigarr followed a viewing live that resumed the imported play: the stream went on that play, no key.
+        int pictureId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+            var picture = await db.Plays.Include(p => p.Streams).SingleAsync(p => p.Item.RatingKey == "20" && p.Item.MediaServerId == serverId);
+            pictureId = picture.Id;
+            picture.Streams.Add(new PlayStream
+            {
+                StartedAt = DateTime.UnixEpoch.AddSeconds(T0 + 20_000),
+                StoppedAt = DateTime.UnixEpoch.AddSeconds(T0 + 22_000),
+                EndOffsetMs = 2_000_000,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        // Tautulli recorded the same viewing, once on the imported play and once as a play of its own: both are left
+        // out. A later row Bigarr did not follow still joins the imported play.
+        InventedTautulli.AddRow(path, id: 14, referenceId: 3, started: T0 + 20_100, stopped: T0 + 21_900, ratingKey: 20, userId: 9001, viewOffsetMs: 2_000_000);
+        InventedTautulli.AddRow(path, id: 15, referenceId: 15, started: T0 + 20_500, stopped: T0 + 21_500, ratingKey: 20, userId: 9001, viewOffsetMs: 1_000_000);
+        InventedTautulli.AddRow(path, id: 16, referenceId: 3, started: T0 + 30_000, stopped: T0 + 31_000, ratingKey: 20, userId: 9001, viewOffsetMs: 3_000_000);
+        var resumedLive = await (await session.PostAsJsonAsync("/api/v1/migration/tautulli/preview", new { path, mediaServerId = serverId })).ReadJsonAsync();
+        Assert.Equal(2, resumedLive.GetProperty("overlappingLive").GetInt32());
+        Assert.Equal(1, resumedLive.GetProperty("moviePlays").GetInt32());
+
+        var afterLive = await ImportAsync(session, path, serverId);
+        Assert.Equal(0, afterLive.GetProperty("playsAdded").GetInt32());
+        Assert.Equal(1, afterLive.GetProperty("playsExtended").GetInt32());
+        Assert.Equal(1, afterLive.GetProperty("streamsAdded").GetInt32());
+        Assert.Equal(2, afterLive.GetProperty("overlappingLive").GetInt32());
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+            var keys = await db.PlayStreams.AsNoTracking().Where(s => s.PlayId == pictureId).Select(s => s.ExternalKey).ToListAsync();
+            Assert.Equal(["tautulli:13", "tautulli:16", "tautulli:3"], keys.OfType<string>().Order(StringComparer.Ordinal));
+            Assert.Single(keys, k => k is null);
+        }
     }
 
     [Fact]
