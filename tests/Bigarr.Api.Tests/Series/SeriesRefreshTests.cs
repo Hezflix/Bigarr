@@ -397,8 +397,10 @@ public sealed class SeriesRefreshTests : IDisposable
         return await db.Series.Where(s => s.Id == seriesId).Select(s => s.RefreshRefusedDetail).SingleAsync();
     }
 
-    [Fact]
-    public async Task A_show_tvdb_replaced_keeps_its_episodes_matched_by_number_under_the_new_ids()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task A_show_tvdb_replaced_keeps_its_episodes_matched_by_number_under_the_new_ids(bool foundByImdb)
     {
         // Six episodes and a second season TVDB later moved to another show.
         _provider.Show = Show([1, 2], Ep(101, 1, 1), Ep(102, 1, 2), Ep(103, 1, 3), Ep(104, 1, 4), Ep(105, 1, 5), Ep(106, 1, 6), Ep(201, 2, 1), Ep(202, 2, 2), Ep(203, 2, 3), Ep(204, 2, 4));
@@ -415,9 +417,16 @@ public sealed class SeriesRefreshTests : IDisposable
 
         var ids = await EpisodeIdsAsync(seriesId);
 
-        // TVDB removed show 1 and recreated it as 99: the old id answers nothing, TMDB points to the new one, whose
-        // episodes have new TVDB ids, the same numbers and air dates, one more episode, and no second season.
+        // TVDB removed show 1 and recreated it as 99: the old id answers nothing. The new show is found by its IMDb id on
+        // TVDB (TMDB still pointing to the removed id), or, without an IMDb id, through TMDB. Its episodes have new TVDB
+        // ids, the same numbers and air dates, one more episode, and no second season.
         _provider.Show = Show([1], Ep(901, 1, 1), Ep(902, 1, 2), Ep(903, 1, 3), Ep(904, 1, 4), Ep(905, 1, 5), Ep(906, 1, 6), Ep(907, 1, 7)) with { TvdbId = 99 };
+        _provider.TmdbBehind = foundByImdb;
+        if (!foundByImdb)
+        {
+            await using var db = _database.CreateContext();
+            await db.Series.Where(s => s.Id == seriesId).ExecuteUpdateAsync(u => u.SetProperty(s => s.ImdbId, (string?)null));
+        }
         await using (var db = _database.CreateContext())
         {
             var result = await Service(db).RefreshAsync(seriesId, CancellationToken.None);
@@ -603,6 +612,7 @@ public sealed class SeriesRefreshTests : IDisposable
     {
         TvdbId = 1,
         TmdbId = 2,
+        ImdbId = "tt0000001",
         Title = "Demo Show",
         Year = 2020,
         AirTime = "20:00",
@@ -637,7 +647,13 @@ public sealed class SeriesRefreshTests : IDisposable
         }
 
         public Task<SeriesMetadata?> GetByTmdbIdAsync(int tmdbId, bool withEpisodes, CancellationToken cancellationToken) =>
-            Task.FromResult(Show is not null && Show.TmdbId == tmdbId ? Show : null);
+            Task.FromResult(Show is not null && Show.TmdbId == tmdbId && !TmdbBehind ? Show : null);
+
+        public Task<SeriesMetadata?> GetByImdbIdAsync(string imdbId, bool withEpisodes, CancellationToken cancellationToken) =>
+            Task.FromResult(Show is not null && Show.ImdbId == imdbId ? Show : null);
+
+        /// <summary>TMDB still points to the TVDB id TVDB removed: asked by its TMDB id, the show is not found.</summary>
+        public bool TmdbBehind { get; set; }
 
         public Task<IReadOnlyList<SeriesMetadata>> SearchAsync(string query, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<SeriesMetadata>>(Show is null ? [] : [Show]);

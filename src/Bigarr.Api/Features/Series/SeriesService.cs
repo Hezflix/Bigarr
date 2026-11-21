@@ -599,6 +599,14 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         try
         {
             found = series.TvdbId is { } tvdbId ? await metadata.GetByTvdbIdAsync(tvdbId, withEpisodes: true, ct) : null;
+
+            // A TVDB id that answers nothing: TVDB may have replaced the show. TVDB itself finds it again by IMDb id,
+            // which does not depend on TMDB having caught up with the new TVDB id (nor on a TMDB key).
+            if (found is null && series.TvdbId is not null && series.ImdbId is { Length: > 0 } imdbId)
+            {
+                found = await metadata.GetByImdbIdAsync(imdbId, withEpisodes: true, ct);
+            }
+
             if (found is null && series.TmdbId is { } tmdbId)
             {
                 found = await metadata.GetByTmdbIdAsync(tmdbId, withEpisodes: true, ct);
@@ -640,7 +648,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         var before = series.Episodes.Count;
 
         // TVDB replaced the show (a duplicate removed, the show recreated): the stored TVDB id now answers nothing and the
-        // show comes back under its new id, through TMDB. Its episodes carry new TVDB ids too, so the stored ones match
+        // show comes back under its new id, through its IMDb id or TMDB. Its episodes carry new TVDB ids too, so the stored ones match
         // by number, confirmed by the air date or the title, like episodes without ids (Sonarr follows such a move too).
         var replacedTvdbId = series.TvdbId is { } oldTvdbId && found.TvdbId is { } newTvdbId && oldTvdbId != newTvdbId ? series.TvdbId : null;
         if (replacedTvdbId is not null)

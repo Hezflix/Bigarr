@@ -24,6 +24,13 @@ public interface ISeriesMetadataProvider
     /// <summary>Same, from a TMDB id: numbered by TVDB when TMDB knows the TVDB id, by TMDB alone otherwise.</summary>
     Task<SeriesMetadata?> GetByTmdbIdAsync(int tmdbId, bool withEpisodes, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The show TVDB lists under this IMDb id, numbered by TVDB: how a show TVDB replaced (old id removed, show recreated
+    /// under a new one) is found again without TMDB. Null when TVDB is not set, or no single show matches.
+    /// </summary>
+    Task<SeriesMetadata?> GetByImdbIdAsync(string imdbId, bool withEpisodes, CancellationToken cancellationToken) =>
+        Task.FromResult<SeriesMetadata?>(null);
+
     /// <summary>Search by name. Results carry ids and a poster, no episodes.</summary>
     Task<IReadOnlyList<SeriesMetadata>> SearchAsync(string query, CancellationToken cancellationToken);
 

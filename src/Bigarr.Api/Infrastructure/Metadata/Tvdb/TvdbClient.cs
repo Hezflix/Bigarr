@@ -33,6 +33,20 @@ public sealed class TvdbClient(HttpClient http, IOptions<TvdbOptions> options, I
         return envelope?.Data ?? [];
     }
 
+    /// <summary>TVDB records listing this remote id (IMDb <c>tt…</c>, …): shows, films, episodes or people.</summary>
+    public async Task<IReadOnlyList<TvdbRemoteIdHit>> SearchByRemoteIdAsync(string remoteId, CancellationToken cancellationToken)
+    {
+        using var response = await http.GetAsync($"search/remoteid/{Uri.EscapeDataString(remoteId)}", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return [];
+        }
+
+        response.EnsureSuccessStatusCode();
+        var envelope = await response.Content.ReadFromJsonAsync<TvdbEnvelope<List<TvdbRemoteIdHit>>>(Json, cancellationToken);
+        return envelope?.Data ?? [];
+    }
+
     public async Task<TvdbSeriesExtended?> GetSeriesAsync(int tvdbId, CancellationToken cancellationToken)
     {
         using var response = await http.GetAsync($"series/{tvdbId}/extended?meta=translations&short=true", cancellationToken);

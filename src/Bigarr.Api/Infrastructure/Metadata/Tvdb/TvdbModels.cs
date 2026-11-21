@@ -64,6 +64,19 @@ public sealed class TvdbSearchHit
     public List<TvdbRemoteId>? RemoteIds { get; set; }
 }
 
+/// <summary>One record of <c>search/remoteid</c>: only the kind matched is set (series, movie, episode…).</summary>
+public sealed class TvdbRemoteIdHit
+{
+    public TvdbRemoteIdRecord? Series { get; set; }
+
+    public TvdbRemoteIdRecord? Movie { get; set; }
+}
+
+public sealed class TvdbRemoteIdRecord
+{
+    public int Id { get; set; }
+}
+
 public sealed class TvdbRemoteId
 {
     public string? Id { get; set; }
