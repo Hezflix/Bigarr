@@ -135,6 +135,33 @@ public sealed class SeriesRefreshWithoutTvdbTests(KeylessSeriesApiFactory factor
         Assert.DoesNotContain(clear.Issues, i => i.Message.StartsWith("TVDB key missing", StringComparison.Ordinal) || i.Message.StartsWith("TVDB failing", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task A_refusal_stored_on_the_show_stays_in_health_with_nothing_in_memory()
+    {
+        // As after a restart: the refusal is on the show, the in-memory alerts are empty. The health check must keep the
+        // warning (it used to resolve it, and a Discord "Health Issue Resolved" went out for nothing).
+        var client = await ClientAsync(factory);
+        var series = await SeriesSetup.AddAsync(client, SeriesSearchTests.BreakingBad);
+        const string detail = "Breaking Bad: the refresh would remove 62 of 62 episodes and add 40; refused, nothing changed";
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+            await db.Series.Where(s => s.Id == series.Id).ExecuteUpdateAsync(u => u.SetProperty(s => s.RefreshRefusedDetail, detail));
+        }
+
+        try
+        {
+            var health = (await (await client.PostAsync("/api/v1/health/check", null)).Content.ReadFromJsonAsync<HealthResponse>(Json))!;
+            Assert.Contains(health.Issues, i => i.Source == SeriesRefreshJob.JobName && i.Message == $"The safety net refused the refresh of 1 series, their episodes are unchanged: {detail}");
+        }
+        finally
+        {
+            using var scope = factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+            await db.Series.Where(s => s.Id == series.Id).ExecuteUpdateAsync(u => u.SetProperty(s => s.RefreshRefusedDetail, (string?)null));
+        }
+    }
+
     private static async Task<TaskRunResponse> RunRefreshAsync(HttpClient client)
     {
         var run = await client.PostAsync($"/api/v1/system/tasks/{SeriesRefreshJob.JobName}/run", null);

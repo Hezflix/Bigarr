@@ -3830,6 +3830,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<string>("Overview")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("RefreshRefusedDetail")
+                        .HasColumnType("TEXT");
+
                     b.Property<int?>("Runtime")
                         .HasColumnType("INTEGER");
 
