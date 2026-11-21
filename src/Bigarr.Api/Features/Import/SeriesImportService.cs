@@ -366,19 +366,21 @@ public sealed class SeriesImportService(
             others = await db.EpisodeTargets.Include(t => t.Episode).Where(t => t.EpisodeFileId != null && ids.Contains(t.EpisodeFileId.Value)).ToListAsync(ct);
         }
 
-        // A file at the destination goes first so the new one can take its name; the source itself (a library file
-        // assigned again by hand) is moved, never recycled.
+        // A file at the destination leaves only once the new one is complete next to it, so a failed transfer costs
+        // nothing; the source itself (a library file assigned again by hand) is moved, never recycled.
         bool IsSource(EpisodeFile f) => inPlace is not null && f.Id == inPlace.Id;
+        var transferMode = inPlace is not null ? TransferMode.Move : plan.Mode;
+        TransferOutcome? outcome = null;
         if (replacesInPlace is not null && !alreadyThere && !IsSource(replacesInPlace))
         {
-            recycled[replacesInPlace.Id] = RecycleQuietly(existingPaths[replacesInPlace.Id], config, version.RootFolder.Path);
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            outcome = await transfer.ReplaceAsync(source.FullName, destination, transferMode,
+                () => recycled[replacesInPlace.Id] = recycleBin.RemoveFile(existingPaths[replacesInPlace.Id], config.RecycleBinPath, version.RootFolder.Path), ct);
         }
-
-        TransferOutcome? outcome = null;
-        if (!alreadyThere)
+        else if (!alreadyThere)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            outcome = await transfer.TransferAsync(source.FullName, destination, inPlace is not null ? TransferMode.Move : plan.Mode, ct);
+            outcome = await transfer.TransferAsync(source.FullName, destination, transferMode, ct);
         }
 
         foreach (var old in existing.Where(f => !IsSource(f)))

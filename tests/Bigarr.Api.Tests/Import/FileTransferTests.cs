@@ -82,6 +82,82 @@ public sealed class FileTransferTests : IDisposable
         await Assert.ThrowsAsync<FileNotFoundException>(() => _transfer.TransferAsync(Path.Combine(_root, "nope.mkv"), Path.Combine(_root, "x.mkv"), TransferMode.Copy, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task Replacing_brings_the_new_file_in_before_the_old_one_leaves()
+    {
+        var source = Write("downloads/new.mkv", 2048);
+        var destination = Write("library/Movie/Movie.mkv", 512);
+        var oldBytes = File.ReadAllBytes(destination);
+        var newBytes = File.ReadAllBytes(source);
+        var bin = Path.Combine(_root, "bin");
+        var sawStagedBesideOld = false;
+
+        var outcome = await _transfer.ReplaceAsync(source, destination, TransferMode.Copy, () =>
+        {
+            // The new file is complete next to the old one when the old one is asked to leave.
+            sawStagedBesideOld = File.Exists(destination + ".bigarr-partial") && File.ReadAllBytes(destination).SequenceEqual(oldBytes);
+            Directory.CreateDirectory(bin);
+            File.Move(destination, Path.Combine(bin, "Movie.mkv"));
+        }, CancellationToken.None);
+
+        Assert.Equal(TransferOutcome.Copied, outcome);
+        Assert.True(sawStagedBesideOld);
+        Assert.Equal(newBytes, File.ReadAllBytes(destination));
+        Assert.Equal(oldBytes, File.ReadAllBytes(Path.Combine(bin, "Movie.mkv")));
+        Assert.True(File.Exists(source));
+        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(destination)!, "*.bigarr-partial"));
+    }
+
+    [Fact]
+    public async Task A_replacement_whose_transfer_fails_leaves_the_old_file_alone()
+    {
+        var source = Write("downloads/new.mkv", 2048);
+        var destination = Write("library/Movie/Movie.mkv", 512);
+        var oldBytes = File.ReadAllBytes(destination);
+        var retired = false;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            _transfer.ReplaceAsync(source, destination, TransferMode.Copy, () => retired = true, new CancellationToken(canceled: true)));
+
+        Assert.False(retired);
+        Assert.Equal(oldBytes, File.ReadAllBytes(destination));
+        Assert.True(File.Exists(source));
+        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(destination)!, "*.bigarr-partial"));
+    }
+
+    [Fact]
+    public async Task A_replacement_whose_old_file_cannot_be_retired_puts_everything_back()
+    {
+        foreach (var mode in new[] { TransferMode.Copy, TransferMode.Move })
+        {
+            var source = Write($"downloads/{mode}/new.mkv", 2048);
+            var destination = Write($"library/{mode}/Movie.mkv", 512);
+            var oldBytes = File.ReadAllBytes(destination);
+            var sourceBytes = File.ReadAllBytes(source);
+
+            await Assert.ThrowsAsync<IOException>(() =>
+                _transfer.ReplaceAsync(source, destination, mode, () => throw new IOException("locked"), CancellationToken.None));
+
+            Assert.Equal(oldBytes, File.ReadAllBytes(destination));
+            Assert.Equal(sourceBytes, File.ReadAllBytes(source));
+            Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(destination)!, "*.bigarr-partial"));
+        }
+    }
+
+    [Fact]
+    public async Task A_partial_file_left_by_a_killed_replacement_is_overwritten()
+    {
+        var source = Write("downloads/new.mkv", 2048);
+        var destination = Write("library/Movie/Movie.mkv", 512);
+        var newBytes = File.ReadAllBytes(source);
+        await File.WriteAllBytesAsync(destination + ".bigarr-partial", new byte[100]);
+
+        await _transfer.ReplaceAsync(source, destination, TransferMode.Copy, () => File.Delete(destination), CancellationToken.None);
+
+        Assert.Equal(newBytes, File.ReadAllBytes(destination));
+        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(destination)!, "*.bigarr-partial"));
+    }
+
     private string Write(string relative, int bytes)
     {
         var path = Path.Combine(_root, relative);
