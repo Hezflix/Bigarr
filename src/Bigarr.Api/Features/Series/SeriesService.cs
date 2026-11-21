@@ -648,12 +648,12 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         {
             var detail = $"{series.Title}: the refresh would remove {sync.Removed.Count} of {before} episodes and add {sync.Added.Count}; refused, nothing changed";
             db.ChangeTracker.Clear();
-            alerts.Refuse(seriesId, detail);
+            await db.Series.Where(s => s.Id == seriesId).ExecuteUpdateAsync(u => u.SetProperty(s => s.RefreshRefusedDetail, detail), ct);
             logger.LogWarning("Series refresh refused for {Detail}", detail);
             return new Failure(StatusCodes.Status409Conflict, "Refresh refused", detail);
         }
 
-        alerts.Accepted(seriesId);
+        series.RefreshRefusedDetail = null;
 
         // TheXEM's map is read again only for new episodes or when it is older than the kept-for window (a day by default).
         await xem.RefreshSeriesAsync(series, series.Episodes.ToList(), ct, sync.Added.Count > 0 ? null : xem.MapMaxAge);

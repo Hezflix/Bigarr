@@ -378,7 +378,8 @@ public sealed class SeriesRefreshTests : IDisposable
         }
 
         Assert.Equal(before, await SnapshotAsync(seriesId));
-        Assert.Contains("would remove 6 of 6 episodes and add 6", _alerts.Refused[seriesId], StringComparison.Ordinal);
+        // Stored on the show, so a restart does not forget it (read back through a fresh context).
+        Assert.Contains("would remove 6 of 6 episodes and add 6", await RefusedDetailAsync(seriesId), StringComparison.Ordinal);
 
         // Half of them renumbered under new ids is still an update (not more than half gone).
         _provider.Show = Show([1], Ep(101, 1, 1), Ep(102, 1, 2), Ep(103, 1, 3), Ep(904, 1, 4), Ep(905, 1, 5), Ep(906, 1, 6));
@@ -387,7 +388,13 @@ public sealed class SeriesRefreshTests : IDisposable
             Assert.True((await Service(db).RefreshAsync(seriesId, CancellationToken.None)).IsSuccess);
         }
 
-        Assert.False(_alerts.Refused.ContainsKey(seriesId));
+        Assert.Null(await RefusedDetailAsync(seriesId));
+    }
+
+    private async Task<string?> RefusedDetailAsync(int seriesId)
+    {
+        await using var db = _database.CreateContext();
+        return await db.Series.Where(s => s.Id == seriesId).Select(s => s.RefreshRefusedDetail).SingleAsync();
     }
 
     [Fact]

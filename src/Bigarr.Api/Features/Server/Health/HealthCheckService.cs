@@ -234,11 +234,13 @@ public sealed class HealthCheckService(
                 $"TVDB failing since {tvdb.At:yyyy-MM-dd HH:mm} UTC: series episode lists are not refreshed until it answers ({tvdb.Reason})."));
         }
 
-        if (refreshAlerts.Refused.Count > 0)
+        // Read from the shows, not from memory: a restart must not resolve a refusal the next refresh would raise again.
+        var refusedCount = await db.Series.CountAsync(s => s.RefreshRefusedDetail != null, ct);
+        if (refusedCount > 0)
         {
-            var refused = refreshAlerts.Refused.Values.Take(3).ToList();
+            var refused = await db.Series.Where(s => s.RefreshRefusedDetail != null).OrderBy(s => s.SortTitle).Select(s => s.RefreshRefusedDetail!).Take(3).ToListAsync(ct);
             issues.Add(new HealthIssue("seriesRefresh", HealthIssueType.Warning,
-                $"The safety net refused the refresh of {refreshAlerts.Refused.Count} series, their episodes are unchanged: {string.Join(" · ", refused)}{(refreshAlerts.Refused.Count > refused.Count ? " · …" : string.Empty)}"));
+                $"The safety net refused the refresh of {refusedCount} series, their episodes are unchanged: {string.Join(" · ", refused)}{(refusedCount > refused.Count ? " · …" : string.Empty)}"));
         }
 
         if (scheduler.TryGet(Series.SeriesRefreshJob.JobName, out var refresh) && refresh.LastSucceeded == false)

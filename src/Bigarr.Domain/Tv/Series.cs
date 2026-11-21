@@ -85,6 +85,12 @@ public sealed class Series
 
     public DateTime? LastMetadataRefreshAt { get; set; }
 
+    /// <summary>
+    /// Why the refresh's safety net last refused this show (what it would have removed and added); null once a refresh
+    /// goes through. Stored so the health check keeps saying it across a restart.
+    /// </summary>
+    public string? RefreshRefusedDetail { get; set; }
+
     /// <summary>TheXEM has a scene ↔ TVDB mapping for this show: releases may number episodes differently from TVDB.</summary>
     public bool UseSceneNumbering { get; set; }
 
