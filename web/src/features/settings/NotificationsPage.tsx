@@ -15,6 +15,7 @@ import {
   type DiscordGrabField,
   type DiscordImportField,
   type DiscordManualInteractionField,
+  type DiscordSettings,
   type NotificationEndpoint,
   type NotificationEndpointRequest,
   type NotificationEventType,
@@ -43,6 +44,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatAge, formatDateTime } from '@/i18n'
+import { DiscordPreviewPanel } from './DiscordPreview'
 
 const enabledStyle = 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300'
 const mutedStyle = 'border-border bg-muted text-muted-foreground'
@@ -370,6 +372,15 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
   const view = form.viewKind === 'version' ? `version:${slugify(form.versionName)}` : form.viewKind
   const discord = form.format === 'discord'
 
+  const discordSettings = (): DiscordSettings => ({
+    username: form.discord.username.trim() || null,
+    avatar: form.discord.avatar.trim() || null,
+    author: form.discord.author.trim() || null,
+    grabFields: form.discord.grabFields,
+    importFields: form.discord.importFields,
+    manualInteractionFields: form.discord.manualInteractionFields,
+  })
+
   // An empty secret on an edit keeps the endpoint unsigned: the API stores what it is sent, and the secret is never read back.
   // Discord has nothing to check a signature with.
   const payload = (): NotificationEndpointRequest => ({
@@ -381,16 +392,7 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
     tags: form.tags,
     format: form.format,
     view: hasView(form.format) ? view : 'default',
-    discord: discord
-      ? {
-          username: form.discord.username.trim() || null,
-          avatar: form.discord.avatar.trim() || null,
-          author: form.discord.author.trim() || null,
-          grabFields: form.discord.grabFields,
-          importFields: form.discord.importFields,
-          manualInteractionFields: form.discord.manualInteractionFields,
-        }
-      : null,
+    discord: discord ? discordSettings() : null,
   })
 
   // Switching to Radarr's, Sonarr's or Discord's format drops the events it cannot send, so the selection never says more than what goes out.
@@ -431,7 +433,7 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className={cn('max-h-[90vh] overflow-y-auto', discord ? 'sm:max-w-3xl' : 'sm:max-w-2xl')}>
         <form onSubmit={submit} data-testid="notification-form">
           <DialogHeader>
             <DialogTitle>{endpoint ? t('notifications.editTitle', { name: endpoint.name }) : t('notifications.new')}</DialogTitle>
@@ -541,28 +543,35 @@ function NotificationDialog({ endpoint, onClose, onSaved }: { endpoint: Notifica
                   <Input id="nt-discord-avatar" value={form.discord.avatar} onChange={(e) => setDiscord('avatar', e.target.value)} placeholder="https://example.org/avatar.png" />
                   <p className="text-xs text-muted-foreground">{t('notifications.discordAvatarHint')}</p>
                 </div>
-                <details className="sm:col-span-2" data-testid="notification-discord-fields">
-                  <summary className="cursor-pointer text-sm font-medium">{t('notifications.discordFields')}</summary>
-                  <p className="mt-2 text-xs text-muted-foreground">{t('notifications.discordFieldsHint')}</p>
-                  <DiscordFieldSet
-                    legend={t('notifications.discordGrabFields')}
-                    options={discordGrabFields}
-                    chosen={form.discord.grabFields}
-                    onToggle={(field) => setDiscord('grabFields', toggle(form.discord.grabFields, field, discordGrabFields))}
-                  />
-                  <DiscordFieldSet
-                    legend={t('notifications.discordImportFields')}
-                    options={discordImportFields}
-                    chosen={form.discord.importFields}
-                    onToggle={(field) => setDiscord('importFields', toggle(form.discord.importFields, field, discordImportFields))}
-                  />
-                  <DiscordFieldSet
-                    legend={t('notifications.discordManualInteractionFields')}
-                    options={discordManualInteractionFields}
-                    chosen={form.discord.manualInteractionFields}
-                    onToggle={(field) => setDiscord('manualInteractionFields', toggle(form.discord.manualInteractionFields, field, discordManualInteractionFields))}
-                  />
-                </details>
+                <DiscordPreviewPanel
+                  settings={discordSettings()}
+                  events={form.events}
+                  types={types.data}
+                  fields={(kind) =>
+                    kind === 'grab' ? (
+                      <DiscordFieldSet
+                        legend={t('notifications.discordGrabFields')}
+                        options={discordGrabFields}
+                        chosen={form.discord.grabFields}
+                        onToggle={(field) => setDiscord('grabFields', toggle(form.discord.grabFields, field, discordGrabFields))}
+                      />
+                    ) : kind === 'import' ? (
+                      <DiscordFieldSet
+                        legend={t('notifications.discordImportFields')}
+                        options={discordImportFields}
+                        chosen={form.discord.importFields}
+                        onToggle={(field) => setDiscord('importFields', toggle(form.discord.importFields, field, discordImportFields))}
+                      />
+                    ) : (
+                      <DiscordFieldSet
+                        legend={t('notifications.discordManualInteractionFields')}
+                        options={discordManualInteractionFields}
+                        chosen={form.discord.manualInteractionFields}
+                        onToggle={(field) => setDiscord('manualInteractionFields', toggle(form.discord.manualInteractionFields, field, discordManualInteractionFields))}
+                      />
+                    )
+                  }
+                />
               </>
             )}
 

@@ -1,4 +1,5 @@
 using System.Net.ServerSentEvents;
+using Bigarr.Api.Features.Notifications.Discord;
 using Bigarr.Api.Infrastructure.Auth;
 using Bigarr.Api.Infrastructure.Events;
 using Bigarr.Domain.Events;
@@ -51,6 +52,10 @@ public static class NotificationsEndpoints
             var result = await notifications.TestAsync(request, null, ct);
             return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
         });
+
+        // The Discord messages the form's settings would post, around a film and a show of the library. Nothing is posted.
+        group.MapPost("/discord/preview", async Task<Ok<List<DiscordPreviewResponse>>> (DiscordPreviewRequest request, DiscordPreviewService preview, CancellationToken ct) =>
+            TypedResults.Ok(await preview.PreviewAsync(request, ct)));
 
         group.MapPost("/{id:int}/test", async Task<Results<Ok<WebhookTestResponse>, ProblemHttpResult>> (int id, NotificationService notifications, CancellationToken ct) =>
         {
