@@ -653,6 +653,17 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         var replacedTvdbId = series.TvdbId is { } oldTvdbId && found.TvdbId is { } newTvdbId && oldTvdbId != newTvdbId ? series.TvdbId : null;
         if (replacedTvdbId is not null)
         {
+            // The new id may already be another show of the library (added on its own since): the two are not merged
+            // here. Refused, nothing changed, said in the log and the health check until the user sorts it out.
+            if (await db.Series.Where(s => s.Id != seriesId && s.TvdbId == found.TvdbId).Select(s => s.Title).FirstOrDefaultAsync(ct) is { } other)
+            {
+                var conflict = $"{series.Title}: TVDB replaced show {replacedTvdbId} by {found.TvdbId}, which is already in the library as {other}; refused, nothing changed";
+                db.ChangeTracker.Clear();
+                await db.Series.Where(s => s.Id == seriesId).ExecuteUpdateAsync(u => u.SetProperty(s => s.RefreshRefusedDetail, conflict), ct);
+                logger.LogWarning("Series refresh refused for {Detail}", conflict);
+                return new Failure(StatusCodes.Status409Conflict, "Refresh refused", conflict);
+            }
+
             logger.LogWarning("{Series}: TVDB replaced show {Old} by {New}; episodes matched by number", series.Title, replacedTvdbId, found.TvdbId);
         }
 

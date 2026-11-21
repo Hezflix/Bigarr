@@ -152,7 +152,7 @@ public sealed class SeriesRefreshWithoutTvdbTests(KeylessSeriesApiFactory factor
         try
         {
             var health = (await (await client.PostAsync("/api/v1/health/check", null)).Content.ReadFromJsonAsync<HealthResponse>(Json))!;
-            Assert.Contains(health.Issues, i => i.Source == SeriesRefreshJob.JobName && i.Message == $"The safety net refused the refresh of 1 series, their episodes are unchanged: {detail}");
+            Assert.Contains(health.Issues, i => i.Source == SeriesRefreshJob.JobName && i.Message == $"The refresh of 1 series was refused, their episodes are unchanged: {detail}");
         }
         finally
         {

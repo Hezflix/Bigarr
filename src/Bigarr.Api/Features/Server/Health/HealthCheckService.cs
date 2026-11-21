@@ -240,7 +240,7 @@ public sealed class HealthCheckService(
         {
             var refused = await db.Series.Where(s => s.RefreshRefusedDetail != null).OrderBy(s => s.SortTitle).Select(s => s.RefreshRefusedDetail!).Take(3).ToListAsync(ct);
             issues.Add(new HealthIssue("seriesRefresh", HealthIssueType.Warning,
-                $"The safety net refused the refresh of {refusedCount} series, their episodes are unchanged: {string.Join(" · ", refused)}{(refusedCount > refused.Count ? " · …" : string.Empty)}"));
+                $"The refresh of {refusedCount} series was refused, their episodes are unchanged: {string.Join(" · ", refused)}{(refusedCount > refused.Count ? " · …" : string.Empty)}"));
         }
 
         if (scheduler.TryGet(Series.SeriesRefreshJob.JobName, out var refresh) && refresh.LastSucceeded == false)

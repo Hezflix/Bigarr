@@ -444,6 +444,33 @@ public sealed class SeriesRefreshTests : IDisposable
     }
 
     [Fact]
+    public async Task A_show_tvdb_replaced_by_a_show_already_in_the_library_is_refused_and_said()
+    {
+        _provider.Show = Show([1], Ep(101, 1, 1), Ep(102, 1, 2), Ep(103, 1, 3), Ep(104, 1, 4));
+        var (seriesId, _, _) = await SeedAsync();
+        await using (var db = _database.CreateContext())
+        {
+            // The new TVDB show was added to the library on its own in the meantime.
+            var root = await db.RootFolders.FirstAsync();
+            db.Series.Add(new Bigarr.Domain.Tv.Series { TvdbId = 99, Title = "Demo Show (new)", SortTitle = "demo show new", DefaultRootFolderId = root.Id, AddedAt = Now.UtcDateTime });
+            await db.SaveChangesAsync();
+        }
+
+        var before = await SnapshotAsync(seriesId);
+        _provider.Show = Show([1], Ep(901, 1, 1), Ep(902, 1, 2), Ep(903, 1, 3), Ep(904, 1, 4)) with { TvdbId = 99 };
+        await using (var db = _database.CreateContext())
+        {
+            var result = await Service(db).RefreshAsync(seriesId, CancellationToken.None);
+            Assert.Equal(409, result.Failure!.StatusCode);
+        }
+
+        Assert.Equal(before, await SnapshotAsync(seriesId));
+        await using var check = _database.CreateContext();
+        Assert.Equal(1, await check.Series.Where(s => s.Id == seriesId).Select(s => s.TvdbId).SingleAsync());
+        Assert.Equal("Demo Show: TVDB replaced show 1 by 99, which is already in the library as Demo Show (new); refused, nothing changed", await RefusedDetailAsync(seriesId));
+    }
+
+    [Fact]
     public async Task An_episode_without_ids_matches_the_stored_one_by_numbers_and_air_date_or_title()
     {
         _provider.Show = Show([1], Ep(101, 1, 1), Ep(102, 1, 2), Ep(103, 1, 3));
