@@ -258,6 +258,7 @@ derived from the row.
 | rename, order switch, undo | files moved, then one save | guarded since [F5](#f5-a-rename-or-order-switch-whose-caller-went-away-left-disk-and-database-apart) |
 | delete a version with its files | checks, then file, then row | guarded since [F1](#f1-deleting-the-default-version-with-its-files-destroyed-the-file-then-refused) |
 | delete a series or a version with its files | folders, then rows, the rows whatever becomes of the request | guarded since [F15](#f15-a-series-delete-whose-caller-went-away-left-the-series-with-no-files) |
+| delete a film, a film version or a film's file | file or folders, then rows, the rows whatever becomes of the request | guarded since [F26](#f26-a-film-delete-whose-caller-went-away-left-a-version-with-a-file-that-was-gone) |
 
 Invariants the code assumes: a file row means the file exists; one physical file has one row, also when two versions
 of a show share a folder ([F8](#f8-two-versions-of-a-show-sharing-a-folder-claimed-each-others-files)); no scan ever
@@ -732,6 +733,18 @@ to an ordinary role kept full access to those surfaces, which can delete films w
 Fix: the `ApiKey` policy requires the admin role, read from the owner at each request. A key is not revoked by a
 demotion: it works again if its owner is made admin again, like a disabled user's.
 Test: `UsersAndRolesTests.A_demoted_admin_s_key_no_longer_opens_the_compat_surfaces`.
+
+#### F26. A film delete whose caller went away left a version with a file that was gone
+
+The film side of [F15](#f15-a-series-delete-whose-caller-went-away-left-the-series-with-no-files): the file left the
+disk, then the rows were saved with the request's token. A caller that went away in between left a version that
+still named a file that no longer existed, with no history line and no event; the next scan does not drop such a row.
+
+Fix: once the file (or the folders) are gone, the rows follow whatever becomes of the request (version delete, film
+delete, file-only delete). Everything that can refuse the delete still runs before the first disk operation, with
+the live token.
+Tests: `InterruptedMovieDeleteTests` (file delete, version delete, last version delete). The folder delete of
+`DeleteMovieAsync` shares `RemoveMovieAsync` with the last-version case and is not tested on its own.
 
 ### Open
 
