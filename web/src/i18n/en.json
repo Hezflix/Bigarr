@@ -688,6 +688,7 @@
   "movie": {
     "notFound": "Movie not found.",
     "refresh": "Refresh metadata",
+    "manualImport": "Manual import",
     "delete": "Delete",
     "confirmDelete": "Delete “{{title}}” and all its versions? Files stay on disk.",
     "confirmExclude": "Also exclude this movie from future automatic additions?",
@@ -1252,6 +1253,9 @@
     "retryImportFailed": "The import could not be retried.",
     "importQueued": "Import queued again.",
     "manualImport": "Import by hand…",
+    "manualImportOpen": "Manual import",
+    "manualImportFilms": "Films…",
+    "manualImportSeries": "Series…",
     "addedByHand": "Added by hand"
   },
   "rename": {

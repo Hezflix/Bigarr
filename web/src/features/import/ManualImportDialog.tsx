@@ -21,8 +21,9 @@ type Selection = { selected: boolean; movieId: number | null; versionId: number 
 /**
  * Manual import: the files under a path or behind a queued download, each with the film, version and
  * quality Bigarr guessed and the verdict of every version; the user corrects and imports, forced.
+ * Opened from a film's page, `movieId` is the film the files Bigarr could not match go to.
  */
-export function ManualImportDialog({ grabId, path: initialPath, title, onClose }: { grabId?: number; path?: string; title?: string; onClose: () => void }) {
+export function ManualImportDialog({ grabId, path: initialPath, movieId: forMovieId, title, onClose }: { grabId?: number; path?: string; movieId?: number; title?: string; onClose: () => void }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [path, setPath] = useState(initialPath ?? '')
@@ -41,25 +42,34 @@ export function ManualImportDialog({ grabId, path: initialPath, title, onClose }
   const library = useQuery({ queryKey: ['movies'], queryFn: movies.list })
   const qualities = useQuery({ queryKey: ['qualityDefinitions'], queryFn: quality.definitions })
 
-  // Bigarr's guesses seed the form once per listing; the user's changes then win.
+  // Bigarr's guesses seed the form once per listing, the page's film filling in where it found none; the user's changes then win.
+  // Ids, not the film: the library refetches after an import, and a new object would wipe the results shown.
+  const forMovie = forMovieId === undefined ? undefined : library.data?.find((m) => m.id === forMovieId)
+  const fallbackMovieId = forMovie?.id ?? null
+  const fallbackVersionId = (forMovie?.versions.find((v) => v.isDefault) ?? forMovie?.versions[0])?.id ?? null
   useEffect(() => {
     if (!listing.data) return
     setSelections(
       Object.fromEntries(
-        listing.data.files.map((f) => [
-          f.path,
-          {
-            selected: !f.isSample && f.movieId !== null && f.versionId !== null,
-            movieId: f.movieId,
-            versionId: f.versionId,
-            qualityId: f.qualityId,
-            extras: f.extras.map((e) => e.path),
-          } satisfies Selection,
-        ]),
+        listing.data.files.map((f) => {
+          const guessed = f.movieId !== null
+          const movieId = guessed ? f.movieId : fallbackMovieId
+          const versionId = guessed ? f.versionId : fallbackVersionId
+          return [
+            f.path,
+            {
+              selected: !f.isSample && movieId !== null && versionId !== null,
+              movieId,
+              versionId,
+              qualityId: f.qualityId,
+              extras: f.extras.map((e) => e.path),
+            } satisfies Selection,
+          ]
+        }),
       ),
     )
     setResults(null)
-  }, [listing.data])
+  }, [listing.data, fallbackMovieId, fallbackVersionId])
 
   const sortedMovies = useMemo(() => [...(library.data ?? [])].sort((a, b) => a.sortTitle.localeCompare(b.sortTitle)), [library.data])
 

@@ -1,13 +1,13 @@
 import type { FormEvent, ReactNode } from 'react'
 import { cn } from 'cn'
 import { useTranslation } from 'react-i18next'
+import { PathPicker } from '@/components/PathPicker'
 import { ApiError, type ManualImportExtra, type QualityDefinition, type TransferMode } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DialogFooter } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -26,13 +26,15 @@ export function ImportPathForm({ id, path, onPath, placeholder, loading, onLoad 
   const { t } = useTranslation()
   const load = (e: FormEvent) => {
     e.preventDefault()
+    // Enter keeps the focus in the path field: leaving it closes the folder suggestions over the listing.
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
     if (path.trim()) onLoad(path.trim())
   }
   return (
     <form className="flex flex-wrap items-end gap-2" onSubmit={load}>
       <div className="grid min-w-64 flex-1 gap-2">
         <Label htmlFor={id}>{t('manualImport.path')}</Label>
-        <Input id={id} value={path} onChange={(e) => onPath(e.target.value)} placeholder={placeholder} className="font-mono text-xs" />
+        <PathPicker id={id} value={path} onChange={onPath} placeholder={placeholder} className="font-mono text-xs" testId={`${id}-input`} />
       </div>
       <Button type="submit" variant="outline" disabled={!path.trim() || loading}>
         {t('manualImport.load')}
