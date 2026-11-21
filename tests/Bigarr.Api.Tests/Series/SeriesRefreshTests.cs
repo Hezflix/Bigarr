@@ -398,6 +398,43 @@ public sealed class SeriesRefreshTests : IDisposable
     }
 
     [Fact]
+    public async Task A_show_tvdb_replaced_keeps_its_episodes_matched_by_number_under_the_new_ids()
+    {
+        // Six episodes and a second season TVDB later moved to another show.
+        _provider.Show = Show([1, 2], Ep(101, 1, 1), Ep(102, 1, 2), Ep(103, 1, 3), Ep(104, 1, 4), Ep(105, 1, 5), Ep(106, 1, 6), Ep(201, 2, 1), Ep(202, 2, 2), Ep(203, 2, 3), Ep(204, 2, 4));
+        var (seriesId, _, _) = await SeedAsync();
+        await using (var db = _database.CreateContext())
+        {
+            foreach (var target in await db.EpisodeTargets.ToListAsync())
+            {
+                target.Monitored = false; // nothing protects them but the safety net
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        var ids = await EpisodeIdsAsync(seriesId);
+
+        // TVDB removed show 1 and recreated it as 99: the old id answers nothing, TMDB points to the new one, whose
+        // episodes have new TVDB ids, the same numbers and air dates, one more episode, and no second season.
+        _provider.Show = Show([1], Ep(901, 1, 1), Ep(902, 1, 2), Ep(903, 1, 3), Ep(904, 1, 4), Ep(905, 1, 5), Ep(906, 1, 6), Ep(907, 1, 7)) with { TvdbId = 99 };
+        await using (var db = _database.CreateContext())
+        {
+            var result = await Service(db).RefreshAsync(seriesId, CancellationToken.None);
+            Assert.True(result.IsSuccess, result.Failure?.Detail);
+        }
+
+        await using var check = _database.CreateContext();
+        Assert.Equal(99, await check.Series.Where(s => s.Id == seriesId).Select(s => s.TvdbId).SingleAsync());
+        var episodes = await check.Episodes.Where(e => e.SeriesId == seriesId).ToDictionaryAsync(e => e.TvdbId!.Value, e => e.Id);
+
+        // Same rows (and every version's state on them) under the new ids; the new episode added; the moved season gone.
+        Assert.Equal(Enumerable.Range(1, 6).Select(n => ids[100 + n]), Enumerable.Range(1, 6).Select(n => episodes[900 + n]));
+        Assert.Contains(907, episodes.Keys);
+        Assert.Equal(7, episodes.Count);
+    }
+
+    [Fact]
     public async Task An_episode_without_ids_matches_the_stored_one_by_numbers_and_air_date_or_title()
     {
         _provider.Show = Show([1], Ep(101, 1, 1), Ep(102, 1, 2), Ep(103, 1, 3));
