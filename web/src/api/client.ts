@@ -1026,6 +1026,12 @@ export type WebhookDeliveryState = Schemas['WebhookDeliveryState']
 
 export type WebhookDelivery = Schemas['WebhookDeliveryResponse']
 
+/** Discord's "execute webhook" body, exactly what a delivery would post. */
+export type DiscordPayload = Schemas['DiscordPayload']
+export type DiscordEmbed = Schemas['DiscordEmbed']
+
+export type DiscordPreview = Schemas['DiscordPreviewResponse']
+
 export const notifications = {
   list: () => api<NotificationEndpoint[]>('/api/v1/notifications'),
   get: (id: number) => api<NotificationEndpoint>(`/api/v1/notifications/${id}`),
@@ -1039,6 +1045,8 @@ export const notifications = {
   /** Makes a delivery due now, given up or not; the attempt counter starts over. */
   retryDelivery: (deliveryId: number) => post<WebhookDelivery>(`/api/v1/notifications/deliveries/${deliveryId}/retry`),
   eventTypes: () => api<NotificationEventType[]>('/api/v1/notifications/events'),
+  /** The Discord message of every event the format posts, with these settings, around a film and a show of the library. Nothing is posted. */
+  discordPreview: (discord: DiscordSettings | null) => post<DiscordPreview[]>('/api/v1/notifications/discord/preview', { discord }),
 }
 
 // ---- tasks & health --------------------------------------------------------

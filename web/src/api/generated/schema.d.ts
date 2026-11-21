@@ -7952,6 +7952,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications/discord/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DiscordPreviewRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DiscordPreviewResponse"][];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notifications/{id}/test": {
         parameters: {
             query?: never;
@@ -11376,12 +11415,56 @@ export interface components {
         DeclineRequestRequest: {
             reason?: null | string;
         };
+        DiscordAllowedMentions: {
+            parse: string[];
+            users: string[];
+        };
+        DiscordAuthor: {
+            name: string;
+            icon_url: null | string;
+            url: null | string;
+        };
+        DiscordEmbed: {
+            title: null | string;
+            description: null | string;
+            url: null | string;
+            /** Format: int32 */
+            color: null | number;
+            author: null | components["schemas"]["DiscordAuthor"];
+            thumbnail: null | components["schemas"]["DiscordImage"];
+            image: null | components["schemas"]["DiscordImage"];
+            timestamp: null | string;
+            fields: null | components["schemas"]["DiscordField"][];
+        };
+        DiscordField: {
+            name: string;
+            value: string;
+            /** @default false */
+            inline: boolean;
+        };
         /** @enum {unknown} */
         DiscordGrabField: "overview" | "rating" | "genres" | "quality" | "group" | "size" | "links" | "release" | "poster" | "fanart" | "indexer" | "customFormats" | "customFormatScore" | "tags" | "version";
+        DiscordImage: {
+            url: string;
+        };
         /** @enum {unknown} */
         DiscordImportField: "overview" | "rating" | "genres" | "quality" | "codecs" | "group" | "size" | "languages" | "subtitles" | "links" | "release" | "poster" | "fanart" | "tags" | "customFormats" | "customFormatScore" | "version";
         /** @enum {unknown} */
         DiscordManualInteractionField: "overview" | "rating" | "genres" | "quality" | "group" | "size" | "links" | "downloadTitle" | "poster" | "fanart" | "tags" | "version";
+        DiscordPayload: {
+            content: null | string;
+            username: null | string;
+            avatar_url: null | string;
+            embeds: null | components["schemas"]["DiscordEmbed"][];
+            allowed_mentions: null | components["schemas"]["DiscordAllowedMentions"];
+        };
+        DiscordPreviewRequest: {
+            discord?: null | components["schemas"]["DiscordSettings"];
+        };
+        DiscordPreviewResponse: {
+            eventType: string;
+            payload: components["schemas"]["DiscordPayload"];
+        };
         DiscordSettings: {
             username: null | string;
             avatar: null | string;
