@@ -277,7 +277,7 @@ switch, holding the previous numbers and every file move.
 
 | From | To | Trigger | Guard |
 |---|---|---|---|
-| order A | order B, change journaled, files moved | apply | B differs from A; one writer per show (`SeriesFileGate`, shared with rename, refresh and "add version") |
+| order A | order B, change journaled, files moved | apply | B differs from A; one writer per show (`SeriesFileGate`, shared with rename, reassign, refresh and "add version") |
 | latest change applied | undone (`UndoneAt`), order A, files back | undo | latest change of the show, not undone; a file moved since is left alone |
 
 Invariants: only the latest change can be undone, once; a journaled move is a move that happened; an apply and its
@@ -732,6 +732,16 @@ to an ordinary role kept full access to those surfaces, which can delete films w
 Fix: the `ApiKey` policy requires the admin role, read from the owner at each request. A key is not revoked by a
 demotion: it works again if its owner is made admin again, like a disabled user's.
 Test: `UsersAndRolesTests.A_demoted_admin_s_key_no_longer_opens_the_compat_surfaces`.
+
+#### F29. Reassigning a file skipped the show's gate and could leave its rename unsaved
+
+"Reassign file" was the one writer of a show's files that did not take the show's turn (`SeriesFileGate`), so it could
+interleave with an order switch, its undo or a rename. It also saved the row after renaming the file on disk with the
+request's token: a caller that went away in between left the file under its new name and the row under the old one.
+
+Fix: reassign takes the show's turn before it loads the show, and the save that follows the move ignores the
+request's token. The first save (the episode links) still honours it: nothing on disk has changed by then.
+Test: `ConcurrentSeriesWritersTests.A_reassign_waits_for_the_writer_that_holds_the_show`.
 
 ### Open
 
