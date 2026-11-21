@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { cn } from 'cn'
-import { FolderInputIcon, RefreshCwIcon, RotateCcwIcon, Trash2Icon, WifiIcon, WifiOffIcon } from 'lucide-react'
+import { ChevronDownIcon, FolderInputIcon, RefreshCwIcon, RotateCcwIcon, Trash2Icon, WifiIcon, WifiOffIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, queue as queueApi, type Queue, type QueueEpisode, type QueueItem, type StatusMessage } from '@/api/client'
@@ -20,6 +20,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -105,6 +106,8 @@ export function QueuePage() {
   const query = useQuery({ queryKey: ['queue'], queryFn: queueApi.get, refetchInterval: live ? false : 10_000 })
   const [pendingRemove, setPendingRemove] = useState<QueueItem | null>(null)
   const [manualImportFor, setManualImportFor] = useState<QueueItem | null>(null)
+  // The header's import, for files no grab of Bigarr's knows about (another app's downloads, a copied folder).
+  const [freeImport, setFreeImport] = useState<'film' | 'series' | null>(null)
 
   const retry = useMutation({
     mutationFn: (grabId: number) => queueApi.retryImport(grabId),
@@ -138,6 +141,23 @@ export function QueuePage() {
             </TooltipTrigger>
             <TooltipContent>{live ? t('queue.liveHint') : t('queue.pollingHint')}</TooltipContent>
           </Tooltip>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline" size="sm" data-testid="queue-free-import">
+                <FolderInputIcon />
+                {t('queue.manualImportOpen')}
+                <ChevronDownIcon />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setFreeImport('film')} data-testid="queue-free-import-film">
+                {t('queue.manualImportFilms')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setFreeImport('series')} data-testid="queue-free-import-series">
+                {t('queue.manualImportSeries')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button type="button" size="sm" onClick={() => refresh.mutate()} disabled={refresh.isPending} data-testid="queue-refresh">
             <RefreshCwIcon className={refresh.isPending ? 'animate-spin' : undefined} />
             {refresh.isPending ? t('queue.refreshing') : t('queue.refresh')}
@@ -216,6 +236,8 @@ export function QueuePage() {
       )}
 
       {pendingRemove && <RemoveDialog item={pendingRemove} onClose={() => setPendingRemove(null)} />}
+      {freeImport === 'film' && <ManualImportDialog onClose={() => setFreeImport(null)} />}
+      {freeImport === 'series' && <SeriesManualImportDialog onClose={() => setFreeImport(null)} />}
       {manualImportFor?.grabId != null && manualImportFor.series && (
         <SeriesManualImportDialog grabId={manualImportFor.grabId} title={manualImportFor.title} onClose={() => setManualImportFor(null)} />
       )}

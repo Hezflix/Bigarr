@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { EyeIcon, EyeOffIcon, FileXIcon, PencilIcon, PlusIcon, RefreshCwIcon, StarIcon, TextSearchIcon, Trash2Icon, TvIcon, ZapIcon } from 'lucide-react'
+import { EyeIcon, EyeOffIcon, FileXIcon, FolderInputIcon, PencilIcon, PlusIcon, RefreshCwIcon, StarIcon, TextSearchIcon, Trash2Icon, TvIcon, ZapIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { LibraryIssuesLink } from '@/features/issues/TitleIssues'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ import { CompareTable } from '@/features/activity/CompareTable'
 import { HistoryTable } from '@/features/activity/HistoryTable'
 import { MoviePlays } from '@/features/playback/MoviePlays'
 import { extraSummary } from '@/features/import/extraFiles'
+import { ManualImportDialog } from '@/features/import/ManualImportDialog'
 import { EditVersionDialog } from '@/features/movies/EditVersionDialog'
 import { RenameDialog } from '@/features/movies/RenameDialog'
 import { InteractiveSearch } from '@/features/search/InteractiveSearch'
@@ -66,6 +67,7 @@ export function MovieDetailPage() {
   }, [movie.data, id, queryClient])
   useRecordRecent(movie.data ? { kind: 'movie', id, title: movie.data.title, year: movie.data.year } : null)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   // The version whose settings are being edited, from its row's pencil or from the palette.
   const [editingId, setEditingId] = useState<number | null>(null)
   // Bumped by the header's Interactive search button: the section below runs the film's search and scrolls into view.
@@ -121,6 +123,9 @@ export function MovieDetailPage() {
               ]
             : []),
           { id: 'refresh', label: t('palette.page.refresh'), icon: RefreshCwIcon, keywords: ['tmdb'], run: () => refresh.mutate() },
+          ...(loaded.versions.length > 0
+            ? [{ id: 'manual-import', label: t('palette.page.manualImport'), icon: FolderInputIcon, keywords: ['import', 'files'], run: () => setImportOpen(true) }]
+            : []),
           ...versionActions(t, defaultVersion, (monitored) => movies.updateVersion(id, defaultVersion?.id ?? 0, { monitored }), invalidate, () => setEditingId(defaultVersion?.id ?? null)),
         ]
       : null,
@@ -222,6 +227,10 @@ export function MovieDetailPage() {
               {t('movie.refresh')}
             </Button>
             <RenameDialog movie={m} onRenamed={invalidate} />
+            <Button type="button" variant="outline" onClick={() => setImportOpen(true)} disabled={m.versions.length === 0} data-testid="movie-manual-import-open">
+              <FolderInputIcon />
+              {t('movie.manualImport')}
+            </Button>
             <Button type="button" variant="destructive" onClick={() => setDeleteOpen(true)} disabled={remove.isPending}>
               <Trash2Icon />
               {t('movie.delete')}
@@ -229,6 +238,17 @@ export function MovieDetailPage() {
           </div>
         </div>
       </div>
+
+      {importOpen && (
+        <ManualImportDialog
+          movieId={m.id}
+          title={m.year ? `${m.title} (${m.year})` : m.title}
+          onClose={() => {
+            setImportOpen(false)
+            invalidate()
+          }}
+        />
+      )}
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
