@@ -208,13 +208,14 @@ appeared and went away.
 
 | From | To | Trigger |
 |---|---|---|
-| absent | standing, raised event | a check finds an issue (same source and wording) that has no row |
-| standing | standing | a check finds it again: no event |
+| absent | standing, raised event | a check finds an issue (same source and key, or wording when it has no key) that has no row |
+| standing | standing | a check finds it again: no event; if its wording changed, the stored text follows silently ([F27](#f27-a-health-issue-whose-wording-changed-was-resolved-and-raised-again-at-every-check)) |
 | standing | absent, resolved event | a check no longer finds it |
 
 Invariants: the rows, and the events about their changes, commit in one save; the in-memory copy is replaced only
 after it; a restart changes nothing ([F9](#f9-health-events-were-raised-again-at-every-restart)). Notices are stored
-but raise no event.
+but raise no event. An issue whose text carries a count, a duration or a time gives the check a key (`Key`, never
+sent to clients) naming its subject; the row compares by it, so a changing number is not a new issue.
 
 ### Library scan, Radarr / Sonarr / Tautulli / Seerr import
 
@@ -732,6 +733,19 @@ to an ordinary role kept full access to those surfaces, which can delete films w
 Fix: the `ApiKey` policy requires the admin role, read from the owner at each request. A key is not revoked by a
 demotion: it works again if its owner is made admin again, like a disabled user's.
 Test: `UsersAndRolesTests.A_demoted_admin_s_key_no_longer_opens_the_compat_surfaces`.
+
+#### F27. A health issue whose wording changed was resolved and raised again at every check
+
+An issue was the same from one check to the next only by its source and its exact text. Texts that carry a count or a
+time ("last ran 47 minutes ago", "3 deliveries pending") changed at every check, so each check sent a "restored" and a
+"raised" pair. The failing-webhook issue fed itself: the health event made another delivery to the failing endpoint,
+the count grew, and the next check sent another pair.
+
+Fix: an issue may carry a key naming its subject and nothing that changes (stored in `StandingHealthIssues.Key`, not
+in the API response). The baseline compares source and key, or the wording when there is no key; an issue still
+standing under new wording updates the stored text with no event. Rows from before the upgrade have no key and compare
+by their text, so a varying one is resolved and raised one last time, then is stable.
+Test: `TasksAndHealthTests.An_issue_whose_wording_changes_between_checks_is_raised_once`.
 
 ### Open
 

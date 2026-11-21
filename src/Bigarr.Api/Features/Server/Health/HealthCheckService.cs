@@ -66,7 +66,7 @@ public sealed class HealthCheckService(
             foreach (var (indexer, status) in down)
             {
                 var type = down.Count == allIndexers.Count ? HealthIssueType.Error : HealthIssueType.Warning;
-                issues.Add(new HealthIssue("indexerStatus", type, $"Indexer {indexer.Name} is paused until {status.DisabledUntil:HH:mm} UTC after {status.Failures} failure(s): {status.LastError}"));
+                issues.Add(new HealthIssue("indexerStatus", type, $"Indexer {indexer.Name} is paused until {status.DisabledUntil:HH:mm} UTC after {status.Failures} failure(s): {status.LastError}", $"indexer:{indexer.Id}"));
             }
 
             if (allIndexers.Any(i => i.Implementation == IndexerImplementation.Mock))
@@ -110,7 +110,7 @@ public sealed class HealthCheckService(
             {
                 foreach (var status in queue.ClientStatuses().Where(s => !s.Healthy))
                 {
-                    issues.Add(new HealthIssue("downloadClients", HealthIssueType.Error, $"Download client {status.Name} is unreachable: {status.LastError}"));
+                    issues.Add(new HealthIssue("downloadClients", HealthIssueType.Error, $"Download client {status.Name} is unreachable: {status.LastError}", $"client:{status.Name}"));
                 }
 
                 if (clients.Any(c => c.Enabled && c.Implementation == DownloadClientImplementation.Mock))
@@ -146,7 +146,7 @@ public sealed class HealthCheckService(
             {
                 issues.Add(new HealthIssue("rss", HealthIssueType.Warning, lastRun is null
                     ? $"The RSS sync has not run since Bigarr started {(int)(now - reference).TotalMinutes} minutes ago."
-                    : $"The RSS sync last ran {(int)(now - reference).TotalMinutes} minutes ago; it should run every {rss.Value.Interval.TotalMinutes:0} minutes."));
+                    : $"The RSS sync last ran {(int)(now - reference).TotalMinutes} minutes ago; it should run every {rss.Value.Interval.TotalMinutes:0} minutes.", "overdue"));
             }
         }
 
@@ -165,7 +165,7 @@ public sealed class HealthCheckService(
             var copied = recent.Count(h => h.Data.TryGetValue("transfer", out var transfer) && string.Equals(transfer, "Copied", StringComparison.OrdinalIgnoreCase) && !h.Data.ContainsKey("manual"));
             if (copied > 0)
             {
-                issues.Add(new HealthIssue("imports", HealthIssueType.Warning, $"{copied} import(s) in the last 24 hours had to copy instead of hardlink: downloads and the library are on different filesystems (or different Docker mounts), so seeding files take double the space."));
+                issues.Add(new HealthIssue("imports", HealthIssueType.Warning, $"{copied} import(s) in the last 24 hours had to copy instead of hardlink: downloads and the library are on different filesystems (or different Docker mounts), so seeding files take double the space.", "copied"));
             }
         }
 
@@ -177,7 +177,7 @@ public sealed class HealthCheckService(
         // Kept until a run goes through: the scheduler's table remembers the failure across restarts.
         if (scheduler.TryGet(MetadataRefreshJob.JobName, out var refresh) && refresh.LastSucceeded == false)
         {
-            issues.Add(new HealthIssue("metadataRefresh", HealthIssueType.Warning, $"The metadata refresh did not finish: {refresh.LastError}"));
+            issues.Add(new HealthIssue("metadataRefresh", HealthIssueType.Warning, $"The metadata refresh did not finish: {refresh.LastError}", "unfinished"));
         }
 
         await SeriesChecksAsync(issues, allIndexers, ct);
@@ -188,7 +188,7 @@ public sealed class HealthCheckService(
             .ToListAsync(ct);
         foreach (var server in failingServers)
         {
-            issues.Add(new HealthIssue("mediaservers", HealthIssueType.Warning, $"{server.Kind} {server.Name} could not be refreshed: {server.LastError}"));
+            issues.Add(new HealthIssue("mediaservers", HealthIssueType.Warning, $"{server.Kind} {server.Name} could not be refreshed: {server.LastError}", $"server:{server.Name}"));
         }
 
         var failingEndpoints = await db.WebhookDeliveries.AsNoTracking()
@@ -199,7 +199,7 @@ public sealed class HealthCheckService(
             .ToListAsync(ct);
         foreach (var endpoint in failingEndpoints)
         {
-            issues.Add(new HealthIssue("notifications", HealthIssueType.Warning, $"Webhook {endpoint.Name} is failing ({endpoint.Count} deliver(ies) pending or given up): {endpoint.Error}"));
+            issues.Add(new HealthIssue("notifications", HealthIssueType.Warning, $"Webhook {endpoint.Name} is failing ({endpoint.Count} deliver(ies) pending or given up): {endpoint.Error}", $"endpoint:{endpoint.Name}"));
         }
 
         return issues.OrderByDescending(i => i.Type).ThenBy(i => i.Source, StringComparer.Ordinal).ThenBy(i => i.Message, StringComparer.Ordinal).ToList();
@@ -226,29 +226,29 @@ public sealed class HealthCheckService(
         {
             var count = await db.Series.CountAsync(s => s.TvdbId != null, ct);
             issues.Add(new HealthIssue("seriesMetadata", HealthIssueType.Warning,
-                $"TVDB key missing: series episode lists are not refreshed ({count} series with a TVDB id keep the episodes they have; TMDB's numbering never replaces TVDB's). Set Bigarr__Tvdb__ApiKey."));
+                $"TVDB key missing: series episode lists are not refreshed ({count} series with a TVDB id keep the episodes they have; TMDB's numbering never replaces TVDB's). Set Bigarr__Tvdb__ApiKey.", "tvdbKeyMissing"));
         }
         else if (refreshAlerts.TvdbUnavailable is { } tvdb)
         {
             issues.Add(new HealthIssue("seriesMetadata", HealthIssueType.Warning,
-                $"TVDB failing since {tvdb.At:yyyy-MM-dd HH:mm} UTC: series episode lists are not refreshed until it answers ({tvdb.Reason})."));
+                $"TVDB failing since {tvdb.At:yyyy-MM-dd HH:mm} UTC: series episode lists are not refreshed until it answers ({tvdb.Reason}).", "tvdbFailing"));
         }
 
         if (refreshAlerts.Refused.Count > 0)
         {
             var refused = refreshAlerts.Refused.Values.Take(3).ToList();
             issues.Add(new HealthIssue("seriesRefresh", HealthIssueType.Warning,
-                $"The safety net refused the refresh of {refreshAlerts.Refused.Count} series, their episodes are unchanged: {string.Join(" · ", refused)}{(refreshAlerts.Refused.Count > refused.Count ? " · …" : string.Empty)}"));
+                $"The safety net refused the refresh of {refreshAlerts.Refused.Count} series, their episodes are unchanged: {string.Join(" · ", refused)}{(refreshAlerts.Refused.Count > refused.Count ? " · …" : string.Empty)}", "refused"));
         }
 
         if (scheduler.TryGet(Series.SeriesRefreshJob.JobName, out var refresh) && refresh.LastSucceeded == false)
         {
-            issues.Add(new HealthIssue("seriesRefresh", HealthIssueType.Warning, $"The series refresh did not finish (TVDB or TMDB failing): {refresh.LastError}"));
+            issues.Add(new HealthIssue("seriesRefresh", HealthIssueType.Warning, $"The series refresh did not finish (TVDB or TMDB failing): {refresh.LastError}", "unfinished"));
         }
 
         if (xemOptions.Value.Enabled && xem.LastFailure is { } failure)
         {
-            issues.Add(new HealthIssue("xem", HealthIssueType.Warning, $"TheXEM pass cut short on {failure.At:yyyy-MM-dd HH:mm} UTC, scene numbers stay as last read until it completes. {failure.Message}"));
+            issues.Add(new HealthIssue("xem", HealthIssueType.Warning, $"TheXEM pass cut short on {failure.At:yyyy-MM-dd HH:mm} UTC, scene numbers stay as last read until it completes. {failure.Message}", "cutShort"));
         }
 
         if (!await db.RootFolders.AnyAsync(r => r.Kind == MediaKind.Series, ct))
@@ -266,7 +266,7 @@ public sealed class HealthCheckService(
         var held = await db.HeldReleases.CountAsync(h => h.DismissedAt == null, ct);
         if (held > 0)
         {
-            issues.Add(new HealthIssue("heldReleases", HealthIssueType.Notice, $"{held} release(s) held for review: matched on a series' alternative order only. Grab or dismiss them in Activity → Held."));
+            issues.Add(new HealthIssue("heldReleases", HealthIssueType.Notice, $"{held} release(s) held for review: matched on a series' alternative order only. Grab or dismiss them in Activity → Held.", "held"));
         }
     }
 }
@@ -295,21 +295,31 @@ public sealed class HealthCheckJob(HealthCheckService checks, HealthState state,
         // resolve one fixed while the app was down. The new baseline and its events commit together; the in-memory
         // copy follows only then, so a failed save is simply diffed again by the next check.
         var standing = await db.StandingHealthIssues.ToListAsync(ct);
-        foreach (var issue in issues.Where(i => !standing.Any(s => HealthState.Same(s.Source, s.Message, i))))
+        foreach (var issue in issues.Where(i => !standing.Any(s => HealthState.Same(s, i))))
         {
-            db.StandingHealthIssues.Add(new Bigarr.Domain.Scheduling.StandingHealthIssue { Source = issue.Source, Type = issue.Type, Message = issue.Message, RaisedAt = now });
+            db.StandingHealthIssues.Add(new Bigarr.Domain.Scheduling.StandingHealthIssue { Source = issue.Source, Type = issue.Type, Message = issue.Message, Key = issue.Key, RaisedAt = now });
             if (issue.Type != HealthIssueType.Notice)
             {
                 outbox.Publish(new HealthIssueRaised(issue.Source, issue.Type, issue.Message) { OccurredAt = now });
             }
         }
 
-        foreach (var gone in standing.Where(s => !issues.Any(i => HealthState.Same(s.Source, s.Message, i))))
+        foreach (var gone in standing.Where(s => !issues.Any(i => HealthState.Same(s, i))))
         {
             db.StandingHealthIssues.Remove(gone);
             if (gone.Type != HealthIssueType.Notice)
             {
                 outbox.Publish(new HealthIssueResolved(gone.Source, gone.Message, gone.Type) { OccurredAt = now });
+            }
+        }
+
+        // Still standing under new wording: the stored text follows, silently, so a later resolution quotes the latest.
+        foreach (var kept in standing)
+        {
+            var current = issues.FirstOrDefault(i => HealthState.Same(kept, i));
+            if (current is not null && !string.Equals(kept.Message, current.Message, StringComparison.Ordinal))
+            {
+                kept.Message = current.Message;
             }
         }
 
