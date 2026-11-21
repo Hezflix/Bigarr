@@ -733,6 +733,16 @@ Fix: the `ApiKey` policy requires the admin role, read from the owner at each re
 demotion: it works again if its owner is made admin again, like a disabled user's.
 Test: `UsersAndRolesTests.A_demoted_admin_s_key_no_longer_opens_the_compat_surfaces`.
 
+#### F25. A Tautulli re-import counted a viewing resumed live twice
+
+A Tautulli row was left out when it overlapped a live play of the same user and item. A viewing that resumes an
+unfinished imported play goes on that play, so its live stream sits in a play whose source is Tautulli: a re-run did
+not see it and added Tautulli's row for the same viewing, on the imported play or as a play of its own.
+
+Fix: the streams Bigarr followed live (no Tautulli key) count wherever they are. A new play overlapping one is left out
+whole, as before; a play imported before only gains the rows Bigarr did not follow live. The preview counts the same.
+Test: `TautulliImportTests.A_tautulli_history_becomes_plays_once_and_a_rerun_adds_only_what_is_new`.
+
 ### Open
 
 What is known and not fixed:
@@ -746,7 +756,9 @@ What is known and not fixed:
 - Playback: some viewings recorded by Tautulli are missed, often the first of an evening, with the next item on the
   same player recorded from where the missed one ended. One case had its session opened, idle for hours, then closed
   without a play. Not reproduced; the Information lines on new streams and closes without a play should explain the
-  next one.
+  next one. Many apparent misses were viewings resumed live into an imported play
+  ([F25](#f25-a-tautulli-re-import-counted-a-viewing-resumed-live-twice)); none was seen in the first day after
+  [F22](#f22-a-new-plex-session-id-chopped-a-viewing-into-pieces).
 
 ### Checked and sound
 
