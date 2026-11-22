@@ -76,7 +76,7 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
 
         var profiles = await db.QualityProfiles.AsNoTracking().Where(p => p.Kind == ProfileKind.Series || p.Kind == ProfileKind.Both).Select(p => new { p.Id, p.Name }).ToListAsync(ct);
         var roots = await db.RootFolders.AsNoTracking().ToListAsync(ct);
-        var known = (await db.Series.AsNoTracking().Where(s => s.TvdbId != null).Select(s => s.TvdbId!.Value).ToListAsync(ct)).ToHashSet();
+        var known = SeriesKeyIndex.Build(await db.Series.AsNoTracking().Select(s => new SeriesKeys(s.Id, s.TvdbId, s.TmdbId, s.ImdbId)).ToListAsync(ct), k => k);
 
         var byProfile = snapshot.Series.GroupBy(s => s.QualityProfileId).ToDictionary(g => g.Key, g => g.Count());
         var profilePreviews = snapshot.Profiles
@@ -109,7 +109,7 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
             snapshot.Series.Sum(s => s.Statistics?.TotalEpisodeCount ?? 0),
             snapshot.Series.Sum(s => s.Statistics?.EpisodeFileCount ?? 0),
             snapshot.Series.Count(s => s.Monitored),
-            snapshot.Series.Count(s => known.Contains(s.TvdbId)),
+            snapshot.Series.Count(s => known.Find(s) is not null),
             snapshot.Exclusions.Count,
             historyCount,
             blocklistCount,
@@ -246,7 +246,7 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
             logger.LogError(ex, "Import of {Title} (TVDB {TvdbId}) from Sonarr failed", item.Title, item.TvdbId);
             db.ChangeTracker.Clear();
             progress.Failed();
-            progress.Issue(item.Title, item.TvdbId, ex.Message, await SeriesIdAsync(item.TvdbId, ct));
+            progress.Issue(item.Title, item.TvdbId, ex.Message, await SeriesIdAsync(item, ct));
         }
         finally
         {
@@ -355,11 +355,11 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
     private async Task<List<SonarrSeries>> ChangedAsync(Snapshot snapshot, SonarrImportRequest request, bool newSeriesOnly, bool everySeries, CancellationToken ct)
     {
         var versionName = request.VersionName.Trim();
-        var bigarr = (await db.SeriesVersions.AsNoTracking()
-                .Where(v => v.Name == versionName && v.Series.TvdbId != null)
+        var bigarr = SeriesKeyIndex.Build(await db.SeriesVersions.AsNoTracking()
+                .Where(v => v.Name == versionName)
                 .Select(v => new
                 {
-                    TvdbId = v.Series.TvdbId!.Value,
+                    Keys = new SeriesKeys(v.SeriesId, v.Series.TvdbId, v.Series.TmdbId, v.Series.ImdbId),
                     v.Monitored,
                     v.QualityProfileId,
                     v.FolderName,
@@ -370,16 +370,15 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
                     Files = v.Files.Count,
                     Size = v.Files.Sum(f => (long?)f.Size) ?? 0,
                 })
-                .ToListAsync(ct))
-            .GroupBy(v => v.TvdbId)
-            .ToDictionary(g => g.Key, g => g.First());
+                .ToListAsync(ct),
+            v => v.Keys);
         var tagLabels = snapshot.Tags.ToDictionary(t => t.Id, t => TagService.NormalizeLabel(t.Label));
         var profileMap = request.ProfileMap ?? [];
 
         var changed = new List<SonarrSeries>();
         foreach (var item in snapshot.Series)
         {
-            if (!bigarr.TryGetValue(item.TvdbId, out var version))
+            if (bigarr.Find(item) is not { } version)
             {
                 changed.Add(item);
                 continue;
@@ -443,13 +442,15 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
         var tags = context.Request.ImportTags ? await TagsForAsync(item.Tags, context, ct) : [];
         var folderName = LastSegment(item.Path) ?? FolderNameBuilder.Build(item.Title, item.Year > 0 ? item.Year : null, ((await db.MediaManagement.AsNoTracking().FirstOrDefaultAsync(c => c.Id == MediaManagementConfig.SingletonId, ct)) ?? MediaManagementConfig.Default()).SeriesNameCleaning);
 
-        var series = await db.Series
+        // Found by TVDB id, else TMDB or IMDb id: TVDB may have replaced the show, Bigarr's refresh followed, Sonarr did not.
+        var seriesId = await SeriesIdAsync(item, ct);
+        var series = seriesId is null ? null : await db.Series
             .Include(s => s.Seasons)
             .Include(s => s.Versions).ThenInclude(v => v.Tags)
             .Include(s => s.Versions).ThenInclude(v => v.Seasons)
             .Include(s => s.Episodes).ThenInclude(e => e.Targets)
             .AsSplitQuery()
-            .FirstOrDefaultAsync(s => s.TvdbId == item.TvdbId, ct);
+            .FirstOrDefaultAsync(s => s.Id == seriesId, ct);
 
         var newSeries = false;
         if (series is null)
@@ -1220,8 +1221,17 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
     public static Dictionary<int, int> SeriesPerProfile(IEnumerable<SonarrSeries> series) =>
         series.GroupBy(s => s.QualityProfileId).ToDictionary(g => g.Key, g => g.Count());
 
-    private async Task<int?> SeriesIdAsync(int tvdbId, CancellationToken ct) =>
-        await db.Series.AsNoTracking().Where(s => s.TvdbId == tvdbId).Select(s => (int?)s.Id).FirstOrDefaultAsync(ct);
+    /// <summary>The Bigarr series a Sonarr series is, see <see cref="SeriesKeyIndex"/>.</summary>
+    private async Task<int?> SeriesIdAsync(SonarrSeries item, CancellationToken ct)
+    {
+        int? tmdbId = item.TmdbId > 0 ? item.TmdbId : null;
+        var imdbId = NullIfBlank(item.ImdbId);
+        var candidates = await db.Series.AsNoTracking()
+            .Where(s => s.TvdbId == item.TvdbId || (tmdbId != null && s.TmdbId == tmdbId) || (imdbId != null && s.ImdbId == imdbId))
+            .Select(s => new SeriesKeys(s.Id, s.TvdbId, s.TmdbId, s.ImdbId))
+            .ToListAsync(ct);
+        return SeriesKeyIndex.Build(candidates, k => k).Find(item)?.Id;
+    }
 
     /// <summary>
     /// Sonarr's lines about one series, as journal lines of the episode targets of the version. A line already copied by
@@ -1518,7 +1528,7 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
     private async Task SkipAsync(SonarrImportProgress progress, SonarrSeries item, string reason, CancellationToken ct)
     {
         progress.Skipped();
-        progress.Issue(item.Title, item.TvdbId, reason, await SeriesIdAsync(item.TvdbId, ct));
+        progress.Issue(item.Title, item.TvdbId, reason, await SeriesIdAsync(item, ct));
     }
 
     private static string? Truncate(string? value, int max) => string.IsNullOrWhiteSpace(value) ? null : value.Length <= max ? value : value[..max];
