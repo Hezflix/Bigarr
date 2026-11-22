@@ -190,7 +190,7 @@ public sealed class SonarrFollower(
         var library = await imports.FollowAsync(request, data, everySeries, ct);
         db.ChangeTracker.Clear();
 
-        await LinkAsync(follow, ct);
+        await LinkAsync(follow, byId, ct);
         var shown = await ShowPicksAsync(follow, connection, ct);
 
         var now = time.GetUtcNow().UtcDateTime;
@@ -344,6 +344,7 @@ public sealed class SonarrFollower(
             .Concat(await db.SonarrGrabs.AsNoTracking().Where(g => g.FollowedSonarrId == follow.Id && ids.Contains(g.SonarrHistoryId)).Select(g => g.SonarrHistoryId).ToListAsync(ct))
             .ToHashSet();
         var episodeCache = new Dictionary<int, Dictionary<int, SonarrEpisode>>();
+        var bigarrSeries = new Dictionary<int, int?>();
         var added = 0;
         foreach (var lines in grabbed.GroupBy(GrabKey).Select(g => g.OrderBy(l => l.Id).ToList()))
         {
@@ -367,6 +368,13 @@ public sealed class SonarrFollower(
             if (show.TvdbId <= 0)
             {
                 continue;
+            }
+
+            // The Bigarr show by TVDB, TMDB or IMDb id: TVDB may have replaced the show's id on Bigarr's side only.
+            if (!bigarrSeries.TryGetValue(show.Id, out var bigarrSeriesId))
+            {
+                bigarrSeriesId = await SeriesKeyIndex.SeriesIdAsync(db.Series, SonarrShowKeys.Of(show), ct);
+                bigarrSeries[show.Id] = bigarrSeriesId;
             }
 
             var raw = new Dictionary<string, string?>(record.Data ?? [], StringComparer.OrdinalIgnoreCase);
@@ -447,7 +455,7 @@ public sealed class SonarrFollower(
                 // The score Sonarr gave when it grabbed; the resource's own field is recomputed with today's profile.
                 CustomFormatScore = int.TryParse(Raw("customFormatScore"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var score) ? score : record.CustomFormatScore,
                 FullSeason = string.Equals(releaseType, "SeasonPack", StringComparison.OrdinalIgnoreCase) || (releaseType is null && SeriesReleaseJudge.TryParse(title)?.FullSeason == true),
-                BigarrVerdict = await judge.JudgeAsync(show.TvdbId, follow.VersionName, release, grabbedAt, ct),
+                BigarrVerdict = await judge.JudgeAsync(show.TvdbId, follow.VersionName, release, grabbedAt, ct, bigarrSeriesId),
                 Episodes = episodes,
             });
             added++;
@@ -493,7 +501,8 @@ public sealed class SonarrFollower(
     }
 
     /// <summary>Grabs of series that were not in Bigarr yet point at their series, version and episodes once the follow brought them in.</summary>
-    private async Task LinkAsync(FollowedSonarr follow, CancellationToken ct)
+    /// <param name="sonarrSeries">Sonarr's series by id: their TMDB and IMDb ids find a show whose TVDB id Bigarr replaced.</param>
+    private async Task LinkAsync(FollowedSonarr follow, Dictionary<int, SonarrSeries> sonarrSeries, CancellationToken ct)
     {
         var unlinked = await db.SonarrGrabs.Include(g => g.Episodes)
             .Where(g => g.FollowedSonarrId == follow.Id && (g.VersionId == null || g.Episodes.Any(e => e.EpisodeId == null)))
@@ -503,14 +512,20 @@ public sealed class SonarrFollower(
             return;
         }
 
-        var tvdbIds = unlinked.Select(g => g.TvdbId).Distinct().ToList();
+        // Sonarr's show for each grab (its ids as Sonarr has them), else the TVDB id the grab recorded.
+        SonarrShowKeys ShowOf(SonarrGrab g) => sonarrSeries.GetValueOrDefault(g.SonarrSeriesId) is { } s && s.TvdbId == g.TvdbId
+            ? SonarrShowKeys.Of(s)
+            : new SonarrShowKeys(g.TvdbId, 0, null);
+        var bigarrSeries = await SeriesKeyIndex.LoadAsync(db.Series, unlinked.Select(ShowOf).Distinct(), ct);
+        var matched = unlinked.ToDictionary(g => g.Id, g => bigarrSeries.Find(ShowOf(g))?.Id);
+        var matchedIds = matched.Values.OfType<int>().Distinct().ToList();
         var versions = (await db.SeriesVersions.AsNoTracking()
-                .Where(v => v.Name == follow.VersionName && v.Series.TvdbId != null && tvdbIds.Contains(v.Series.TvdbId.Value))
-                .Select(v => new { v.Id, v.SeriesId, TvdbId = v.Series.TvdbId!.Value })
+                .Where(v => v.Name == follow.VersionName && matchedIds.Contains(v.SeriesId))
+                .Select(v => new { v.Id, v.SeriesId })
                 .ToListAsync(ct))
-            .GroupBy(v => v.TvdbId)
+            .GroupBy(v => v.SeriesId)
             .ToDictionary(g => g.Key, g => g.First());
-        var seriesIds = versions.Values.Select(v => v.SeriesId).ToList();
+        var seriesIds = versions.Keys.ToList();
         var episodes = (await db.Episodes.AsNoTracking()
                 .Where(e => seriesIds.Contains(e.SeriesId))
                 .Select(e => new { e.Id, e.SeriesId, e.SeasonNumber, e.EpisodeNumber })
@@ -519,7 +534,7 @@ public sealed class SonarrFollower(
             .ToDictionary(g => g.Key, g => g.First().Id);
         foreach (var grab in unlinked)
         {
-            if (!versions.TryGetValue(grab.TvdbId, out var version))
+            if (matched[grab.Id] is not { } seriesId || !versions.TryGetValue(seriesId, out var version))
             {
                 continue;
             }

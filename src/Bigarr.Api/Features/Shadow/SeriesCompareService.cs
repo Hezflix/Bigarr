@@ -165,11 +165,13 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
 
         if (tvdbId is { } show)
         {
-            grabQuery = grabQuery.Where(g => g.TvdbId == show);
+            // Sonarr's grabs keep Sonarr's TVDB id; one TVDB replaced on Bigarr's side is found through its linked series.
+            grabQuery = grabQuery.Where(g => g.TvdbId == show || db.Series.Any(s => s.Id == g.SeriesId && s.TvdbId == show));
             pickQuery = pickQuery.Where(p => p.TvdbId == show);
         }
 
         var grabs = (await grabQuery.AsSplitQuery().ToListAsync(ct)).ToDictionary(g => g.Id);
+        await UseBigarrTvdbIdsAsync(grabs.Values, ct);
         var picks = (await pickQuery.AsSplitQuery().ToListAsync(ct)).ToDictionary(p => p.Id);
         var filmPicks = await FilmPicksAsync(grabs.Values, loadFrom, ct);
         var rows = SeriesComparePairing.Match(
@@ -249,6 +251,31 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
             .ToList();
 
         return new SeriesCompareResponse(from, now, (int)window.TotalHours, options.Value.SeriesInShadow, versions, summary, byVersion, responses, filtered.Count, page, pageSize);
+    }
+
+    /// <summary>
+    /// A grab linked to a Bigarr series takes that series' TVDB id (in memory only): when TVDB replaced the show, Sonarr
+    /// keeps the old id and Bigarr's picks carry the new one, and the two sides pair by TVDB id.
+    /// </summary>
+    private async Task UseBigarrTvdbIdsAsync(IEnumerable<SonarrGrab> grabs, CancellationToken ct)
+    {
+        var linked = grabs.Where(g => g.SeriesId is not null).ToList();
+        var seriesIds = linked.Select(g => g.SeriesId!.Value).Distinct().ToList();
+        if (seriesIds.Count == 0)
+        {
+            return;
+        }
+
+        var tvdbIds = await db.Series.AsNoTracking()
+            .Where(s => seriesIds.Contains(s.Id) && s.TvdbId != null)
+            .ToDictionaryAsync(s => s.Id, s => s.TvdbId!.Value, ct);
+        foreach (var grab in linked)
+        {
+            if (tvdbIds.TryGetValue(grab.SeriesId!.Value, out var tvdbId))
+            {
+                grab.TvdbId = tvdbId;
+            }
+        }
     }
 
     /// <summary>A film pick shown as the Bigarr side of a special that is that film (ids negated so they never clash).</summary>

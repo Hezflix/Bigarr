@@ -21,11 +21,14 @@ public sealed class SeriesShadowJudge(BigarrDbContext db, SeriesTargetsFactory t
 {
     private readonly ReleaseEvaluator _evaluator = ReleaseEvaluator.Automatic();
 
-    public async Task<BigarrVerdict> JudgeAsync(int tvdbId, string versionName, ReleaseInfo release, DateTime grabbedAt, CancellationToken ct)
+    /// <param name="tvdbId">The TVDB id Sonarr gives the show.</param>
+    /// <param name="bigarrSeriesId">The Bigarr series the caller already matched to Sonarr's (TVDB may have replaced the show's id
+    /// on Bigarr's side, see <see cref="Migration.SeriesKeyIndex"/>); looked up by <paramref name="tvdbId"/> when null.</param>
+    public async Task<BigarrVerdict> JudgeAsync(int tvdbId, string versionName, ReleaseInfo release, DateTime grabbedAt, CancellationToken ct, int? bigarrSeriesId = null)
     {
         ArgumentNullException.ThrowIfNull(release);
 
-        var seriesId = await db.Series.AsNoTracking().Where(s => s.TvdbId == tvdbId).Select(s => (int?)s.Id).FirstOrDefaultAsync(ct);
+        var seriesId = bigarrSeriesId ?? await db.Series.AsNoTracking().Where(s => s.TvdbId == tvdbId).Select(s => (int?)s.Id).FirstOrDefaultAsync(ct);
         if (seriesId is null)
         {
             return Unmatched("The series was not in Bigarr's library yet.");
@@ -58,7 +61,9 @@ public sealed class SeriesShadowJudge(BigarrDbContext db, SeriesTargetsFactory t
         {
             // Sonarr's history line names the show it grabbed for: its TVDB id stands in when the indexer gave none, so a
             // title Bigarr spells another way still maps to the show. A title naming a year twin still wins over the id.
-            var match = index.FindFor(targets.Indexed, parsed, release.TvdbId ?? tvdbId, release.ImdbId);
+            // Sonarr's id is the old one when TVDB replaced the show: Bigarr's own id names the same show.
+            var hint = release.TvdbId is { } given && given != tvdbId ? given : series.TvdbId ?? tvdbId;
+            var match = index.FindFor(targets.Indexed, parsed, hint, release.ImdbId);
             if (match.Series is null && match.Ambiguous.Count > 0)
             {
                 return Unmatched($"Title '{parsed.SeriesTitle}' matches {string.Join(", ", match.Ambiguous.Select(SeriesTitleIndex.Label))} in Bigarr, not only {series.Title}.");
