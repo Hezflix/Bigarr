@@ -30,4 +30,18 @@ public sealed class SeriesRefreshRuleTests
 
         Assert.Equal(due, SeriesRefreshRule.IsDue(candidate, Now));
     }
+
+    [Fact]
+    public void A_show_never_refreshed_is_not_starved_by_shows_refreshed_before()
+    {
+        // As in a library imported from Sonarr: continuing shows come due every 6 hours and fill the batch on their own.
+        var refreshed = Enumerable.Range(1, 3)
+            .Select(i => new SeriesRefreshCandidate(i, $"a show {i}", Now.AddHours(-7 - i), SeriesStatus.Continuing, null, false))
+            .ToList();
+        var neverRefreshed = new SeriesRefreshCandidate(10, "midnight diner", null, SeriesStatus.Ended, null, false);
+
+        var batch = SeriesRefreshRule.NextBatch([.. refreshed, neverRefreshed], 2);
+
+        Assert.Equal([10, 3], batch.Select(s => s.SeriesId));
+    }
 }
