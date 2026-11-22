@@ -15,7 +15,7 @@ using Bigarr.Parsing.Episodes.Model;
 
 namespace Bigarr.Parsing.Episodes
 {
-    public static class Parser
+    public static partial class Parser
     {
         // Bigarr: was Episode.AIR_DATE_FORMAT (NzbDrone.Core.Tv), a constant of the series model.
         private const string AirDateFormat = "yyyy-MM-dd";
@@ -30,550 +30,829 @@ namespace Bigarr.Parsing.Episodes
 //                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
 
                 // Daily episode with year in series title and air time after date (Plex DVR format)
-                new Regex(@"^^(?<title>.+?\((?<titleyear>\d{4})\))[-_. ]+(?<airyear>19[4-9]\d|20\d\d)(?<sep>[-_]?)(?<airmonth>0\d|1[0-2])\k<sep>(?<airday>[0-2]\d|3[01])[-_. ]\d{2}[-_. ]\d{2}[-_. ]\d{2}",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex1,
 
                 // Daily episodes without title (2018-10-12, 20181012) (Strict pattern to avoid false matches)
-                new Regex(@"^(?<airyear>19[6-9]\d|20\d\d)(?<sep>[-_]?)(?<airmonth>0\d|1[0-2])\k<sep>(?<airday>[0-2]\d|3[01])(?!\d)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex2,
 
                 // Multi-Part episodes without a title (S01E05.S01E06)
-                new Regex(@"^(?:\W*S(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:e{1,2}(?<episode>\d{1,3}(?!\d+)))+){2,}",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex3,
 
                 // Multi-Part episodes without a title (1x05.1x06)
-                new Regex(@"^(?:\W*(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:x{1,2}(?<episode>\d{1,3}(?!\d+)))+){2,}",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex4,
 
                 // Episodes without a title, Multi (S01E04E05, 1x04x05, etc)
-                new Regex(@"^(?:S?(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:(?:[-_]|[ex]){1,2}(?<episode>\d{2,3}(?!\d+))){2,})",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex5,
 
                 // Split episodes (S01E05a, S01E05b, etc)
-                new Regex(@"^(?<title>.+?)(?:S?(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:(?:[-_ ]?[ex])(?<episode>\d{2,3}(?!\d+))(?<splitepisode>[a-d])(?:[ _.])))",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex6,
 
                 // Episodes without a title, Single (S01E05, 1x05)
-                new Regex(@"^(?:S?(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:(?:[-_ ]?[ex])(?<episode>\d{2,3}(?!\d+))))",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex7,
 
                 // Anime - [SubGroup] Title Absolute (Season+Episode)
-                new Regex(@"^(?:\[(?<subgroup>.+?)\](?:_|-|\s|\.)?)(?<title>.+?)[-_. ]+(?<absoluteepisode>(?<!\d+)\d{2,3}(\.\d{1,2})?(?!\d+))(?:[-_. ])+\((?:S(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:[ex]|\W[ex]){1,2}(?<episode>\d{2}(?!\d+))))(?:v\d+)?(?:\)(?!\d+)).*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex8,
 
                 // Anime - [SubGroup] Title Absolute - Season+Episode
-                new Regex(@"^(?:\[(?<subgroup>.+?)\](?:_|-|\s|\.)?)(?<title>.+?)[-_. ]+(?<absoluteepisode>(?<!\d+)\d{2,3}(\.\d{1,2})?(?!\d+))(?:[-_. ](?<![()\[!]))+(?:S(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:[ex]|\W[ex]){1,2}(?<episode>\d{2}(?!\d+))))(?:v\d+)?(?:[_. ](?!\d+)).*?(?<hash>[(\[][0-9A-F]{8}[)\]])$",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex9,
 
                 // Anime - [SubGroup] Title Season+Episode
-                new Regex(@"^(?:\[(?<subgroup>.+?)\](?:_|-|\s|\.)?)(?<title>.+?)(?:[-_\W](?<![()\[!]))+(?:S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:[ex]|\W[ex]){1,2}(?<episode>\d{2}(?!\d+)))+)(?:v\d+)?(?:[_. ](?!\d+)).*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex10,
 
                 // Anime - [SubGroup] Title Episode Absolute Episode Number ([SubGroup] Series Title Episode 01)
-                new Regex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)(?<title>.+?)[-_. ]+?(?:Episode)(?:[-_. ]+(?<absoluteepisode>(?<!\d+)\d{2,3}(\.\d{1,2})?(?!\d+)))+.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex11,
 
                 // Anime - [SubGroup] Title Absolute Episode Number + Season+Episode
-                new Regex(@"^(?:\[(?<subgroup>.+?)\](?:_|-|\s|\.)?)(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+(?<absoluteepisode>\d{2,3}(\.\d{1,2})?))+(?:_|-|\s|\.)+(?:S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:\-|[ex]|\W[ex]){1,2}(?<episode>\d{2}(?!\d+)))+).*?(?<hash>[(\[][0-9A-F]{8}[)\]])?(?:$|\.)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex12,
 
                 // Anime - [SubGroup] Title Multi-episode + optional Absolute Episode Number
-                new Regex(@"^(?:\[(?<subgroup>.+?)\](?:_|-|\s|\.)?)(?<title>.+?)(?:[-_\W](?<![()\[!]))+(?:S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:\-|[ex]|\W[ex]){1,2}(?<episode>\d{2}(?!\d+))){2,})(?:(?:_|-|\s|\.)+(?<absoluteepisode>(?<!\d+)\d{2,3}(\.\d{1,2})?(?!\d+|\-[a-z])))*.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex13,
 
                 // Anime - [SubGroup] Title Single episode + Absolute Episode Number
-                new Regex(@"^(?:\[(?<subgroup>.+?)\](?:_|-|\s|\.)?)(?<title>.+?)(?:[-_\W](?<![()\[!]))+(?:S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:\-|[ex]|\W[ex]){1,2}(?<episode>\d{2}(?!\d+))))(?:(?:_|-|\s|\.)+(?<absoluteepisode>(?<!\d+)\d{2,3}(\.\d{1,2})?(?!\d+|\-[a-z])))+.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex14,
 
                 // Anime - [SubGroup] Title with trailing number Absolute Episode Number - Batch separated with tilde
-                new Regex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>.+?[^-]+?)(?:(?<![-_. ]|\b[0]\d+) - )[-_. ]?(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+))\s?~\s?(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+))(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?(?:$|\.mkv)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex15,
 
                 // Anime - [SubGroup] Title with season number in brackets Absolute Episode Number
-                new Regex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>[^-]+?)[_. ]+?\(Season[_. ](?<season>\d+)\)[-_. ]+?(?:[-_. ]?(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+)))+(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?(?:$|\.mkv)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex16,
 
                 // Anime - [SubGroup] Title with trailing 3-digit number and sub title - Absolute Episode Number
-                new Regex(@"^\[(?<subgroup>[^\]]+?)\][-_. ]?(?<title>[^]]+?)(?:[-_. ]{3}?(?<absoluteepisode>\d{2}(\.\d{1,2})?(?!-?\d+|-[a-z]+)))+(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?(?:$|\.mkv)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex17,
 
                 // Anime - [SubGroup] Multi-season pack
-                new Regex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>.+?)[-_. ]+S(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))(?:(?:-S?|[-_. ]{1,3}S)(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))){1,}",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex18,
 
                 // Anime - [SubGroup] Partial season pack
-                new Regex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>.+?)(?:\W+S(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))\W+(?:(?:(?:Part|Vol)\W?|(?<!\d+\W+)e|p)(?<seasonpart>\d{1,2}(?!\d+)))+)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex19,
 
                 // Anime - [SubGroup] Title with trailing number Absolute Episode Number
-                new Regex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>[^-]+?)(?:(?<![-_. ]|\b[0]\d+) - )(?:[-_. ]?(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+)))+(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?(?:$|\.mkv)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex20,
 
                 // Anime - [SubGroup] Title with trailing number S## (Full season)
-                new Regex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>.+?)[-_. ]+(?:S(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?![ex]?\d+))).+?(?:$|\.mkv)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex21,
 
                 // Anime - [SubGroup] Title with trailing number Absolute Episode Number
-                new Regex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>[^-]+?)(?:(?<![-_. ]|\b[0]\d+)[_ ]+)(?:[-_. ]?(?<absoluteepisode>\d{3}(\.\d{1,2})?(?!\d+|-[a-z]+)))+(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?(?:$|\.mkv)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex22,
 
                 // Anime - [SubGroup] Title - Absolute Episode Number
-                new Regex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>.+?)(?:(?<!\b[0]\d+))(?:[. ]-[. ](?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+|[-])))+(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?(?:$|\.mkv)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex23,
 
                 // Anime - [SubGroup] Title Absolute Episode Number - Absolute Episode Number (batches without full separator between title and absolute episode numbers)
-                new Regex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>.+?)(?:(?<!\b[0]\d+))(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+|[-]))[. ]-[. ](?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+|[-]))(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?(?:$|\.mkv)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex24,
 
                 // Anime - [SubGroup] Title (Season only)
-                new Regex(@"^(?:\[(?<subgroup>.+?)\][-_. ])?(?<title>.+?)[-_. ]+?[\[(](?:S|Season|Saison|Series|Stagione|Sezon)[-_. ]?(?<season>\d{1,2}(?![-_. ]?\d+))(?:[-_. )\]]|$)+(?<extras>EXTRAS|SUBPACK)?(?!\\)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex25,
 
                 // Anime - [SubGroup] Title Absolute Episode Number
-                new Regex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>.+?)[-_. ]+\(?(?:[-_. ]?#?(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+|-[a-z]+)))+\)?(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?(?:$|\.mkv)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex26,
 
                 // Multi-episode Repeated (S01E05 - S01E06)
-                new Regex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:(?:e|[-_. ]e){1,2}(?<episode>\d{1,3}(?!\d+)))+){2,}",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex27,
 
                 // Multi-episode Repeated (1x05 - 1x06)
-                new Regex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:x{1,2}(?<episode>\d{1,3}(?!\d+)))+){2,}",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex28,
 
                 // Single episodes with a title (S01E05, 1x05, etc) followed by ".5 [SP]"
-                new Regex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))(?:[ex]|\W[ex]|_){1,2}(?<episode>\d{2,3}(?!\d+|(?:[ex]|\W[ex]|_|-){1,2}\d+))(?<special>\.5[ .]\[SP\]))",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex29,
 
                 // Single episodes with a title (S01E05, 1x05, etc) and trailing info in slashes
-                new Regex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))(?:[ex]|\W[ex]|_){1,2}(?<episode>\d{2,3}(?!\d+|(?:[ex]|\W[ex]|_|-){1,2}\d+))).+?(?:\[.+?\])(?!\\)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex30,
 
                 // Anime - Title Season EpisodeNumber + Absolute Episode Number [SubGroup]
-                new Regex(@"^(?<title>.+?)(?:[-_\W](?<![()\[!]))+(?:S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:[ex]|\W[ex]|-){1,2}(?<episode>(?<!\d+)\d{2}(?!\d+)))+)[-_. (]+?(?:[-_. ]?(?<absoluteepisode>(?<!\d+)\d{3}(\.\d{1,2})?(?!\d+|[pi])))+.+?\[(?<subgroup>.+?)\](?:$|\.mkv)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex31,
 
                 // Multi-Episode with a title (S01E05E06, S01E05-06, S01E05 E06, etc) and trailing info in slashes
-                new Regex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))(?:[ex]|\W[ex]|_){1,2}(?<episode>\d{2,3}(?!\d+))(?:(?:\-|[ex]|\W[ex]|_){1,2}(?<episode>\d{2,3}(?!\d+)))+).+?(?:\[.+?\])(?!\\)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex32,
 
                 // Anime - Title Absolute Episode Number [SubGroup] [Hash]? (Series Title Episode 99-100 [RlsGroup] [ABCD1234])
-                new Regex(@"^(?<title>.+?)[-_. ]Episode(?:[-_. ]+(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+)))+(?:.+?)\[(?<subgroup>.+?)\].*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex33,
 
                 // Anime - Title Absolute Episode Number [SubGroup] [Hash]
-                new Regex(@"^(?<title>.+?)(?:(?:_|-|\s|\.)+(?<absoluteepisode>\d{3}(\.\d{1,2})(?!\d+)))+(?:.+?)\[(?<subgroup>.+?)\].*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex34,
 
                 // Anime - Title Absolute Episode Number (Year) [SubGroup]
-                new Regex(@"^(?<title>.+?)[-_. ]+(?<absoluteepisode>(?<!\d+)\d{2}(?!\d+))[-_. ](\(\d{4}\))[-_. ]\[(?<subgroup>.+?)\]",
-                            RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex35,
 
                 // Anime - Title with trailing number, Absolute Episode Number and hash
-                new Regex(@"^(?<title>[^-]+?)(?:(?<![-_. ]|\b[0]\d+) - )(?:[-_. ]?(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+)))+(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>[(\[][0-9A-F]{8}[)\]])(?:$|\.mkv)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex36,
 
                 // Anime - Title Absolute Episode Number [Hash]
-                new Regex(@"^(?<title>.+?)(?:(?:_|-|\s|\.)+(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+)))+(?:[-_. ]+(?<special>special|ova|ovd))?[-_. ]+.*?(?<hash>[(\[][0-9A-F]{8}[)\]])$",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex37,
 
                 // Episodes with airdate AND season/episode number, capture season/episode only
-                new Regex(@"^(?<title>.+?)?\W*(?<airdate>\d{4}\W+[0-1][0-9]\W+[0-3][0-9])(?!\W+[0-3][0-9])[-_. ](?:s?(?<season>(?<!\d+)(?:\d{1,2})(?!\d+)))(?:[ex](?<episode>(?<!\d+)(?:\d{1,3})(?!\d+)))",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex38,
 
                 // Episodes with airdate AND season/episode number
-                new Regex(@"^(?<title>.+?)?\W*(?<airyear>\d{4})\W+(?<airmonth>[0-1][0-9])\W+(?<airday>[0-3][0-9])(?!\W+[0-3][0-9]).+?(?:s?(?<season>(?<!\d+)(?:\d{1,2})(?!\d+)))(?:[ex](?<episode>(?<!\d+)(?:\d{1,3})(?!\d+)))",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex39,
 
                 // Episodes with absolute episode number AND airdate (TJET Wrestling)
-                new Regex(@"^(?<title>.+?)?[-_. ](?:e\d{2,3}(?!\d+))[-_. ](?<airyear>\d{4})\W+(?<airmonth>[0-1][0-9])\W+(?<airday>[0-3][0-9])(?!\W+[0-3][0-9]).+?(?:\[[a-z]+\])",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex40,
 
                 // Single or multi episode releases with multiple titles, then season and episode numbers after the last title. (Title1 / Title2 / ... / S1E1-2 of 6)
-                new Regex(@"^((?<title>.*?)[ ._]\/[ ._])+\(?S(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:\W|_)?E?[ ._]?(?<episode>(?<!\d+)\d{1,2}(?!\d+))(?:-(?<episode>(?<!\d+)\d{1,2}(?!\d+)))?(?:[ ._]of[ ._](?<episodecount>\d{1,2}))?\)?[ ._][\(\[]",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex41,
 
                 // Multi-episode with title (S01E99-100, S01E05-06)
-                new Regex(@"^(?<title>.+?)(?:[-_\W](?<![()\[!]))+S(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))E(?<episode>\d{2,3}(?!\d+))(?:-(?<episode>\d{2,3}(?!\d+)))+(?:[-_. ]|$)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex42,
 
                 // Multi-episode with title (S01E05-06, S01E05-6)
-                new Regex(@"^(?<title>.+?)(?:[-_\W](?<![()\[!]))+S(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))E(?<episode>\d{1,2}(?!\d+))(?:-(?<episode>\d{1,2}(?!\d+)))+(?:[-_. ]|$)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex43,
 
                 // Episodes with a Chinese title and English title, Single episodes (S01E05, 1x05, etc) & Multi-episode (S01E05E06, S01E05-06, S01E05 E06, etc)
-                new Regex(@"^(?<title>[\u4E00-\u9FCC]+)[_. ](?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))(?:[ex]|\W[ex]){1,2}(?<episode>\d{2,3}(?!\d+))(?:(?:\-|[ex]|\W[ex]|_){1,2}(?<episode>\d{2,3}(?!\d+)))*)(?:[-_. ]|$)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex44,
 
                 // Episodes with a title, Single episodes (S01E05, 1x05, etc) & Multi-episode (S01E05E06, S01E05-06, S01E05 E06, etc)
-                new Regex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))(?:[ex]|\W[ex]){1,2}(?<episode>\d{2,3}(?!\d+))(?:(?:\-|[ex]|\W[ex]|_){1,2}(?<episode>\d{2,3}(?!\d+)))*)(?:[-_. ]|$)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex45,
 
                 // Episodes with a title, 4 digit season number, Single episodes (S2016E05, etc) & Multi-episode (S2016E05E06, S2016E05-06, S2016E05 E06, etc)
-                new Regex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S(?<season>(?<!\d+)(?:\d{4})(?!\d+))(?:e|\We|_){1,2}(?<episode>\d{2,4}(?!\d+))(?:(?:\-|e|\We|_){1,2}(?<episode>\d{2,3}(?!\d+)))*)\W?(?!\\)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex46,
 
                 // Episodes with a title, 4 digit season number, Single episodes (2016x05, etc) & Multi-episode (2016x05x06, 2016x05-06, 2016x05 x06, etc)
-                new Regex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+(?<season>(?<!\d+)(?:\d{4})(?!\d+))(?:x|\Wx){1,2}(?<episode>\d{2,4}(?!\d+))(?:(?:\-|x|\Wx|_){1,2}(?<episode>\d{2,3}(?!\d+)))*)\W?(?!\\)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex47,
 
                 // Episodes with a title, Single episodes (s01.05)
-                new Regex(@"^(?<title>.+?)(?:[-_\W](?<![()\[!]))+S(?<season>(?<!\d+)(?:\d{2})(?!\d+))(?:\.)(?<episode>\d{2,3}(?!\d+))(?:[-_. ]|$)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex48,
 
                 // Multi-season pack
-                new Regex(@"^(?<title>.+?)(Complete Series)?[-_. ]+(?:S|(?:Season|Saison|Series|Stagione)[_. ])(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))(?:(?:[-_. ]{1}|[-_. ]{3})(?:S|(?:Season|Saison|Series|Stagione)[_. ])?(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))){1,}",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex49,
 
                 // Partial season pack
-                new Regex(@"^(?<title>.+?)(?:\W+S(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))\W+(?:(?:(?:Part|Vol)\W?|(?<!\d+\W+)e|p)(?<seasonpart>\d{1,2}(?!\d+)))+)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex50,
 
                 // Anime - 4 digit absolute episode number in batch (1017-1088) or 1017-1088
-                new Regex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)(?<title>.+?)[-_. ]+?\(?(?<absoluteepisode>\d{4}(\.\d{1,2})?(?!\d+))[-](?<absoluteepisode>\d{4}(\.\d{1,2})?(?!\d+))\)?",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex51,
 
                 // Anime - 4 digit absolute episode number
-                new Regex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)(?<title>.+?)[-_. ]+?(?<absoluteepisode>\d{4}(\.\d{1,2})?(?!\d+))",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex52,
 
                 // Mini-Series, treated as season 1, multi episodes are labelled as E1-E2
-                new Regex(@"^(?<title>.+?)(?:[-._ ][e])(?<episode>\d{2,3}(?!\d+))(?:(?:\-?[e])(?<episode>\d{2,3}(?!\d+)))+",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex53,
 
                 // 5 digit episode number with a title
-                new Regex(@"^(?:(?<title>.+?)(?:_|-|\s|\.)+)(?:S?(?<season>(?<!\d+)\d{1,2}(?!\d+)))(?:(?:\-|[ex]|\W[ex]|_){1,2}(?<episode>(?<!\d+)\d{5}(?!\d+)))",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex54,
 
                 // 5 digit multi-episode with a title
-                new Regex(@"^(?:(?<title>.+?)(?:_|-|\s|\.)+)(?:S?(?<season>(?<!\d+)\d{1,2}(?!\d+)))(?:(?:[-_. ]{1,3}ep){1,2}(?<episode>(?<!\d+)\d{5}(?!\d+)))+",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex55,
 
                 // Episodes with airdate and part (2018.04.28.Part.2)
-                new Regex(@"^(?<title>.+?)?\W*(?<airyear>\d{4})[-_. ]+(?<airmonth>[0-1][0-9])[-_. ]+(?<airday>[0-3][0-9])(?![-_. ]+[0-3][0-9])[-_. ]+Part[-_. ]?(?<part>[1-9])",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex56,
 
                 // Episodes with airdate (2018.04.28)
-                new Regex(@"^(?<title>.+?)?\W*(?<airyear>\d{4})[-_. ]+(?<airmonth>[0-1][0-9])[-_. ]+(?<airday>[0-3][0-9])(?![-_. ]+[0-3][0-9])",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex57,
 
                 // Anime - Title 4-digit Absolute Episode Number [SubGroup]
-                new Regex(@"^(?<title>.+?)[-_. ]+(?<absoluteepisode>(?<!\d+)\d{4}(?!\d+))[-_. ]\[(?<subgroup>.+?)\]",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex58,
 
                 // Mini-Series with year in title, treated as season 1, episodes are labelled as Part01, Part 01, Part.1
-                new Regex(@"^(?<title>.+?\d{4})(?:\W+(?:(?:Part\W?|e)(?<episode>\d{1,2}(?!\d+)))+)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex59,
 
                 // 3-digit season number
                 // Single episode: Title.S001E01
                 // Multi episode: Title.S001E01-E02
-                new Regex(@"^(?<title>.+?)[-_. ]+S(?<season>(?<!\d+)\d{3}(?!\d+))E(?<episode>(?<!\d+)\d{2}(?!\d+))(?:-[ex](?<episode>(?<!\d+)\d{2}(?!\d+)))?([_. ]|$)(?!\\)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex60,
 
                 // Mini-Series, treated as season 1, episodes are labelled as XofY
-                new Regex(@"^(?<title>.+?)(?:\W+(?:(?<episode>(?<!\d+)\d{1,2}(?!\d+))of\d+)+)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex61,
 
                 // Supports Season 01 Episode 03
-                new Regex(@"(?:.*(?:\""|^))(?<title>.*?)(?:[-_\W](?<![()\[]))+(?:\W?Season\W?)(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:\W|_)+(?:Episode\W)(?:[-_. ]?(?<episode>(?<!\d+)\d{1,2}(?!\d+)))+",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex62,
 
                 // Multi-episode with episodes in square brackets (Series Title [S01E11E12] or Series Title [S01E11-12])
-                new Regex(@"(?:.*(?:^))(?<title>.*?)[-._ ]+\[S(?<season>(?<!\d+)\d{2}(?!\d+))(?:[E-]{1,2}(?<episode>(?<!\d+)\d{2}(?!\d+)))+\]",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex63,
 
                 // Multi-episode with episodes in brackets (Series Title (S01E11E12) or Series Title (S01E11-12) or Series Title (S01E1-3 of 12))
-                new Regex(@"(?:.*(?:^))(?<title>.*?)[-._ ]+\(S(?<season>(?<!\d+)\d{2}(?!\d+))(?:[E-]{1,2}(?<episode>(?<!\d+)\d{1,2}(?!\d+)))+([._ ]+of[._ ]+[\dx]+)?\)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex64,
 
                 // Multi-episode release with no space between series title and season (S01E11E12)
-                new Regex(@"(?:.*(?:^))(?<title>.*?)S(?<season>(?<!\d+)\d{2}(?!\d+))(?:E(?<episode>(?<!\d+)\d{2}(?!\d+)))+",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex65,
 
                 // Multi-episode with single episode numbers (S6.E1-E2, S6.E1E2, S6E1E2, etc)
-                new Regex(@"^(?<title>.+?)[-_. ]S(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:[-_. ]?[ex]?(?<episode>(?<!\d+)\d{1,2}(?!\d+)))+",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex66,
 
                 // Single or multi episode releases with multiple titles, each followed by season and episode numbers in brackets
-                new Regex(@"^(?<title>.*?)[ ._]\(S(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:\W|_)?E?[ ._]?(?<episode>(?<!\d+)\d{1,2}(?!\d+))(?:-(?<episode>(?<!\d+)\d{1,2}(?!\d+)))?\)(?:[ ._]\/[ ._])(?<title>.*?)[ ._]\(",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex67,
 
                 // Multi-episode with episodes in brackets (Series Title (S01E11E12) or Series Title (S1E11-12) or Series Title (S1E1-3 of 12))
-                new Regex(@"(?:.*(?:^))(?<title>.*?)[-._ ]+\(S(?<season>(?<!\d+)\d{1}(?!\d+))(?:[E-]{1,2}(?<episode>(?<!\d+)\d{1,2}(?!\d+)))+([._ ]+of[._ ]+[\dx]+)?\)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex68,
 
                 // Single episode season or episode S1E1 or S1-E1 or S1.Ep1 or S01.Ep.01
-                new Regex(@"(?:.*(?:\""|^))(?<title>.*?)(?:\W?|_)S(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:\W|_)?Ep?[ ._]?(?<episode>(?<!\d+)\d{1,2}(?!\d+))",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex69,
 
                 // 3 digit season S010E05
-                new Regex(@"(?:.*(?:\""|^))(?<title>.*?)(?:\W?|_)S(?<season>(?<!\d+)\d{3}(?!\d+))(?:\W|_)?E(?<episode>(?<!\d+)\d{1,2}(?!\d+))",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex70,
 
                 // Separated season and episode numbers S01 - E01
-                new Regex(@"^(?<title>.+?)(?:_|-|\s|\.)+S(?<season>\d{2}(?!\d+))(\W-\W)E(?<episode>(?<!\d+)\d{2}(?!\d+))(?!\\)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex71,
 
                 // Season and episode numbers in square brackets (single and multi-episode)
                 // Series Title - [02x01] - Episode 1
                 // Series Title - [02x01x02] - Episode 1
-                new Regex(@"^(?<title>.+?)?(?:[-_\W](?<![()\[!]))+\[(?:s)?(?<season>(?<!\d+)\d{1,2})(?:(?:[ex])(?<episode>\d{2}))(?:(?:[-ex]){1,2}(?<episode>\d{2}))*\].+?(?:\.|$)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex72,
 
                 // Anime - Title with season number - Absolute Episode Number (Title S01 - EP14)
-                new Regex(@"^(?<title>.+?S\d{1,2})[-_. ]{3,}(?:EP)?(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+|[-]))",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex73,
 
                 // Anime - French titles with single episode numbers, with or without leading sub group ([RlsGroup] Title - Episode 1)
-                new Regex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)?(?<title>.+?)[-_. ]+?(?:Episode[-_. ]+?)(?<absoluteepisode>\d{1}(\.\d{1,2})?(?!\d+))",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex74,
 
                 // Anime - Absolute episode number in square brackets
-                new Regex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)(?<title>.+?)[-_. ]+?\[(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+))\]",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex75,
 
                 // Japanese variety shows with leading date
-                new Regex(@"^(?<airyear>\d{2})(?<airmonth>[0-1][0-9])(?<airday>[0-3][0-9])(?![-_. ]+[0-3][0-9])[-_. ](?<title>.+?)[-_. ](?:Season[-_. ]?(?<season>\d{1,2})[-_. ])?(?:ep|#)(?<episode>\d{2,3})",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex76,
 
                 // Season only releases followed by year
-                new Regex(@"^(?<title>.+?)[-_. ]+?(?:S|Season|Saison|Series|Stagione)[-_. ]?(?<season>\d{1,2}(?=[-_. ]\d{4}[-_. ]+))(?<extras>EXTRAS|SUBPACK)?(?!\\)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex77,
 
                 // Season only releases
-                new Regex(@"^(?<title>.+?)[-_. ]+?(?:S|Season|Saison|Series|Stagione)[-_. ]?(?<season>\d{1,2}(?![-_. ]?\d+))(?:[-_. ]|$)+(?<extras>EXTRAS|SUBPACK)?(?!\\)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex78,
 
                 // 4 digit season only releases
-                new Regex(@"^(?<title>.+?)[-_. ]+?(?:S|Season|Saison|Series|Stagione)[-_. ]?(?<season>\d{4}(?![-_. ]?\d+))(\W+|_|$)(?<extras>EXTRAS|SUBPACK)?(?!\\)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex79,
 
                 // Spanish tracker releases
-                new Regex(@"^(?<title>.+?)(?:(?:[-_. ]+?Temporada.+?|\[.+?\])\[Cap)(?:[-_. ]+(?<season>(?<!\d+)\d{1,2})(?<episode>(?<!e|x)(?:[1-9][0-9]|[0][1-9])))+(?:\])",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex80,
 
                 // Supports 103/113 naming
-                new Regex(@"^(?<title>.+?)?(?:(?:[_.-](?<![()\[!]))+(?<season>(?<!\d+)[1-9])(?<episode>[1-9][0-9]|[0][1-9])(?![a-z]|\d+))+(?:[_.]|$)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex81,
 
                 // 4 digit episode number
                 // Episodes without a title, Single (S01E05, 1x05) AND Multi (S01E04E05, 1x04x05, etc)
-                new Regex(@"^(?:S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:\-|[ex]|\W[ex]|_){1,2}(?<episode>\d{4}(?!\d+|i|p)))+)(\W+|_|$)(?!\\)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex82,
 
                 // 4 digit episode number
                 // Episodes with a title, Single episodes (S01E05, 1x05, etc) & Multi-episode (S01E05E06, S01E05-06, S01E05 E06, etc)
-                new Regex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]|\d{1,2}-))+S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:\-|[ex]|\W[ex]|_){1,2}(?<episode>\d{4}(?!\d+|i|p)))+)\W?(?!\\)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex83,
 
                 // Turkish tracker releases (01 BLM, 3. Blm, 04.Bolum, etc)
-                new Regex(@"^(?<title>.+?)[_. ](?<absoluteepisode>\d{1,4})(?:[_. ]+)(?:BLM|B[oö]l[uü]m)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex84,
 
                 // Episodes with airdate (04.28.2018)
-                new Regex(@"^(?<title>.+?)?\W*(?<ambiguousairmonth>[0-1][0-9])[-_. ]+(?<ambiguousairday>[0-3][0-9])[-_. ]+(?<airyear>\d{4})(?!\d+)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex85,
 
                 // Episodes with airdate (28.04.2018)
-                new Regex(@"^(?<title>.+?)?\W*(?<ambiguousairday>[0-3][0-9])[-_. ]+(?<ambiguousairmonth>[0-1][0-9])[-_. ]+(?<airyear>\d{4})(?!\d+)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex86,
 
                 // Episodes with airdate (20180428)
-                new Regex(@"^(?<title>.+?)?\W*(?<!\d+)(?<airyear>\d{4})(?<airmonth>[0-1][0-9])(?<airday>[0-3][0-9])(?!\d+)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex87,
 
                 // Anime - Title Absolute Episode Number (E195 or E1206)
-                new Regex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)?(?<title>.+?)(?:(?:_|-|\s|\.)+(?:e|ep)(?<absoluteepisode>(\d{3}|\d{4})(\.\d{1,2})?))+[-_. ].*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex88,
 
                 // Daily episodes that use short month format instead of number
-                new Regex(@"^(?<title>.+?)[-_. ]+(?<airday>[1-2]\d|3[01]|[1-9])(?:th|st|rd)[-_. ](?<shortairmonth>jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[-_. ](?<airyear>19[4-9]\d|20\d\d)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex89,
 
                 // Supports 1103/1113 naming
-                new Regex(@"^(?<title>.+?)?(?:(?:[-_. ](?<![()\[!]))*(?<!\d{1,2}-)(?<season>(?<!\d+|\(|\[|e|x)\d{2})(?<episode>(?<!e|x)(?:[1-9][0-9]|[0][1-9])(?!p|i|\d+|\)|\]|\W\d+|\W(?:e|ep|x)\d+)))+([-_. ]+|$)(?!\\)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex90,
 
                 // Dutch/Flemish release titles
-                new Regex(@"^(?<title>.+?)[-_. ](?:Se\.(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:(?:[-_ ]?afl\.)(?<episode>\d{1,3}(?!\d+))(?:(?:[-]|[-_ ]en[-_ ])(?<episode>\d{1,3}(?!\d+)))*))",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex91,
 
                 // Episodes with single digit episode number (S01E1, S01E5E6, etc)
-                new Regex(@"^(?<title>.*?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:\-|[ex]){1,2}(?<episode>\d{1}))+)+(\W+|_|$)(?!\\)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex92,
 
                 // iTunes Season 1\05 Title (Quality).ext
-                new Regex(@"^(?:Season(?:_|-|\s|\.)(?<season>(?<!\d+)\d{1,2}(?!\d+)))(?:_|-|\s|\.)(?<episode>(?<!\d+)\d{1,2}(?!\d+))",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex93,
 
                 // iTunes 1-05 Title (Quality).ext
-                new Regex(@"^(?:(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))(?:-(?<episode>\d{2,3}(?!\d+))))",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex94,
 
                 // Mini-Series, treated as season 1, episodes are labelled as Part01, Part 01, Part.1
-                new Regex(@"^(?<title>.+?)(?:\W+(?:(?:(?<!\()Part\W?|(?<!\d+\W+)e)(?<episode>\d{1,2}(?!\d+|\))))+)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex95,
 
                 // Mini-Series, treated as season 1, episodes are labelled as Part One/Two/Three/...Nine, Part.One, Part_One
-                new Regex(@"^(?<title>.+?)(?:\W+(?:Part[-._ ](?<episode>One|Two|Three|Four|Five|Six|Seven|Eight|Nine)(?>[-._ ])))",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex96,
 
                 // Anime Range - Title Absolute Episode Number (ep01-12)
-                new Regex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)?(?<title>.+?)(?:_|\s|\.)+(?:e|ep)(?<absoluteepisode>\d{2,3}(\.\d{1,2})?)-(?<absoluteepisode>(?<!\d+)\d{1,2}(\.\d{1,2})?(?!\d+|-)).*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex97,
 
                 // Anime - Title Absolute Episode Number (e66)
-                new Regex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)?(?<title>.+?)(?:(?:_|-|\s|\.)+(?:e|ep)(?<absoluteepisode>\d{2,4}(\.\d{1,2})?))+[-_. ].*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex98,
 
                 // Anime - Title Episode Absolute Episode Number (Series Title Episode 01)
-                new Regex(@"^(?<title>.+?)[-_. ](?:Episode)(?:[-_. ]+(?<absoluteepisode>(?<!\d+)\d{2,3}(\.\d{1,2})?(?!\d+)))+.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex99,
 
                 // Anime Range - Title Absolute Episode Number (1 or 2 digit absolute episode numbers in a range, 1-10)
-                new Regex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)?(?<title>.+?)[_. ]+(?<absoluteepisode>(?<!\d+)\d{1,2}(\.\d{1,2})?(?!\d+))-(?<absoluteepisode>(?<!\d+)\d{1,2}(\.\d{1,2})?(?!\d+|-)).*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex100,
 
                 // Anime - Title Episode/Episodio Absolute Episode Number
-                new Regex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)?(?<title>.+?)[-_. ]+(?:Episode|Episodio)(?:[-_. ]+(?<absoluteepisode>(?<!\d+)\d{2,4}(\.\d{1,2})?(?!\d+|[ip])))+.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex101,
 
                 // Anime - Title [Absolute Episode Number] from AniLibriaTV
-                new Regex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)?(?<title>.+?)(?:[-_. ]\[)(?:(?:-?)(?<absoluteepisode>(?<!\d+)\d{2,3}(\.\d{1,2})?(?!\d+|[ip])))+(?:\][-_. ]).*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex102,
 
                 // Simple season releases in the format 'Series (year) - Temporada season'
-                new Regex(@"^(?<title>.+?)[_. ]-[_. ](?:Temporada)[-_. ]?(?<season>\d{1,2}(?![_. ]?\d+))(?:[_. ]|$)+(?<extras>EXTRAS|SUBPACK)?(?!\\)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex103,
 
                 // Anime - Title Absolute Episode Number
-                new Regex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)?(?<title>.+?)(?:[-_. ]+(?<absoluteepisode>(?<!\d+)\d{2,4}(\.\d{1,2})?(?!\d+|[ip])))+.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex104,
 
                 // Anime - Title {Absolute Episode Number}
-                new Regex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)?(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+(?<absoluteepisode>(?<!\d+)\d{2,3}(\.\d{1,2})?(?!\d+|[ip])))+.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex105,
 
                 // Extant, terrible multi-episode naming (extant.10708.hdtv-lol.mp4)
-                new Regex(@"^(?<title>.+?)[-_. ](?<season>[0]?\d?)(?:(?<episode>\d{2}){2}(?!\d+))[-_. ]",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex106,
 
                 // Episodes without a title, Single episode numbers (S1E1, 1x1)
-                new Regex(@"^(?:S?(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:(?:[-_ ]?[ex])(?<episode>\d{1}(?!\d+))))",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex107,
 
                 // Anime OVA special
-                new Regex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>.+?)(?:[-_. ]+(?<special>special|ova|ovd|ncop|nced)).*?(?<hash>[(\[][0-9A-F]{8}[)\]])?(?:$|\.mkv)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex108,
 
                 // Episodes with a title, 3 digit season number, Single episodes (S001E05, 1x05, etc) & Multi-episode (S001E05E06, S001E05-06, S001E05 E06, etc)
-                new Regex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)(?:\d{3})(?!\d+))(?:[ex]|\W[ex]){1,2}(?<episode>\d{2,3}(?!\d+))(?:(?:\-|[ex]|\W[ex]|_){1,2}(?<episode>\d{2,3}(?!\d+)))*)(?:[-_. ]|$)",
-                    RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                ReportTitleRegex109,
             };
+
+        [GeneratedRegex(@"^^(?<title>.+?\((?<titleyear>\d{4})\))[-_. ]+(?<airyear>19[4-9]\d|20\d\d)(?<sep>[-_]?)(?<airmonth>0\d|1[0-2])\k<sep>(?<airday>[0-2]\d|3[01])[-_. ]\d{2}[-_. ]\d{2}[-_. ]\d{2}", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex1 { get; }
+
+        [GeneratedRegex(@"^(?<airyear>19[6-9]\d|20\d\d)(?<sep>[-_]?)(?<airmonth>0\d|1[0-2])\k<sep>(?<airday>[0-2]\d|3[01])(?!\d)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex2 { get; }
+
+        [GeneratedRegex(@"^(?:\W*S(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:e{1,2}(?<episode>\d{1,3}(?!\d+)))+){2,}", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex3 { get; }
+
+        [GeneratedRegex(@"^(?:\W*(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:x{1,2}(?<episode>\d{1,3}(?!\d+)))+){2,}", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex4 { get; }
+
+        [GeneratedRegex(@"^(?:S?(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:(?:[-_]|[ex]){1,2}(?<episode>\d{2,3}(?!\d+))){2,})", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex5 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:S?(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:(?:[-_ ]?[ex])(?<episode>\d{2,3}(?!\d+))(?<splitepisode>[a-d])(?:[ _.])))", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex6 { get; }
+
+        [GeneratedRegex(@"^(?:S?(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:(?:[-_ ]?[ex])(?<episode>\d{2,3}(?!\d+))))", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex7 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\](?:_|-|\s|\.)?)(?<title>.+?)[-_. ]+(?<absoluteepisode>(?<!\d+)\d{2,3}(\.\d{1,2})?(?!\d+))(?:[-_. ])+\((?:S(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:[ex]|\W[ex]){1,2}(?<episode>\d{2}(?!\d+))))(?:v\d+)?(?:\)(?!\d+)).*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex8 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\](?:_|-|\s|\.)?)(?<title>.+?)[-_. ]+(?<absoluteepisode>(?<!\d+)\d{2,3}(\.\d{1,2})?(?!\d+))(?:[-_. ](?<![()\[!]))+(?:S(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:[ex]|\W[ex]){1,2}(?<episode>\d{2}(?!\d+))))(?:v\d+)?(?:[_. ](?!\d+)).*?(?<hash>[(\[][0-9A-F]{8}[)\]])$", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex9 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\](?:_|-|\s|\.)?)(?<title>.+?)(?:[-_\W](?<![()\[!]))+(?:S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:[ex]|\W[ex]){1,2}(?<episode>\d{2}(?!\d+)))+)(?:v\d+)?(?:[_. ](?!\d+)).*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex10 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)(?<title>.+?)[-_. ]+?(?:Episode)(?:[-_. ]+(?<absoluteepisode>(?<!\d+)\d{2,3}(\.\d{1,2})?(?!\d+)))+.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex11 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\](?:_|-|\s|\.)?)(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+(?<absoluteepisode>\d{2,3}(\.\d{1,2})?))+(?:_|-|\s|\.)+(?:S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:\-|[ex]|\W[ex]){1,2}(?<episode>\d{2}(?!\d+)))+).*?(?<hash>[(\[][0-9A-F]{8}[)\]])?(?:$|\.)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex12 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\](?:_|-|\s|\.)?)(?<title>.+?)(?:[-_\W](?<![()\[!]))+(?:S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:\-|[ex]|\W[ex]){1,2}(?<episode>\d{2}(?!\d+))){2,})(?:(?:_|-|\s|\.)+(?<absoluteepisode>(?<!\d+)\d{2,3}(\.\d{1,2})?(?!\d+|\-[a-z])))*.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex13 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\](?:_|-|\s|\.)?)(?<title>.+?)(?:[-_\W](?<![()\[!]))+(?:S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:\-|[ex]|\W[ex]){1,2}(?<episode>\d{2}(?!\d+))))(?:(?:_|-|\s|\.)+(?<absoluteepisode>(?<!\d+)\d{2,3}(\.\d{1,2})?(?!\d+|\-[a-z])))+.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex14 { get; }
+
+        [GeneratedRegex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>.+?[^-]+?)(?:(?<![-_. ]|\b[0]\d+) - )[-_. ]?(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+))\s?~\s?(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+))(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?(?:$|\.mkv)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex15 { get; }
+
+        [GeneratedRegex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>[^-]+?)[_. ]+?\(Season[_. ](?<season>\d+)\)[-_. ]+?(?:[-_. ]?(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+)))+(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?(?:$|\.mkv)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex16 { get; }
+
+        [GeneratedRegex(@"^\[(?<subgroup>[^\]]+?)\][-_. ]?(?<title>[^]]+?)(?:[-_. ]{3}?(?<absoluteepisode>\d{2}(\.\d{1,2})?(?!-?\d+|-[a-z]+)))+(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?(?:$|\.mkv)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex17 { get; }
+
+        [GeneratedRegex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>.+?)[-_. ]+S(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))(?:(?:-S?|[-_. ]{1,3}S)(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))){1,}", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex18 { get; }
+
+        [GeneratedRegex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>.+?)(?:\W+S(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))\W+(?:(?:(?:Part|Vol)\W?|(?<!\d+\W+)e|p)(?<seasonpart>\d{1,2}(?!\d+)))+)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex19 { get; }
+
+        [GeneratedRegex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>[^-]+?)(?:(?<![-_. ]|\b[0]\d+) - )(?:[-_. ]?(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+)))+(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?(?:$|\.mkv)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex20 { get; }
+
+        [GeneratedRegex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>.+?)[-_. ]+(?:S(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?![ex]?\d+))).+?(?:$|\.mkv)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex21 { get; }
+
+        [GeneratedRegex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>[^-]+?)(?:(?<![-_. ]|\b[0]\d+)[_ ]+)(?:[-_. ]?(?<absoluteepisode>\d{3}(\.\d{1,2})?(?!\d+|-[a-z]+)))+(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?(?:$|\.mkv)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex22 { get; }
+
+        [GeneratedRegex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>.+?)(?:(?<!\b[0]\d+))(?:[. ]-[. ](?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+|[-])))+(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?(?:$|\.mkv)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex23 { get; }
+
+        [GeneratedRegex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>.+?)(?:(?<!\b[0]\d+))(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+|[-]))[. ]-[. ](?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+|[-]))(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?(?:$|\.mkv)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex24 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\][-_. ])?(?<title>.+?)[-_. ]+?[\[(](?:S|Season|Saison|Series|Stagione|Sezon)[-_. ]?(?<season>\d{1,2}(?![-_. ]?\d+))(?:[-_. )\]]|$)+(?<extras>EXTRAS|SUBPACK)?(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex25 { get; }
+
+        [GeneratedRegex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>.+?)[-_. ]+\(?(?:[-_. ]?#?(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+|-[a-z]+)))+\)?(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?(?:$|\.mkv)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex26 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:(?:e|[-_. ]e){1,2}(?<episode>\d{1,3}(?!\d+)))+){2,}", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex27 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:x{1,2}(?<episode>\d{1,3}(?!\d+)))+){2,}", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex28 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))(?:[ex]|\W[ex]|_){1,2}(?<episode>\d{2,3}(?!\d+|(?:[ex]|\W[ex]|_|-){1,2}\d+))(?<special>\.5[ .]\[SP\]))", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex29 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))(?:[ex]|\W[ex]|_){1,2}(?<episode>\d{2,3}(?!\d+|(?:[ex]|\W[ex]|_|-){1,2}\d+))).+?(?:\[.+?\])(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex30 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:[-_\W](?<![()\[!]))+(?:S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:[ex]|\W[ex]|-){1,2}(?<episode>(?<!\d+)\d{2}(?!\d+)))+)[-_. (]+?(?:[-_. ]?(?<absoluteepisode>(?<!\d+)\d{3}(\.\d{1,2})?(?!\d+|[pi])))+.+?\[(?<subgroup>.+?)\](?:$|\.mkv)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex31 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))(?:[ex]|\W[ex]|_){1,2}(?<episode>\d{2,3}(?!\d+))(?:(?:\-|[ex]|\W[ex]|_){1,2}(?<episode>\d{2,3}(?!\d+)))+).+?(?:\[.+?\])(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex32 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)[-_. ]Episode(?:[-_. ]+(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+)))+(?:.+?)\[(?<subgroup>.+?)\].*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex33 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:(?:_|-|\s|\.)+(?<absoluteepisode>\d{3}(\.\d{1,2})(?!\d+)))+(?:.+?)\[(?<subgroup>.+?)\].*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex34 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)[-_. ]+(?<absoluteepisode>(?<!\d+)\d{2}(?!\d+))[-_. ](\(\d{4}\))[-_. ]\[(?<subgroup>.+?)\]", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex35 { get; }
+
+        [GeneratedRegex(@"^(?<title>[^-]+?)(?:(?<![-_. ]|\b[0]\d+) - )(?:[-_. ]?(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+)))+(?:[-_. ]+(?<special>special|ova|ovd))?.*?(?<hash>[(\[][0-9A-F]{8}[)\]])(?:$|\.mkv)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex36 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:(?:_|-|\s|\.)+(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+)))+(?:[-_. ]+(?<special>special|ova|ovd))?[-_. ]+.*?(?<hash>[(\[][0-9A-F]{8}[)\]])$", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex37 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)?\W*(?<airdate>\d{4}\W+[0-1][0-9]\W+[0-3][0-9])(?!\W+[0-3][0-9])[-_. ](?:s?(?<season>(?<!\d+)(?:\d{1,2})(?!\d+)))(?:[ex](?<episode>(?<!\d+)(?:\d{1,3})(?!\d+)))", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex38 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)?\W*(?<airyear>\d{4})\W+(?<airmonth>[0-1][0-9])\W+(?<airday>[0-3][0-9])(?!\W+[0-3][0-9]).+?(?:s?(?<season>(?<!\d+)(?:\d{1,2})(?!\d+)))(?:[ex](?<episode>(?<!\d+)(?:\d{1,3})(?!\d+)))", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex39 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)?[-_. ](?:e\d{2,3}(?!\d+))[-_. ](?<airyear>\d{4})\W+(?<airmonth>[0-1][0-9])\W+(?<airday>[0-3][0-9])(?!\W+[0-3][0-9]).+?(?:\[[a-z]+\])", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex40 { get; }
+
+        [GeneratedRegex(@"^((?<title>.*?)[ ._]\/[ ._])+\(?S(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:\W|_)?E?[ ._]?(?<episode>(?<!\d+)\d{1,2}(?!\d+))(?:-(?<episode>(?<!\d+)\d{1,2}(?!\d+)))?(?:[ ._]of[ ._](?<episodecount>\d{1,2}))?\)?[ ._][\(\[]", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex41 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:[-_\W](?<![()\[!]))+S(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))E(?<episode>\d{2,3}(?!\d+))(?:-(?<episode>\d{2,3}(?!\d+)))+(?:[-_. ]|$)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex42 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:[-_\W](?<![()\[!]))+S(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))E(?<episode>\d{1,2}(?!\d+))(?:-(?<episode>\d{1,2}(?!\d+)))+(?:[-_. ]|$)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex43 { get; }
+
+        [GeneratedRegex(@"^(?<title>[\u4E00-\u9FCC]+)[_. ](?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))(?:[ex]|\W[ex]){1,2}(?<episode>\d{2,3}(?!\d+))(?:(?:\-|[ex]|\W[ex]|_){1,2}(?<episode>\d{2,3}(?!\d+)))*)(?:[-_. ]|$)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex44 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))(?:[ex]|\W[ex]){1,2}(?<episode>\d{2,3}(?!\d+))(?:(?:\-|[ex]|\W[ex]|_){1,2}(?<episode>\d{2,3}(?!\d+)))*)(?:[-_. ]|$)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex45 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S(?<season>(?<!\d+)(?:\d{4})(?!\d+))(?:e|\We|_){1,2}(?<episode>\d{2,4}(?!\d+))(?:(?:\-|e|\We|_){1,2}(?<episode>\d{2,3}(?!\d+)))*)\W?(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex46 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+(?<season>(?<!\d+)(?:\d{4})(?!\d+))(?:x|\Wx){1,2}(?<episode>\d{2,4}(?!\d+))(?:(?:\-|x|\Wx|_){1,2}(?<episode>\d{2,3}(?!\d+)))*)\W?(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex47 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:[-_\W](?<![()\[!]))+S(?<season>(?<!\d+)(?:\d{2})(?!\d+))(?:\.)(?<episode>\d{2,3}(?!\d+))(?:[-_. ]|$)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex48 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(Complete Series)?[-_. ]+(?:S|(?:Season|Saison|Series|Stagione)[_. ])(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))(?:(?:[-_. ]{1}|[-_. ]{3})(?:S|(?:Season|Saison|Series|Stagione)[_. ])?(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))){1,}", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex49 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:\W+S(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))\W+(?:(?:(?:Part|Vol)\W?|(?<!\d+\W+)e|p)(?<seasonpart>\d{1,2}(?!\d+)))+)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex50 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)(?<title>.+?)[-_. ]+?\(?(?<absoluteepisode>\d{4}(\.\d{1,2})?(?!\d+))[-](?<absoluteepisode>\d{4}(\.\d{1,2})?(?!\d+))\)?", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex51 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)(?<title>.+?)[-_. ]+?(?<absoluteepisode>\d{4}(\.\d{1,2})?(?!\d+))", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex52 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:[-._ ][e])(?<episode>\d{2,3}(?!\d+))(?:(?:\-?[e])(?<episode>\d{2,3}(?!\d+)))+", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex53 { get; }
+
+        [GeneratedRegex(@"^(?:(?<title>.+?)(?:_|-|\s|\.)+)(?:S?(?<season>(?<!\d+)\d{1,2}(?!\d+)))(?:(?:\-|[ex]|\W[ex]|_){1,2}(?<episode>(?<!\d+)\d{5}(?!\d+)))", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex54 { get; }
+
+        [GeneratedRegex(@"^(?:(?<title>.+?)(?:_|-|\s|\.)+)(?:S?(?<season>(?<!\d+)\d{1,2}(?!\d+)))(?:(?:[-_. ]{1,3}ep){1,2}(?<episode>(?<!\d+)\d{5}(?!\d+)))+", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex55 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)?\W*(?<airyear>\d{4})[-_. ]+(?<airmonth>[0-1][0-9])[-_. ]+(?<airday>[0-3][0-9])(?![-_. ]+[0-3][0-9])[-_. ]+Part[-_. ]?(?<part>[1-9])", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex56 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)?\W*(?<airyear>\d{4})[-_. ]+(?<airmonth>[0-1][0-9])[-_. ]+(?<airday>[0-3][0-9])(?![-_. ]+[0-3][0-9])", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex57 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)[-_. ]+(?<absoluteepisode>(?<!\d+)\d{4}(?!\d+))[-_. ]\[(?<subgroup>.+?)\]", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex58 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?\d{4})(?:\W+(?:(?:Part\W?|e)(?<episode>\d{1,2}(?!\d+)))+)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex59 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)[-_. ]+S(?<season>(?<!\d+)\d{3}(?!\d+))E(?<episode>(?<!\d+)\d{2}(?!\d+))(?:-[ex](?<episode>(?<!\d+)\d{2}(?!\d+)))?([_. ]|$)(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex60 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:\W+(?:(?<episode>(?<!\d+)\d{1,2}(?!\d+))of\d+)+)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex61 { get; }
+
+        [GeneratedRegex(@"(?:.*(?:\""|^))(?<title>.*?)(?:[-_\W](?<![()\[]))+(?:\W?Season\W?)(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:\W|_)+(?:Episode\W)(?:[-_. ]?(?<episode>(?<!\d+)\d{1,2}(?!\d+)))+", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex62 { get; }
+
+        [GeneratedRegex(@"(?:.*(?:^))(?<title>.*?)[-._ ]+\[S(?<season>(?<!\d+)\d{2}(?!\d+))(?:[E-]{1,2}(?<episode>(?<!\d+)\d{2}(?!\d+)))+\]", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex63 { get; }
+
+        [GeneratedRegex(@"(?:.*(?:^))(?<title>.*?)[-._ ]+\(S(?<season>(?<!\d+)\d{2}(?!\d+))(?:[E-]{1,2}(?<episode>(?<!\d+)\d{1,2}(?!\d+)))+([._ ]+of[._ ]+[\dx]+)?\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex64 { get; }
+
+        [GeneratedRegex(@"(?:.*(?:^))(?<title>.*?)S(?<season>(?<!\d+)\d{2}(?!\d+))(?:E(?<episode>(?<!\d+)\d{2}(?!\d+)))+", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex65 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)[-_. ]S(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:[-_. ]?[ex]?(?<episode>(?<!\d+)\d{1,2}(?!\d+)))+", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex66 { get; }
+
+        [GeneratedRegex(@"^(?<title>.*?)[ ._]\(S(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:\W|_)?E?[ ._]?(?<episode>(?<!\d+)\d{1,2}(?!\d+))(?:-(?<episode>(?<!\d+)\d{1,2}(?!\d+)))?\)(?:[ ._]\/[ ._])(?<title>.*?)[ ._]\(", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex67 { get; }
+
+        [GeneratedRegex(@"(?:.*(?:^))(?<title>.*?)[-._ ]+\(S(?<season>(?<!\d+)\d{1}(?!\d+))(?:[E-]{1,2}(?<episode>(?<!\d+)\d{1,2}(?!\d+)))+([._ ]+of[._ ]+[\dx]+)?\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex68 { get; }
+
+        [GeneratedRegex(@"(?:.*(?:\""|^))(?<title>.*?)(?:\W?|_)S(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:\W|_)?Ep?[ ._]?(?<episode>(?<!\d+)\d{1,2}(?!\d+))", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex69 { get; }
+
+        [GeneratedRegex(@"(?:.*(?:\""|^))(?<title>.*?)(?:\W?|_)S(?<season>(?<!\d+)\d{3}(?!\d+))(?:\W|_)?E(?<episode>(?<!\d+)\d{1,2}(?!\d+))", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex70 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:_|-|\s|\.)+S(?<season>\d{2}(?!\d+))(\W-\W)E(?<episode>(?<!\d+)\d{2}(?!\d+))(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex71 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)?(?:[-_\W](?<![()\[!]))+\[(?:s)?(?<season>(?<!\d+)\d{1,2})(?:(?:[ex])(?<episode>\d{2}))(?:(?:[-ex]){1,2}(?<episode>\d{2}))*\].+?(?:\.|$)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex72 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?S\d{1,2})[-_. ]{3,}(?:EP)?(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+|[-]))", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex73 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)?(?<title>.+?)[-_. ]+?(?:Episode[-_. ]+?)(?<absoluteepisode>\d{1}(\.\d{1,2})?(?!\d+))", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex74 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)(?<title>.+?)[-_. ]+?\[(?<absoluteepisode>\d{2,3}(\.\d{1,2})?(?!\d+))\]", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex75 { get; }
+
+        [GeneratedRegex(@"^(?<airyear>\d{2})(?<airmonth>[0-1][0-9])(?<airday>[0-3][0-9])(?![-_. ]+[0-3][0-9])[-_. ](?<title>.+?)[-_. ](?:Season[-_. ]?(?<season>\d{1,2})[-_. ])?(?:ep|#)(?<episode>\d{2,3})", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex76 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)[-_. ]+?(?:S|Season|Saison|Series|Stagione)[-_. ]?(?<season>\d{1,2}(?=[-_. ]\d{4}[-_. ]+))(?<extras>EXTRAS|SUBPACK)?(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex77 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)[-_. ]+?(?:S|Season|Saison|Series|Stagione)[-_. ]?(?<season>\d{1,2}(?![-_. ]?\d+))(?:[-_. ]|$)+(?<extras>EXTRAS|SUBPACK)?(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex78 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)[-_. ]+?(?:S|Season|Saison|Series|Stagione)[-_. ]?(?<season>\d{4}(?![-_. ]?\d+))(\W+|_|$)(?<extras>EXTRAS|SUBPACK)?(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex79 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:(?:[-_. ]+?Temporada.+?|\[.+?\])\[Cap)(?:[-_. ]+(?<season>(?<!\d+)\d{1,2})(?<episode>(?<!e|x)(?:[1-9][0-9]|[0][1-9])))+(?:\])", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex80 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)?(?:(?:[_.-](?<![()\[!]))+(?<season>(?<!\d+)[1-9])(?<episode>[1-9][0-9]|[0][1-9])(?![a-z]|\d+))+(?:[_.]|$)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex81 { get; }
+
+        [GeneratedRegex(@"^(?:S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:\-|[ex]|\W[ex]|_){1,2}(?<episode>\d{4}(?!\d+|i|p)))+)(\W+|_|$)(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex82 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]|\d{1,2}-))+S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:\-|[ex]|\W[ex]|_){1,2}(?<episode>\d{4}(?!\d+|i|p)))+)\W?(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex83 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)[_. ](?<absoluteepisode>\d{1,4})(?:[_. ]+)(?:BLM|B[oö]l[uü]m)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex84 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)?\W*(?<ambiguousairmonth>[0-1][0-9])[-_. ]+(?<ambiguousairday>[0-3][0-9])[-_. ]+(?<airyear>\d{4})(?!\d+)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex85 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)?\W*(?<ambiguousairday>[0-3][0-9])[-_. ]+(?<ambiguousairmonth>[0-1][0-9])[-_. ]+(?<airyear>\d{4})(?!\d+)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex86 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)?\W*(?<!\d+)(?<airyear>\d{4})(?<airmonth>[0-1][0-9])(?<airday>[0-3][0-9])(?!\d+)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex87 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)?(?<title>.+?)(?:(?:_|-|\s|\.)+(?:e|ep)(?<absoluteepisode>(\d{3}|\d{4})(\.\d{1,2})?))+[-_. ].*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex88 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)[-_. ]+(?<airday>[1-2]\d|3[01]|[1-9])(?:th|st|rd)[-_. ](?<shortairmonth>jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[-_. ](?<airyear>19[4-9]\d|20\d\d)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex89 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)?(?:(?:[-_. ](?<![()\[!]))*(?<!\d{1,2}-)(?<season>(?<!\d+|\(|\[|e|x)\d{2})(?<episode>(?<!e|x)(?:[1-9][0-9]|[0][1-9])(?!p|i|\d+|\)|\]|\W\d+|\W(?:e|ep|x)\d+)))+([-_. ]+|$)(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex90 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)[-_. ](?:Se\.(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:(?:[-_ ]?afl\.)(?<episode>\d{1,3}(?!\d+))(?:(?:[-]|[-_ ]en[-_ ])(?<episode>\d{1,3}(?!\d+)))*))", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex91 { get; }
+
+        [GeneratedRegex(@"^(?<title>.*?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)\d{1,2}(?!\d+))(?:(?:\-|[ex]){1,2}(?<episode>\d{1}))+)+(\W+|_|$)(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex92 { get; }
+
+        [GeneratedRegex(@"^(?:Season(?:_|-|\s|\.)(?<season>(?<!\d+)\d{1,2}(?!\d+)))(?:_|-|\s|\.)(?<episode>(?<!\d+)\d{1,2}(?!\d+))", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex93 { get; }
+
+        [GeneratedRegex(@"^(?:(?<season>(?<!\d+)(?:\d{1,2})(?!\d+))(?:-(?<episode>\d{2,3}(?!\d+))))", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex94 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:\W+(?:(?:(?<!\()Part\W?|(?<!\d+\W+)e)(?<episode>\d{1,2}(?!\d+|\))))+)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex95 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:\W+(?:Part[-._ ](?<episode>One|Two|Three|Four|Five|Six|Seven|Eight|Nine)(?>[-._ ])))", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex96 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)?(?<title>.+?)(?:_|\s|\.)+(?:e|ep)(?<absoluteepisode>\d{2,3}(\.\d{1,2})?)-(?<absoluteepisode>(?<!\d+)\d{1,2}(\.\d{1,2})?(?!\d+|-)).*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex97 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)?(?<title>.+?)(?:(?:_|-|\s|\.)+(?:e|ep)(?<absoluteepisode>\d{2,4}(\.\d{1,2})?))+[-_. ].*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex98 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)[-_. ](?:Episode)(?:[-_. ]+(?<absoluteepisode>(?<!\d+)\d{2,3}(\.\d{1,2})?(?!\d+)))+.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex99 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)?(?<title>.+?)[_. ]+(?<absoluteepisode>(?<!\d+)\d{1,2}(\.\d{1,2})?(?!\d+))-(?<absoluteepisode>(?<!\d+)\d{1,2}(\.\d{1,2})?(?!\d+|-)).*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex100 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)?(?<title>.+?)[-_. ]+(?:Episode|Episodio)(?:[-_. ]+(?<absoluteepisode>(?<!\d+)\d{2,4}(\.\d{1,2})?(?!\d+|[ip])))+.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex101 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)?(?<title>.+?)(?:[-_. ]\[)(?:(?:-?)(?<absoluteepisode>(?<!\d+)\d{2,3}(\.\d{1,2})?(?!\d+|[ip])))+(?:\][-_. ]).*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex102 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)[_. ]-[_. ](?:Temporada)[-_. ]?(?<season>\d{1,2}(?![_. ]?\d+))(?:[_. ]|$)+(?<extras>EXTRAS|SUBPACK)?(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex103 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)?(?<title>.+?)(?:[-_. ]+(?<absoluteepisode>(?<!\d+)\d{2,4}(\.\d{1,2})?(?!\d+|[ip])))+.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex104 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)?(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+(?<absoluteepisode>(?<!\d+)\d{2,3}(\.\d{1,2})?(?!\d+|[ip])))+.*?(?<hash>[(\[][0-9A-F]{8}[)\]])?$", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex105 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)[-_. ](?<season>[0]?\d?)(?:(?<episode>\d{2}){2}(?!\d+))[-_. ]", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex106 { get; }
+
+        [GeneratedRegex(@"^(?:S?(?<season>(?<!\d+)(?:\d{1,2}|\d{4})(?!\d+))(?:(?:[-_ ]?[ex])(?<episode>\d{1}(?!\d+))))", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex107 { get; }
+
+        [GeneratedRegex(@"^\[(?<subgroup>.+?)\][-_. ]?(?<title>.+?)(?:[-_. ]+(?<special>special|ova|ovd|ncop|nced)).*?(?<hash>[(\[][0-9A-F]{8}[)\]])?(?:$|\.mkv)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex108 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)(?:(?:[-_\W](?<![()\[!]))+S?(?<season>(?<!\d+)(?:\d{3})(?!\d+))(?:[ex]|\W[ex]){1,2}(?<episode>\d{2,3}(?!\d+))(?:(?:\-|[ex]|\W[ex]|_){1,2}(?<episode>\d{2,3}(?!\d+)))*)(?:[-_. ]|$)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTitleRegex109 { get; }
 
         private static readonly Regex[] SpecialEpisodeTitleRegex = new Regex[]
             {
-                new Regex(@"\.S\d+E00\.(?<episodetitle>.+?)(?:\.(?:720p|1080p|2160p|HDTV|WEB|WEBRip|WEB-DL)\.|$)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                SpecialEpisodeTitleRegex1,
 
-                new Regex(@"\.S\d+\.Special\.(?<episodetitle>.+?)(?:\.(?:720p|1080p|2160p|HDTV|WEB|WEBRip|WEB-DL)\.|$)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled)
+                SpecialEpisodeTitleRegex2
             };
+
+        [GeneratedRegex(@"\.S\d+E00\.(?<episodetitle>.+?)(?:\.(?:720p|1080p|2160p|HDTV|WEB|WEBRip|WEB-DL)\.|$)", RegexOptions.IgnoreCase)]
+        private static partial Regex SpecialEpisodeTitleRegex1 { get; }
+
+        [GeneratedRegex(@"\.S\d+\.Special\.(?<episodetitle>.+?)(?:\.(?:720p|1080p|2160p|HDTV|WEB|WEBRip|WEB-DL)\.|$)", RegexOptions.IgnoreCase)]
+        private static partial Regex SpecialEpisodeTitleRegex2 { get; }
 
         private static readonly Regex[] RejectHashedReleasesRegexes = new Regex[]
             {
                 // Generic match for md5 and mixed-case hashes.
-                new Regex(@"^[0-9a-zA-Z]{32}", RegexOptions.Compiled),
+                RejectHashedReleasesRegexes1,
 
                 // Generic match for shorter lower-case hashes.
-                new Regex(@"^[a-z0-9]{24}$", RegexOptions.Compiled),
+                RejectHashedReleasesRegexes2,
 
                 // Format seen on some NZBGeek releases
                 // Be very strict with these coz they are very close to the valid 101 ep numbering.
-                new Regex(@"^[A-Z]{11}\d{3}$", RegexOptions.Compiled),
-                new Regex(@"^[a-z]{12}\d{3}$", RegexOptions.Compiled),
+                RejectHashedReleasesRegexes3,
+                RejectHashedReleasesRegexes4,
 
                 // Backup filename (Unknown origins)
-                new Regex(@"^Backup_\d{5,}S\d{2}-\d{2}$", RegexOptions.Compiled),
+                RejectHashedReleasesRegexes5,
 
                 // 123 - Started appearing December 2014
-                new Regex(@"^123$", RegexOptions.Compiled),
+                RejectHashedReleasesRegexes6,
 
                 // abc - Started appearing January 2015
-                new Regex(@"^abc$", RegexOptions.Compiled | RegexOptions.IgnoreCase),
+                RejectHashedReleasesRegexes7,
 
                 // abc - Started appearing 2020
-                new Regex(@"^abc[-_. ]xyz", RegexOptions.Compiled | RegexOptions.IgnoreCase),
+                RejectHashedReleasesRegexes8,
 
                 // b00bs - Started appearing January 2015
-                new Regex(@"^b00bs$", RegexOptions.Compiled | RegexOptions.IgnoreCase),
+                RejectHashedReleasesRegexes9,
 
                 // 170424_26 - Started appearing August 2018
                 new Regex(@"^\d{6}_\d{2}$"),
 
                 // additional Generic match for mixed-case hashes. - Started appearing Dec 2020
-                new Regex(@"^[0-9a-zA-Z]{30}", RegexOptions.Compiled),
+                RejectHashedReleasesRegexes10,
 
                 // additional Generic match for mixed-case hashes. - Started appearing Jan 2021
-                new Regex(@"^[0-9a-zA-Z]{26}", RegexOptions.Compiled),
+                RejectHashedReleasesRegexes11,
 
                 // additional Generic match for mixed-case hashes. - Started appearing Jan 2021
-                new Regex(@"^[0-9a-zA-Z]{39}", RegexOptions.Compiled),
+                RejectHashedReleasesRegexes12,
 
                 // additional Generic match for mixed-case hashes. - Started appearing Jan 2021
-                new Regex(@"^[0-9a-zA-Z]{24}", RegexOptions.Compiled),
+                RejectHashedReleasesRegexes13,
             };
+
+        [GeneratedRegex(@"^[0-9a-zA-Z]{32}")]
+        private static partial Regex RejectHashedReleasesRegexes1 { get; }
+
+        [GeneratedRegex(@"^[a-z0-9]{24}$")]
+        private static partial Regex RejectHashedReleasesRegexes2 { get; }
+
+        [GeneratedRegex(@"^[A-Z]{11}\d{3}$")]
+        private static partial Regex RejectHashedReleasesRegexes3 { get; }
+
+        [GeneratedRegex(@"^[a-z]{12}\d{3}$")]
+        private static partial Regex RejectHashedReleasesRegexes4 { get; }
+
+        [GeneratedRegex(@"^Backup_\d{5,}S\d{2}-\d{2}$")]
+        private static partial Regex RejectHashedReleasesRegexes5 { get; }
+
+        [GeneratedRegex(@"^123$")]
+        private static partial Regex RejectHashedReleasesRegexes6 { get; }
+
+        [GeneratedRegex(@"^abc$", RegexOptions.IgnoreCase)]
+        private static partial Regex RejectHashedReleasesRegexes7 { get; }
+
+        [GeneratedRegex(@"^abc[-_. ]xyz", RegexOptions.IgnoreCase)]
+        private static partial Regex RejectHashedReleasesRegexes8 { get; }
+
+        [GeneratedRegex(@"^b00bs$", RegexOptions.IgnoreCase)]
+        private static partial Regex RejectHashedReleasesRegexes9 { get; }
+
+        [GeneratedRegex(@"^[0-9a-zA-Z]{30}")]
+        private static partial Regex RejectHashedReleasesRegexes10 { get; }
+
+        [GeneratedRegex(@"^[0-9a-zA-Z]{26}")]
+        private static partial Regex RejectHashedReleasesRegexes11 { get; }
+
+        [GeneratedRegex(@"^[0-9a-zA-Z]{39}")]
+        private static partial Regex RejectHashedReleasesRegexes12 { get; }
+
+        [GeneratedRegex(@"^[0-9a-zA-Z]{24}")]
+        private static partial Regex RejectHashedReleasesRegexes13 { get; }
 
         private static readonly Regex[] SeasonFolderRegexes = new Regex[]
             {
-                new Regex(@"^(Season[ ._-]*\d+|Specials)$", RegexOptions.Compiled)
+                SeasonFolderRegexes1
             };
 
+        [GeneratedRegex(@"^(Season[ ._-]*\d+|Specials)$")]
+        private static partial Regex SeasonFolderRegexes1 { get; }
+
         // Regex to detect whether the title was reversed.
-        private static readonly Regex ReversedTitleRegex = new Regex(@"(?:^|[-._ ])(p027|p0801|\d{2,3}E-?\d{2}S)[-._ ]", RegexOptions.Compiled);
+        [GeneratedRegex(@"(?:^|[-._ ])(p027|p0801|\d{2,3}E-?\d{2}S)[-._ ]")]
+        private static partial Regex ReversedTitleRegex { get; }
 
-        private static readonly Regex AnimeSeasonReleaseMetadataRegex = new Regex(@"\[[^\[\]]+\]|\([^()]+\)|\{[^{}]+\}", RegexOptions.Compiled);
+        [GeneratedRegex(@"\[[^\[\]]+\]|\([^()]+\)|\{[^{}]+\}")]
+        private static partial Regex AnimeSeasonReleaseMetadataRegex { get; }
 
-        private static readonly Regex AnimeSpecialMarkerRegex = new Regex(@"\b(special|ova|ovd|ncop|nced)\b",
-                                                                          RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(@"\b(special|ova|ovd|ncop|nced)\b", RegexOptions.IgnoreCase)]
+        private static partial Regex AnimeSpecialMarkerRegex { get; }
 
-        private static readonly RegexReplace NormalizeRegex = new RegexReplace(@"((?:\b|_)(?<!^)([aà](?!$)|an|the|and|or|of)(?!$)(?:\b|_))|\W|_",
-                                                                string.Empty,
-                                                                RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly RegexReplace NormalizeRegex = new RegexReplace(NormalizeRegex1, string.Empty);
 
-        private static readonly Regex PercentRegex = new Regex(@"(?<=\b\d+)%", RegexOptions.Compiled);
+        [GeneratedRegex(@"((?:\b|_)(?<!^)([aà](?!$)|an|the|and|or|of)(?!$)(?:\b|_))|\W|_", RegexOptions.IgnoreCase)]
+        private static partial Regex NormalizeRegex1 { get; }
 
-        private static readonly RegexReplace SimpleTitleRegex = new RegexReplace(@"(?:(480|540|576|720|1080|1440|2160)[ip]|(?<![a-z0-9])[248]k(?![a-z0-9])|[xh][\W_]?26[456]|DD\W?5\W1|[<>?*]|848x480|1280x720|1920x1080|3840x2160|4096x2160|(?<![a-f0-9])(8|10)[ -]?(b(?![a-z0-9])|bit))\s*?",
-                                                                string.Empty,
-                                                                RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        [GeneratedRegex(@"(?<=\b\d+)%")]
+        private static partial Regex PercentRegex { get; }
+
+        private static readonly RegexReplace SimpleTitleRegex = new RegexReplace(SimpleTitleRegex1, string.Empty);
+
+        [GeneratedRegex(@"(?:(480|540|576|720|1080|1440|2160)[ip]|(?<![a-z0-9])[248]k(?![a-z0-9])|[xh][\W_]?26[456]|DD\W?5\W1|[<>?*]|848x480|1280x720|1920x1080|3840x2160|4096x2160|(?<![a-f0-9])(8|10)[ -]?(b(?![a-z0-9])|bit))\s*?", RegexOptions.IgnoreCase)]
+        private static partial Regex SimpleTitleRegex1 { get; }
 
         // Valid TLDs http://data.iana.org/TLD/tlds-alpha-by-domain.txt
 
-        private static readonly Regex SixDigitAirDateRegex = new Regex(@"(?<=[_.-])(?<airdate>(?<!\d)(?<airyear>[1-9]\d{1})(?<airmonth>[0-1][0-9])(?<airday>[0-3][0-9]))(?=[_.-])",
-                                                                        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        [GeneratedRegex(@"(?<=[_.-])(?<airdate>(?<!\d)(?<airyear>[1-9]\d{1})(?<airmonth>[0-1][0-9])(?<airday>[0-3][0-9]))(?=[_.-])", RegexOptions.IgnoreCase)]
+        private static partial Regex SixDigitAirDateRegex { get; }
 
-        private static readonly Regex CleanQualityBracketsRegex = new Regex(@"\[[a-z0-9 ._-]+\]$",
-                                                                   RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        [GeneratedRegex(@"\[[a-z0-9 ._-]+\]$", RegexOptions.IgnoreCase)]
+        private static partial Regex CleanQualityBracketsRegex { get; }
 
-        private static readonly Regex YearInTitleRegex = new Regex(@"^(?<title>.+?)[-_. ]+?[\(\[]?(?<year>\d{4})[\]\)]?",
-                                                                RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        [GeneratedRegex(@"^(?<title>.+?)[-_. ]+?[\(\[]?(?<year>\d{4})[\]\)]?", RegexOptions.IgnoreCase)]
+        private static partial Regex YearInTitleRegex { get; }
 
-        private static readonly Regex TitleComponentsRegex = new Regex(@"^(?:(?<title>.+?) \((?<title>.+?)\)|(?<title>.+?) \| (?<title>.+?)|(?<title>.+?) AKA (?<title>.+?)|(?<title>.+?) / (?<title>.+?))$",
-                                                                RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        [GeneratedRegex(@"^(?:(?<title>.+?) \((?<title>.+?)\)|(?<title>.+?) \| (?<title>.+?)|(?<title>.+?) AKA (?<title>.+?)|(?<title>.+?) / (?<title>.+?))$", RegexOptions.IgnoreCase)]
+        private static partial Regex TitleComponentsRegex { get; }
 
-        private static readonly Regex PartRegex = new Regex(@"\(\d+\)$", RegexOptions.Compiled);
-        private static readonly Regex PunctuationRegex = new Regex(@"[^\w\s]", RegexOptions.Compiled);
-        private static readonly Regex ArticleWordRegex = new Regex(@"^(a|an|the)\s", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex SpecialEpisodeWordRegex = new Regex(@"\b(part|special|edition|christmas)\b\s?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex DuplicateSpacesRegex = new Regex(@"\s{2,}", RegexOptions.Compiled);
-        private static readonly Regex SeasonFolderRegex = new Regex(@"^(?:S|Season|Saison|Series|Stagione|Sezon)[-_. ]*(?<season>(?<!\d+)\d{1,4}(?!\d+))(?:[_. ]+(?!\d+)|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex SimpleEpisodeNumberRegex = new Regex(@"^[ex]?(?<episode>(?<!\d+)\d{1,3}(?!\d+))(?:[ex-](?<episode>(?<!\d+)\d{1,3}(?!\d+)))?(?:[_. ](?!\d+)(?<remaining>.+)|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        [GeneratedRegex(@"\(\d+\)$")]
+        private static partial Regex PartRegex { get; }
+        [GeneratedRegex(@"[^\w\s]")]
+        private static partial Regex PunctuationRegex { get; }
+        [GeneratedRegex(@"^(a|an|the)\s", RegexOptions.IgnoreCase)]
+        private static partial Regex ArticleWordRegex { get; }
+        [GeneratedRegex(@"\b(part|special|edition|christmas)\b\s?", RegexOptions.IgnoreCase)]
+        private static partial Regex SpecialEpisodeWordRegex { get; }
+        [GeneratedRegex(@"\s{2,}")]
+        private static partial Regex DuplicateSpacesRegex { get; }
+        [GeneratedRegex(@"^(?:S|Season|Saison|Series|Stagione|Sezon)[-_. ]*(?<season>(?<!\d+)\d{1,4}(?!\d+))(?:[_. ]+(?!\d+)|$)", RegexOptions.IgnoreCase)]
+        private static partial Regex SeasonFolderRegex { get; }
+        [GeneratedRegex(@"^[ex]?(?<episode>(?<!\d+)\d{1,3}(?!\d+))(?:[ex-](?<episode>(?<!\d+)\d{1,3}(?!\d+)))?(?:[_. ](?!\d+)(?<remaining>.+)|$)", RegexOptions.IgnoreCase)]
+        private static partial Regex SimpleEpisodeNumberRegex { get; }
 
-        private static readonly Regex RequestInfoRegex = new Regex(@"^(?:\[.+?\])+", RegexOptions.Compiled);
+        [GeneratedRegex(@"^(?:\[.+?\])+")]
+        private static partial Regex RequestInfoRegex { get; }
 
         private static readonly string[] Numbers = new[] { "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine" };
 
-        private static readonly Regex MultiRegex = new(@"[-_. \[](?<multi>multi|multilang|multilanguage)[-_. \]]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(@"[-_. \[](?<multi>multi|multilang|multilanguage)[-_. \]]", RegexOptions.IgnoreCase)]
+        private static partial Regex MultiRegex { get; }
 
         private static readonly Dictionary<string, int> ShortMonths = new()
         {
