@@ -1222,16 +1222,8 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
         series.GroupBy(s => s.QualityProfileId).ToDictionary(g => g.Key, g => g.Count());
 
     /// <summary>The Bigarr series a Sonarr series is, see <see cref="SeriesKeyIndex"/>.</summary>
-    private async Task<int?> SeriesIdAsync(SonarrSeries item, CancellationToken ct)
-    {
-        int? tmdbId = item.TmdbId > 0 ? item.TmdbId : null;
-        var imdbId = NullIfBlank(item.ImdbId);
-        var candidates = await db.Series.AsNoTracking()
-            .Where(s => s.TvdbId == item.TvdbId || (tmdbId != null && s.TmdbId == tmdbId) || (imdbId != null && s.ImdbId == imdbId))
-            .Select(s => new SeriesKeys(s.Id, s.TvdbId, s.TmdbId, s.ImdbId))
-            .ToListAsync(ct);
-        return SeriesKeyIndex.Build(candidates, k => k).Find(item)?.Id;
-    }
+    private async Task<int?> SeriesIdAsync(SonarrSeries item, CancellationToken ct) =>
+        await SeriesKeyIndex.SeriesIdAsync(db.Series, SonarrShowKeys.Of(item), ct);
 
     /// <summary>
     /// Sonarr's lines about one series, as journal lines of the episode targets of the version. A line already copied by
