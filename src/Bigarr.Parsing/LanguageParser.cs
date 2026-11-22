@@ -14,11 +14,11 @@ using Bigarr.Parsing.Model;
 
 namespace Bigarr.Parsing
 {
-    public static class LanguageParser
+    public static partial class LanguageParser
     {
         private static readonly ParserLog Logger = ParserLog.For(typeof(LanguageParser));
 
-        private static readonly Regex LanguageRegex = new Regex(@"(?:\W|_|^)(?<english>\beng\b)|
+        [GeneratedRegex(@"(?:\W|_|^)(?<english>\beng\b)|
                                                                             (?<italian>\b(?:ita|italian)\b)|
                                                                             (?<german>(?:swiss)?german\b|videomann|ger[. ]dub|\bger\b)|
                                                                             (?<flemish>flemish)|
@@ -44,27 +44,32 @@ namespace Bigarr.Parsing
                                                                             (?<romansh>\b(?:romansh|rumantsch|romansch)\b)|
                                                                             (?<mongolian>\b(?:mongolian|khalkha)\b)|
                                                                             (?<georgian>\b(?:georgian|geo|ka|kat)\b)|
-                                                                            (?<original>\b(?:orig|original)\b)",
-                                                                RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.IgnorePatternWhitespace);
+                                                                            (?<original>\b(?:orig|original)\b)", RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace)]
+        private static partial Regex LanguageRegex { get; }
 
-        private static readonly Regex CaseSensitiveLanguageRegex = new Regex(@"(?:(?i)(?<!SUB[\W|_|^]))(?:(?<english>\bEN\b)|
+        [GeneratedRegex(@"(?:(?i)(?<!SUB[\W|_|^]))(?:(?<english>\bEN\b)|
                                                                                                           (?<lithuanian>\bLT\b)|
                                                                                                           (?<czech>\bCZ\b)|
                                                                                                           (?<polish>\bPL\b)|
                                                                                                           (?<bulgarian>\bBG\b)|
                                                                                                           (?<slovak>\bSK\b)|
                                                                                                           (?<german>\bDE\b)|
-                                                                                                          (?<spanish>\b(?<!DTS[._ -])ES\b))(?:(?i)(?![\W|_|^]SUB))",
-                                                                RegexOptions.Compiled | RegexOptions.IgnorePatternWhitespace);
+                                                                                                          (?<spanish>\b(?<!DTS[._ -])ES\b))(?:(?i)(?![\W|_|^]SUB))", RegexOptions.IgnorePatternWhitespace)]
+        private static partial Regex CaseSensitiveLanguageRegex { get; }
 
-        private static readonly Regex GermanDualLanguageRegex = new(@"(?<!WEB[-_. ]?)\bDL\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-        private static readonly Regex GermanMultiLanguageRegex = new(@"\bML\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(@"(?<!WEB[-_. ]?)\bDL\b", RegexOptions.IgnoreCase)]
+        private static partial Regex GermanDualLanguageRegex { get; }
+        [GeneratedRegex(@"\bML\b", RegexOptions.IgnoreCase)]
+        private static partial Regex GermanMultiLanguageRegex { get; }
 
-        private static readonly Regex SubtitleLanguageRegex = new Regex(".+?([-_. ](?<tags>forced|foreign|default|cc|psdh|sdh))*[-_. ](?<iso_code>[a-z]{2,3})([-_. ](?<tags>forced|foreign|default|cc|psdh|sdh))*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(".+?([-_. ](?<tags>forced|foreign|default|cc|psdh|sdh))*[-_. ](?<iso_code>[a-z]{2,3})([-_. ](?<tags>forced|foreign|default|cc|psdh|sdh))*$", RegexOptions.IgnoreCase)]
+        private static partial Regex SubtitleLanguageRegex { get; }
 
-        private static readonly Regex SubtitleLanguageTitleRegex = new Regex(@".+?(\.((?<tags1>forced|foreign|default|cc|psdh|sdh)|(?<iso_code>[a-z]{2,3})))*[-_. ](?<title>[^.]*)(\.((?<tags2>forced|foreign|default|cc|psdh|sdh)|(?<iso_code>[a-z]{2,3})))*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(@".+?(\.((?<tags1>forced|foreign|default|cc|psdh|sdh)|(?<iso_code>[a-z]{2,3})))*[-_. ](?<title>[^.]*)(\.((?<tags2>forced|foreign|default|cc|psdh|sdh)|(?<iso_code>[a-z]{2,3})))*$", RegexOptions.IgnoreCase)]
+        private static partial Regex SubtitleLanguageTitleRegex { get; }
 
-        private static readonly Regex SubtitleTitleRegex = new Regex(@"^((?<title>.+) - )?(?<copy>(?<!\d+)\d{1,3}(?!\d+))$", RegexOptions.Compiled);
+        [GeneratedRegex(@"^((?<title>.+) - )?(?<copy>(?<!\d+)\d{1,3}(?!\d+))$")]
+        private static partial Regex SubtitleTitleRegex { get; }
 
         public static List<Language> ParseLanguages(string title)
         {

@@ -13,54 +13,87 @@ using Bigarr.Parsing.Model;
 
 namespace Bigarr.Parsing
 {
-    public static class Parser
+    public static partial class Parser
     {
         private static readonly ParserLog Logger = ParserLog.For(typeof(Parser));
 
-        private static readonly Regex EditionRegex = new Regex(@"\(?\b(?<edition>(((Recut.|Extended.|Ultimate.)?(Director.?s|Collector.?s|Theatrical|Ultimate|Extended|Despecialized|(Special|Rouge|Final|Assembly|Imperial|Diamond|Signature|Hunter|Rekall)(?=(.(Cut|Edition|Version)))|\d{2,3}(th)?.Anniversary)(?:.(Cut|Edition|Version))?(.(Extended|Uncensored|Remastered|Unrated|Uncut|Open.?Matte|IMAX|Fan.?Edit))?|((Uncensored|Remastered|Unrated|Uncut|Open?.Matte|IMAX|Fan.?Edit|Restored|((2|3|4)in1))))))\b\)?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private const string EditionPattern = @"\(?\b(?<edition>(((Recut.|Extended.|Ultimate.)?(Director.?s|Collector.?s|Theatrical|Ultimate|Extended|Despecialized|(Special|Rouge|Final|Assembly|Imperial|Diamond|Signature|Hunter|Rekall)(?=(.(Cut|Edition|Version)))|\d{2,3}(th)?.Anniversary)(?:.(Cut|Edition|Version))?(.(Extended|Uncensored|Remastered|Unrated|Uncut|Open.?Matte|IMAX|Fan.?Edit))?|((Uncensored|Remastered|Unrated|Uncut|Open?.Matte|IMAX|Fan.?Edit|Restored|((2|3|4)in1))))))\b\)?";
 
-        private static readonly Regex ReportEditionRegex = new Regex(@"^.+?" + EditionRegex, RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(EditionPattern, RegexOptions.IgnoreCase)]
+        private static partial Regex EditionRegex { get; }
 
-        private static readonly Regex HardcodedSubsRegex = new Regex(@"\b((?<hcsub>(\w+(?<!SOFT|MULTI|HORRIBLE)SUBS?))|(?<hc>(HC|SUBBED)))\b",
-                                                        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
+        [GeneratedRegex(@"^.+?" + EditionPattern, RegexOptions.IgnoreCase)]
+        private static partial Regex ReportEditionRegex { get; }
+
+        [GeneratedRegex(@"\b((?<hcsub>(\w+(?<!SOFT|MULTI|HORRIBLE)SUBS?))|(?<hc>(HC|SUBBED)))\b", RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace)]
+        private static partial Regex HardcodedSubsRegex { get; }
 
         private static readonly Regex[] ReportMovieTitleRegex = new[]
         {
             // Anime [Subgroup] and Year
-            new Regex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)(?<title>(?![(\[]).+?)?(?:(?:[-_\W](?<![)\[!]))*(?<year>(1(8|9)|20)\d{2}(?!p|i|x|\d+|\]|\W\d+)))+.*?(?<hash>\[\w{8}\])?(?:$|\.)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            ReportMovieTitleRegex1,
 
             // Anime [Subgroup] no year, versioned title, hash
-            new Regex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)(?<title>(?![(\[]).+?)((v)(?:\d{1,2})(?:([-_. ])))(\[.*)?(?:[\[(][^])])?.*?(?<hash>\[\w{8}\])(?:$|\.)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            ReportMovieTitleRegex2,
 
             // Anime [Subgroup] no year, info in double sets of brackets, hash
-            new Regex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)(?<title>(?![(\[]).+?)(\[.*).*?(?<hash>\[\w{8}\])(?:$|\.)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            ReportMovieTitleRegex3,
 
             // Anime [Subgroup] no year, info in parentheses or brackets, hash
-            new Regex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)(?<title>(?![(\[]).+)(?:[\[(][^])]).*?(?<hash>\[\w{8}\])(?:$|\.)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            ReportMovieTitleRegex4,
 
             // Some german or french tracker formats (missing year, ...) (Only applies to german and TrueFrench releases) - see ParserFixture for examples and tests - french removed as it broke all movies w/ french titles
-            new Regex(@"^(?<title>(?![(\[]).+?)((\W|_))(" + EditionRegex + @".{1,3})?(?:(?<!(19|20)\d{2}.*?)(?<!(?:Good|The)[_ .-])(German|TrueFrench))(.+?)(?=((19|20)\d{2}|$))(?<year>(19|20)\d{2}(?!p|i|\d+|\]|\W\d+))?(\W+|_|$)(?!\\)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            ReportMovieTitleEditionRegex1,
 
             // Special, Despecialized, etc. Edition Movies, e.g: Mission.Impossible.3.Special.Edition.2011
-            new Regex(@"^(?<title>(?![(\[]).+?)?(?:(?:[-_\W](?<![)\[!]))*" + EditionRegex + @".{1,3}(?<year>(1(8|9)|20)\d{2}(?!p|i|\d+|\]|\W\d+)))+(\W+|_|$)(?!\\)",
-                          RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            ReportMovieTitleEditionRegex2,
 
             // Special, Despecialized, etc. Edition Movies, e.g: Mission.Impossible.3.2011.Special.Edition //TODO: Seems to slow down parsing heavily!
             /*new Regex(@"^(?<title>(?![(\[]).+?)?(?:(?:[-_\W](?<![)\[!]))*(?<year>(19|20)\d{2}(?!p|i|(19|20)\d{2}|\]|\W(19|20)\d{2})))+(\W+|_|$)(?!\\)\(?(?<edition>(((Extended.|Ultimate.)?(Director.?s|Collector.?s|Theatrical|Ultimate|Final(?=(.(Cut|Edition|Version)))|Extended|Rogue|Special|Despecialized|\d{2,3}(th)?.Anniversary)(.(Cut|Edition|Version))?(.(Extended|Uncensored|Remastered|Unrated|Uncut|IMAX|Fan.?Edit))?|((Uncensored|Remastered|Unrated|Uncut|IMAX|Fan.?Edit|Edition|Restored|((2|3|4)in1))))))\)?",
                           RegexOptions.IgnoreCase | RegexOptions.Compiled),*/
 
             // Normal movie format, e.g: Mission.Impossible.3.2011
-            new Regex(@"^(?<title>(?![(\[]).+?)?(?:(?:[-_\W](?<![)\[!]))*(?<year>(1(8|9)|20)\d{2}(?!p|i|(1(8|9)|20)\d{2}|\]|\W(1(8|9)|20)\d{2})))+(\W+|_|$)(?!\\)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            ReportMovieTitleRegex5,
 
             // PassThePopcorn Torrent names: Star.Wars[PassThePopcorn]
-            new Regex(@"^(?<title>.+?)?(?:(?:[-_\W](?<![()\[!]))*(?<year>(\[\w *\])))+(\W+|_|$)(?!\\)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            ReportMovieTitleRegex6,
 
             // That did not work? Maybe some tool uses [] for years. Who would do that?
-            new Regex(@"^(?<title>(?![(\[]).+?)?(?:(?:[-_\W](?<![)!]))*(?<year>(1(8|9)|20)\d{2}(?!p|i|\d+|\W\d+)))+(\W+|_|$)(?!\\)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            ReportMovieTitleRegex7,
 
             // As a last resort for movies that have ( or [ in their title.
-            new Regex(@"^(?<title>.+?)?(?:(?:[-_\W](?<![)\[!]))*(?<year>(1(8|9)|20)\d{2}(?!p|i|\d+|\]|\W\d+)))+(\W+|_|$)(?!\\)", RegexOptions.IgnoreCase | RegexOptions.Compiled)
+            ReportMovieTitleRegex8
         };
+
+        [GeneratedRegex(@"^(?<title>(?![(\[]).+?)?(?:(?:[-_\W](?<![)\[!]))*" + EditionPattern + @".{1,3}(?<year>(1(8|9)|20)\d{2}(?!p|i|\d+|\]|\W\d+)))+(\W+|_|$)(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportMovieTitleEditionRegex2 { get; }
+
+        [GeneratedRegex(@"^(?<title>(?![(\[]).+?)((\W|_))(" + EditionPattern + @".{1,3})?(?:(?<!(19|20)\d{2}.*?)(?<!(?:Good|The)[_ .-])(German|TrueFrench))(.+?)(?=((19|20)\d{2}|$))(?<year>(19|20)\d{2}(?!p|i|\d+|\]|\W\d+))?(\W+|_|$)(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportMovieTitleEditionRegex1 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)(?<title>(?![(\[]).+?)?(?:(?:[-_\W](?<![)\[!]))*(?<year>(1(8|9)|20)\d{2}(?!p|i|x|\d+|\]|\W\d+)))+.*?(?<hash>\[\w{8}\])?(?:$|\.)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportMovieTitleRegex1 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)(?<title>(?![(\[]).+?)((v)(?:\d{1,2})(?:([-_. ])))(\[.*)?(?:[\[(][^])])?.*?(?<hash>\[\w{8}\])(?:$|\.)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportMovieTitleRegex2 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)(?<title>(?![(\[]).+?)(\[.*).*?(?<hash>\[\w{8}\])(?:$|\.)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportMovieTitleRegex3 { get; }
+
+        [GeneratedRegex(@"^(?:\[(?<subgroup>.+?)\][-_. ]?)(?<title>(?![(\[]).+)(?:[\[(][^])]).*?(?<hash>\[\w{8}\])(?:$|\.)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportMovieTitleRegex4 { get; }
+
+        [GeneratedRegex(@"^(?<title>(?![(\[]).+?)?(?:(?:[-_\W](?<![)\[!]))*(?<year>(1(8|9)|20)\d{2}(?!p|i|(1(8|9)|20)\d{2}|\]|\W(1(8|9)|20)\d{2})))+(\W+|_|$)(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportMovieTitleRegex5 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)?(?:(?:[-_\W](?<![()\[!]))*(?<year>(\[\w *\])))+(\W+|_|$)(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportMovieTitleRegex6 { get; }
+
+        [GeneratedRegex(@"^(?<title>(?![(\[]).+?)?(?:(?:[-_\W](?<![)!]))*(?<year>(1(8|9)|20)\d{2}(?!p|i|\d+|\W\d+)))+(\W+|_|$)(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportMovieTitleRegex7 { get; }
+
+        [GeneratedRegex(@"^(?<title>.+?)?(?:(?:[-_\W](?<![)\[!]))*(?<year>(1(8|9)|20)\d{2}(?!p|i|\d+|\]|\W\d+)))+(\W+|_|$)(?!\\)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportMovieTitleRegex8 { get; }
 
         private static readonly Regex[] ReportMovieTitleFolderRegex = new[]
         {
@@ -71,74 +104,116 @@ namespace Bigarr.Parsing
         private static readonly Regex[] RejectHashedReleasesRegex = new Regex[]
             {
                 // Generic match for md5 and mixed-case hashes.
-                new Regex(@"^[0-9a-zA-Z]{32}", RegexOptions.Compiled),
+                RejectHashedReleasesRegex1,
 
                 // Generic match for shorter lower-case hashes.
-                new Regex(@"^[a-z0-9]{24}$", RegexOptions.Compiled),
+                RejectHashedReleasesRegex2,
 
                 // Format seen on some NZBGeek releases
                 // Be very strict with these coz they are very close to the valid 101 ep numbering.
-                new Regex(@"^[A-Z]{11}\d{3}$", RegexOptions.Compiled),
-                new Regex(@"^[a-z]{12}\d{3}$", RegexOptions.Compiled),
+                RejectHashedReleasesRegex3,
+                RejectHashedReleasesRegex4,
 
                 // Backup filename (Unknown origins)
-                new Regex(@"^Backup_\d{5,}S\d{2}-\d{2}$", RegexOptions.Compiled),
+                RejectHashedReleasesRegex5,
 
                 // 123 - Started appearing December 2014
-                new Regex(@"^123$", RegexOptions.Compiled),
+                RejectHashedReleasesRegex6,
 
                 // abc - Started appearing January 2015
-                new Regex(@"^abc$", RegexOptions.Compiled | RegexOptions.IgnoreCase),
+                RejectHashedReleasesRegex7,
 
                 // abc - Started appearing 2020
-                new Regex(@"^abc[-_. ]xyz", RegexOptions.Compiled | RegexOptions.IgnoreCase),
+                RejectHashedReleasesRegex8,
 
                 // b00bs - Started appearing January 2015
-                new Regex(@"^b00bs$", RegexOptions.Compiled | RegexOptions.IgnoreCase)
+                RejectHashedReleasesRegex9
             };
 
+        [GeneratedRegex(@"^[0-9a-zA-Z]{32}")]
+        private static partial Regex RejectHashedReleasesRegex1 { get; }
+
+        [GeneratedRegex(@"^[a-z0-9]{24}$")]
+        private static partial Regex RejectHashedReleasesRegex2 { get; }
+
+        [GeneratedRegex(@"^[A-Z]{11}\d{3}$")]
+        private static partial Regex RejectHashedReleasesRegex3 { get; }
+
+        [GeneratedRegex(@"^[a-z]{12}\d{3}$")]
+        private static partial Regex RejectHashedReleasesRegex4 { get; }
+
+        [GeneratedRegex(@"^Backup_\d{5,}S\d{2}-\d{2}$")]
+        private static partial Regex RejectHashedReleasesRegex5 { get; }
+
+        [GeneratedRegex(@"^123$")]
+        private static partial Regex RejectHashedReleasesRegex6 { get; }
+
+        [GeneratedRegex(@"^abc$", RegexOptions.IgnoreCase)]
+        private static partial Regex RejectHashedReleasesRegex7 { get; }
+
+        [GeneratedRegex(@"^abc[-_. ]xyz", RegexOptions.IgnoreCase)]
+        private static partial Regex RejectHashedReleasesRegex8 { get; }
+
+        [GeneratedRegex(@"^b00bs$", RegexOptions.IgnoreCase)]
+        private static partial Regex RejectHashedReleasesRegex9 { get; }
+
         // Regex to detect whether the title was reversed.
-        private static readonly Regex ReversedTitleRegex = new Regex(@"(?:^|[-._ ])(p027|p0801)[-._ ]", RegexOptions.Compiled);
+        [GeneratedRegex(@"(?:^|[-._ ])(p027|p0801)[-._ ]")]
+        private static partial Regex ReversedTitleRegex { get; }
 
         // Regex to split movie titles that contain `AKA`.
-        private static readonly Regex AlternativeTitleRegex = new Regex(@"[ ]+(?:AKA|\/)[ ]+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        [GeneratedRegex(@"[ ]+(?:AKA|\/)[ ]+", RegexOptions.IgnoreCase)]
+        private static partial Regex AlternativeTitleRegex { get; }
 
         // Regex to unbracket alternative titles.
-        private static readonly Regex BracketedAlternativeTitleRegex = new Regex(@"(.*) \([ ]*AKA[ ]+(.*)\)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        [GeneratedRegex(@"(.*) \([ ]*AKA[ ]+(.*)\)", RegexOptions.IgnoreCase)]
+        private static partial Regex BracketedAlternativeTitleRegex { get; }
 
-        private static readonly Regex NormalizeAlternativeTitleRegex = new Regex(@"[ ]+(?:A\.K\.A\.)[ ]+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        [GeneratedRegex(@"[ ]+(?:A\.K\.A\.)[ ]+", RegexOptions.IgnoreCase)]
+        private static partial Regex NormalizeAlternativeTitleRegex { get; }
 
-        private static readonly Regex NormalizeRegex = new Regex(@"((?:\b|_)(?<!^|[^a-zA-Z0-9_']\w[^a-zA-Z0-9_'])([aà](?!$|[^a-zA-Z0-9_']\w[^a-zA-Z0-9_'])|an|the|and|or|of)(?!$)(?:\b|_))|\W|_",
-                                                                RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        [GeneratedRegex(@"((?:\b|_)(?<!^|[^a-zA-Z0-9_']\w[^a-zA-Z0-9_'])([aà](?!$|[^a-zA-Z0-9_']\w[^a-zA-Z0-9_'])|an|the|and|or|of)(?!$)(?:\b|_))|\W|_", RegexOptions.IgnoreCase)]
+        private static partial Regex NormalizeRegex { get; }
 
-        private static readonly Regex ReportImdbId = new Regex(@"(?<imdbid>tt\d{7,8})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex ReportTmdbId = new Regex(@"tmdb(id)?-(?<tmdbid>\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        [GeneratedRegex(@"(?<imdbid>tt\d{7,8})", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportImdbId { get; }
+        [GeneratedRegex(@"tmdb(id)?-(?<tmdbid>\d+)", RegexOptions.IgnoreCase)]
+        private static partial Regex ReportTmdbId { get; }
 
-        private static readonly RegexReplace SimpleTitleRegex = new RegexReplace(@"(?:(480|540|576|720|1080|2160)[ip]|[xh][\W_]?26[45]|DD\W?5\W1|[<>?*]|848x480|1280x720|1920x1080|3840x2160|4096x2160|(8|10)b(it)?|10-bit)\s*?(?![a-b0-9])",
-                                                                string.Empty,
-                                                                RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly RegexReplace SimpleTitleRegex = new RegexReplace(SimpleTitleRegex1, string.Empty);
 
-        private static readonly Regex SimpleReleaseTitleRegex = new Regex(@"\s*(?:[<>?*|])", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(@"(?:(480|540|576|720|1080|2160)[ip]|[xh][\W_]?26[45]|DD\W?5\W1|[<>?*]|848x480|1280x720|1920x1080|3840x2160|4096x2160|(8|10)b(it)?|10-bit)\s*?(?![a-b0-9])", RegexOptions.IgnoreCase)]
+        private static partial Regex SimpleTitleRegex1 { get; }
+
+        [GeneratedRegex(@"\s*(?:[<>?*|])", RegexOptions.IgnoreCase)]
+        private static partial Regex SimpleReleaseTitleRegex { get; }
 
         // Valid TLDs http://data.iana.org/TLD/tlds-alpha-by-domain.txt
 
-        private static readonly Regex CleanQualityBracketsRegex = new Regex(@"\[[a-z0-9 ._-]+\]$",
-                                                                   RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        [GeneratedRegex(@"\[[a-z0-9 ._-]+\]$", RegexOptions.IgnoreCase)]
+        private static partial Regex CleanQualityBracketsRegex { get; }
 
-        private static readonly Regex YearInTitleRegex = new Regex(@"^(?<title>.+?)(?:\W|_.)?[\(\[]?(?<year>\d{4})[\]\)]?",
-                                                                RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        [GeneratedRegex(@"^(?<title>.+?)(?:\W|_.)?[\(\[]?(?<year>\d{4})[\]\)]?", RegexOptions.IgnoreCase)]
+        private static partial Regex YearInTitleRegex { get; }
 
-        private static readonly Regex SpecialCharRegex = new Regex(@"(\&|\:|\\|\/)+", RegexOptions.Compiled);
-        private static readonly Regex PunctuationRegex = new Regex(@"[^\w\s]", RegexOptions.Compiled);
-        private static readonly Regex ArticleWordRegex = new Regex(@"^(a|an|the)\s", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex SpecialEpisodeWordRegex = new Regex(@"\b(part|special|edition|christmas)\b\s?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex DuplicateSpacesRegex = new Regex(@"\s{2,}", RegexOptions.Compiled);
+        [GeneratedRegex(@"(\&|\:|\\|\/)+")]
+        private static partial Regex SpecialCharRegex { get; }
+        [GeneratedRegex(@"[^\w\s]")]
+        private static partial Regex PunctuationRegex { get; }
+        [GeneratedRegex(@"^(a|an|the)\s", RegexOptions.IgnoreCase)]
+        private static partial Regex ArticleWordRegex { get; }
+        [GeneratedRegex(@"\b(part|special|edition|christmas)\b\s?", RegexOptions.IgnoreCase)]
+        private static partial Regex SpecialEpisodeWordRegex { get; }
+        [GeneratedRegex(@"\s{2,}")]
+        private static partial Regex DuplicateSpacesRegex { get; }
 
-        private static readonly Regex RequestInfoRegex = new Regex(@"^(?:\[.+?\])+", RegexOptions.Compiled);
+        [GeneratedRegex(@"^(?:\[.+?\])+")]
+        private static partial Regex RequestInfoRegex { get; }
 
         private static readonly string[] Numbers = new[] { "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine" };
 
-        private static readonly Regex MultiRegex = new(@"[_. ](?<multi>multi)[_. ]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(@"[_. ](?<multi>multi)[_. ]", RegexOptions.IgnoreCase)]
+        private static partial Regex MultiRegex { get; }
 
         private static Dictionary<string, string> _umlautMappings = new Dictionary<string, string>
         {
@@ -406,13 +481,13 @@ namespace Bigarr.Parsing
             value = value.RemoveAccent();
 
             // Replace spaces
-            value = Regex.Replace(value, @"\s", "-", RegexOptions.Compiled);
+            value = ToUrlSlugRegex1.Replace(value, "-");
 
             // Should invalid characters be replaced with dash or empty string?
             var replaceCharacter = invalidDashReplacement ? "-" : string.Empty;
 
             // Remove invalid chars
-            value = Regex.Replace(value, @"[^a-z0-9\s-_]", replaceCharacter, RegexOptions.Compiled);
+            value = ToUrlSlugRegex2.Replace(value, replaceCharacter);
 
             // Trim dashes or underscores from end, or user defined character set
             if (!string.IsNullOrEmpty(trimEndChars))
@@ -423,11 +498,17 @@ namespace Bigarr.Parsing
             // Replace double occurrences of - or _, or user defined character set
             if (!string.IsNullOrEmpty(deduplicateChars))
             {
-                value = Regex.Replace(value, @"([" + deduplicateChars + "]){2,}", "$1", RegexOptions.Compiled);
+                value = Regex.Replace(value, @"([" + deduplicateChars + "]){2,}", "$1");
             }
 
             return value;
         }
+
+        [GeneratedRegex(@"\s")]
+        private static partial Regex ToUrlSlugRegex1 { get; }
+
+        [GeneratedRegex(@"[^a-z0-9\s-_]")]
+        private static partial Regex ToUrlSlugRegex2 { get; }
 
         public static string CleanMovieTitle(this string title)
         {

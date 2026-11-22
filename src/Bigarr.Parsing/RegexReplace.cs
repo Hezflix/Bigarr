@@ -25,6 +25,18 @@ namespace Bigarr.Parsing
             _replacementFunc = replacement;
         }
 
+        public RegexReplace(Regex regex, string replacement)
+        {
+            _regex = regex;
+            _replacementFormat = replacement;
+        }
+
+        public RegexReplace(Regex regex, MatchEvaluator replacement)
+        {
+            _regex = regex;
+            _replacementFunc = replacement;
+        }
+
         public string Replace(string input)
         {
             if (_replacementFunc != null)

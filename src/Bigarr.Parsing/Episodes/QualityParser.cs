@@ -12,11 +12,11 @@ using Bigarr.Parsing.Qualities;
 
 namespace Bigarr.Parsing.Episodes
 {
-    public class QualityParser
+    public partial class QualityParser
     {
         private static readonly ParserLog Logger = ParserLog.For(typeof(QualityParser));
 
-        private static readonly Regex SourceRegex = new(@"\b(?:
+        [GeneratedRegex(@"\b(?:
                                                                 (?<bluray>BluRay|Blu-Ray|HD-?DVD|BDMux|BD(?!$))|
                                                                 (?<webdl>WEB[-_. ]DL(?:mux)?|WEBDL|AmazonHD|AmazonSD|iTunesHD|MaxdomeHD|NetflixU?HD|WebHD|HBOMaxHD|DisneyHD|[. ]WEB[. ](?:[xh][ .]?26[456]|AVC|HEVC|EAC3|DDP?[ .]?5[. ]1)|[. ](?-i:WEB)$|(?:720|1080|2160)p[-. ]WEB[-. ]|[-. ]WEB[-. ](?:720|1080|2160)p|\b\s\/\sWEB\s\/\s\b|(?:AMZN|ATVP|DP|NF)[. -]WEB[. -](?!Rip))|
                                                                 (?<webrip>WebRip|Web-Rip|WEBMux)|
@@ -28,44 +28,49 @@ namespace Bigarr.Parsing.Episodes
                                                                 (?<pdtv>PDTV)|
                                                                 (?<sdtv>SDTV)|
                                                                 (?<tvrip>TVRip)
-                                                                )(?:\b|$|[ .])",
-                                                                RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
+                                                                )(?:\b|$|[ .])", RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace)]
+        private static partial Regex SourceRegex { get; }
 
-        private static readonly Regex RawHDRegex = new(@"\b(?<rawhd>RawHD|Raw[-_. ]HD)\b",
-                                                                RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(@"\b(?<rawhd>RawHD|Raw[-_. ]HD)\b", RegexOptions.IgnoreCase)]
+        private static partial Regex RawHDRegex { get; }
 
         private static readonly Regex MPEG2Regex = new(@"\b(?<mpeg2>MPEG[-_. ]?2)\b");
 
-        private static readonly Regex ProperRegex = new(@"\b(?<proper>proper)\b",
-                                                                RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(@"\b(?<proper>proper)\b", RegexOptions.IgnoreCase)]
+        private static partial Regex ProperRegex { get; }
 
-        private static readonly Regex RepackRegex = new(@"\b(?<repack>repack\d?|rerip\d?)\b",
-            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(@"\b(?<repack>repack\d?|rerip\d?)\b", RegexOptions.IgnoreCase)]
+        private static partial Regex RepackRegex { get; }
 
-        private static readonly Regex VersionRegex = new(@"\d[-._ ]?v(?<version>\d)[-._ ]|\[v(?<version>\d)\]|repack(?<version>\d)|rerip(?<version>\d)|(?:480|576|720|1080|2160)p[._ ]v(?<version>\d)",
-                                                                RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(@"\d[-._ ]?v(?<version>\d)[-._ ]|\[v(?<version>\d)\]|repack(?<version>\d)|rerip(?<version>\d)|(?:480|576|720|1080|2160)p[._ ]v(?<version>\d)", RegexOptions.IgnoreCase)]
+        private static partial Regex VersionRegex { get; }
 
-        private static readonly Regex RealRegex = new(@"\b(?<real>REAL)\b",
-                                                                RegexOptions.Compiled);
+        [GeneratedRegex(@"\b(?<real>REAL)\b")]
+        private static partial Regex RealRegex { get; }
 
-        private static readonly Regex ResolutionRegex = new(@"\b(?:(?<R360p>360p)|(?<R480p>480p|480i|640x480|848x480)|(?<R540p>540p)|(?<R576p>576p)|(?<R720p>720p|1280x720|960p)|(?<R1080p>1080p|1920x1080|1440p|FHD|1080i|4kto1080p)|(?<R2160p>2160p|3840x2160|4k[-_. ](?:UHD|HEVC|BD|H26[56])|(?:UHD|HEVC|BD|H26[56])[-_. ]4k))\b",
-                                                                RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(@"\b(?:(?<R360p>360p)|(?<R480p>480p|480i|640x480|848x480)|(?<R540p>540p)|(?<R576p>576p)|(?<R720p>720p|1280x720|960p)|(?<R1080p>1080p|1920x1080|1440p|FHD|1080i|4kto1080p)|(?<R2160p>2160p|3840x2160|4k[-_. ](?:UHD|HEVC|BD|H26[56])|(?:UHD|HEVC|BD|H26[56])[-_. ]4k))\b", RegexOptions.IgnoreCase)]
+        private static partial Regex ResolutionRegex { get; }
 
         // Handle cases where no resolution is in the release name (assume if UHD then 4k) or resolution is non-standard
-        private static readonly Regex AlternativeResolutionRegex = new(@"\b(?<R2160p>UHD)\b|(?<R2160p>\[4K\])",
-                                                                RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(@"\b(?<R2160p>UHD)\b|(?<R2160p>\[4K\])", RegexOptions.IgnoreCase)]
+        private static partial Regex AlternativeResolutionRegex { get; }
 
-        private static readonly Regex CodecRegex = new(@"\b(?:(?<x264>x264)|(?<h264>h264)|(?<xvidhd>XvidHD)|(?<xvid>Xvid)|(?<divx>divx))\b",
-                                                                RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(@"\b(?:(?<x264>x264)|(?<h264>h264)|(?<xvidhd>XvidHD)|(?<xvid>Xvid)|(?<divx>divx))\b", RegexOptions.IgnoreCase)]
+        private static partial Regex CodecRegex { get; }
 
-        private static readonly Regex OtherSourceRegex = new(@"(?<hdtv>HD[-_. ]TV)|(?<sdtv>SD[-_. ]TV)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(@"(?<hdtv>HD[-_. ]TV)|(?<sdtv>SD[-_. ]TV)", RegexOptions.IgnoreCase)]
+        private static partial Regex OtherSourceRegex { get; }
 
-        private static readonly Regex AnimeBlurayRegex = new(@"bd(?:720|1080|2160)|(?<=[-_. (\[])bd(?=[-_. )\]])", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-        private static readonly Regex AnimeWebDlRegex = new(@"\[WEB\]|[\[\(]WEB[ .]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(@"bd(?:720|1080|2160)|(?<=[-_. (\[])bd(?=[-_. )\]])", RegexOptions.IgnoreCase)]
+        private static partial Regex AnimeBlurayRegex { get; }
+        [GeneratedRegex(@"\[WEB\]|[\[\(]WEB[ .]", RegexOptions.IgnoreCase)]
+        private static partial Regex AnimeWebDlRegex { get; }
 
-        private static readonly Regex HighDefPdtvRegex = new(@"hr[-_. ]ws", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(@"hr[-_. ]ws", RegexOptions.IgnoreCase)]
+        private static partial Regex HighDefPdtvRegex { get; }
 
-        private static readonly Regex RemuxRegex = new(@"(?:[_. ]|\d{4}p-|\bHybrid-)(?<remux>(?:(BD|UHD)[-_. ]?)?Remux)\b|(?<remux>(?:(BD|UHD)[-_. ]?)?Remux[_. ]\d{4}p)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        [GeneratedRegex(@"(?:[_. ]|\d{4}p-|\bHybrid-)(?<remux>(?:(BD|UHD)[-_. ]?)?Remux)\b|(?<remux>(?:(BD|UHD)[-_. ]?)?Remux[_. ]\d{4}p)", RegexOptions.IgnoreCase)]
+        private static partial Regex RemuxRegex { get; }
 
         public static QualityModel ParseQuality(string name)
         {

@@ -218,6 +218,30 @@ other warning stays active: a new warning after an upstream bump is a signal.
 No change in the `.csproj` files: the constraint is carried by the repository
 (`Directory.Build.props`) and by the Docker image, see "Runtime prerequisite".
 
+### 8. Source-generated regexes
+
+Upstream builds its regexes with `RegexOptions.Compiled`, which emits and JIT-compiles IL for each one
+on first use: about 2 s and 60 MB for the parser's 267 regexes. Every one of them is now a
+`[GeneratedRegex]` partial property, compiled with the assembly. Same pattern text, same options minus
+`Compiled`, so same matches (the 2,756 ported test cases are unchanged).
+
+- `static readonly Regex X = new Regex(pattern, options)` → `[GeneratedRegex(pattern, options)]
+  static partial Regex X { get; }`. The containing classes became `partial`.
+- A regex inside an array, a `RegexReplace` or a static `Regex.Replace` call becomes a property named
+  after its field or method plus its position (`ReportMovieTitleRegex3`, `PreSubstitutionRegex2`,
+  `ToUrlSlugRegex1`), declared right after that field or method; the array keeps its order and
+  comments.
+- `RegexReplace` gains two constructors that take a `Regex`.
+- Patterns built from another regex's text (`EditionRegex` in `Parser`, `LanguagesOnlyRegex` in the
+  episode `LanguageParser`) now read a `const string` pattern (`EditionPattern`,
+  `LanguagesOnlyPattern`); the regexes using them are generated too
+  (`ReportMovieTitleEditionRegex1/2`).
+- `ToUrlSlug`'s deduplication pattern depends on a parameter and stays a static `Regex.Replace`,
+  without `Compiled`.
+
+When diffing against upstream, read a `[GeneratedRegex(...)]` line as the `new Regex(...)` it
+replaced.
+
 ## Exclusions
 
 | Upstream item | Reason |
@@ -297,7 +321,7 @@ Source: `src/NzbDrone.Core.Test/ParserTests/`. NUnit → xUnit v2 conversion.
 1. Find the latest stable tag: `gh release list -R Radarr/Radarr --exclude-pre-releases -L 1`
 2. Clone that tag and diff every file of the "Vendored files" table against its original path. The
    only expected differences are those listed under "Modifications applied" (header, namespaces,
-   `using`, logger declaration line, base classes, `Iso639BTMap.Map` call).
+   `using`, logger declaration line, base classes, `Iso639BTMap.Map` call, generated regexes).
 3. Diff the 14 fixtures as well: a new upstream `TestCase` signals a fixed regex.
 4. Update tag / SHA / date at the top of this file.
 5. `dotnet build src/Bigarr.Parsing` must stay at 0 warnings; `dotnet test tests/Bigarr.Parsing.Tests`
@@ -388,7 +412,7 @@ Each file carries a header with the commit SHA, original path and license.
 
 ## Modifications applied
 
-No regex was touched. Everything below is mechanical.
+No regex pattern was touched. Everything below is mechanical.
 
 - **E1. Namespaces / usings.** `NzbDrone.Core.Parser` → `Bigarr.Parsing.Episodes`,
   `NzbDrone.Core.Parser.Model` → `Bigarr.Parsing.Episodes.Model`; `NzbDrone.Core.MediaFiles` and
@@ -418,6 +442,8 @@ No regex was touched. Everything below is mechanical.
 - **E8. `RemoveDiacritics()`.** Upstream calls Diacritical.Net. Bigarr.Parsing takes no package, so
   `Internal/DiacriticsExtensions` decomposes with FormD (as `RemoveAccent`) and maps the letters FormD
   leaves alone (`ð ø đ ł ħ ı`). All of Sonarr's normalisation cases pass with it.
+- **E9. Source-generated regexes.** Same conversion as the film side (modification 8): every
+  `RegexOptions.Compiled` regex is a `[GeneratedRegex]` partial property, patterns unchanged.
 
 ## Not vendored
 

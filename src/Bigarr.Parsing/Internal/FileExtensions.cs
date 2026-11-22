@@ -9,10 +9,10 @@ using System.Text.RegularExpressions;
 
 namespace Bigarr.Parsing.Internal
 {
-    internal static class FileExtensions
+    internal static partial class FileExtensions
     {
-        private static readonly Regex FileExtensionRegex = new(@"\.[a-z0-9]{2,4}$",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        [GeneratedRegex(@"\.[a-z0-9]{2,4}$", RegexOptions.IgnoreCase)]
+        private static partial Regex FileExtensionRegex { get; }
 
         private static readonly HashSet<string> UsenetExtensions = new HashSet<string>()
         {
