@@ -18,6 +18,17 @@ public sealed record SeriesRefreshCandidate(int SeriesId, string SortTitle, Date
 /// </summary>
 public static class SeriesRefreshRule
 {
+    /// <summary>
+    /// A bounded batch of due shows, the longest waiting first: a show never refreshed (a library just imported, a
+    /// refresh refused) counts as the oldest, then title order. Shows refreshed before never go first as a group: the
+    /// continuing ones come due every 6 hours and could fill every batch, so those never refreshed never had a turn.
+    /// </summary>
+    public static List<SeriesRefreshCandidate> NextBatch(IEnumerable<SeriesRefreshCandidate> due, int batch) =>
+        due.OrderBy(s => s.LastRefreshAt ?? DateTime.MinValue)
+            .ThenBy(s => s.SortTitle, StringComparer.Ordinal)
+            .Take(batch)
+            .ToList();
+
     public static bool IsDue(SeriesRefreshCandidate candidate, DateTime now)
     {
         ArgumentNullException.ThrowIfNull(candidate);
@@ -101,15 +112,7 @@ public sealed class SeriesRefreshJob(BigarrDbContext db, SeriesService series, I
             }
         }
 
-        // Spread: a bounded batch per pass, the shows refreshed before first (they keep Sonarr's cadence), then those
-        // never refreshed (a library just imported), in title order.
-        var batch = Math.Max(1, options.Value.SeriesRefreshBatchSize);
-        var due = allDue
-            .OrderBy(s => s.LastRefreshAt is null)
-            .ThenBy(s => s.LastRefreshAt ?? DateTime.MinValue)
-            .ThenBy(s => s.SortTitle, StringComparer.Ordinal)
-            .Take(batch)
-            .ToList();
+        var due = SeriesRefreshRule.NextBatch(allDue, Math.Max(1, options.Value.SeriesRefreshBatchSize));
         var tail = waitingForTvdb > 0 ? $", {waitingForTvdb} waiting for a TVDB key" : string.Empty;
         if (due.Count == 0)
         {
