@@ -37,6 +37,10 @@ internal sealed class FakeSonarr : IAsyncDisposable
 
         public int TvdbId { get; init; }
 
+        public int TmdbId { get; init; }
+
+        public string ImdbId { get; init; } = string.Empty;
+
         public string Type { get; init; } = "standard";
 
         public string Root { get; init; } = RootPath;
@@ -293,12 +297,12 @@ internal sealed class FakeSonarr : IAsyncDisposable
         tvdbId = show.TvdbId,
         tvRageId = 0,
         tvMazeId = 0,
-        tmdbId = 0,
+        tmdbId = show.TmdbId,
         firstAired = $"{show.Year}-01-20T00:00:00Z",
         lastAired = $"{show.Year + 1}-09-29T00:00:00Z",
         seriesType = show.Type,
         cleanTitle = show.Title.ToLowerInvariant().Replace(" ", string.Empty, StringComparison.Ordinal),
-        imdbId = string.Empty,
+        imdbId = show.ImdbId,
         titleSlug = show.Title.ToLowerInvariant().Replace(' ', '-'),
         rootFolderPath = show.Root + "/",
         certification = "TV-MA",
