@@ -165,6 +165,28 @@ public sealed class PlexSignInTests
     }
 
     [Fact]
+    public async Task Starts_from_one_address_are_limited_and_plex_is_not_called_past_the_limit()
+    {
+        await using var plexTv = await FakePlexTvSignIn.StartAsync();
+        await using var factory = new Factory(
+            plexTv.Url,
+            settings: new Dictionary<string, string> { ["Bigarr:SignIn:MaxFailuresPerAddress"] = "2" });
+        var session = await CompatTestHelpers.SessionAsync(factory);
+        await EnableAsync(session, true);
+
+        // The test server has no remote address of its own: the forwarded header, trusted by the app, gives one.
+        var browser = factory.CreateClientWithCookies();
+        browser.DefaultRequestHeaders.Add("X-Forwarded-For", "203.0.113.7");
+        await StartAsync(browser, "/api/v1/auth/external/plex/login");
+        await StartAsync(browser, "/api/v1/auth/external/plex/login");
+
+        var refused = await browser.PostAsJsonAsync("/api/v1/auth/external/plex/login", new { });
+        Assert.Equal(HttpStatusCode.TooManyRequests, refused.StatusCode);
+        Assert.NotNull(refused.Headers.RetryAfter);
+        Assert.Equal(2, plexTv.Requests.Count(r => r.Method == "POST" && r.Path == "/api/v2/pins"));
+    }
+
+    [Fact]
     public async Task Only_the_browser_that_started_a_sign_in_can_finish_it()
     {
         await using var plexTv = await FakePlexTvSignIn.StartAsync();
@@ -384,10 +406,21 @@ public sealed class PlexSignInTests
         return Assert.Single(all!, p => p.GetProperty("key").GetString() == "plex");
     }
 
-    private sealed class Factory(string plexTvUrl, TimeProvider? time = null)
-        : BigarrApiFactory(null, new Dictionary<string, string> { ["Bigarr:PlexTv:BaseUrl"] = plexTvUrl }, deleteOnDispose: true, time)
+    private sealed class Factory(string plexTvUrl, TimeProvider? time = null, IReadOnlyDictionary<string, string>? settings = null)
+        : BigarrApiFactory(null, Settings(plexTvUrl, settings), deleteOnDispose: true, time)
     {
         private readonly LogCapture _logs = new();
+
+        private static Dictionary<string, string> Settings(string plexTvUrl, IReadOnlyDictionary<string, string>? extra)
+        {
+            var all = new Dictionary<string, string> { ["Bigarr:PlexTv:BaseUrl"] = plexTvUrl };
+            foreach (var (key, value) in extra ?? new Dictionary<string, string>())
+            {
+                all[key] = value;
+            }
+
+            return all;
+        }
 
         /// <summary>Everything the app logged, to check what it never writes.</summary>
         public string Logs => string.Join('\n', _logs.Lines);

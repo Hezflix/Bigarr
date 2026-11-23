@@ -58,9 +58,11 @@ export function LoginPage() {
   const error =
     login.error instanceof ApiError && login.error.status === 401
       ? t('auth.invalidCredentials')
-      : login.error
-        ? t('auth.unexpectedError')
-        : null
+      : login.error instanceof ApiError && login.error.status === 429
+        ? t('auth.tooManyAttempts')
+        : login.error
+          ? t('auth.unexpectedError')
+          : null
 
   return (
     <main className="flex min-h-svh items-center justify-center bg-muted/40 p-4">

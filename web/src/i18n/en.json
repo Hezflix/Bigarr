@@ -61,6 +61,7 @@
     "password": "Password",
     "login": "Log in",
     "invalidCredentials": "Invalid username or password.",
+    "tooManyAttempts": "Too many failed attempts. Wait a few minutes and try again.",
     "unexpectedError": "Unexpected error, please try again.",
     "subtitle": "Sign in to manage your library."
   },

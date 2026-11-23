@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Bigarr.Api.Features.Auth;
+using Bigarr.Api.Tests.Indexers;
 
 namespace Bigarr.Api.Tests.Auth;
 
@@ -47,6 +48,48 @@ public sealed class AuthEndpointsTests(BigarrApiFactory factory) : IClassFixture
             new LoginRequest(BigarrApiFactory.AdminUsername, "nope"));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Repeated_wrong_passwords_are_refused_for_a_while_then_the_right_one_works()
+    {
+        var clock = new MutableTimeProvider(new DateTimeOffset(2026, 11, 23, 9, 0, 0, TimeSpan.Zero));
+        using var app = new ConfiguredBigarrApiFactory(
+            null,
+            new Dictionary<string, string> { ["Bigarr:SignIn:MaxFailuresPerUsername"] = "3" },
+            time: clock);
+        var client = app.CreateClientWithCookies();
+
+        for (var i = 0; i < 3; i++)
+        {
+            var wrong = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest(BigarrApiFactory.AdminUsername, "nope"));
+            Assert.Equal(HttpStatusCode.Unauthorized, wrong.StatusCode);
+        }
+
+        // Past the limit even the right password waits, and the answer says for how long.
+        var refused = await client.PostAsJsonAsync(
+            "/api/v1/auth/login",
+            new LoginRequest(BigarrApiFactory.AdminUsername, BigarrApiFactory.AdminPassword));
+        Assert.Equal(HttpStatusCode.TooManyRequests, refused.StatusCode);
+        Assert.Equal(TimeSpan.FromMinutes(15), refused.Headers.RetryAfter?.Delta);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/v1/auth/me")).StatusCode);
+
+        // A name that does not exist goes through the same 401 then 429 sequence.
+        for (var i = 0; i < 3; i++)
+        {
+            var ghost = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest("ghost", "nope"));
+            Assert.Equal(HttpStatusCode.Unauthorized, ghost.StatusCode);
+        }
+
+        var ghostRefused = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest("ghost", "nope"));
+        Assert.Equal(HttpStatusCode.TooManyRequests, ghostRefused.StatusCode);
+        Assert.NotNull(ghostRefused.Headers.RetryAfter);
+
+        clock.Advance(TimeSpan.FromMinutes(16));
+        var signedIn = await client.PostAsJsonAsync(
+            "/api/v1/auth/login",
+            new LoginRequest(BigarrApiFactory.AdminUsername, BigarrApiFactory.AdminPassword));
+        Assert.Equal(HttpStatusCode.NoContent, signedIn.StatusCode);
     }
 
     [Fact]
