@@ -71,6 +71,7 @@ export function OneShotGrabDialog({ movie, release, defaultProfileId, onClose }:
       await queryClient.invalidateQueries({ queryKey: ['movie', movie.id] })
       await queryClient.invalidateQueries({ queryKey: ['movies'] })
       await queryClient.invalidateQueries({ queryKey: ['queue'] })
+      await queryClient.invalidateQueries({ queryKey: ['history'] })
       await queryClient.invalidateQueries({ queryKey: ['search', movie.id] })
       onClose()
     },

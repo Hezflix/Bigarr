@@ -141,6 +141,7 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
       await queryClient.invalidateQueries({ queryKey: ['movie', movie.id] })
       await queryClient.invalidateQueries({ queryKey: ['movies'] })
       await queryClient.invalidateQueries({ queryKey: ['queue'] })
+      await queryClient.invalidateQueries({ queryKey: ['history'] })
       await query.refetch()
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : t('search.grabFailed')),

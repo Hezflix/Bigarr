@@ -110,6 +110,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
       await queryClient.invalidateQueries({ queryKey: ['seriesEpisodes', series.id] })
       await queryClient.invalidateQueries({ queryKey: ['seriesDetail', series.id] })
       await queryClient.invalidateQueries({ queryKey: ['queue'] })
+      await queryClient.invalidateQueries({ queryKey: ['history'] })
       await query.refetch()
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : t('search.grabFailed')),
