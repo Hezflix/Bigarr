@@ -55,9 +55,9 @@ public sealed class Grab
     public bool EpisodesOverridden { get; set; }
 
     /// <summary>
-    /// The user picked this release in the interactive search. Their choice stands at import time: a film, or a series
-    /// release of a single file, is not refused as "not an upgrade" over the file in place (the cutoff, the score), the
-    /// user already saw that verdict. A season pack's files are still judged one by one.
+    /// The user picked this release in the interactive search. Their choice stands at import time: nothing it holds (a
+    /// film, an episode, every episode of a season pack) is refused as "not an upgrade" over the file in place (the
+    /// cutoff, the score, the quality); the user already saw that verdict.
     /// </summary>
     public bool Interactive { get; set; }
 

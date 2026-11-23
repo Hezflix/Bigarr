@@ -47,10 +47,7 @@ public sealed record SeriesImportPlan(
     string? ReleasePath = null,
     /// <summary>The extra files picked in the manual import, exactly; null finds them per the media management settings.</summary>
     IReadOnlyList<string>? ExtraPaths = null,
-    /// <summary>
-    /// The single file of a release the user grabbed from the interactive search: imported as they chose, no upgrade
-    /// check. A pack's files are still judged one by one, so a better episode in place is never replaced by the pack's.
-    /// </summary>
+    /// <summary>A file of a release the user grabbed from the interactive search, a pack's included: imported as they chose, no upgrade check.</summary>
     bool ChosenByUser = false);
 
 public enum SeriesFileStatus
@@ -209,7 +206,7 @@ public sealed class SeriesImportService(
                 Force: false,
                 config.TransferMode,
                 item.OutputPath,
-                ChosenByUser: grab.Interactive && files.Count == 1));
+                ChosenByUser: grab.Interactive));
         }
 
         foreach (var plan in plans)
