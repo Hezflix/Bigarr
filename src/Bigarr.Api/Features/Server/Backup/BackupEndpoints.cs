@@ -11,6 +11,15 @@ public static class BackupEndpoints
 
         group.MapGet("/", Ok<List<BackupResponse>> (BackupService backups) => TypedResults.Ok(backups.List()));
 
+        // The schedule: the Bigarr:Backup values until saved here, then these.
+        group.MapGet("/settings", Ok<BackupSettingsResponse> (BackupSettingsService settings) => TypedResults.Ok(settings.Get()));
+
+        group.MapPut("/settings", async Task<Results<Ok<BackupSettingsResponse>, ProblemHttpResult>> (BackupSettingsRequest request, BackupSettingsService settings, CancellationToken ct) =>
+        {
+            var result = await settings.UpdateAsync(request, ct);
+            return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
+        });
+
         group.MapPost("/", async Task<Created<BackupResponse>> (BackupService backups, CancellationToken ct) =>
         {
             var backup = await backups.CreateAsync(scheduled: false, ct);

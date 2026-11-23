@@ -421,6 +421,12 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int>("Id")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("BackupIntervalDays")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("BackupRetentionDays")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("DiscoverFourKVersion")
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");

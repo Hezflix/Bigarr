@@ -4,7 +4,7 @@ import { cn } from 'cn'
 import { ArchiveIcon, CirclePauseIcon, DownloadIcon, HeartPulseIcon, HistoryIcon, PlayIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, backups, health, system, tasks, type Backup, type HealthIssueType, type ScheduledTask } from '@/api/client'
+import { ApiError, backups, health, system, tasks, type Backup, type BackupSettings, type HealthIssueType, type ScheduledTask } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -19,6 +19,8 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -227,7 +229,80 @@ export function SystemPage() {
   )
 }
 
-/** Backups: a zip of the database, weekly and on demand; restoring stages the file and restarts Bigarr. */
+/** How often the scheduled backup runs and how long backups are kept; saving moves the next run at once. */
+function BackupScheduleForm() {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const settings = useQuery({ queryKey: ['backups', 'settings'], queryFn: backups.settings })
+  const [draft, setDraft] = useState<BackupSettings | null>(null)
+  const current = draft ?? settings.data
+  const dirty = draft !== null && settings.data !== undefined && (draft.intervalDays !== settings.data.intervalDays || draft.retentionDays !== settings.data.retentionDays)
+
+  const save = useMutation({
+    mutationFn: backups.saveSettings,
+    onSuccess: async (saved) => {
+      queryClient.setQueryData(['backups', 'settings'], saved)
+      setDraft(null)
+      toast.success(t('backups.scheduleSaved'))
+      await queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : t('backups.scheduleFailed')),
+  })
+
+  if (!current) {
+    return <Skeleton className="h-16 max-w-xl" />
+  }
+
+  const number = (value: string) => (value === '' ? 0 : Math.max(0, Math.trunc(Number(value))))
+
+  return (
+    <form
+      className="flex flex-wrap items-end gap-3"
+      onSubmit={(e) => {
+        e.preventDefault()
+        save.mutate(current)
+      }}
+      data-testid="backup-schedule"
+    >
+      <div className="grid gap-2">
+        <Label htmlFor="backup-interval">{t('backups.interval')}</Label>
+        <Input
+          id="backup-interval"
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={365}
+          className="w-28 tabular-nums"
+          value={current.intervalDays}
+          onChange={(e) => setDraft({ ...current, intervalDays: number(e.target.value) })}
+          data-testid="backup-interval"
+        />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="backup-retention">{t('backups.retention')}</Label>
+        <Input
+          id="backup-retention"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={3650}
+          className="w-28 tabular-nums"
+          value={current.retentionDays}
+          onChange={(e) => setDraft({ ...current, retentionDays: number(e.target.value) })}
+          data-testid="backup-retention"
+        />
+      </div>
+      <Button type="submit" size="sm" className="h-9" disabled={!dirty || save.isPending} data-testid="backup-schedule-save">
+        {t('common.save')}
+      </Button>
+      <span className="basis-full text-xs text-muted-foreground">
+        {current.intervalDays === 0 ? t('backups.scheduleOff') : t('backups.scheduleSummary', { count: current.intervalDays, retention: current.retentionDays })}
+      </span>
+    </form>
+  )
+}
+
+/** Backups: a zip of the database, on a schedule and on demand; restoring stages the file and restarts Bigarr. */
 function BackupsSection({ schedulerOff }: { schedulerOff: boolean }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -282,6 +357,7 @@ function BackupsSection({ schedulerOff }: { schedulerOff: boolean }) {
         </Button>
       </div>
       <p className="max-w-3xl text-sm text-muted-foreground">{t(schedulerOff ? 'backups.hintManual' : 'backups.hint')}</p>
+      <BackupScheduleForm />
       {restarting && (
         <Alert data-testid="restoring">
           <AlertDescription>{t('backups.restoring')}</AlertDescription>

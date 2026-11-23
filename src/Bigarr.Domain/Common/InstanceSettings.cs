@@ -1,6 +1,6 @@
 namespace Bigarr.Domain.Common;
 
-/// <summary>Single row (id 1): values that belong to this install and are generated once, never typed by anyone.</summary>
+/// <summary>Single row (id 1): values that belong to this install as a whole, generated once or set by the admin.</summary>
 public sealed class InstanceSettings
 {
     public const int SingletonId = 1;
@@ -33,4 +33,10 @@ public sealed class InstanceSettings
     /// <c>version:4k</c> key. Null or empty: Discover shows the default version only.
     /// </summary>
     public string? DiscoverFourKVersion { get; set; } = "4k";
+
+    /// <summary>Days between two scheduled backups, set in System → Backups (0: no scheduled backup). Null: <c>Bigarr:Backup:IntervalDays</c>.</summary>
+    public int? BackupIntervalDays { get; set; }
+
+    /// <summary>Backups older than this many days are pruned by the scheduled job. Null: <c>Bigarr:Backup:RetentionDays</c>.</summary>
+    public int? BackupRetentionDays { get; set; }
 }

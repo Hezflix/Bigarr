@@ -15,7 +15,7 @@ namespace Bigarr.Api.Features.Server.Backup;
 /// taken under load is still a valid file) plus a manifest. Restoring stages the database next to the live one and asks
 /// for a restart; <see cref="DatabaseInitializer"/> swaps the files before touching anything, then migrates.
 /// </summary>
-public sealed partial class BackupService(BigarrDbContext db, IOptions<BigarrOptions> bigarr, IOptions<BackupOptions> options, IHostApplicationLifetime lifetime, TimeProvider time, ILogger<BackupService> logger)
+public sealed partial class BackupService(BigarrDbContext db, IOptions<BigarrOptions> bigarr, IOptions<BackupOptions> options, BackupSchedule schedule, IHostApplicationLifetime lifetime, TimeProvider time, ILogger<BackupService> logger)
 {
     public const string DatabaseEntry = "bigarr.db";
 
@@ -149,7 +149,7 @@ public sealed partial class BackupService(BigarrDbContext db, IOptions<BigarrOpt
     /// <summary>Deletes what is older than the retention. Returns how many went.</summary>
     public int Prune(DateTime now)
     {
-        var retention = TimeSpan.FromDays(Math.Max(1, options.Value.RetentionDays));
+        var retention = TimeSpan.FromDays(schedule.RetentionDays);
         var gone = 0;
         foreach (var backup in List().Where(b => now - b.CreatedAt > retention))
         {
@@ -207,8 +207,8 @@ public sealed partial class BackupService(BigarrDbContext db, IOptions<BigarrOpt
     private static partial Regex NameRegex();
 }
 
-/// <summary>The scheduled backup: one zip every <see cref="BackupOptions.IntervalDays"/>, older ones pruned.</summary>
-public sealed class BackupJob(BackupService backups, IOptions<BackupOptions> options, TimeProvider time) : IScheduledJob
+/// <summary>The scheduled backup: one zip every <see cref="BackupSchedule.IntervalDays"/>, older ones pruned.</summary>
+public sealed class BackupJob(BackupService backups, BackupSchedule schedule, TimeProvider time) : IScheduledJob
 {
     public const string JobName = "backup";
 
@@ -216,9 +216,9 @@ public sealed class BackupJob(BackupService backups, IOptions<BackupOptions> opt
 
     public string DisplayName => "Backup";
 
-    public TimeSpan Interval => TimeSpan.FromDays(Math.Max(1, options.Value.IntervalDays));
+    public TimeSpan Interval => TimeSpan.FromDays(Math.Max(1, schedule.IntervalDays));
 
-    public bool Enabled => options.Value.IntervalDays > 0;
+    public bool Enabled => schedule.IntervalDays > 0;
 
     public TimeSpan InitialDelay => TimeSpan.FromMinutes(10);
 

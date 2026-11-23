@@ -182,6 +182,9 @@ builder.Services.AddScoped<IScheduledJob, SceneMappingRefreshJob>();
 builder.Services.AddScoped<IScheduledJob, SeriesRefreshJob>();
 builder.Services.AddScoped<IScheduledJob, SeriesFilmLinkJob>();
 builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(BackupOptions.Section));
+builder.Services.AddSingleton<BackupSchedule>();
+builder.Services.AddScoped<IStartupTask, BackupScheduleLoader>();
+builder.Services.AddScoped<BackupSettingsService>();
 builder.Services.AddScoped<BackupService>();
 builder.Services.AddScoped<IScheduledJob, BackupJob>();
 
