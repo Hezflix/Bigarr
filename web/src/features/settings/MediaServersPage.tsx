@@ -5,7 +5,7 @@ import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { formatDateTime } from '@/i18n'
 import { toast } from 'sonner'
-import { ApiError, mediaServers, type MediaServer, type MediaServerKind, type MediaServerRequest, type MediaServerTestResult } from '@/api/client'
+import { ApiError, KEY_MASK, mediaServers, type MediaServer, type MediaServerKind, type MediaServerRequest, type MediaServerTestResult } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -252,7 +252,7 @@ function MediaServerDialog({ server, onClose, onSaved }: { server: MediaServer |
     },
   })
   const test = useMutation({
-    mutationFn: () => mediaServers.test(payload()),
+    mutationFn: () => mediaServers.test(payload(), server?.id),
     onSuccess: (result) => toast.success(testSummary(t, result)),
     onError: (e) => toast.error(e instanceof ApiError ? e.message : t('mediaServers.testFailed')),
   })
@@ -314,7 +314,14 @@ function MediaServerDialog({ server, onClose, onSaved }: { server: MediaServer |
 
             <div className="grid grid-cols-1 content-start gap-2 sm:col-span-2">
               <Label htmlFor="ms-token">{t('mediaServers.token')}</Label>
-              <Input id="ms-token" type="password" value={form.token} onChange={(e) => set('token', e.target.value)} autoComplete="new-password" />
+              <Input
+                id="ms-token"
+                type="password"
+                value={form.token}
+                onChange={(e) => set('token', e.target.value)}
+                onFocus={() => form.token === KEY_MASK && set('token', '')}
+                autoComplete="new-password"
+              />
               <p className="text-xs text-muted-foreground">{form.kind === 'plex' ? t('mediaServers.tokenHintPlex') : t('mediaServers.tokenHintApiKey')}</p>
             </div>
 

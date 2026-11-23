@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Downloads;
+using Bigarr.Api.Infrastructure.Http;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Downloads;
 using Microsoft.EntityFrameworkCore;
@@ -37,6 +38,11 @@ public sealed partial class DownloadClientService(BigarrDbContext db, DownloadCl
         if (await db.DownloadClients.AnyAsync(c => c.Name == request.Name.Trim(), ct))
         {
             return Failure.Conflict("Download client name already used", $"A download client named '{request.Name.Trim()}' exists.");
+        }
+
+        if (SecretMask.Kept(request.Password))
+        {
+            return Failure.Invalid("Type the password", "A new download client cannot reuse a stored password: type it.");
         }
 
         var client = new DownloadClient { Name = request.Name.Trim() };
@@ -95,23 +101,8 @@ public sealed partial class DownloadClientService(BigarrDbContext db, DownloadCl
     public async Task<Result<DownloadClientTestResponse>> TestAsync(DownloadClientRequest? request, int? id, CancellationToken ct)
     {
         DownloadClient client;
-        if (id is not null)
+        if (request is not null)
         {
-            var saved = await db.DownloadClients.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, ct);
-            if (saved is null)
-            {
-                return Failure.NotFound("Download client");
-            }
-
-            client = saved;
-        }
-        else
-        {
-            if (request is null)
-            {
-                return Failure.Invalid("Nothing to test", "Send the download client configuration in the body.");
-            }
-
             var invalid = Validate(request);
             if (invalid is not null)
             {
@@ -120,6 +111,33 @@ public sealed partial class DownloadClientService(BigarrDbContext db, DownloadCl
 
             client = new DownloadClient { Name = request.Name.Trim() };
             Apply(client, request);
+
+            // The form of a saved client holds the mask: the test uses the stored password.
+            if (SecretMask.Kept(request.Password))
+            {
+                if (id is null)
+                {
+                    return Failure.Invalid("Type the password to test", "The password is stored on the server: type it, or test the saved client.");
+                }
+
+                var stored = await db.DownloadClients.AsNoTracking().Where(c => c.Id == id).Select(c => new { c.Password }).FirstOrDefaultAsync(ct);
+                if (stored is null)
+                {
+                    return Failure.NotFound("Download client");
+                }
+
+                client.Password = client.Implementation == DownloadClientImplementation.QBittorrent ? stored.Password : null;
+            }
+        }
+        else
+        {
+            var saved = id is null ? null : await db.DownloadClients.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, ct);
+            if (saved is null)
+            {
+                return id is null ? Failure.Invalid("Nothing to test", "Send the download client configuration in the body.") : Failure.NotFound("Download client");
+            }
+
+            client = saved;
         }
 
         try
@@ -144,7 +162,7 @@ public sealed partial class DownloadClientService(BigarrDbContext db, DownloadCl
         client.UseSsl,
         client.UrlBase,
         client.Username,
-        client.Password,
+        SecretMask.Of(client.Password),
         client.Category,
         client.AddPaused,
         client.Priority,
@@ -225,7 +243,15 @@ public sealed partial class DownloadClientService(BigarrDbContext db, DownloadCl
         client.UseSsl = qbt && request.UseSsl;
         client.UrlBase = qbt && !string.IsNullOrWhiteSpace(request.UrlBase) ? "/" + request.UrlBase.Trim().Trim('/') : null;
         client.Username = qbt && !string.IsNullOrWhiteSpace(request.Username) ? request.Username.Trim() : null;
-        client.Password = qbt && !string.IsNullOrEmpty(request.Password) ? request.Password : null;
+        if (!qbt)
+        {
+            client.Password = null;
+        }
+        else if (!SecretMask.Kept(request.Password))
+        {
+            client.Password = string.IsNullOrEmpty(request.Password) ? null : request.Password;
+        }
+
         client.Category = request.Category.Trim();
         client.SeriesCategory = request.SeriesCategory?.Trim() ?? (client.Id == 0 ? DownloadClient.DefaultSeriesCategory : client.SeriesCategory);
         client.AddPaused = request.AddPaused;

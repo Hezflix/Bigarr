@@ -44,10 +44,10 @@ public static class DownloadsEndpoints
             return result.IsSuccess ? TypedResults.NoContent() : result.Failure!.ToProblem();
         });
 
-        // Test an unsaved configuration (the form) or a saved client (the row).
-        group.MapPost("/test", async Task<Results<Ok<DownloadClientTestResponse>, ProblemHttpResult>> (DownloadClientRequest request, DownloadClientService clients, CancellationToken ct) =>
+        // Test an unsaved configuration (the form) or a saved client (the row). The form of a saved client passes its id: a masked password then means the stored one.
+        group.MapPost("/test", async Task<Results<Ok<DownloadClientTestResponse>, ProblemHttpResult>> (DownloadClientRequest request, int? id, DownloadClientService clients, CancellationToken ct) =>
         {
-            var result = await clients.TestAsync(request, null, ct);
+            var result = await clients.TestAsync(request, id, ct);
             return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
         });
 

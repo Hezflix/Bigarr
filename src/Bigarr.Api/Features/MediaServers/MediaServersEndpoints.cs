@@ -36,10 +36,10 @@ public static class MediaServersEndpoints
             return result.IsSuccess ? TypedResults.NoContent() : result.Failure!.ToProblem();
         });
 
-        // Test an unsaved configuration (the form) or a saved server (the row).
-        group.MapPost("/test", async Task<Results<Ok<MediaServerTestResponse>, ProblemHttpResult>> (MediaServerRequest request, MediaServerService servers, CancellationToken ct) =>
+        // Test an unsaved configuration (the form) or a saved server (the row). The form of a saved server passes its id: a masked token then means the stored one.
+        group.MapPost("/test", async Task<Results<Ok<MediaServerTestResponse>, ProblemHttpResult>> (MediaServerRequest request, int? id, MediaServerService servers, CancellationToken ct) =>
         {
-            var result = await servers.TestAsync(request, null, ct);
+            var result = await servers.TestAsync(request, id, ct);
             return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
         });
 

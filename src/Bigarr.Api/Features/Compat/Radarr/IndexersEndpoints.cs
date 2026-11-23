@@ -26,11 +26,11 @@ public static partial class IndexersEndpoints
     {
         group.MapGet("/indexer/schema", JsonHttpResult<List<RadarrIndexer>> () => RadarrCompat.Ok(Schema(kind)));
         group.MapGet("/indexer", async Task<JsonHttpResult<List<RadarrIndexer>>> (IndexerService indexers, CancellationToken ct) =>
-            RadarrCompat.Ok((await indexers.ListAsync(ct)).Where(i => i.Implementation == IndexerImplementation.Torznab).Select(i => ToResource(i, kind)).ToList()));
+            RadarrCompat.Ok((await indexers.ListAsync(ct, revealSecrets: true)).Where(i => i.Implementation == IndexerImplementation.Torznab).Select(i => ToResource(i, kind)).ToList()));
 
         group.MapGet("/indexer/{id:int}", async Task<Results<JsonHttpResult<RadarrIndexer>, NotFound>> (int id, IndexerService indexers, CancellationToken ct) =>
         {
-            var indexer = await indexers.GetAsync(id, ct);
+            var indexer = await indexers.GetAsync(id, ct, revealSecrets: true);
             return indexer is null || indexer.Implementation != IndexerImplementation.Torznab ? TypedResults.NotFound() : RadarrCompat.Ok(ToResource(indexer, kind));
         });
 
@@ -43,7 +43,7 @@ public static partial class IndexersEndpoints
             }
 
             // An indexer Prowlarr already has here (same ProwlarrId) is updated and returned: Prowlarr maps onto its id.
-            var result = await indexers.AddAsync(request, ct);
+            var result = await indexers.AddAsync(request, ct, revealSecrets: true);
             return result.IsSuccess ? RadarrCompat.Created(ToResource(result.Value!, kind)) : RadarrCompat.BadRequest("Name", result.Failure!.Detail ?? result.Failure.Title);
         });
 
@@ -55,7 +55,7 @@ public static partial class IndexersEndpoints
                 return invalid!;
             }
 
-            var result = await indexers.UpdateAsync(id, request, ct);
+            var result = await indexers.UpdateAsync(id, request, ct, revealSecrets: true);
             if (result.IsSuccess)
             {
                 return RadarrCompat.Ok(ToResource(result.Value!, kind));
