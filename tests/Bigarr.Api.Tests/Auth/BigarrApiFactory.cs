@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
@@ -59,8 +60,11 @@ public class BigarrApiFactory : WebApplicationFactory<Program>
         }
     }
 
-    public HttpClient CreateClientWithCookies() =>
-        CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true, AllowAutoRedirect = false });
+    /// <summary>
+    /// A client that keeps its session. Not the built-in cookie handling: a test that freezes the clock in the past gets
+    /// a cookie that expires 14 days after that date, which the real clock then drops (see <see cref="SessionCookies"/>).
+    /// </summary>
+    public HttpClient CreateClientWithCookies() => CreateDefaultClient(new SessionCookies());
 
     public HttpClient CreateAnonymousClient() =>
         CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false, AllowAutoRedirect = false });
@@ -91,3 +95,48 @@ public class BigarrApiFactory : WebApplicationFactory<Program>
 /// <summary>A factory with its own settings or directory, for tests that build it themselves (xUnit fixtures need a single public constructor).</summary>
 public sealed class ConfiguredBigarrApiFactory(string? configDirectory, IReadOnlyDictionary<string, string>? settings, bool deleteOnDispose = true, TimeProvider? time = null)
     : BigarrApiFactory(configDirectory, settings, deleteOnDispose, time);
+
+/// <summary>
+/// Keeps the cookies the server sets whatever their expiry date, since the server signs them with the test's clock and
+/// the cookie jar checks them against the real one. A cookie set to an empty value (sign-out) is still removed.
+/// </summary>
+internal sealed class SessionCookies : DelegatingHandler
+{
+    private readonly CookieContainer _jar = new();
+
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var uri = request.RequestUri!;
+        var header = _jar.GetCookieHeader(uri);
+        if (header.Length > 0)
+        {
+            request.Headers.Remove("Cookie");
+            request.Headers.Add("Cookie", header);
+        }
+
+        var response = await base.SendAsync(request, cancellationToken);
+        if (response.Headers.TryGetValues("Set-Cookie", out var values))
+        {
+            foreach (var value in values)
+            {
+                _jar.SetCookies(uri, WithoutExpiry(value));
+            }
+        }
+
+        return response;
+    }
+
+    private static string WithoutExpiry(string setCookie)
+    {
+        var parts = setCookie.Split(';');
+        var nameValue = parts[0];
+        if (nameValue.EndsWith('='))
+        {
+            return setCookie; // a removal: its date in the past is what removes it
+        }
+
+        return string.Join(';', parts.Where(p =>
+            !p.TrimStart().StartsWith("expires=", StringComparison.OrdinalIgnoreCase)
+            && !p.TrimStart().StartsWith("max-age=", StringComparison.OrdinalIgnoreCase)));
+    }
+}
