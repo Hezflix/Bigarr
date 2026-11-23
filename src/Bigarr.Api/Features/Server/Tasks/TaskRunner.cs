@@ -157,6 +157,27 @@ public sealed class TaskRunner(IServiceScopeFactory scopeFactory, SchedulerState
         }
     }
 
+    /// <summary>
+    /// A job's interval or switch changed (a setting was saved): its next run follows from the last one, and is not in
+    /// the past; a job never run waits its grace period. A disabled job loses its next run.
+    /// </summary>
+    public async Task RescheduleAsync(string name, CancellationToken ct)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var job = scope.ServiceProvider.GetServices<IScheduledJob>().FirstOrDefault(j => string.Equals(j.Name, name, StringComparison.Ordinal));
+        if (job is null || job.OneShot)
+        {
+            return;
+        }
+
+        var runtime = state.For(job.Name);
+        var now = time.GetUtcNow().UtcDateTime;
+        var due = runtime.LastRunAt is { } last ? last + job.Interval : now + job.InitialDelay;
+        runtime.NextRunAt = job.Enabled ? (due > now ? due : now) : null;
+        await PersistAsync(scope.ServiceProvider, job.Name, runtime, ct);
+        signal.Notify();
+    }
+
     private static async Task PersistAsync(IServiceProvider services, string name, SchedulerState.JobRuntime runtime, CancellationToken ct)
     {
         var db = services.GetRequiredService<BigarrDbContext>();

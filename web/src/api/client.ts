@@ -269,6 +269,8 @@ export type Backup = { name: string; size: number; createdAt: string; type: 'man
 
 export type RestoreResult = Schemas['RestoreResponse']
 
+export type BackupSettings = Schemas['BackupSettingsResponse']
+
 export const backups = {
   list: () => api<Backup[]>('/api/v1/system/backup'),
   create: () => post<Backup>('/api/v1/system/backup'),
@@ -276,6 +278,9 @@ export const backups = {
   /** Stages the database and restarts Bigarr; the page must expect the connection to drop. */
   restore: (name: string) => post<RestoreResult>(`/api/v1/system/backup/${encodeURIComponent(name)}/restore`),
   downloadUrl: (name: string) => `/api/v1/system/backup/${encodeURIComponent(name)}/download`,
+  /** Every `intervalDays` (0: no scheduled backup), pruned after `retentionDays`. */
+  settings: () => api<BackupSettings>('/api/v1/system/backup/settings'),
+  saveSettings: (body: Schemas['BackupSettingsRequest']) => put<BackupSettings>('/api/v1/system/backup/settings', body),
 }
 
 // ---- movies ----------------------------------------------------------------

@@ -1,6 +1,6 @@
 namespace Bigarr.Api.Features.Server.Backup;
 
-/// <summary>Bound from <c>Bigarr:Backup</c>.</summary>
+/// <summary>Bound from <c>Bigarr:Backup</c>. The interval and the retention are defaults: System → Backups overrides them.</summary>
 public sealed class BackupOptions
 {
     public const string Section = "Bigarr:Backup";

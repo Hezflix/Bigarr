@@ -88,6 +88,68 @@ public sealed class BackupTests
         }
     }
 
+    [Fact]
+    public async Task The_schedule_saved_in_the_page_replaces_the_configured_one_moves_the_next_backup_and_survives_a_restart()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"bigarr-backup-test-{Guid.NewGuid():N}");
+        var clock = new Indexers.MutableTimeProvider(DateTimeOffset.UtcNow);
+        var settings = new Dictionary<string, string> { ["Bigarr:Scheduler:Enabled"] = "true" };
+        try
+        {
+            await using (var factory = new ConfiguredBigarrApiFactory(directory, settings, deleteOnDispose: false, time: clock))
+            {
+                var client = await ClientAsync(factory);
+                var now = clock.GetUtcNow().UtcDateTime;
+
+                // Nothing saved yet: the configured values (Bigarr:Backup, 7 and 28 by default).
+                var initial = (await client.GetFromJsonAsync<BackupSettingsResponse>("/api/v1/system/backup/settings", Json))!;
+                Assert.Equal(new BackupSettingsResponse(7, 28), initial);
+
+                Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync("/api/v1/system/backup/settings", new BackupSettingsRequest(-1, 28), Json)).StatusCode);
+                Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync("/api/v1/system/backup/settings", new BackupSettingsRequest(7, 0), Json)).StatusCode);
+
+                var saved = await client.PutAsJsonAsync("/api/v1/system/backup/settings", new BackupSettingsRequest(2, 5), Json);
+                Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+                Assert.Equal(new BackupSettingsResponse(2, 5), await saved.Content.ReadFromJsonAsync<BackupSettingsResponse>(Json));
+                var task = await BackupTaskAsync(client);
+                Assert.Equal(2 * 24 * 60, task.IntervalMinutes);
+                Assert.True(task.Enabled);
+
+                // The retention in force is the saved one: a backup six days old goes at the next scheduled run.
+                var old = (await (await client.PostAsync("/api/v1/system/backup", null)).Content.ReadFromJsonAsync<BackupResponse>(Json))!;
+                File.SetLastWriteTimeUtc(Path.Combine(directory, "backups", old.Name), now.AddDays(-6));
+                Assert.Equal(HttpStatusCode.OK, (await client.PostAsync($"/api/v1/system/tasks/{BackupJob.JobName}/run", null)).StatusCode);
+                var left = (await client.GetFromJsonAsync<List<BackupResponse>>("/api/v1/system/backup", Json))!;
+                Assert.Equal("scheduled", Assert.Single(left).Type);
+
+                // A shorter interval moves the next run at once: one day after the last run.
+                await client.PutAsJsonAsync("/api/v1/system/backup/settings", new BackupSettingsRequest(1, 5), Json);
+                task = await BackupTaskAsync(client);
+                Assert.Equal(task.LastRunAt!.Value.AddDays(1), task.NextRunAt);
+
+                // Zero: no scheduled backup.
+                await client.PutAsJsonAsync("/api/v1/system/backup/settings", new BackupSettingsRequest(0, 5), Json);
+                task = await BackupTaskAsync(client);
+                Assert.False(task.Enabled);
+                Assert.Null(task.NextRunAt);
+            }
+
+            await using (var factory = new ConfiguredBigarrApiFactory(directory, settings, deleteOnDispose: false, time: clock))
+            {
+                var client = await ClientAsync(factory);
+                Assert.Equal(new BackupSettingsResponse(0, 5), await client.GetFromJsonAsync<BackupSettingsResponse>("/api/v1/system/backup/settings", Json));
+                Assert.False((await BackupTaskAsync(client)).Enabled);
+            }
+        }
+        finally
+        {
+            TryDelete(directory);
+        }
+    }
+
+    private static async Task<ScheduledTaskResponse> BackupTaskAsync(HttpClient client) =>
+        (await client.GetFromJsonAsync<List<ScheduledTaskResponse>>("/api/v1/system/tasks", Json))!.Single(t => t.Name == BackupJob.JobName);
+
     private static void TryDelete(string path)
     {
         try
