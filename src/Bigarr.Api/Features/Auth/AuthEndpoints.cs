@@ -27,13 +27,14 @@ public static class AuthEndpoints
 
     // Login only accepts a JSON body: browsers cannot send one cross-site without a CORS preflight,
     // which together with SameSite=Lax on the cookie is the CSRF protection of this endpoint.
-    private static async Task<Results<NoContent, UnauthorizedHttpResult, ValidationProblem>> LoginAsync(
+    private static async Task<Results<NoContent, UnauthorizedHttpResult, ValidationProblem, ProblemHttpResult>> LoginAsync(
         LoginRequest request,
         HttpContext http,
         BigarrDbContext db,
         TimeProvider time,
         IPasswordHasher<User> hasher,
         SessionStamps stamps,
+        SignInThrottle throttle,
         ILoggerFactory loggerFactory)
     {
         if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrEmpty(request.Password))
@@ -42,6 +43,16 @@ public static class AuthEndpoints
             {
                 ["credentials"] = ["Username and password are required."],
             });
+        }
+
+        // Past the limit the answer comes before the database read and the hash, and it is the same whether the
+        // account exists or not.
+        var address = http.Connection.RemoteIpAddress;
+        if (throttle.RetryAfter(request.Username, address) is { } wait)
+        {
+            loggerFactory.CreateLogger("Bigarr.Auth").LogWarning(
+                "Sign-in refused for {Username} from {RemoteIp}: too many failed attempts", request.Username, address);
+            return TooManyAttempts(http, wait);
         }
 
         // A user without a password (created by a Plex sign-in) never signs in here; a disabled one nowhere. Both get
@@ -58,9 +69,12 @@ public static class AuthEndpoints
                     ? "Login refused for {Username} from {RemoteIp}: the user is disabled"
                     : "Failed login for {Username} from {RemoteIp}",
                 request.Username,
-                http.Connection.RemoteIpAddress);
+                address);
+            throttle.Failed(request.Username, address);
             return TypedResults.Unauthorized();
         }
+
+        throttle.Succeeded(request.Username);
 
         var rehashed = verdict == PasswordVerificationResult.SuccessRehashNeeded;
         if (rehashed)
@@ -81,6 +95,16 @@ public static class AuthEndpoints
             new AuthenticationProperties { IsPersistent = request.RememberMe });
 
         return TypedResults.NoContent();
+    }
+
+    /// <summary>The answer of a sign-in route that is past its limit, with the wait in whole seconds (at least 1).</summary>
+    internal static ProblemHttpResult TooManyAttempts(HttpContext http, TimeSpan wait)
+    {
+        http.Response.Headers.RetryAfter = Math.Max(1, (int)Math.Ceiling(wait.TotalSeconds)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return TypedResults.Problem(
+            statusCode: StatusCodes.Status429TooManyRequests,
+            title: "Too many failed sign-ins",
+            detail: "Wait and try again.");
     }
 
     private static SignOutHttpResult Logout() =>

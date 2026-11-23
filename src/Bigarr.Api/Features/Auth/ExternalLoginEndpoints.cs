@@ -121,11 +121,17 @@ public static class ExternalLoginEndpoints
     }
 
     private static async Task<Results<Ok<ExternalFlowStartedResponse>, NotFound, ProblemHttpResult>> StartLoginAsync(
-        string provider, HttpContext http, IEnumerable<IExternalIdentityProvider> providers, BigarrDbContext db, ExternalSignInFlows flows)
+        string provider, HttpContext http, IEnumerable<IExternalIdentityProvider> providers, BigarrDbContext db, ExternalSignInFlows flows, SignInThrottle throttle)
     {
         if (Find(providers, provider) is not { } found || !(await OfferedAsync(db, http.RequestAborted)).Contains(found.Key))
         {
             return TypedResults.NotFound();
+        }
+
+        // Every start creates a PIN at the provider: counted per address, past the limit the provider is not called.
+        if (throttle.TryStart(http.Connection.RemoteIpAddress) is { } wait)
+        {
+            return AuthEndpoints.TooManyAttempts(http, wait);
         }
 
         return await StartAsync(found, linkUserId: null, http, flows);
