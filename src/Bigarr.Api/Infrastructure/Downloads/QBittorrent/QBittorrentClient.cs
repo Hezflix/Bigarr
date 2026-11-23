@@ -169,10 +169,11 @@ public sealed class QBittorrentClient(IHttpClientFactory httpClientFactory, Torr
     {
         "error" or "missingFiles" => DownloadItemStatus.Errored,
         "pausedDL" or "stoppedDL" => DownloadItemStatus.Paused,
-        "queuedDL" or "checkingDL" or "checkingResumeData" or "allocating" or "metaDL" or "forcedMetaDL" => DownloadItemStatus.Queued,
-        "downloading" or "forcedDL" => DownloadItemStatus.Downloading,
+        // The files of a torrent being rechecked or moved are not ready to import: neither counts as completed.
+        "queuedDL" or "checkingDL" or "checkingUP" or "checkingResumeData" or "allocating" or "metaDL" or "forcedMetaDL" => DownloadItemStatus.Queued,
+        "downloading" or "forcedDL" or "moving" => DownloadItemStatus.Downloading,
         "stalledDL" => DownloadItemStatus.Stalled,
-        "uploading" or "stalledUP" or "queuedUP" or "pausedUP" or "stoppedUP" or "forcedUP" or "checkingUP" or "moving" => DownloadItemStatus.Completed,
+        "uploading" or "stalledUP" or "queuedUP" or "pausedUP" or "stoppedUP" or "forcedUP" => DownloadItemStatus.Completed,
         _ => DownloadItemStatus.Unknown,
     };
 

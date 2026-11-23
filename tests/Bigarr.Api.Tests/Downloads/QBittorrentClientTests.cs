@@ -244,15 +244,17 @@ public sealed class QBittorrentClientTests
                   {"hash":"aaaa","name":"done","state":"stalledUP","progress":1,"size":10,"total_size":10,"amount_left":0,"dlspeed":0,"eta":8640000,"category":"bigarr-movies","completion_on":1700000500,"ratio":2.5,"seeding_time":3600},
                   {"hash":"bbbb","name":"broken","state":"missingFiles","progress":0.5,"size":10,"total_size":10,"amount_left":5,"eta":8640000,"category":"bigarr-movies"},
                   {"hash":"cccc","name":"stalled","state":"stalledDL","progress":0.5,"size":10,"total_size":10,"amount_left":5,"eta":8640000,"category":"bigarr-movies"},
-                  {"hash":"dddd","name":"paused","state":"stoppedDL","progress":0.5,"size":10,"total_size":10,"amount_left":5,"eta":8640000,"category":"bigarr-movies"}
+                  {"hash":"dddd","name":"paused","state":"stoppedDL","progress":0.5,"size":10,"total_size":10,"amount_left":5,"eta":8640000,"category":"bigarr-movies"},
+                  {"hash":"ffff","name":"moving","state":"moving","progress":1,"size":10,"total_size":10,"amount_left":0,"eta":8640000,"category":"bigarr-movies"},
+                  {"hash":"gggg","name":"rechecking","state":"checkingUP","progress":1,"size":10,"total_size":10,"amount_left":0,"eta":8640000,"category":"bigarr-movies"}
                 ]
                 """);
         });
 
         var items = await NewClient(handler).GetItemsAsync(Client(username: null), CancellationToken.None);
 
-        Assert.Equal(6, items.Count);
-        Assert.Equal("bigarr-tv", items[5].Category);
+        Assert.Equal(8, items.Count);
+        Assert.Equal("bigarr-tv", items[7].Category);
         Assert.Equal("bigarr-movies", items[0].Category);
         var downloading = items[0];
         Assert.Equal(Hash, downloading.DownloadId);
@@ -276,6 +278,12 @@ public sealed class QBittorrentClientTests
         Assert.Contains("cannot find the files", items[2].Message);
         Assert.Equal(DownloadItemStatus.Stalled, items[3].Status);
         Assert.Equal(DownloadItemStatus.Paused, items[4].Status);
+
+        // Files being moved or rechecked are not ready to import: neither counts as completed, and the queue shows why.
+        Assert.Equal(DownloadItemStatus.Downloading, items[5].Status);
+        Assert.Equal("qBittorrent is moving the files.", items[5].Message);
+        Assert.Equal(DownloadItemStatus.Queued, items[6].Status);
+        Assert.Equal("Checking files.", items[6].Message);
     }
 
     [Theory]
@@ -287,7 +295,9 @@ public sealed class QBittorrentClientTests
     [InlineData("forcedDL", DownloadItemStatus.Downloading)]
     [InlineData("uploading", DownloadItemStatus.Completed)]
     [InlineData("pausedUP", DownloadItemStatus.Completed)]
-    [InlineData("moving", DownloadItemStatus.Completed)]
+    [InlineData("stalledUP", DownloadItemStatus.Completed)]
+    [InlineData("moving", DownloadItemStatus.Downloading)]
+    [InlineData("checkingUP", DownloadItemStatus.Queued)]
     [InlineData("whatever", DownloadItemStatus.Unknown)]
     public void Every_qbittorrent_state_has_a_status(string state, DownloadItemStatus expected) => Assert.Equal(expected, QBittorrentClient.StatusOf(state));
 
