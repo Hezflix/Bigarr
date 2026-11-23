@@ -301,6 +301,60 @@ public sealed class ImportFlowTests(BigarrApiFactory factory) : IClassFixture<Bi
     }
 
     [Fact]
+    public async Task An_overridden_quality_is_the_one_judged_against_the_file_in_place()
+    {
+        var client = await ClientAsync(factory);
+        var (hd, _) = await ProfilesAsync(client);
+        var root = await AddRootAsync(client, Path.Combine(_root, "override-judged"));
+        await ConfigureAsync(client, _bin);
+
+        var movie = await AddMovieAsync(client, 129, hd, root.Id); // Spirited Away
+        var version = movie.Versions.Single();
+        var downloadClient = await AddMockClientAsync(client, "Mock override judged");
+        try
+        {
+            async Task<GrabResponse> GrabCraftedAsync(string title, int? qualityId)
+            {
+                var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(title)));
+                var request = new GrabRequest(version.Id, 0, "crafted/" + title, title, InfoHash: hash, Size: 4L * 1024 * 1024 * 1024, Indexer: "by hand", QualityId: qualityId);
+                var response = await client.PostAsJsonAsync("/api/v1/grab", request, Json);
+                Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+                var grab = (await response.Content.ReadFromJsonAsync<GrabResponse>(Json))!;
+                await RefreshAsync(client);
+                await CompleteAsync(client, grab.DownloadId!);
+                await RefreshAsync(client);
+                return grab;
+            }
+
+            // A Bluray-720p file is in place, below the profile's cutoff so that upgrades are still wanted.
+            await GrabCraftedAsync("Spirited.Away.2001.720p.BluRay.x264-GRP", null);
+            var first = await WaitForFileAsync(client, movie.Id, version.Id);
+            Assert.Equal("Bluray-720p", first.File!.Quality);
+
+            // The title says 1080p Bluray (an upgrade), the user says HDTV-720p: judged as HDTV-720p, lower than the file in place, refused.
+            var lower = await GrabCraftedAsync("Spirited.Away.2001.1080p.BluRay.x264-LOW", Bigarr.Parsing.Qualities.Quality.HDTV720p.Id);
+            var failed = await WaitForQueueRowAsync(client, r => r.GrabId == lower.GrabId && r.State == GrabState.ImportFailed, "import failed");
+            Assert.Contains(failed.StatusMessages, m => m.Title == ImportService.FailedMessageTitle && m.Messages[0].Contains("lower than the existing Bluray-720p", StringComparison.Ordinal));
+            var unchanged = (await GetMovieAsync(client, movie.Id)).Versions.Single();
+            Assert.Equal(first.File.RelativePath, unchanged.File!.RelativePath);
+            Assert.Equal("Bluray-720p", unchanged.File.Quality);
+            Assert.Empty(await HistoryAsync(client, movie.Id, HistoryEventType.Upgraded));
+            Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/v1/queue/{lower.GrabId}?removeFromClient=true&deleteFiles=false&blocklist=false")).StatusCode);
+
+            // The reverse: the title says HDTV-720p (not an upgrade), the user says Bluray-1080p: judged as Bluray-1080p, an upgrade, imported.
+            await GrabCraftedAsync("Spirited.Away.2001.720p.HDTV.x264-UP", Bigarr.Parsing.Qualities.Quality.Bluray1080p.Id);
+            var upgraded = await WaitForFileAsync(client, movie.Id, version.Id, v => v.File!.Quality == "Bluray-1080p");
+            Assert.Equal("Spirited Away (2001) [Bluray-1080p].mkv", upgraded.File!.RelativePath);
+            Assert.Single(await HistoryAsync(client, movie.Id, HistoryEventType.Upgraded));
+        }
+        finally
+        {
+            await client.DeleteAsync($"/api/v1/downloadclients/{downloadClient.Id}");
+            await client.DeleteAsync($"/api/v1/movies/{movie.Id}");
+        }
+    }
+
+    [Fact]
     public async Task A_torrent_added_by_hand_is_adopted_and_matched_by_title_or_left_to_the_manual_import()
     {
         var client = await ClientAsync(factory);
