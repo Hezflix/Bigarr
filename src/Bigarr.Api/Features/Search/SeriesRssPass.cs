@@ -136,7 +136,7 @@ public sealed class SeriesRssPass(
         var picked = 0;
         var ranked = ReleaseRanking.OrderSeries(
                 judged.Where(j => j.Judgement?.Attributed is not null),
-                j => j.Entry.QualityId,
+                j => ProfileRanking.RankOf(j.Judgement!.Attributed!.Target.Profile, j.Entry.QualityId),
                 j => j.Judgement!.Attributed!.CustomFormatScore,
                 j => j.Judgement!.Attributed!.Target.Episodes is { } coverage && SeasonGroups.Matches(j.Judgement.Parsed?.ReleaseGroup, coverage),
                 j => j.Entry.RevisionVersion,

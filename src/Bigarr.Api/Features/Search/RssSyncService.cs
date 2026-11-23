@@ -234,9 +234,10 @@ public sealed class RssSyncService(
 
             // One grab per version and pass: the best of what the feed brought.
             var winners = new Dictionary<int, (RssReleaseResponse Entry, ReleaseInfo Release)>();
+            var profiles = movies.SelectMany(m => m.Versions).ToDictionary(v => v.Id, v => v.QualityProfile);
             foreach (var group in judged.Where(j => j.Entry.AttributedVersionId is not null && j.Entry.Movie is not null).GroupBy(j => j.Entry.AttributedVersionId!.Value))
             {
-                var best = ReleaseRanking.Order(group, j => j.Entry.QualityId, j => j.Score, j => j.Entry.RevisionVersion, j => j.Release.IndexerPriority, j => j.Release.Seeders ?? 0).First();
+                var best = ReleaseRanking.Order(group, j => ProfileRanking.RankOf(profiles[group.Key], j.Entry.QualityId), j => j.Score, j => j.Entry.RevisionVersion, j => j.Release.IndexerPriority, j => j.Release.Seeders ?? 0).First();
                 winners[group.Key] = (best.Entry, best.Release);
             }
 
