@@ -1344,6 +1344,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<string>("MediaInfo")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("MediaInfoTriedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("OriginalReleaseTitle")
                         .HasMaxLength(1024)
                         .HasColumnType("TEXT");
@@ -3550,6 +3553,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("MediaInfo")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("MediaInfoTriedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("OriginalReleaseTitle")

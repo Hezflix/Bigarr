@@ -40,6 +40,9 @@ public sealed class MediaFile
 
     public MediaInfo? MediaInfo { get; set; }
 
+    /// <summary>When the backfill last tried to read this file's media info and got nothing: it waits before trying again.</summary>
+    public DateTime? MediaInfoTriedAt { get; set; }
+
     /// <summary>Side files imported with it: they follow its renames and leave with it.</summary>
     public List<ExtraFile> Extras { get; set; } = [];
 }
