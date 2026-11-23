@@ -52,7 +52,7 @@ public sealed class SeasonGroupTests
             (Title: "Other Bluray-1080p score 0", Quality: ParserQuality.Bluray1080p.Id, Score: 0, Group: false, Seeders: 1),
         };
 
-        var order = ReleaseRanking.OrderSeries(releases, r => r.Quality, r => r.Score, r => r.Group, _ => 1, _ => false, _ => 1, _ => false, _ => 25, r => r.Seeders)
+        var order = ReleaseRanking.OrderSeries(releases, r => ReleaseRanking.WeightOf(r.Quality), r => r.Score, r => r.Group, _ => 1, _ => false, _ => 1, _ => false, _ => 25, r => r.Seeders)
             .Select(r => r.Title)
             .ToList();
 

@@ -104,7 +104,7 @@ public sealed class AutomaticSearchService(
 
                 var ranked = ReleaseRanking.Order(
                     approved,
-                    a => a.Parsed.Quality?.Quality?.Id ?? 0,
+                    a => ProfileRanking.RankOf(a.Decision.Target.Profile, a.Parsed.Quality?.Quality?.Id ?? 0),
                     a => a.Decision.CustomFormatScore,
                     a => a.Parsed.Quality?.Revision?.Version ?? 1,
                     a => a.Release.IndexerPriority,

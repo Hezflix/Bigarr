@@ -235,7 +235,7 @@ public sealed class SeriesAutomaticSearchService(
 
             var ranked = ReleaseRanking.OrderSeries(
                     approved,
-                    a => a.Judgement.Parsed?.Quality?.Quality?.Id ?? 0,
+                    a => ProfileRanking.RankOf(a.Decision.Target.Profile, a.Judgement.Parsed?.Quality?.Quality?.Id ?? 0),
                     a => a.Decision.CustomFormatScore,
                     a => a.Decision.Target.Episodes is { } coverage && SeasonGroups.Matches(a.Judgement.Parsed?.ReleaseGroup, coverage),
                     a => a.Judgement.Parsed?.Quality?.Revision?.Version ?? 1,
