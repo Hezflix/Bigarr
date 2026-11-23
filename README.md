@@ -71,6 +71,8 @@ System → Status shows the **health checks** (no indexer or download client con
 
 On first start an `admin` account is created. Set `Bigarr__InitialAdminPassword` to choose its password; otherwise a random one is generated and printed once in the logs. Failed sign-ins are limited per account and per address: past 10 failures on one username or 30 from one address within 15 minutes, the login answers `429` until the oldest failure is 15 minutes old (`Bigarr__SignIn__MaxFailuresPerUsername`, `Bigarr__SignIn__MaxFailuresPerAddress`, `Bigarr__SignIn__WindowMinutes`; 0 turns a limit off). Starting a "Sign in with Plex" counts against the per-address limit too.
 
+Contributing, or pointing a coding agent at the repository: read [`AGENTS.md`](AGENTS.md) first.
+
 ## Deployment
 
 A multi-arch image (amd64, arm64) is published to `ghcr.io/hezflix/bigarr`: on every merge to `main`, each merge being a release: its version follows the conventional commit prefixes since the last one (`fix:`/`chore:` bump the patch, `feat:` the minor, a breaking change the major, the minor before 1.0), and the image is tagged `X.Y.Z`, `X.Y`, `edge` and `sha-<commit>`, next to a `vX.Y.Z` git tag and GitHub release. Pin `X.Y.Z` (Renovate can bump it); `edge` follows `main`. See [`deploy/docker-compose.example.yml`](deploy/docker-compose.example.yml). Downloads and libraries must live under **one shared mount**, otherwise hardlinks are impossible and imports fall back to copies.
