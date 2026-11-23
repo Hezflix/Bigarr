@@ -309,7 +309,7 @@ public sealed class QueuePoller(
     {
         switch (grab.State)
         {
-            case GrabState.Grabbed when item.Status != DownloadItemStatus.Failed:
+            case GrabState.Grabbed when item.Status is not (DownloadItemStatus.Failed or DownloadItemStatus.Errored):
                 grab.TransitionTo(item.Status == DownloadItemStatus.Completed ? GrabState.ImportPending : GrabState.Downloading);
                 break;
             case GrabState.Downloading when item.Status == DownloadItemStatus.Completed:
@@ -322,6 +322,11 @@ public sealed class QueuePoller(
             state.NotStalled(grab.Id);
         }
 
+        if (item.Status != DownloadItemStatus.Errored)
+        {
+            state.NotErrored(grab.Id);
+        }
+
         if (grab.State is GrabState.Grabbed or GrabState.Downloading)
         {
             if (item.Status == DownloadItemStatus.Failed)
@@ -332,6 +337,11 @@ public sealed class QueuePoller(
             if (item.Status == DownloadItemStatus.Stalled && settings.StalledTimeout is { } timeout && now - state.StalledSince(grab.Id, now) >= timeout)
             {
                 return $"Stalled for more than {timeout.TotalMinutes:0} minutes.";
+            }
+
+            if (item.Status == DownloadItemStatus.Errored && settings.ErroredTimeout is { } errorTimeout && now - state.ErroredSince(grab.Id, now) >= errorTimeout)
+            {
+                return $"{item.Message ?? "The download client reports an error."} (for more than {errorTimeout.TotalMinutes:0} minutes)";
             }
         }
 
@@ -346,6 +356,17 @@ public sealed class QueuePoller(
             }
 
             messages.Add(new StatusMessage { Title = "Stalled", Messages = [detail], Severity = StatusSeverity.Warning });
+        }
+        else if (item.Status == DownloadItemStatus.Errored)
+        {
+            var detail = item.Message ?? "The download client reports an error.";
+            if (grab.State is GrabState.Grabbed or GrabState.Downloading && settings.ErroredTimeout is { } errorTimeout)
+            {
+                var left = errorTimeout - (now - state.ErroredSince(grab.Id, now));
+                detail += $" Treated as failed in {Math.Max(1, Math.Ceiling(left.TotalMinutes)):0} minute(s).";
+            }
+
+            messages.Add(new StatusMessage { Title = "Download client error", Messages = [detail], Severity = StatusSeverity.Warning });
         }
         else if (item.Status == DownloadItemStatus.Paused)
         {

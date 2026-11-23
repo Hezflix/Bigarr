@@ -6646,7 +6646,50 @@ export interface paths {
             parameters: {
                 query?: {
                     message?: string;
+                    errored?: boolean;
                 };
+                header?: never;
+                path: {
+                    downloadId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/downloadclients/mock/{downloadId}/recover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
                 header?: never;
                 path: {
                     downloadId: string;
@@ -11704,7 +11747,7 @@ export interface components {
             categoryCreated: boolean;
         };
         /** @enum {unknown} */
-        DownloadItemStatus: "queued" | "downloading" | "paused" | "stalled" | "completed" | "failed" | "unknown";
+        DownloadItemStatus: "queued" | "downloading" | "paused" | "stalled" | "completed" | "failed" | "unknown" | "errored";
         /** @enum {unknown} */
         DownloadProtocol: "torrent" | "usenet";
         EpisodeExtraResponse: {

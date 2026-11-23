@@ -202,7 +202,8 @@ public sealed partial class MockDownloadClientState(TimeProvider time, IOptions<
         return true;
     }
 
-    public bool Fail(string hash, string message)
+    /// <summary>Breaks a torrent. <paramref name="errored"/> is an error the client may recover from (<see cref="Recover"/>), not a definitive failure.</summary>
+    public bool Fail(string hash, string message, bool errored = false)
     {
         if (!_torrents.TryGetValue(hash, out var torrent))
         {
@@ -210,6 +211,20 @@ public sealed partial class MockDownloadClientState(TimeProvider time, IOptions<
         }
 
         torrent.Error = message;
+        torrent.Errored = errored;
+        return true;
+    }
+
+    /// <summary>Clears the error of a torrent, as freeing the disk would.</summary>
+    public bool Recover(string hash)
+    {
+        if (!_torrents.TryGetValue(hash, out var torrent))
+        {
+            return false;
+        }
+
+        torrent.Error = null;
+        torrent.Errored = false;
         return true;
     }
 
@@ -225,7 +240,7 @@ public sealed partial class MockDownloadClientState(TimeProvider time, IOptions<
         }
 
         var remaining = (long)Math.Round(torrent.Size * (1 - progress));
-        var status = torrent.Error is not null ? DownloadItemStatus.Failed
+        var status = torrent.Error is not null ? (torrent.Errored ? DownloadItemStatus.Errored : DownloadItemStatus.Failed)
             : progress >= 1 ? DownloadItemStatus.Completed
             : torrent.Paused ? DownloadItemStatus.Paused
             : torrent.StalledAt is not null ? DownloadItemStatus.Stalled
@@ -271,6 +286,9 @@ public sealed partial class MockDownloadClientState(TimeProvider time, IOptions<
         public bool Paused { get; set; }
 
         public string? Error { get; set; }
+
+        /// <summary>The error is one the client may recover from.</summary>
+        public bool Errored { get; set; }
 
         public DateTimeOffset? CompletedAt { get; set; }
 

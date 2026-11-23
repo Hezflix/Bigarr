@@ -134,7 +134,7 @@ public static class QueueEndpoints
         DownloadItemStatus.Queued => "queued",
         DownloadItemStatus.Downloading => "downloading",
         DownloadItemStatus.Paused => "paused",
-        DownloadItemStatus.Stalled => "warning",
+        DownloadItemStatus.Stalled or DownloadItemStatus.Errored => "warning",
         DownloadItemStatus.Completed => "completed",
         DownloadItemStatus.Failed => "failed",
         _ => "unknown",

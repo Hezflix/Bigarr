@@ -58,7 +58,7 @@ Explicit. `GrabState` on `Grab.State` (`src/Bigarr.Domain/Acquisition/GrabState.
 | `Importing` | the import worker is working on it | yes | |
 | `ImportFailed` | needs a human; retried or imported by hand | | |
 | `Imported` | file in the library | | yes |
-| `DownloadFailed` | client error or stall; blocklisted, searched again | | yes |
+| `DownloadFailed` | client failure, or a stall or client error that lasted; blocklisted, searched again | | yes |
 | `Removed` | vanished from the client | | yes |
 | `Ignored` | dismissed by the user | | yes |
 
@@ -68,9 +68,9 @@ Explicit. `GrabState` on `Grab.State` (`src/Bigarr.Domain/Acquisition/GrabState.
 |---|---|---|---|---|
 | none | `Grabbed` | grab (user, search, RSS) | no active grab on the target: check, then the partial unique index `IX_GrabTargets_TargetId_Active` | `GrabService.GrabAsync` / `GrabEpisodesAsync` |
 | none | `ImportPending` | a complete torrent of our category with no grab row | download id unknown to every grab | `QueuePoller.AdoptCompletedAsync` |
-| `Grabbed` | `Downloading` | client lists it, not complete, not failed | | `QueuePoller.Advance` |
+| `Grabbed` | `Downloading` | client lists it, not complete, not failed, not in error | | `QueuePoller.Advance` |
 | `Grabbed`, `Downloading` | `ImportPending` | client reports complete | | `QueuePoller.Advance` |
-| `Grabbed`, `Downloading` | `DownloadFailed` | client reports failed, or stalled past `StalledTimeout` | | `QueuePoller.HandleFailureAsync` |
+| `Grabbed`, `Downloading` | `DownloadFailed` | client reports failed, stalled past `StalledTimeout`, or in error (`Errored`) past `ErroredTimeout` | | `QueuePoller.HandleFailureAsync` |
 | `Grabbed`, `Downloading`, `ImportPending` | `Removed` | absent from an answering client for `RemovedAfterPolls` polls | a `Grabbed` grab younger than 45 s is not counted; never from `Importing` | `QueuePoller.PollCoreAsync` |
 | `ImportPending` | `Importing` | import worker dequeues it | one conditional update, under the poll lock | `ImportService.ImportGrabAsync` |
 | `Importing` | `Imported` | file transferred and recorded | same transaction as the file row | `ImportService.ExecuteAsync` (film), `ImportGrabAsync` (series) |
@@ -95,24 +95,21 @@ Invariants:
 3. At most one active grab per target (unique index; `GrabService` removes the torrent again when the index refuses).
 4. `Importing` is held only while the import worker is on that grab. Guarded since [F2](#f2-a-grab-interrupted-mid-import-stayed-importing-for-ever).
 5. An `ImportPending` grab whose download is complete is queued at every poll until it leaves that state.
-6. Failed handling commits state, blocklist, history and event together; the torrent leaves its client and the
-   replacement search is queued only after that commit ([F21](#f21-failed-handling-removed-the-torrent-before-its-own-save)).
-7. Once a download client has accepted the torrent, the grab row is written whatever the caller does: the grab runs on
-   no cancellation token after the send, and the qBittorrent check that follows the add does not stop either
-   ([F31](#f31-a-grab-whose-caller-went-away-after-the-send-left-an-untracked-download)).
-
 6. Failed handling commits state, blocklist, history and event together; the replacement search is queued only after
    that commit ([F21](#f21-failed-handling-removed-the-torrent-before-its-own-save)), and the torrent leaves its client
    after the search is queued, so a removal that goes wrong cannot stop it
    ([F32](#f32-a-failed-download-whose-removal-threw-lost-its-replacement-search)).
+7. Once a download client has accepted the torrent, the grab row is written whatever the caller does: the grab runs on
+   no cancellation token after the send, and the qBittorrent check that follows the add does not stop either
+   ([F31](#f31-a-grab-whose-caller-went-away-after-the-send-left-an-untracked-download)).
 
 A failed grab whose torrent has left the client stays `ImportFailed` or `DownloadFailed` in the table and is simply no
 longer shown (`QueuePoller.cs:173-177`). That is by design.
 
 ### Queue poll bookkeeping
 
-Implicit, in memory (`QueueState`): per grab, a count of consecutive polls where the client did not list it, and the
-time a stall began.
+Implicit, in memory (`QueueState`): per grab, a count of consecutive polls where the client did not list it, the
+time a stall began, and the time the client began reporting an error.
 
 | From | To | Trigger |
 |---|---|---|
@@ -121,14 +118,18 @@ time a stall began.
 | counted (n = `RemovedAfterPolls`) | forgotten | grab becomes `Removed` |
 | not stalled | stalled since t | client reports `Stalled` |
 | stalled | not stalled | any other client status (`NotStalled`) |
+| not errored | errored since t | client reports `Errored` (qBittorrent `error`, `missingFiles`) (`ErroredSince`) |
+| errored | not errored | any other client status (`NotErrored`) |
 
 Order at the end of a poll: commit the transitions, queue the imports and the replacement searches, then remove the
 failed torrents from their client. The removal catches anything and runs to its end whatever the caller does (it takes
 no cancellation token); a torrent it could not remove is noted on the grab and its journal line.
 
 Invariants: one poll at a time (`QueueState.PollLock`); a client that did not answer counts neither as a miss nor as
-a stall. Both counters restart from zero after a restart, so a stall or an absence is measured again from the first
-poll: never a false failure, at worst a later one.
+a stall. The counters and both timers restart from zero after a restart, so a stall, an error or an absence is measured
+again from the first poll: never a false failure, at worst a later one. An `Errored` download is a warning in the queue
+("Download client error", with the minutes left) until `ErroredTimeout` has passed; a grab already `ImportPending` whose
+torrent turns `Errored` gets the warning and no transition.
 
 ### Import queue
 
@@ -881,6 +882,18 @@ saves during a shutdown instead of being cut after the transfer.
 Test: `InterruptedEpisodeFileDeleteTests.An_episode_file_delete_whose_caller_goes_away_after_the_file_is_gone_still_removes_the_row`.
 The two imports and the assign have no clock read at a useful moment for that trick; they are guarded by inspection
 (no `await` after the first disk change takes the request's token) and covered by the existing import suites.
+
+#### F35. A client error such as a full disk failed and blocklisted the download at once
+
+qBittorrent's `error` and `missingFiles` states mapped to `Failed`, so the first poll that saw one blocklisted the
+release, removed the torrent with its data and searched again. A full disk or an unmounted drive clears on its own; the
+replacement hit the same error and healthy releases were blocklisted one after another, their partial data deleted.
+
+Fix: those states map to a new status, `Errored` (a warning in the queue with the time left). Only an error that lasts
+past `Bigarr__Downloads__ErroredTimeoutMinutes` (60 by default, 0 keeps it a warning) goes through the failed handling;
+one that clears before is a download like any other. `Failed` stays for a definitive failure.
+Tests: `FailedHandlingTests.A_download_the_client_reports_in_error_is_a_warning_until_the_delay_then_fails`,
+`FailedHandlingTests.A_download_that_recovers_from_an_error_carries_on`.
 
 ### Open
 

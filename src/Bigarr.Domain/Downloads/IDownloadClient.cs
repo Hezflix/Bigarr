@@ -56,10 +56,13 @@ public enum DownloadItemStatus
     /// <summary>Every byte is there; the client seeds or is done seeding.</summary>
     Completed = 5,
 
-    /// <summary>The client gave up: error state, missing files.</summary>
+    /// <summary>The download cannot succeed any more.</summary>
     Failed = 6,
 
     Unknown = 7,
+
+    /// <summary>The client reports an error it may recover from (disk full, files missing): a warning until it lasts.</summary>
+    Errored = 8,
 }
 
 /// <summary>One torrent as the client reports it, reduced to what the queue and the import need.</summary>

@@ -282,6 +282,101 @@ public sealed class FailedHandlingTests(BigarrApiFactory factory) : IClassFixtur
         }
     }
 
+    [Fact]
+    public async Task A_download_the_client_reports_in_error_is_a_warning_until_the_delay_then_fails()
+    {
+        var clock = new MutableTimeProvider(DateTimeOffset.UtcNow);
+        using var configured = new ConfiguredBigarrApiFactory(null, new Dictionary<string, string>
+        {
+            ["Bigarr:Downloads:ErroredTimeoutMinutes"] = "30",
+            ["Bigarr:Downloads:SearchAfterFailure"] = "false",
+        }, time: clock);
+        var client = await ClientAsync(configured);
+        var (hd, _) = await ProfilesAsync(client);
+        var root = await AddRootAsync(client, Path.Combine(Path.GetTempPath(), $"bigarr-errored-{Guid.NewGuid():N}"));
+        var movie = await AddMovieAsync(client, 603, hd, root.Id);
+        var version = movie.Versions.Single();
+        var indexer = await AddMockIndexerAsync(client, "Mock errored");
+        var downloadClient = await AddMockClientAsync(client, "Mock qbt errored");
+
+        try
+        {
+            var release = (await SearchAsync(client, movie.Id)).Releases.First(r => r.Versions.Any(v => v.Approved));
+            var grab = await GrabAsync(client, release, version.Id);
+            await RefreshAsync(client);
+            Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/v1/downloadclients/mock/{grab.DownloadId}/fail?message=Disk%20full&errored=true", null)).StatusCode);
+
+            // A warning, not a failure: the grab is still downloading and nothing is blocklisted.
+            var queue = await RefreshAsync(client);
+            var row = Assert.Single(queue.Items);
+            Assert.Equal(GrabState.Downloading, row.State);
+            Assert.Equal(DownloadItemStatus.Errored, row.Status);
+            var warning = Assert.Single(row.StatusMessages, m => m.Title == "Download client error");
+            Assert.Contains("Disk full", warning.Messages[0], StringComparison.Ordinal);
+            Assert.Contains("Treated as failed in 30 minute(s).", warning.Messages[0], StringComparison.Ordinal);
+            Assert.Empty((await client.GetFromJsonAsync<BlocklistPageResponse>($"/api/v1/blocklist?movieId={movie.Id}", Json))!.Items);
+
+            // Past the delay and still in error: the failed handling runs.
+            clock.Advance(TimeSpan.FromMinutes(31));
+            queue = await RefreshAsync(client);
+            row = Assert.Single(queue.Items);
+            Assert.Equal(GrabState.DownloadFailed, row.State);
+            Assert.Contains(row.StatusMessages, m => m.Title == "Download failed" && m.Messages[0].StartsWith("Disk full (for more than 30 minutes)", StringComparison.Ordinal));
+            Assert.Single((await client.GetFromJsonAsync<BlocklistPageResponse>($"/api/v1/blocklist?movieId={movie.Id}", Json))!.Items);
+        }
+        finally
+        {
+            await client.DeleteAsync($"/api/v1/downloadclients/{downloadClient.Id}");
+            await client.DeleteAsync($"/api/v1/indexers/{indexer.Id}");
+            await client.DeleteAsync($"/api/v1/movies/{movie.Id}");
+            TryDelete(root.Path);
+        }
+    }
+
+    [Fact]
+    public async Task A_download_that_recovers_from_an_error_carries_on()
+    {
+        var clock = new MutableTimeProvider(DateTimeOffset.UtcNow);
+        using var configured = new ConfiguredBigarrApiFactory(null, new Dictionary<string, string>
+        {
+            ["Bigarr:Downloads:ErroredTimeoutMinutes"] = "30",
+            ["Bigarr:Downloads:SearchAfterFailure"] = "false",
+        }, time: clock);
+        var client = await ClientAsync(configured);
+        var (hd, _) = await ProfilesAsync(client);
+        var root = await AddRootAsync(client, Path.Combine(Path.GetTempPath(), $"bigarr-recovers-{Guid.NewGuid():N}"));
+        var movie = await AddMovieAsync(client, 603, hd, root.Id);
+        var version = movie.Versions.Single();
+        var indexer = await AddMockIndexerAsync(client, "Mock recovers");
+        var downloadClient = await AddMockClientAsync(client, "Mock qbt recovers");
+
+        try
+        {
+            var release = (await SearchAsync(client, movie.Id)).Releases.First(r => r.Versions.Any(v => v.Approved));
+            var grab = await GrabAsync(client, release, version.Id);
+            await RefreshAsync(client);
+            Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/v1/downloadclients/mock/{grab.DownloadId}/fail?message=Disk%20full&errored=true", null)).StatusCode);
+            var row = Assert.Single((await RefreshAsync(client)).Items);
+            Assert.Equal(DownloadItemStatus.Errored, row.Status);
+
+            // The disk is freed: the client lists the torrent normally again, long before the delay ends.
+            Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/v1/downloadclients/mock/{grab.DownloadId}/recover", null)).StatusCode);
+            clock.Advance(TimeSpan.FromMinutes(31));
+            row = Assert.Single((await RefreshAsync(client)).Items);
+            Assert.NotEqual(GrabState.DownloadFailed, row.State);
+            Assert.NotEqual(DownloadItemStatus.Errored, row.Status);
+            Assert.DoesNotContain(row.StatusMessages, m => m.Title == "Download client error");
+            Assert.Empty((await client.GetFromJsonAsync<BlocklistPageResponse>($"/api/v1/blocklist?movieId={movie.Id}", Json))!.Items);
+        }
+        finally
+        {
+            await client.DeleteAsync($"/api/v1/downloadclients/{downloadClient.Id}");
+            await client.DeleteAsync($"/api/v1/indexers/{indexer.Id}");
+            await client.DeleteAsync($"/api/v1/movies/{movie.Id}");
+            TryDelete(root.Path);
+        }
+    }
+
     /// <summary>The real app with a mock client whose removal fails like a dropped connection would.</summary>
     private sealed class RemovalBlowsUpFactory : BigarrApiFactory
     {

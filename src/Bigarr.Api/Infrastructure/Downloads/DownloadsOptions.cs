@@ -32,5 +32,10 @@ public sealed class DownloadsOptions
 
     public TimeSpan? StalledTimeout => StalledTimeoutMinutes > 0 ? TimeSpan.FromMinutes(StalledTimeoutMinutes) : null;
 
+    /// <summary>A download the client reports in error for this long is treated as failed. 0 leaves it as a warning for good, as Radarr does.</summary>
+    public int ErroredTimeoutMinutes { get; set; } = 60;
+
+    public TimeSpan? ErroredTimeout => ErroredTimeoutMinutes > 0 ? TimeSpan.FromMinutes(ErroredTimeoutMinutes) : null;
+
     public TimeSpan PollInterval => TimeSpan.FromSeconds(Math.Max(MinimumPollSeconds, PollSeconds));
 }
