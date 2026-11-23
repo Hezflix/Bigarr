@@ -268,7 +268,9 @@ drops a row whose file is missing, so a broken pair does not heal on its own.
 `FileTransfer`: source, then `<destination>.bigarr-partial`, then destination, for a copy and for a move alike
 ([F14](#f14-a-move-across-filesystems-bypassed-the-partial-name)). The final name only ever appears by a rename on its
 own filesystem; a destination is never overwritten. A partial left by a killed transfer is overwritten by the retry to
-the same destination; nothing else sweeps it.
+the same destination; nothing else sweeps it. A replacement in place (an upgrade that renders the same name) stages the
+new file under the partial name beside the old one, retires the old one, then renames
+([F26](#f26-an-upgrade-keeping-its-file-name-removed-the-old-file-before-the-new-one-arrived)).
 
 ### Series order and its journal
 
@@ -742,6 +744,19 @@ not see it and added Tautulli's row for the same viewing, on the imported play o
 Fix: the streams Bigarr followed live (no Tautulli key) count wherever they are. A new play overlapping one is left out
 whole, as before; a play imported before only gains the rows Bigarr did not follow live. The preview counts the same.
 Test: `TautulliImportTests.A_tautulli_history_becomes_plays_once_and_a_rerun_adds_only_what_is_new`.
+
+#### F26. An upgrade keeping its file name removed the old file before the new one arrived
+
+When an imported file rendered the same name as the file it replaced, the import recycled the old file first and
+transferred the new one afterwards. A transfer that failed (disk full, a copy cut short, cancellation) left the old
+file gone for good without a recycle bin, and the row pointing at an empty path.
+
+Fix: `FileTransfer.ReplaceAsync` brings the new file in full under the partial name, then retires the old one, then
+renames; a failure before the rename puts everything back (a move returns the source). Film and series imports use it.
+Tests: `FileTransferTests.Replacing_brings_the_new_file_in_before_the_old_one_leaves`,
+`FileTransferTests.A_replacement_whose_transfer_fails_leaves_the_old_file_alone`,
+`FileTransferTests.A_replacement_whose_old_file_cannot_be_retired_puts_everything_back`,
+`FileTransferTests.A_partial_file_left_by_a_killed_replacement_is_overwritten`.
 
 ### Open
 

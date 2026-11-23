@@ -396,13 +396,14 @@ public sealed class ImportService(
 
         var now = time.GetUtcNow().UtcDateTime;
         string? recycled = null;
+        TransferOutcome? outcome = null;
         if (existingPath is not null && replacesInPlace && !alreadyThere)
         {
-            recycled = recycleBin.RemoveFile(existingPath, config.RecycleBinPath, version.RootFolder.Path);
+            // The new file is complete next to the old one before the old one leaves: a failed transfer costs nothing.
+            outcome = await transfer.ReplaceAsync(source.FullName, destination, plan.Mode,
+                () => recycled = recycleBin.RemoveFile(existingPath, config.RecycleBinPath, version.RootFolder.Path), ct);
         }
-
-        TransferOutcome? outcome = null;
-        if (!alreadyThere)
+        else if (!alreadyThere)
         {
             outcome = await transfer.TransferAsync(source.FullName, destination, plan.Mode, ct);
         }
