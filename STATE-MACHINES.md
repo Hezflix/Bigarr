@@ -957,6 +957,26 @@ qBittorrent changes its state (usually to `error`, handled by F35).
 Tests: `QBittorrentClientTests.Every_qbittorrent_state_has_a_status` (`moving`, `checkingUP`, `stalledUP`),
 `QBittorrentClientTests.Torrents_of_the_category_are_mapped_to_queue_items`.
 
+#### F40. A stored secret could be sent to another address
+
+[F33](#f33-the-download-client-password-indexer-api-key-and-media-server-token-came-back-in-clear) made the mask mean
+"keep the stored secret" whatever the host or URL of the same request: an update, or a test with `?id=`, that kept the
+mask and pointed the host at another machine made Bigarr sign in there with the stored password, API key or token. The
+followed Radarr and Sonarr had the same hole with their own mask.
+
+Fix: the mask, or for a followed app a blank or masked key, is only honoured while the destination stays the same
+(`SecretMask.SameDestination`: same scheme, host and port for an indexer, a media server and a followed app; host, port
+and `UseSsl` for a download client; a path change alone keeps the secret, so does a username change). Otherwise the
+request is refused with "Type the … again", before the stored secret is read into the object used for the connection.
+The `/radarr` and `/sonarr` compat surfaces are unchanged: they carry the real key, never the mask. The settings forms
+empty the secret field when the address moves.
+Tests: `DownloadClientsEndpointsTests.Changing_the_address_with_the_mask_is_refused_and_the_stored_password_stays`,
+`IndexersEndpointsTests.Changing_the_address_with_the_mask_is_refused_and_the_stored_api_key_stays`,
+`MediaServerTests.Changing_the_address_with_the_mask_is_refused_and_the_stored_token_stays`, a
+`Testing_another_address_with_the_mask_is_refused_and_nothing_is_contacted` in each of the three,
+`RadarrFollowTests.The_stored_key_is_not_sent_to_another_address`, `SonarrFollowTests.The_stored_key_is_not_sent_to_another_address`,
+`ProwlarrPushTests.Prowlarr_moving_an_indexer_to_another_address_with_the_real_key_still_updates_it` (the compat side).
+
 ### Open
 
 What is known and not fixed:

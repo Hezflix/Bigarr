@@ -73,6 +73,13 @@ public sealed partial class DownloadClientService(BigarrDbContext db, DownloadCl
             return Failure.Conflict("Download client name already used", $"A download client named '{request.Name.Trim()}' exists.");
         }
 
+        // The mask keeps the stored password for the address it was saved with, never for another one.
+        if (SecretMask.Kept(request.Password) && !string.IsNullOrEmpty(client.Password) && request.Implementation == DownloadClientImplementation.QBittorrent
+            && !SameAddress(client.Host, client.Port, client.UseSsl, request))
+        {
+            return SecretMask.TypeAgain("password", "host, port or scheme");
+        }
+
         client.Name = request.Name.Trim();
         Apply(client, request);
         await db.SaveChangesAsync(ct);
@@ -120,10 +127,15 @@ public sealed partial class DownloadClientService(BigarrDbContext db, DownloadCl
                     return Failure.Invalid("Type the password to test", "The password is stored on the server: type it, or test the saved client.");
                 }
 
-                var stored = await db.DownloadClients.AsNoTracking().Where(c => c.Id == id).Select(c => new { c.Password }).FirstOrDefaultAsync(ct);
+                var stored = await db.DownloadClients.AsNoTracking().Where(c => c.Id == id).Select(c => new { c.Password, c.Host, c.Port, c.UseSsl }).FirstOrDefaultAsync(ct);
                 if (stored is null)
                 {
                     return Failure.NotFound("Download client");
+                }
+
+                if (client.Implementation == DownloadClientImplementation.QBittorrent && !string.IsNullOrEmpty(stored.Password) && !SameAddress(stored.Host, stored.Port, stored.UseSsl, request))
+                {
+                    return SecretMask.TypeAgain("password", "host, port or scheme");
                 }
 
                 client.Password = client.Implementation == DownloadClientImplementation.QBittorrent ? stored.Password : null;
@@ -232,6 +244,9 @@ public sealed partial class DownloadClientService(BigarrDbContext db, DownloadCl
 
         return null;
     }
+
+    private static bool SameAddress(string? host, int port, bool useSsl, DownloadClientRequest request) =>
+        string.Equals(host?.Trim(), request.Host?.Trim(), StringComparison.OrdinalIgnoreCase) && port == request.Port && useSsl == request.UseSsl;
 
     private static void Apply(DownloadClient client, DownloadClientRequest request)
     {

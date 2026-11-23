@@ -28,6 +28,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { sameDestination } from '@/lib/address'
 
 const DEFAULT_CATEGORIES = [2000, 2010, 2020, 2030, 2040, 2045, 2050, 2060, 2070, 2080]
 
@@ -302,7 +303,13 @@ function IndexerDialog({ indexer, onClose, onSaved }: { indexer: Indexer | null;
   const [categories, setCategories] = useState(form.categories.join(', '))
   const [tvCategories, setTvCategories] = useState(form.tvCategories.join(', '))
   const [animeCategories, setAnimeCategories] = useState(form.animeCategories.join(', '))
-  const set = <K extends keyof IndexerRequest>(key: K, value: IndexerRequest[K]) => setForm((f) => ({ ...f, [key]: value }))
+  // The stored key is only kept for the address it was saved with: moving the scheme, host or port empties the field.
+  const set = <K extends keyof IndexerRequest>(key: K, value: IndexerRequest[K]) =>
+    setForm((f) => {
+      const next = { ...f, [key]: value }
+      return indexer !== null && next.apiKey === KEY_MASK && !sameDestination(indexer.baseUrl, next.baseUrl) ? { ...next, apiKey: '' } : next
+    })
+  const addressMoved = indexer?.apiKey != null && !sameDestination(indexer.baseUrl, form.baseUrl)
   const isTorznab = form.implementation === 'torznab'
 
   const payload = (): IndexerRequest => ({
@@ -406,6 +413,7 @@ function IndexerDialog({ indexer, onClose, onSaved }: { indexer: Indexer | null;
                     onChange={(e) => set('apiKey', e.target.value)}
                     onFocus={() => form.apiKey === KEY_MASK && set('apiKey', '')}
                   />
+                  {addressMoved && !form.apiKey && <p className="text-xs text-muted-foreground">{t('indexers.apiKeyAddressChanged')}</p>}
                 </div>
               </>
             )}

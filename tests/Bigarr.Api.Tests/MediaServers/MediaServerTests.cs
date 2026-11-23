@@ -243,6 +243,66 @@ public sealed class MediaServerTests(BigarrApiFactory factory) : IClassFixture<B
         Assert.Equal("other-placeholder", (await StoredAsync(id)).Token);
     }
 
+    [Fact]
+    public async Task Changing_the_address_with_the_mask_is_refused_and_the_stored_token_stays()
+    {
+        var session = await CompatTestHelpers.SessionAsync(factory);
+        await using var plex = await FakeHttpServer.StartAsync();
+        await using var elsewhere = await FakeHttpServer.StartAsync();
+        const string mask = "********";
+
+        var created = await session.PostAsJsonAsync("/api/v1/mediaservers", new { name = "Moving Plex", kind = "plex", url = plex.Url, token = "placeholder-secret", enabled = false });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var id = (await created.ReadJsonAsync()).GetProperty("id").GetInt32();
+
+        var refused = await session.PutAsJsonAsync($"/api/v1/mediaservers/{id}", new { name = "Moving Plex", kind = "plex", url = elsewhere.Url, token = mask, enabled = false });
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Contains("Type the token again", await refused.Content.ReadAsStringAsync());
+        var stored = await StoredAsync(id);
+        Assert.Equal(plex.Url, stored.Url);
+        Assert.Equal("placeholder-secret", stored.Token);
+        Assert.Equal(plex.Url, (await session.GetFromJsonAsync<JsonElement>($"/api/v1/mediaservers/{id}")).GetProperty("url").GetString());
+
+        // Another scheme or port of the same host is another destination too.
+        var port = new Uri(plex.Url).Port;
+        var otherPort = await session.PutAsJsonAsync($"/api/v1/mediaservers/{id}", new { name = "Moving Plex", kind = "plex", url = $"http://127.0.0.1:{port + 1}", token = mask, enabled = false });
+        Assert.Equal(HttpStatusCode.BadRequest, otherPort.StatusCode);
+        var otherScheme = await session.PutAsJsonAsync($"/api/v1/mediaservers/{id}", new { name = "Moving Plex", kind = "plex", url = $"https://127.0.0.1:{port}", token = mask, enabled = false });
+        Assert.Equal(HttpStatusCode.BadRequest, otherScheme.StatusCode);
+
+        // The same server under a path and another name keeps the token.
+        var same = await session.PutAsJsonAsync($"/api/v1/mediaservers/{id}", new { name = "Moving renamed", kind = "plex", url = $"{plex.Url}/plex/", token = mask, enabled = false });
+        Assert.Equal(HttpStatusCode.OK, same.StatusCode);
+        stored = await StoredAsync(id);
+        Assert.Equal("Moving renamed", stored.Name);
+        Assert.Equal("placeholder-secret", stored.Token);
+
+        // A new address with the token typed again is accepted.
+        var moved = await session.PutAsJsonAsync($"/api/v1/mediaservers/{id}", new { name = "Moving renamed", kind = "plex", url = elsewhere.Url, token = "other-placeholder", enabled = false });
+        Assert.Equal(HttpStatusCode.OK, moved.StatusCode);
+        stored = await StoredAsync(id);
+        Assert.Equal(elsewhere.Url, stored.Url);
+        Assert.Equal("other-placeholder", stored.Token);
+        Assert.Empty(elsewhere.Requests);
+    }
+
+    [Fact]
+    public async Task Testing_another_address_with_the_mask_is_refused_and_nothing_is_contacted()
+    {
+        var session = await CompatTestHelpers.SessionAsync(factory);
+        await using var plex = await FakeHttpServer.StartAsync();
+        plex.Responder = Plex;
+        await using var elsewhere = await FakeHttpServer.StartAsync();
+
+        var created = await session.PostAsJsonAsync("/api/v1/mediaservers", new { name = "Tested Plex", kind = "plex", url = plex.Url, token = "plex-token", enabled = false });
+        var id = (await created.ReadJsonAsync()).GetProperty("id").GetInt32();
+
+        var refused = await session.PostAsJsonAsync($"/api/v1/mediaservers/test?id={id}", new { name = "Tested Plex", kind = "plex", url = elsewhere.Url, token = "********", enabled = false });
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Contains("Type the token again", await refused.Content.ReadAsStringAsync());
+        Assert.Empty(elsewhere.Requests);
+    }
+
     private async Task<MediaServer> StoredAsync(int id)
     {
         using var scope = factory.Services.CreateScope();

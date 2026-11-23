@@ -68,6 +68,12 @@ public sealed class MediaServerService(BigarrDbContext db, MediaServerClients cl
             return Failure.Conflict("Name already used", $"A media server named '{name}' already exists.");
         }
 
+        // The mask keeps the stored token for the address it was saved with, never for another one.
+        if (SecretMask.Kept(request.Token) && !string.IsNullOrEmpty(server.Token) && !SecretMask.SameDestination(server.Url, request.Url.Trim()))
+        {
+            return SecretMask.TypeAgain("token", "URL");
+        }
+
         Apply(server, request);
         await db.SaveChangesAsync(ct);
         playback.Wake();
@@ -109,10 +115,15 @@ public sealed class MediaServerService(BigarrDbContext db, MediaServerClients cl
                     return Failure.Invalid("Type the token to test", "The token is stored on the server: type it, or test the saved server.");
                 }
 
-                var stored = await db.MediaServers.AsNoTracking().Where(s => s.Id == id).Select(s => new { s.Token }).FirstOrDefaultAsync(ct);
+                var stored = await db.MediaServers.AsNoTracking().Where(s => s.Id == id).Select(s => new { s.Token, s.Url }).FirstOrDefaultAsync(ct);
                 if (stored is null)
                 {
                     return Failure.NotFound("Media server");
+                }
+
+                if (!string.IsNullOrEmpty(stored.Token) && !SecretMask.SameDestination(stored.Url, request.Url.Trim()))
+                {
+                    return SecretMask.TypeAgain("token", "URL");
                 }
 
                 server.Token = stored.Token;

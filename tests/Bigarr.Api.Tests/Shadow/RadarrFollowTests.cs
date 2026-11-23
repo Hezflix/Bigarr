@@ -313,6 +313,54 @@ public sealed class RadarrFollowTests(ShadowApiFactory factory) : IClassFixture<
         await db.SaveChangesAsync();
     }
 
+    [Fact]
+    public async Task The_stored_key_is_not_sent_to_another_address()
+    {
+        var client = await ClientAsync(factory);
+        var (hd, _) = await ProfilesAsync(client);
+        var root = await AddRootAsync(client, Directory.CreateTempSubdirectory("bigarr-follow-key-").FullName);
+        await using var radarr = await FakeRadarr.StartAsync();
+        await using var elsewhere = await FakeRadarr.StartAsync();
+
+        FollowedRadarrRequest Form(string url, string? key = FollowedRadarrService.KeyMask, string name = "Radarr key address") =>
+            new(name, url, key, "1080p", new() { [1] = hd }, new() { [FakeRadarr.RootPath] = root.Id });
+
+        var created = await client.PostAsJsonAsync("/api/v1/shadow/radarrs", Form(radarr.Url, FakeRadarr.Key), Json);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var id = (await created.Content.ReadFromJsonAsync<FollowedRadarrResponse>(Json))!.Id;
+
+        // The mask, or no key, keeps the stored one only for the address it was saved with.
+        var refused = await client.PutAsJsonAsync($"/api/v1/shadow/radarrs/{id}", Form(elsewhere.Url), Json);
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Contains("Type the API key again", await refused.Content.ReadAsStringAsync());
+        var blank = await client.PutAsJsonAsync($"/api/v1/shadow/radarrs/{id}", Form(elsewhere.Url, key: ""), Json);
+        Assert.Equal(HttpStatusCode.BadRequest, blank.StatusCode);
+        Assert.Equal(radarr.Url, (await StoredAsync(id)).Url);
+
+        var tested = await client.PostAsJsonAsync($"/api/v1/shadow/radarrs/{id}/test", Form(elsewhere.Url), Json);
+        Assert.Equal(HttpStatusCode.BadRequest, tested.StatusCode);
+        Assert.Contains("Type the API key again", await tested.Content.ReadAsStringAsync());
+        Assert.Empty(elsewhere.Requests);
+
+        // The same server under a path and another name keeps the key; a new address with the key typed again is accepted.
+        var same = await client.PutAsJsonAsync($"/api/v1/shadow/radarrs/{id}", Form($"{radarr.Url}/radarr", name: "Radarr key renamed"), Json);
+        Assert.Equal(HttpStatusCode.OK, same.StatusCode);
+        Assert.Equal(FakeRadarr.Key, (await StoredAsync(id)).ApiKey);
+        var moved = await client.PutAsJsonAsync($"/api/v1/shadow/radarrs/{id}", Form(elsewhere.Url, "other-placeholder", "Radarr key renamed"), Json);
+        Assert.Equal(HttpStatusCode.OK, moved.StatusCode);
+        var stored = await StoredAsync(id);
+        Assert.Equal(elsewhere.Url, stored.Url);
+        Assert.Equal("other-placeholder", stored.ApiKey);
+
+        await client.DeleteAsync($"/api/v1/shadow/radarrs/{id}");
+    }
+
+    private async Task<FollowedRadarr> StoredAsync(int id)
+    {
+        using var scope = factory.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<BigarrDbContext>().FollowedRadarrs.AsNoTracking().SingleAsync(f => f.Id == id);
+    }
+
     /// <summary>Puts Radarr's file where Bigarr's root folder maps Radarr's: Bigarr only attaches a file it can see.</summary>
     private static string Write(string library, FakeRadarr.Film film)
     {

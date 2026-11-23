@@ -229,7 +229,15 @@ export function DownloadClientsPage() {
 function DownloadClientDialog({ client, onClose, onSaved }: { client: DownloadClient | null; onClose: () => void; onSaved: () => void }) {
   const { t } = useTranslation()
   const [form, setForm] = useState<DownloadClientRequest>(client ? toForm(client) : emptyForm())
-  const set = <K extends keyof DownloadClientRequest>(key: K, value: DownloadClientRequest[K]) => setForm((f) => ({ ...f, [key]: value }))
+  // The stored password is only kept for the address it was saved with: moving the host, port or scheme empties the field.
+  const sameAddress = (f: DownloadClientRequest) =>
+    client === null || ((f.host ?? '').trim().toLowerCase() === (client.host ?? '').toLowerCase() && f.port === (client.port || 8080) && f.useSsl === client.useSsl)
+  const set = <K extends keyof DownloadClientRequest>(key: K, value: DownloadClientRequest[K]) =>
+    setForm((f) => {
+      const next = { ...f, [key]: value }
+      return next.password === KEY_MASK && !sameAddress(next) ? { ...next, password: '' } : next
+    })
+  const addressMoved = client?.password != null && !sameAddress(form)
   const isQbt = form.implementation === 'qBittorrent'
 
   const payload = (): DownloadClientRequest => ({
@@ -326,7 +334,7 @@ function DownloadClientDialog({ client, onClose, onSaved }: { client: DownloadCl
                     onFocus={() => form.password === KEY_MASK && set('password', '')}
                     autoComplete="new-password"
                   />
-                  <p className="text-xs text-muted-foreground">{t('downloadClients.passwordHint')}</p>
+                  <p className="text-xs text-muted-foreground">{addressMoved && !form.password ? t('downloadClients.passwordAddressChanged') : t('downloadClients.passwordHint')}</p>
                 </div>
               </>
             )}

@@ -127,6 +127,46 @@ public sealed class ProwlarrPushTests(BigarrApiFactory factory) : IClassFixture<
     }
 
     [Fact]
+    public async Task Prowlarr_moving_an_indexer_to_another_address_with_the_real_key_still_updates_it()
+    {
+        var session = await SessionAsync(factory);
+        var (prowlarr, _) = await KeyClientAsync(factory, session, "prowlarr", "default", header: true);
+
+        object Body(int id, string baseUrl) => new
+        {
+            id,
+            name = "Moved (Prowlarr)",
+            implementation = "Torznab",
+            configContract = "TorznabSettings",
+            enableRss = true,
+            enableAutomaticSearch = true,
+            enableInteractiveSearch = false,
+            priority = 20,
+            downloadClientId = 0,
+            tags = Array.Empty<int>(),
+            fields = new object[]
+            {
+                new { name = "baseUrl", value = baseUrl },
+                new { name = "apiPath", value = "/api" },
+                new { name = "apiKey", value = "prowlarr-key" },
+                new { name = "categories", value = new[] { 2000 } },
+            },
+        };
+
+        var created = await prowlarr.PostAsJsonAsync("/radarr/api/v3/indexer", Body(0, "http://prowlarr:9696/9/"));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var id = (await created.ReadJsonAsync()).GetProperty("id").GetInt32();
+
+        // Prowlarr moved to another host: it sends the real key it read from Bigarr, which is not the mask.
+        var moved = await prowlarr.PutAsJsonAsync($"/radarr/api/v3/indexer/{id}?forceSave=true", Body(id, "http://10.0.0.8:9696/9/"));
+        Assert.Equal(HttpStatusCode.OK, moved.StatusCode);
+        using var scope = factory.Services.CreateScope();
+        var stored = await scope.ServiceProvider.GetRequiredService<BigarrDbContext>().Indexers.AsNoTracking().SingleAsync(i => i.Id == id);
+        Assert.Equal("http://10.0.0.8:9696/9", stored.BaseUrl);
+        Assert.Equal("prowlarr-key", stored.ApiKey);
+    }
+
+    [Fact]
     public async Task Prowlarr_adding_an_indexer_already_linked_to_it_takes_the_row_over()
     {
         var session = await SessionAsync(factory);

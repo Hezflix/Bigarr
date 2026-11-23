@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using Bigarr.Api.Features.Indexers;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Tests.Auth;
+using Bigarr.Api.Tests.Hosting;
 using Bigarr.Domain.Indexers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -107,6 +108,72 @@ public sealed class IndexersEndpointsTests(BigarrApiFactory factory) : IClassFix
         Assert.Equal(HttpStatusCode.OK, known.StatusCode);
 
         await client.DeleteAsync($"/api/v1/indexers/{added.Id}");
+    }
+
+    [Fact]
+    public async Task Changing_the_address_with_the_mask_is_refused_and_the_stored_api_key_stays()
+    {
+        var client = await ClientAsync();
+        const string mask = "********";
+
+        var created = await client.PostAsJsonAsync("/api/v1/indexers",
+            new IndexerRequest("Moving indexer", IndexerImplementation.Torznab, BaseUrl: "http://indexer.local:9117/torznab", ApiKey: "placeholder-secret", Priority: 31), Json);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var id = (await created.Content.ReadFromJsonAsync<IndexerResponse>(Json))!.Id;
+
+        IndexerRequest Form(string url, string name = "Moving indexer", string? apiKey = mask) =>
+            new(name, IndexerImplementation.Torznab, BaseUrl: url, ApiKey: apiKey, Priority: 31);
+
+        async Task Refused(string url)
+        {
+            var response = await client.PutAsJsonAsync($"/api/v1/indexers/{id}", Form(url), Json);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.Contains("Type the API key again", await response.Content.ReadAsStringAsync());
+        }
+
+        await Refused("http://elsewhere.local:9117/torznab");
+        await Refused("http://indexer.local:9118/torznab");
+        await Refused("https://indexer.local:9117/torznab");
+        var stored = await StoredAsync(id);
+        Assert.Equal("http://indexer.local:9117/torznab", stored.BaseUrl);
+        Assert.Equal("placeholder-secret", stored.ApiKey);
+        Assert.Equal("http://indexer.local:9117/torznab", (await client.GetFromJsonAsync<IndexerResponse>($"/api/v1/indexers/{id}", Json))!.BaseUrl);
+
+        // The same server under another path and another name keeps the key.
+        var path = await client.PutAsJsonAsync($"/api/v1/indexers/{id}", Form("http://indexer.local:9117/other/api/", name: "Moving renamed"), Json);
+        Assert.Equal(HttpStatusCode.OK, path.StatusCode);
+        stored = await StoredAsync(id);
+        Assert.Equal("Moving renamed", stored.Name);
+        Assert.Equal("http://indexer.local:9117/other/api", stored.BaseUrl);
+        Assert.Equal("placeholder-secret", stored.ApiKey);
+
+        // A new address with the key typed again is accepted.
+        var moved = await client.PutAsJsonAsync($"/api/v1/indexers/{id}", Form("http://elsewhere.local:9117/torznab", name: "Moving renamed", apiKey: "other-placeholder"), Json);
+        Assert.Equal(HttpStatusCode.OK, moved.StatusCode);
+        stored = await StoredAsync(id);
+        Assert.Equal("http://elsewhere.local:9117/torznab", stored.BaseUrl);
+        Assert.Equal("other-placeholder", stored.ApiKey);
+
+        await client.DeleteAsync($"/api/v1/indexers/{id}");
+    }
+
+    [Fact]
+    public async Task Testing_another_address_with_the_mask_is_refused_and_nothing_is_contacted()
+    {
+        var client = await ClientAsync();
+        await using var elsewhere = await FakeHttpServer.StartAsync();
+
+        var created = await client.PostAsJsonAsync("/api/v1/indexers",
+            new IndexerRequest("Tested indexer", IndexerImplementation.Torznab, BaseUrl: "http://indexer.local:9117/torznab", ApiKey: "placeholder-secret", Priority: 32), Json);
+        var id = (await created.Content.ReadFromJsonAsync<IndexerResponse>(Json))!.Id;
+
+        var refused = await client.PostAsJsonAsync($"/api/v1/indexers/test?id={id}",
+            new IndexerRequest("Tested indexer", IndexerImplementation.Torznab, BaseUrl: $"{elsewhere.Url}/torznab", ApiKey: "********", Priority: 32), Json);
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Contains("Type the API key again", await refused.Content.ReadAsStringAsync());
+        Assert.Empty(elsewhere.Requests);
+
+        await client.DeleteAsync($"/api/v1/indexers/{id}");
     }
 
     private async Task<Indexer> StoredAsync(int id)
