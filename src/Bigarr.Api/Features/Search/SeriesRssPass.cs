@@ -162,7 +162,7 @@ public sealed class SeriesRssPass(
                 ranked,
                 j => j.Judgement?.Attributed?.Target.Episodes,
                 j => j.Judgement?.Parsed?.ReleaseGroup,
-                j => j.Entry.QualityId,
+                j => j.Judgement?.Attributed is { } rankedAttribution ? ProfileRanking.RankOf(rankedAttribution.Target.Profile, j.Entry.QualityId) : -1,
                 j => j.Judgement?.Attributed?.CustomFormatScore ?? 0,
                 j => j.Judgement!.Attributed!.Target.Episodes!.Slots.Select(s => s.Target.Id));
             var grab = await grabs.GrabAsync(GrabRequest.ForEpisodes(release, versionId, judgement.Episodes.Select(e => e.Id), judgement.Numbering) with { SeasonGroup = choice }, RssSyncService.GrabTrigger, ct);

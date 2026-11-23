@@ -58,12 +58,13 @@ public static class ReleaseRanking
     /// it beat a release of another group that was equal on quality and custom format score for some of the same
     /// episodes. Null when the group played no part.
     /// </summary>
+    /// <param name="qualityRank">The rank of a release's quality in the target's profile (<see cref="Bigarr.Decision.ProfileRanking.RankOf"/>), the same value the ranking used.</param>
     public static Downloads.SeasonGroupChoice? SeasonGroupChoice<T>(
         T chosen,
         IEnumerable<T> ranked,
         Func<T, Bigarr.Decision.EpisodeCoverage?> coverage,
         Func<T, string?> releaseGroup,
-        Func<T, int> qualityId,
+        Func<T, int> qualityRank,
         Func<T, int> customFormatScore,
         Func<T, IEnumerable<int>> episodeIds)
     {
@@ -79,12 +80,12 @@ public static class ReleaseRanking
             return new Downloads.SeasonGroupChoice(group, true);
         }
 
-        var weight = WeightOf(qualityId(chosen));
+        var rank = qualityRank(chosen);
         var score = customFormatScore(chosen);
         var episodes = episodeIds(chosen).ToHashSet();
         var beat = ranked.Any(other =>
             !EqualityComparer<T>.Default.Equals(other, chosen)
-            && WeightOf(qualityId(other)) == weight
+            && qualityRank(other) == rank
             && customFormatScore(other) == score
             && !Bigarr.Decision.SeasonGroups.Same(releaseGroup(other), group)
             && episodeIds(other).Any(episodes.Contains));
