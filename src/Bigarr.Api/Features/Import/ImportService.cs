@@ -397,6 +397,9 @@ public sealed class ImportService(
         var now = time.GetUtcNow().UtcDateTime;
         string? recycled = null;
         TransferOutcome? outcome = null;
+        // The disk changes from here: the rows follow whatever the request says by now, or a file would sit in the
+        // library without one.
+        ct = CancellationToken.None;
         if (existingPath is not null && replacesInPlace && !alreadyThere)
         {
             // The new file is complete next to the old one before the old one leaves: a failed transfer costs nothing.

@@ -409,6 +409,7 @@ public sealed class SeriesManualImportService(
         }
 
         var definitions = await db.QualityDefinitions.AsNoTracking().Select(q => q.Id).ToListAsync(ct);
+        // Rows first, no disk yet: nothing between two file operations below takes the request's token.
         foreach (var old in held)
         {
             var others = await db.EpisodeTargets.Where(t => t.EpisodeFileId == old.Id).ToListAsync(ct);
@@ -417,7 +418,12 @@ public sealed class SeriesManualImportService(
                 other.EpisodeFileId = null;
                 other.EpisodeFile = null;
             }
+        }
 
+        // The disk changes from here: the rows follow whatever the request says by now.
+        ct = CancellationToken.None;
+        foreach (var old in held)
+        {
             try
             {
                 recycleBin.RemoveFile(Path.Combine(folder, old.RelativePath), config.RecycleBinPath, version.RootFolder.Path);
@@ -611,7 +617,8 @@ public sealed class SeriesManualImportService(
         }
 
         db.EpisodeFiles.Remove(file);
-        await db.SaveChangesAsync(ct);
+        // The file is gone: the row follows whatever the request says by now.
+        await db.SaveChangesAsync(CancellationToken.None);
         logger.LogInformation("Deleted episode file {Path}{Bin}", path, recycled is null ? string.Empty : $" (recycle bin: {recycled})");
         return Result<bool>.Ok(true);
     }
