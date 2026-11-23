@@ -141,6 +141,7 @@ public sealed class GrabService(
             GrabbedAt = now,
             QualityOverride = request.QualityId,
             LanguagesOverride = GrabOverrides.Languages(request),
+            Interactive = trigger == InteractiveTrigger,
         };
         grab.AddTarget(version);
         db.Grabs.Add(grab);
@@ -281,6 +282,7 @@ public sealed class GrabService(
             Numbering = request.Numbering ?? Bigarr.Domain.Tv.EpisodeNumbering.Tvdb,
             QualityOverride = request.QualityId,
             LanguagesOverride = GrabOverrides.Languages(request),
+            Interactive = trigger == InteractiveTrigger,
             EpisodesOverridden = request.EpisodesOverridden == true,
         };
         foreach (var target in ordered)

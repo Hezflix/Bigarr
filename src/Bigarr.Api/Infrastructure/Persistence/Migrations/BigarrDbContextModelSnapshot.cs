@@ -147,6 +147,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("Interactive")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("LanguagesOverride")
                         .HasColumnType("TEXT");
 

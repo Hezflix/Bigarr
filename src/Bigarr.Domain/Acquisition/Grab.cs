@@ -54,6 +54,13 @@ public sealed class Grab
     /// </summary>
     public bool EpisodesOverridden { get; set; }
 
+    /// <summary>
+    /// The user picked this release in the interactive search. Their choice stands at import time: a film, or a series
+    /// release of a single file, is not refused as "not an upgrade" over the file in place (the cutoff, the score), the
+    /// user already saw that verdict. A season pack's files are still judged one by one.
+    /// </summary>
+    public bool Interactive { get; set; }
+
     /// <summary>Last poll where the client still listed this download. Drives the <see cref="GrabState.Removed"/> transition.</summary>
     public DateTime? LastSeenAt { get; set; }
 

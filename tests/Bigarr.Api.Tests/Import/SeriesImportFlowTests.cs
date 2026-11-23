@@ -112,6 +112,12 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
             Assert.Equal(7, files.Count(f => f.SeasonNumber == 1));
             Assert.Equal(1, files.Single(f => f.Episodes == "S01E01").RevisionVersion);
 
+            // 3b. A lower single grabbed by hand from the interactive search replaces the episode: the user's choice stands.
+            var e04Id = (await SeriesSetup.EpisodeAsync(client, series.Id, 1, 4)).Id;
+            await GrabAndCompleteAsync(client, Crafted("Breaking.Bad.S01E04.720p.HDTV.x264-CTU", version.Id, e04Id));
+            files = await WaitForFilesAsync(client, series.Id, f => f.Any(x => x.Episodes == "S01E04" && x.Quality == "HDTV-720p"));
+            Assert.Equal(7, files.Count(f => f.SeasonNumber == 1));
+
             // 4. A multi-episode file: one file for two episodes, named by the multi-episode style.
             var s2e1 = (await SeriesSetup.EpisodeAsync(client, series.Id, 2, 1)).Id;
             var s2e2 = (await SeriesSetup.EpisodeAsync(client, series.Id, 2, 2)).Id;
