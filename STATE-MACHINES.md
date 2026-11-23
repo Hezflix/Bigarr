@@ -258,6 +258,7 @@ derived from the row.
 | rename, order switch, undo | files moved, then one save | guarded since [F5](#f5-a-rename-or-order-switch-whose-caller-went-away-left-disk-and-database-apart) |
 | delete a version with its files | checks, then file, then row | guarded since [F1](#f1-deleting-the-default-version-with-its-files-destroyed-the-file-then-refused) |
 | delete a series or a version with its files | folders, then rows, the rows whatever becomes of the request | guarded since [F15](#f15-a-series-delete-whose-caller-went-away-left-the-series-with-no-files) |
+| delete a film, a film version or a film's file | file or folders, then rows, the rows whatever becomes of the request | guarded since [F27](#f27-a-film-delete-whose-caller-went-away-left-a-version-with-a-file-that-was-gone) |
 
 Invariants the code assumes: a file row means the file exists; one physical file has one row, also when two versions
 of a show share a folder ([F8](#f8-two-versions-of-a-show-sharing-a-folder-claimed-each-others-files)); no scan ever
@@ -757,6 +758,18 @@ Tests: `FileTransferTests.Replacing_brings_the_new_file_in_before_the_old_one_le
 `FileTransferTests.A_replacement_whose_transfer_fails_leaves_the_old_file_alone`,
 `FileTransferTests.A_replacement_whose_old_file_cannot_be_retired_puts_everything_back`,
 `FileTransferTests.A_partial_file_left_by_a_killed_replacement_is_overwritten`.
+
+#### F27. A film delete whose caller went away left a version with a file that was gone
+
+The film side of [F15](#f15-a-series-delete-whose-caller-went-away-left-the-series-with-no-files): the file left the
+disk, then the rows were saved with the request's token. A caller that went away in between left a version that
+still named a file that no longer existed, with no history line and no event; the next scan does not drop such a row.
+
+Fix: once the file (or the folders) are gone, the rows follow whatever becomes of the request (version delete, film
+delete, file-only delete). Everything that can refuse the delete still runs before the first disk operation, with
+the live token.
+Tests: `InterruptedMovieDeleteTests` (file delete, version delete, last version delete). The folder delete of
+`DeleteMovieAsync` shares `RemoveMovieAsync` with the last-version case and is not tested on its own.
 
 ### Open
 

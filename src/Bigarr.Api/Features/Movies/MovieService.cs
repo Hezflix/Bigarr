@@ -503,6 +503,10 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
             {
                 return removal;
             }
+
+            // The file is gone: the rows follow whatever the request says by now. A caller that went away must not
+            // leave a version listed with a file that no longer exists.
+            ct = CancellationToken.None;
         }
 
         var folder = Path.Combine(version.RootFolder.Path, version.FolderName);
@@ -567,6 +571,9 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
                     return new Failure(StatusCodes.Status500InternalServerError, "Could not delete the movie folder", $"{folder}: {ex.Message}");
                 }
             }
+
+            // The folders are gone: the rows follow whatever the request says by now.
+            ct = CancellationToken.None;
         }
 
         outbox.Publish(new MovieDeleted(MovieRef.From(movie), deleteFiles, movie.Versions.Select(VersionRef.From).ToList()));
@@ -597,7 +604,9 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
 
         db.MediaFiles.Remove(version.File);
         version.File = null;
-        await db.SaveChangesAsync(ct);
+
+        // The file is gone: the row follows whatever the request says by now.
+        await db.SaveChangesAsync(CancellationToken.None);
         return Result<MovieVersion>.Ok(version);
     }
 
