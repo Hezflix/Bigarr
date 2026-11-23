@@ -258,7 +258,7 @@ public sealed class SeriesAutomaticSearchService(
                     ranked,
                     a => a.Decision.Target.Episodes,
                     a => a.Judgement.Parsed?.ReleaseGroup,
-                    a => a.Judgement.Parsed?.Quality?.Quality?.Id ?? 0,
+                    a => ProfileRanking.RankOf(a.Decision.Target.Profile, a.Judgement.Parsed?.Quality?.Quality?.Id ?? 0),
                     a => a.Decision.CustomFormatScore,
                     a => a.Judgement.Episodes.Select(e => e.Id));
                 var grab = await grabs.GrabAsync(GrabRequest.ForEpisodes(release, versionId, episodeIds, judgement.Numbering) with { SeasonGroup = choice }, context.TriggerName, ct);

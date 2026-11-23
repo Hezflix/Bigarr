@@ -1,6 +1,7 @@
 using Bigarr.Api.Features.Search;
 using Bigarr.Api.Features.Shadow;
 using Bigarr.Decision;
+using Bigarr.Domain.Quality;
 using Bigarr.Domain.Shadow;
 using ParserQuality = Bigarr.Parsing.Qualities.Quality;
 
@@ -58,6 +59,62 @@ public sealed class SeasonGroupCompareTests
         Bigarr.Api.Features.Downloads.SeasonGroupChoice? SeasonGroupChoiceOf((string Group, int Quality, int Score) chosen, (string Group, int Quality, int Score)[] all) =>
             ReleaseRanking.SeasonGroupChoice(chosen, all, _ => coverage, r => r.Group, r => r.Quality, r => r.Score, _ => [401]);
     }
+
+    [Fact]
+    public void The_season_group_tie_follows_the_profile_not_the_parser_weight()
+    {
+        var coverage = new EpisodeCoverage([new EpisodeSlot(null!, 401, 4, 1, null, 24, null, false)], true, true, 24, DateTime.UtcNow)
+        {
+            SeasonGroups = new Dictionary<int, string> { [4] = "TLC" },
+        };
+        var tlcWeb = (Group: "TLC", Quality: ParserQuality.WEBDL1080p.Id, Score: 0);
+        var otherBluray = (Group: "Tsundere-raws", Quality: ParserQuality.Bluray1080p.Id, Score: 0);
+
+        // The profile groups the two qualities: they tie, so the season's group decided although the parser weighs Bluray higher.
+        Assert.Equal(new Bigarr.Api.Features.Downloads.SeasonGroupChoice("TLC", false), ChoiceOf(Grouped, tlcWeb, [tlcWeb, otherBluray]));
+
+        // The profile lists them as two items, Bluray the better: the quality decided, not the group.
+        Assert.Null(ChoiceOf(BlurayBest, tlcWeb, [tlcWeb, otherBluray]));
+
+        // Two items with the WEB the better: the other group's Bluray is a worse quality, the group decided nothing either.
+        Assert.Null(ChoiceOf(WebBest, tlcWeb, [tlcWeb, otherBluray]));
+
+        Bigarr.Api.Features.Downloads.SeasonGroupChoice? ChoiceOf(QualityProfile profile, (string Group, int Quality, int Score) chosen, (string Group, int Quality, int Score)[] all) =>
+            ReleaseRanking.SeasonGroupChoice(chosen, all, _ => coverage, r => r.Group, r => ProfileRanking.RankOf(profile, r.Quality), r => r.Score, _ => [401]);
+    }
+
+    // Worst to best; WEBDL-1080p and Bluray-1080p share one item.
+    private static readonly QualityProfile Grouped = new()
+    {
+        Id = 1,
+        Name = "Grouped",
+        PreferredLanguage = "en",
+        Items = [new QualityProfileItem { GroupId = 1000, GroupName = "1080p", QualityIds = [ParserQuality.WEBDL1080p.Id, ParserQuality.Bluray1080p.Id], Allowed = true }],
+    };
+
+    private static readonly QualityProfile BlurayBest = new()
+    {
+        Id = 2,
+        Name = "Bluray best",
+        PreferredLanguage = "en",
+        Items =
+        [
+            new QualityProfileItem { QualityIds = [ParserQuality.WEBDL1080p.Id], Allowed = true },
+            new QualityProfileItem { QualityIds = [ParserQuality.Bluray1080p.Id], Allowed = true },
+        ],
+    };
+
+    private static readonly QualityProfile WebBest = new()
+    {
+        Id = 3,
+        Name = "Web best",
+        PreferredLanguage = "en",
+        Items =
+        [
+            new QualityProfileItem { QualityIds = [ParserQuality.Bluray1080p.Id], Allowed = true },
+            new QualityProfileItem { QualityIds = [ParserQuality.WEBDL1080p.Id], Allowed = true },
+        ],
+    };
 
     private static SeriesShadowPick Pick(string? seasonGroup, bool realigned) => new()
     {
