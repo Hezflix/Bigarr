@@ -347,10 +347,14 @@ public sealed class ImportService(
             {
                 ReleaseTitle = plan.ReleaseTitle,
                 Quality = plan.Quality,
-                Edition = plan.Parsed?.Edition,
-                ReleaseGroup = plan.Parsed?.ReleaseGroup,
                 Languages = plan.Parsed?.Languages ?? [],
             };
+            if (plan.Parsed is { } fromTitle)
+            {
+                parsed.Edition = fromTitle.Edition;
+                parsed.ReleaseGroup = fromTitle.ReleaseGroup;
+            }
+
             var candidate = new ReleaseCandidate(release, parsed, 0) { CustomFormatIds = matched.Select(m => m.Id).ToList() };
             var rejection = new UpgradableSpecification().Evaluate(candidate, context);
             if (rejection is not null)
