@@ -341,8 +341,15 @@ public sealed class ImportService(
                 IndexerName = plan.Grab?.IndexerName ?? "import",
                 Size = source.Length,
             };
-            var parsed = plan.Parsed ?? new ParsedMovieInfo();
-            parsed.Quality ??= plan.Quality;
+            // The quality the import carries (an override, or the file name's when the title has none), as the series import judges it.
+            var parsed = new ParsedMovieInfo
+            {
+                ReleaseTitle = plan.ReleaseTitle,
+                Quality = plan.Quality,
+                Edition = plan.Parsed?.Edition,
+                ReleaseGroup = plan.Parsed?.ReleaseGroup,
+                Languages = plan.Parsed?.Languages ?? [],
+            };
             var candidate = new ReleaseCandidate(release, parsed, 0) { CustomFormatIds = matched.Select(m => m.Id).ToList() };
             var rejection = new UpgradableSpecification().Evaluate(candidate, context);
             if (rejection is not null)
@@ -700,7 +707,7 @@ public sealed class ImportService(
             return (null, reason ?? "Release title could not be parsed");
         }
 
-        parsed.Quality ??= quality;
+        parsed.Quality = quality; // the file name's when the title has none
         var calculator = await scorer.CalculatorAsync(ct);
         var formats = calculator.Match(CustomFormatScorer.ReleaseInput(parsed, release, movie.Year, movie.OriginalLanguage));
         var candidate = new ReleaseCandidate(release, parsed, 0) { CustomFormatIds = formats.Select(f => f.Id).ToList() };

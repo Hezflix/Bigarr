@@ -912,6 +912,18 @@ An import of another show is not delayed.
 Test: `ConcurrentSeriesWritersTests.An_episode_file_delete_waits_for_the_writer_that_holds_the_show` (one of the three
 entries; the import and the assign share the same one-line change and are covered by the existing import suites).
 
+#### F37. A film import judged the title's quality, not the one chosen for it
+
+The check that refuses an import that is not an upgrade read the quality parsed from the release title whenever the
+title parsed at all, so the quality the user picked in the interactive search, or the file name's when the title says
+nothing, was ignored there while the file was named, stored and journaled with it. A title saying 1080p grabbed as 720p
+replaced a better file; a title saying 720p grabbed as 1080p was refused as not an upgrade.
+
+Fix: the film import judges the quality the import carries (`plan.Quality`), as the series import already did, and a
+hand-added torrent is attributed to a version with that same quality. The plan's parsed title is no longer written to
+by the check.
+Test: `ImportFlowTests.An_overridden_quality_is_the_one_judged_against_the_file_in_place`.
+
 ### Open
 
 What is known and not fixed:
