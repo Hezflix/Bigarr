@@ -267,7 +267,7 @@ derived from the row.
 
 | Operation | Order | Consequence of stopping in between |
 |---|---|---|
-| import | file transferred, then row (one transaction) | file in the library without a row; the retry finds "destination already exists" |
+| import, assign an unmatched episode file, delete an episode file | file transferred or recycled, then row, the rows whatever becomes of the request | guarded since [F34](#f34-an-import-an-assign-or-an-episode-file-delete-whose-caller-went-away-left-disk-and-database-apart); a process killed in between still leaves a file without a row, and the retry finds "destination already exists" |
 | rename, order switch, undo | files moved, then one save | guarded since [F5](#f5-a-rename-or-order-switch-whose-caller-went-away-left-disk-and-database-apart) |
 | delete a version with its files | checks, then file, then row | guarded since [F1](#f1-deleting-the-default-version-with-its-files-destroyed-the-file-then-refused) |
 | delete a series or a version with its files | folders, then rows, the rows whatever becomes of the request | guarded since [F15](#f15-a-series-delete-whose-caller-went-away-left-the-series-with-no-files) |
@@ -864,6 +864,23 @@ Tests: `DownloadClientsEndpointsTests.The_password_is_never_sent_back_and_the_ma
 `ProwlarrPushTests.Prowlarr_can_push_update_and_remove_torznab_indexers` (the compat surface still returns the real key),
 `IndexersEndpointsTests.The_api_key_is_never_sent_back_and_the_mask_keeps_it`,
 `MediaServerTests.The_token_is_never_sent_back_and_the_mask_keeps_it`.
+
+#### F34. An import, an assign or an episode-file delete whose caller went away left disk and database apart
+
+The endpoints pass the request's cancellation token down. Four paths changed the disk and then went on with that token:
+the film import (`ImportService.ExecuteAsync`), the series import (`SeriesImportService.ExecuteAsync`), assigning an
+unmatched episode file (`AssignUnmatchedAsync`) and deleting an episode file (`DeleteEpisodeFileAsync`). A caller that
+went away after the transfer or the recycling left a file in the library without a row, or a row for a file that was
+gone, and nothing repairs that afterwards.
+
+Fix: both imports switch to `CancellationToken.None` just before the first disk change, so the transfer (a hardlink is
+instant) and every save after it run to their end; what comes before stays cancellable. `AssignUnmatchedAsync` loads the
+rows it detaches in a first loop (no disk), then recycles the files and removes their rows on the neutral token.
+`DeleteEpisodeFileAsync` saves with no token once the file is gone. A background import therefore also finishes its
+saves during a shutdown instead of being cut after the transfer.
+Test: `InterruptedEpisodeFileDeleteTests.An_episode_file_delete_whose_caller_goes_away_after_the_file_is_gone_still_removes_the_row`.
+The two imports and the assign have no clock read at a useful moment for that trick; they are guarded by inspection
+(no `await` after the first disk change takes the request's token) and covered by the existing import suites.
 
 ### Open
 

@@ -371,6 +371,9 @@ public sealed class SeriesImportService(
         bool IsSource(EpisodeFile f) => inPlace is not null && f.Id == inPlace.Id;
         var transferMode = inPlace is not null ? TransferMode.Move : plan.Mode;
         TransferOutcome? outcome = null;
+        // The disk changes from here: the rows follow whatever the request says by now, or a file would sit in the
+        // library without one.
+        ct = CancellationToken.None;
         if (replacesInPlace is not null && !alreadyThere && !IsSource(replacesInPlace))
         {
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
