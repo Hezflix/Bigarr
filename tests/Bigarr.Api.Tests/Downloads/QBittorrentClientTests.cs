@@ -272,14 +272,15 @@ public sealed class QBittorrentClientTests
         Assert.Equal(TimeSpan.FromHours(1), done.SeedingTime);
         Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(1700000500), done.CompletedAt);
 
-        Assert.Equal(DownloadItemStatus.Failed, items[2].Status);
+        Assert.Equal(DownloadItemStatus.Errored, items[2].Status);
         Assert.Contains("cannot find the files", items[2].Message);
         Assert.Equal(DownloadItemStatus.Stalled, items[3].Status);
         Assert.Equal(DownloadItemStatus.Paused, items[4].Status);
     }
 
     [Theory]
-    [InlineData("error", DownloadItemStatus.Failed)]
+    [InlineData("error", DownloadItemStatus.Errored)]
+    [InlineData("missingFiles", DownloadItemStatus.Errored)]
     [InlineData("pausedDL", DownloadItemStatus.Paused)]
     [InlineData("queuedDL", DownloadItemStatus.Queued)]
     [InlineData("metaDL", DownloadItemStatus.Queued)]

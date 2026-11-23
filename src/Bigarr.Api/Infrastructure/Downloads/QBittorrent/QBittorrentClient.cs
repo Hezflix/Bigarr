@@ -167,7 +167,7 @@ public sealed class QBittorrentClient(IHttpClientFactory httpClientFactory, Torr
     /// <summary>qBittorrent's torrent state, reduced to what the queue distinguishes.</summary>
     public static DownloadItemStatus StatusOf(string state) => state switch
     {
-        "error" or "missingFiles" => DownloadItemStatus.Failed,
+        "error" or "missingFiles" => DownloadItemStatus.Errored,
         "pausedDL" or "stoppedDL" => DownloadItemStatus.Paused,
         "queuedDL" or "checkingDL" or "checkingResumeData" or "allocating" or "metaDL" or "forcedMetaDL" => DownloadItemStatus.Queued,
         "downloading" or "forcedDL" => DownloadItemStatus.Downloading,

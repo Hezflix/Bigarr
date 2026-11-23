@@ -61,8 +61,10 @@ public static class DownloadsEndpoints
         var mock = group.MapGroup("/mock/{downloadId}").WithTags("Download clients");
         mock.MapPost("/complete", Results<NoContent, NotFound> (string downloadId, MockDownloadClientState state, QueueState queue) =>
             Touch(state.Complete(downloadId), queue));
-        mock.MapPost("/fail", Results<NoContent, NotFound> (string downloadId, string? message, MockDownloadClientState state, QueueState queue) =>
-            Touch(state.Fail(downloadId, message ?? "Simulated failure."), queue));
+        mock.MapPost("/fail", Results<NoContent, NotFound> (string downloadId, string? message, bool? errored, MockDownloadClientState state, QueueState queue) =>
+            Touch(state.Fail(downloadId, message ?? "Simulated failure.", errored ?? false), queue));
+        mock.MapPost("/recover", Results<NoContent, NotFound> (string downloadId, MockDownloadClientState state, QueueState queue) =>
+            Touch(state.Recover(downloadId), queue));
         mock.MapPost("/stall", Results<NoContent, NotFound> (string downloadId, MockDownloadClientState state, QueueState queue) =>
             Touch(state.Stall(downloadId), queue));
         mock.MapDelete("/", Results<NoContent, NotFound> (string downloadId, MockDownloadClientState state, QueueState queue) =>
