@@ -84,6 +84,12 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
             return Failure.Conflict("Prowlarr indexer already linked", $"Another indexer is linked to Prowlarr indexer {prowlarrId}.");
         }
 
+        // The mask keeps the stored key for the address it was saved with, never for another one.
+        if (SecretMask.Kept(request.ApiKey) && !string.IsNullOrEmpty(indexer.ApiKey) && !SecretMask.SameDestination(indexer.BaseUrl, request.BaseUrl?.Trim()))
+        {
+            return SecretMask.TypeAgain("API key", "URL");
+        }
+
         indexer.Name = request.Name.Trim();
         Apply(indexer, request);
         await db.SaveChangesAsync(ct);
@@ -129,10 +135,15 @@ public sealed class IndexerService(BigarrDbContext db, IndexerGateway gateway, S
                     return Failure.Invalid("Type the API key to test", "The API key is stored on the server: type it, or test the saved indexer.");
                 }
 
-                var stored = await db.Indexers.AsNoTracking().Where(i => i.Id == id).Select(i => new { i.ApiKey }).FirstOrDefaultAsync(ct);
+                var stored = await db.Indexers.AsNoTracking().Where(i => i.Id == id).Select(i => new { i.ApiKey, i.BaseUrl }).FirstOrDefaultAsync(ct);
                 if (stored is null)
                 {
                     return Failure.NotFound("Indexer");
+                }
+
+                if (!string.IsNullOrEmpty(stored.ApiKey) && !SecretMask.SameDestination(stored.BaseUrl, request.BaseUrl?.Trim()))
+                {
+                    return SecretMask.TypeAgain("API key", "URL");
                 }
 
                 indexer.ApiKey = stored.ApiKey;

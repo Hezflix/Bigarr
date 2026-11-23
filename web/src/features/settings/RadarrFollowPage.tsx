@@ -34,6 +34,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { mappingComplete, ProfileMappingTable, RootFolderMappingTable, slugPattern, suggestedMapping, Toggle } from '@/features/settings/RadarrMapping'
 import { formatDateTime } from '@/i18n'
+import { sameDestination } from '@/lib/address'
 
 const okStyle = 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300'
 const offStyle = 'border-border bg-muted text-muted-foreground'
@@ -282,7 +283,13 @@ function FollowedRadarrDialog({ radarr, onClose, onSaved }: { radarr: FollowedRa
   const { t } = useTranslation()
   const [form, setForm] = useState<FollowedRadarrRequest>(radarr ? toForm(radarr) : emptyForm())
   const [preview, setPreview] = useState<RadarrImportPreview | null>(null)
-  const set = <K extends keyof FollowedRadarrRequest>(key: K, value: FollowedRadarrRequest[K]) => setForm((f) => ({ ...f, [key]: value }))
+  // The stored key is only kept for the address it was saved with: moving the scheme, host or port empties the field.
+  const set = <K extends keyof FollowedRadarrRequest>(key: K, value: FollowedRadarrRequest[K]) =>
+    setForm((f) => {
+      const next = { ...f, [key]: value }
+      return radarr !== null && next.apiKey === KEY_MASK && !sameDestination(radarr.url, next.url) ? { ...next, apiKey: '' } : next
+    })
+  const addressMoved = radarr !== null && !sameDestination(radarr.url, form.url)
 
   const keyTyped = (form.apiKey ?? '').trim().length > 0 && form.apiKey !== KEY_MASK
   const payload = (): FollowedRadarrRequest => ({ ...form, name: form.name.trim(), url: form.url.trim(), apiKey: keyTyped ? (form.apiKey ?? '').trim() : KEY_MASK, versionName: form.versionName.trim() })
@@ -364,10 +371,10 @@ function FollowedRadarrDialog({ radarr, onClose, onSaved }: { radarr: FollowedRa
                 value={form.apiKey ?? ''}
                 onFocus={() => form.apiKey === KEY_MASK && set('apiKey', '')}
                 onChange={(e) => set('apiKey', e.target.value)}
-                placeholder={radarr ? t('radarrFollow.keyKept') : undefined}
+                placeholder={radarr && !addressMoved ? t('radarrFollow.keyKept') : undefined}
                 autoComplete="new-password"
               />
-              <p className="text-xs text-muted-foreground">{radarr ? t('radarrFollow.keyHintSaved') : t('importRadarr.apiKeyHint')}</p>
+              <p className="text-xs text-muted-foreground">{radarr ? (addressMoved && !keyTyped ? t('radarrFollow.keyAddressChanged') : t('radarrFollow.keyHintSaved')) : t('importRadarr.apiKeyHint')}</p>
             </div>
 
             <div className="flex flex-col gap-3 sm:col-span-2">

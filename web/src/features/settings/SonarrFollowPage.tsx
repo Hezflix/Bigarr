@@ -35,6 +35,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useSonarrLabels } from '@/features/settings/ImportSonarrPage'
 import { mappingComplete, ProfileMappingTable, RootFolderMappingTable, slugPattern, sonarrMappingPreview, suggestedMapping, Toggle } from '@/features/settings/RadarrMapping'
 import { formatDateTime } from '@/i18n'
+import { sameDestination } from '@/lib/address'
 
 const okStyle = 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300'
 const offStyle = 'border-border bg-muted text-muted-foreground'
@@ -282,7 +283,13 @@ function FollowedSonarrDialog({ sonarr, onClose, onSaved }: { sonarr: FollowedSo
   const labels = useSonarrLabels()
   const [form, setForm] = useState<FollowedSonarrRequest>(sonarr ? toForm(sonarr) : emptyForm())
   const [preview, setPreview] = useState<SonarrImportPreview | null>(null)
-  const set = <K extends keyof FollowedSonarrRequest>(key: K, value: FollowedSonarrRequest[K]) => setForm((f) => ({ ...f, [key]: value }))
+  // The stored key is only kept for the address it was saved with: moving the scheme, host or port empties the field.
+  const set = <K extends keyof FollowedSonarrRequest>(key: K, value: FollowedSonarrRequest[K]) =>
+    setForm((f) => {
+      const next = { ...f, [key]: value }
+      return sonarr !== null && next.apiKey === KEY_MASK && !sameDestination(sonarr.url, next.url) ? { ...next, apiKey: '' } : next
+    })
+  const addressMoved = sonarr !== null && !sameDestination(sonarr.url, form.url)
 
   const keyTyped = (form.apiKey ?? '').trim().length > 0 && form.apiKey !== KEY_MASK
   const payload = (): FollowedSonarrRequest => ({ ...form, name: form.name.trim(), url: form.url.trim(), apiKey: keyTyped ? (form.apiKey ?? '').trim() : KEY_MASK, versionName: form.versionName.trim() })
@@ -366,10 +373,10 @@ function FollowedSonarrDialog({ sonarr, onClose, onSaved }: { sonarr: FollowedSo
                 value={form.apiKey ?? ''}
                 onFocus={() => form.apiKey === KEY_MASK && set('apiKey', '')}
                 onChange={(e) => set('apiKey', e.target.value)}
-                placeholder={sonarr ? t('sonarrFollow.keyKept') : undefined}
+                placeholder={sonarr && !addressMoved ? t('sonarrFollow.keyKept') : undefined}
                 autoComplete="new-password"
               />
-              <p className="text-xs text-muted-foreground">{sonarr ? t('sonarrFollow.keyHintSaved') : t('importSonarr.apiKeyHint')}</p>
+              <p className="text-xs text-muted-foreground">{sonarr ? (addressMoved && !keyTyped ? t('sonarrFollow.keyAddressChanged') : t('sonarrFollow.keyHintSaved')) : t('importSonarr.apiKeyHint')}</p>
             </div>
 
             <div className="flex flex-col gap-3 sm:col-span-2">

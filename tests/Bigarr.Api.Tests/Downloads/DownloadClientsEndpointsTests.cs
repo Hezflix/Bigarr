@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using Bigarr.Api.Features.Downloads;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Tests.Auth;
+using Bigarr.Api.Tests.Hosting;
 using Bigarr.Domain.Downloads;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -129,6 +130,82 @@ public sealed class DownloadClientsEndpointsTests(BigarrApiFactory factory) : IC
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
 
         await client.DeleteAsync($"/api/v1/downloadclients/{added.Id}");
+    }
+
+    [Fact]
+    public async Task Changing_the_address_with_the_mask_is_refused_and_the_stored_password_stays()
+    {
+        var client = await ClientAsync();
+        const string mask = "********";
+
+        var created = await client.PostAsJsonAsync("/api/v1/downloadclients",
+            new DownloadClientRequest("Moving qBittorrent", DownloadClientImplementation.QBittorrent, Host: "qbt.local", Port: 8080, Username: "admin", Password: "placeholder-secret", Category: "moving-movies", Priority: 21), Json);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var id = (await created.Content.ReadFromJsonAsync<DownloadClientResponse>(Json))!.Id;
+
+        DownloadClientRequest Form(string name = "Moving qBittorrent", string host = "qbt.local", int port = 8080, bool useSsl = false, string username = "admin", string? password = mask) =>
+            new(name, DownloadClientImplementation.QBittorrent, Host: host, Port: port, UseSsl: useSsl, Username: username, Password: password, Category: "moving-movies", Priority: 21);
+
+        async Task Refused(DownloadClientRequest request)
+        {
+            var response = await client.PutAsJsonAsync($"/api/v1/downloadclients/{id}", request, Json);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.Contains("Type the password again", await response.Content.ReadAsStringAsync());
+        }
+
+        // Another host, another port, or switching SSL on or off: the mask no longer stands for the stored password.
+        await Refused(Form(host: "elsewhere.local"));
+        await Refused(Form(port: 9090));
+        await Refused(Form(useSsl: true));
+        var stored = await StoredAsync(id);
+        Assert.Equal("qbt.local", stored.Host);
+        Assert.Equal(8080, stored.Port);
+        Assert.False(stored.UseSsl);
+        Assert.Equal("placeholder-secret", stored.Password);
+        Assert.Equal("qbt.local", (await client.GetFromJsonAsync<DownloadClientResponse>($"/api/v1/downloadclients/{id}", Json))!.Host);
+
+        // The same address (host case and spaces do not count) and another name or username keep the password.
+        var same = await client.PutAsJsonAsync($"/api/v1/downloadclients/{id}", Form(name: "Moving renamed", host: " QBT.local ", username: "other-user"), Json);
+        Assert.Equal(HttpStatusCode.OK, same.StatusCode);
+        stored = await StoredAsync(id);
+        Assert.Equal("Moving renamed", stored.Name);
+        Assert.Equal("other-user", stored.Username);
+        Assert.Equal("placeholder-secret", stored.Password);
+
+        // A new address with the password typed again is accepted.
+        var moved = await client.PutAsJsonAsync($"/api/v1/downloadclients/{id}", Form(name: "Moving renamed", host: "elsewhere.local", port: 9090, password: "other-placeholder"), Json);
+        Assert.Equal(HttpStatusCode.OK, moved.StatusCode);
+        stored = await StoredAsync(id);
+        Assert.Equal("elsewhere.local", stored.Host);
+        Assert.Equal("other-placeholder", stored.Password);
+
+        await client.DeleteAsync($"/api/v1/downloadclients/{id}");
+    }
+
+    [Fact]
+    public async Task Testing_another_address_with_the_mask_is_refused_and_nothing_is_contacted()
+    {
+        var client = await ClientAsync();
+        await using var elsewhere = await FakeHttpServer.StartAsync();
+        var port = new Uri(elsewhere.Url).Port;
+
+        var created = await client.PostAsJsonAsync("/api/v1/downloadclients",
+            new DownloadClientRequest("Tested qBittorrent", DownloadClientImplementation.QBittorrent, Host: "qbt.local", Port: 8080, Password: "placeholder-secret", Category: "tested-movies", Priority: 22), Json);
+        var id = (await created.Content.ReadFromJsonAsync<DownloadClientResponse>(Json))!.Id;
+
+        var refused = await client.PostAsJsonAsync($"/api/v1/downloadclients/test?id={id}",
+            new DownloadClientRequest("Tested qBittorrent", DownloadClientImplementation.QBittorrent, Host: "127.0.0.1", Port: port, Password: "********", Category: "tested-movies", Priority: 22), Json);
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Contains("Type the password again", await refused.Content.ReadAsStringAsync());
+
+        // Same host and port, only the scheme moved: still another destination.
+        var scheme = await client.PostAsJsonAsync($"/api/v1/downloadclients/test?id={id}",
+            new DownloadClientRequest("Tested qBittorrent", DownloadClientImplementation.QBittorrent, Host: "qbt.local", Port: 8080, UseSsl: true, Password: "********", Category: "tested-movies", Priority: 22), Json);
+        Assert.Equal(HttpStatusCode.BadRequest, scheme.StatusCode);
+        Assert.Contains("Type the password again", await scheme.Content.ReadAsStringAsync());
+
+        Assert.Empty(elsewhere.Requests);
+        await client.DeleteAsync($"/api/v1/downloadclients/{id}");
     }
 
     private async Task<DownloadClient> StoredAsync(int id)

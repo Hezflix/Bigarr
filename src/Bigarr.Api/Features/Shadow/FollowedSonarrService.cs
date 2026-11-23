@@ -1,5 +1,6 @@
 using Bigarr.Api.Features.Migration;
 using Bigarr.Api.Infrastructure;
+using Bigarr.Api.Infrastructure.Http;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Infrastructure.SonarrImport;
 using Bigarr.Domain.Shadow;
@@ -80,6 +81,12 @@ public sealed class FollowedSonarrService(
             return Failure.Conflict("Name already used", $"A followed Sonarr named '{name}' exists.");
         }
 
+        // A blank or masked key keeps the stored one, but only for the address it was saved with.
+        if (!KeyGiven(request.ApiKey) && !SecretMask.SameDestination(follow.Url, request.Url.Trim()))
+        {
+            return SecretMask.TypeAgain("API key", "URL");
+        }
+
         follow.Name = name;
         follow.Url = request.Url.Trim();
         follow.VersionName = request.VersionName.Trim();
@@ -103,7 +110,13 @@ public sealed class FollowedSonarrService(
     /// <summary>Proves the URL and key of an unsaved form, or of a saved Sonarr (then a masked key means the stored one).</summary>
     public async Task<Result<FollowedSonarrTestResponse>> TestAsync(FollowedSonarrRequest? request, int? id, CancellationToken ct)
     {
-        if (await ConnectionAsync(request, id, ct) is not { } connection)
+        var (connection, refused) = await ConnectionAsync(request, id, ct);
+        if (refused is not null)
+        {
+            return refused;
+        }
+
+        if (connection is null)
         {
             return id is null ? Failure.Invalid("Sonarr URL and API key are required") : Failure.NotFound("Followed Sonarr");
         }
@@ -173,7 +186,7 @@ public sealed class FollowedSonarrService(
         || eventType.Equals("SeriesDelete", StringComparison.OrdinalIgnoreCase)
         || eventType.Equals("EpisodeFileDelete", StringComparison.OrdinalIgnoreCase);
 
-    private async Task<SonarrConnection?> ConnectionAsync(FollowedSonarrRequest? request, int? id, CancellationToken ct)
+    private async Task<(SonarrConnection? Connection, Failure? Refused)> ConnectionAsync(FollowedSonarrRequest? request, int? id, CancellationToken ct)
     {
         string? storedKey = null;
         string? storedUrl = null;
@@ -182,7 +195,7 @@ public sealed class FollowedSonarrService(
             var saved = await db.FollowedSonarrs.AsNoTracking().FirstOrDefaultAsync(f => f.Id == id, ct);
             if (saved is null)
             {
-                return null;
+                return (null, null);
             }
 
             storedKey = saved.ApiKey;
@@ -191,7 +204,14 @@ public sealed class FollowedSonarrService(
 
         var url = string.IsNullOrWhiteSpace(request?.Url) ? storedUrl : request.Url.Trim();
         var key = KeyGiven(request?.ApiKey) ? request!.ApiKey!.Trim() : storedKey;
-        return string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(key) ? null : new SonarrConnection(url, key);
+
+        // The stored key is only used for the address it was saved with, never for another one.
+        if (!KeyGiven(request?.ApiKey) && !string.IsNullOrWhiteSpace(storedKey) && !SecretMask.SameDestination(storedUrl, url))
+        {
+            return (null, SecretMask.TypeAgain("API key", "URL"));
+        }
+
+        return (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(key) ? null : new SonarrConnection(url, key), null);
     }
 
     private async Task<Failure?> ValidateAsync(FollowedSonarrRequest request, bool apiKeyRequired, CancellationToken ct)

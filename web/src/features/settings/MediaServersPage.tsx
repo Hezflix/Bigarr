@@ -27,6 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { PlayRulesCard } from '@/features/playback/PlayRulesCard'
+import { sameDestination } from '@/lib/address'
 
 const kinds: MediaServerKind[] = ['plex', 'jellyfin', 'emby']
 
@@ -234,7 +235,13 @@ function MediaServerDialog({ server, onClose, onSaved }: { server: MediaServer |
   // Rows are edited and removed in place: each keeps its own React key, never its position.
   const nextMappingKey = useRef(0)
   const [mappingKeys, setMappingKeys] = useState<number[]>(() => form.pathMappings.map(() => nextMappingKey.current++))
-  const set = <K extends keyof MediaServerRequest>(key: K, value: MediaServerRequest[K]) => setForm((f) => ({ ...f, [key]: value }))
+  // The stored token is only kept for the address it was saved with: moving the scheme, host or port empties the field.
+  const set = <K extends keyof MediaServerRequest>(key: K, value: MediaServerRequest[K]) =>
+    setForm((f) => {
+      const next = { ...f, [key]: value }
+      return server !== null && next.token === KEY_MASK && !sameDestination(server.url, next.url) ? { ...next, token: '' } : next
+    })
+  const addressMoved = server !== null && server.token !== '' && !sameDestination(server.url, form.url)
 
   const payload = (): MediaServerRequest => ({
     ...form,
@@ -322,7 +329,7 @@ function MediaServerDialog({ server, onClose, onSaved }: { server: MediaServer |
                 onFocus={() => form.token === KEY_MASK && set('token', '')}
                 autoComplete="new-password"
               />
-              <p className="text-xs text-muted-foreground">{form.kind === 'plex' ? t('mediaServers.tokenHintPlex') : t('mediaServers.tokenHintApiKey')}</p>
+              <p className="text-xs text-muted-foreground">{addressMoved && !form.token ? t('mediaServers.tokenAddressChanged') : form.kind === 'plex' ? t('mediaServers.tokenHintPlex') : t('mediaServers.tokenHintApiKey')}</p>
             </div>
 
             <div className="flex flex-col gap-2 sm:col-span-2">
