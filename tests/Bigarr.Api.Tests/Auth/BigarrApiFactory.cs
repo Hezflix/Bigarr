@@ -59,8 +59,11 @@ public class BigarrApiFactory : WebApplicationFactory<Program>
         }
     }
 
-    public HttpClient CreateClientWithCookies() =>
-        CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true, AllowAutoRedirect = false });
+    /// <summary>
+    /// A client that keeps the cookies it is given. Not the framework's cookie container: that one drops a cookie whose
+    /// expiry has passed on the machine's clock, and the app dates its cookies on the test's clock, often frozen in the past.
+    /// </summary>
+    public HttpClient CreateClientWithCookies() => CreateDefaultClient(new CookieJar());
 
     public HttpClient CreateAnonymousClient() =>
         CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false, AllowAutoRedirect = false });
