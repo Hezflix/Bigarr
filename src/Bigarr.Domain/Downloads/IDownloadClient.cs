@@ -42,9 +42,10 @@ public sealed record DownloadRequest(
 
 public enum DownloadItemStatus
 {
-    /// <summary>Waiting for a slot, checking, fetching metadata.</summary>
+    /// <summary>Waiting for a slot, checking, fetching metadata, or the client is rechecking a finished download.</summary>
     Queued = 1,
 
+    /// <summary>Receiving data, or the client is moving a finished download into place.</summary>
     Downloading = 2,
 
     /// <summary>Stopped by the user or by the client's rules.</summary>
@@ -53,7 +54,7 @@ public enum DownloadItemStatus
     /// <summary>Running but without any peer.</summary>
     Stalled = 4,
 
-    /// <summary>Every byte is there; the client seeds or is done seeding.</summary>
+    /// <summary>Every byte is there and in place; the client seeds or is done seeding.</summary>
     Completed = 5,
 
     /// <summary>The download cannot succeed any more.</summary>

@@ -69,7 +69,7 @@ Explicit. `GrabState` on `Grab.State` (`src/Bigarr.Domain/Acquisition/GrabState.
 | none | `Grabbed` | grab (user, search, RSS) | no active grab on the target: check, then the partial unique index `IX_GrabTargets_TargetId_Active` | `GrabService.GrabAsync` / `GrabEpisodesAsync` |
 | none | `ImportPending` | a complete torrent of our category with no grab row | download id unknown to every grab | `QueuePoller.AdoptCompletedAsync` |
 | `Grabbed` | `Downloading` | client lists it, not complete, not failed, not in error | | `QueuePoller.Advance` |
-| `Grabbed`, `Downloading` | `ImportPending` | client reports complete | | `QueuePoller.Advance` |
+| `Grabbed`, `Downloading` | `ImportPending` | client reports complete | qBittorrent's `moving` (shown as downloading) and `checkingUP` (queued) are not complete: the files may be half in place ([F39](#f39-a-torrent-qbittorrent-was-still-moving-or-rechecking-was-imported)) | `QueuePoller.Advance` |
 | `Grabbed`, `Downloading` | `DownloadFailed` | client reports failed, stalled past `StalledTimeout`, or in error (`Errored`) past `ErroredTimeout` | | `QueuePoller.HandleFailureAsync` |
 | `Grabbed`, `Downloading`, `ImportPending` | `Removed` | absent from an answering client for `RemovedAfterPolls` polls | a `Grabbed` grab younger than 45 s is not counted; never from `Importing` | `QueuePoller.PollCoreAsync` |
 | `ImportPending` | `Importing` | import worker dequeues it | one conditional update, under the poll lock | `ImportService.ImportGrabAsync` |
@@ -943,6 +943,19 @@ What follows the add (the request's save and the forward) runs on `CancellationT
 Tests: `RequestLifecycleTests.An_add_that_times_out_fails_the_request_and_a_retry_takes_it`,
 `RequestLifecycleTests.An_approval_whose_caller_goes_away_still_ends_failed_or_approved`,
 `RequestLifecycleTests.A_stop_between_the_approval_and_the_add_is_repaired_at_startup`.
+
+#### F39. A torrent qBittorrent was still moving or rechecking was imported
+
+qBittorrent's `moving` and `checkingUP` states mapped to `Completed`. While qBittorrent moves a finished torrent out of
+the incomplete folder the files are split between the two places, so the import found no video or copied one still
+being written, and the grab ended `ImportFailed` with nothing to retry it.
+
+Fix: `moving` maps to `Downloading` and `checkingUP` to `Queued`, with qBittorrent's own message in the queue. The grab
+goes to `ImportPending` at the first poll that reports a seeding state, and an import already queued defers while the
+torrent is not complete. A move that never ends is not timed out: it stays in the queue with its message until
+qBittorrent changes its state (usually to `error`, handled by F35).
+Tests: `QBittorrentClientTests.Every_qbittorrent_state_has_a_status` (`moving`, `checkingUP`, `stalledUP`),
+`QBittorrentClientTests.Torrents_of_the_category_are_mapped_to_queue_items`.
 
 ### Open
 
