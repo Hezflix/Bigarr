@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 
-/** A value that follows `value` after `delay` ms of quiet: the server is asked once per pause, not per keystroke. */
+/**
+ * A value that follows `value` after `delay` ms of quiet: the server is asked once per pause, not per keystroke.
+ * `value` is compared by identity: pass a primitive, or an object that keeps its identity between renders (state, or
+ * `useMemo`). An object literal built during render restarts the timer on every render and re-renders the caller for ever.
+ */
 export function useDebounced<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value)
   useEffect(() => {
