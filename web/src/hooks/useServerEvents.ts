@@ -1,50 +1,12 @@
 import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { eventsUrl } from '@/api/client'
-
-/** The event types the server publishes, listened to by name. */
-const eventTypes = [
-  'movieAdded',
-  'versionAdded',
-  'versionUpdated',
-  'movieDeleted',
-  'grabbed',
-  'imported',
-  'upgraded',
-  'downloadFailed',
-  'importFailed',
-  'fileDeleted',
-  'fileRenamed',
-  'defaultVersionChanged',
-  'healthIssue',
-  'healthRestored',
-] as const
-
-type ServerEventType = (typeof eventTypes)[number]
-
-type Payload = { movie?: { id: number } | null }
-
-/** Query keys to refresh per event, besides the film the event is about. */
-const invalidations: Record<ServerEventType, string[][]> = {
-  movieAdded: [['movies'], ['wanted']],
-  versionAdded: [['movies'], ['wanted']],
-  versionUpdated: [['movies'], ['wanted']],
-  movieDeleted: [['movies'], ['wanted']],
-  grabbed: [['queue'], ['history'], ['movies'], ['wanted']],
-  downloadFailed: [['queue'], ['history'], ['movies'], ['wanted'], ['blocklist']],
-  importFailed: [['queue'], ['history'], ['movies'], ['wanted']],
-  imported: [['movies'], ['history'], ['wanted'], ['queue']],
-  upgraded: [['movies'], ['history'], ['wanted'], ['queue']],
-  fileDeleted: [['movies'], ['history'], ['wanted']],
-  fileRenamed: [['movies'], ['history']],
-  defaultVersionChanged: [['movies'], ['history']],
-  healthIssue: [['health']],
-  healthRestored: [['health']],
-}
+import { type EventPayload, eventTypes, keysFor } from './serverEvents'
 
 /**
  * One EventSource on the server's event stream for the whole app: whatever happens in the background (a grab from the
- * RSS loop, an import, a failed download) refreshes the pages that show it. The browser reconnects on its own.
+ * RSS loop, an import, a failed download, a request or an issue, for films and series alike) refreshes the pages that
+ * show it. The browser reconnects on its own.
  */
 export function useServerEvents() {
   const queryClient = useQueryClient()
@@ -54,21 +16,15 @@ export function useServerEvents() {
     const source = new EventSource(eventsUrl)
     const handlers = eventTypes.map((type) => {
       const handler = (event: MessageEvent<string>) => {
-        let movieId: number | undefined
+        let payload: EventPayload = {}
         try {
-          const payload = JSON.parse(event.data) as Payload
-          movieId = payload.movie?.id
+          payload = (JSON.parse(event.data) as EventPayload | null) ?? {}
         } catch {
           /* not JSON: nothing to target */
         }
 
-        for (const key of invalidations[type]) {
+        for (const key of keysFor(type, payload)) {
           void queryClient.invalidateQueries({ queryKey: key })
-        }
-
-        if (movieId !== undefined) {
-          void queryClient.invalidateQueries({ queryKey: ['movie', movieId] })
-          void queryClient.invalidateQueries({ queryKey: ['search', movieId] })
         }
       }
       source.addEventListener(type, handler)
