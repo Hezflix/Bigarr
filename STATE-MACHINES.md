@@ -412,7 +412,8 @@ title, version slot (standard / 4K) and, for a series, set of seasons.
 | `Pending` | `Approved` | an admin or a request manager approves (with edits: profile, root folder, slot, seasons) | still `Pending` |
 | `Pending` | `Declined` | an admin or a request manager declines (optional reason) | still `Pending`; terminal |
 | `Pending` | (deleted) | its author cancels | still `Pending`, author only |
-| `Approved` | `Failed` | the library add failed (no root folder, metadata provider down, title unknown) | in the same approval |
+| `Approved` | `Failed` | the library add failed or threw (no root folder, metadata provider down or timing out, title unknown, the caller gone) | in the same approval |
+| `Approved` | `Failed` | startup repair (`StrandedApprovals`): the process stopped between the approval and the add | approved, no library id (`MovieId` and `SeriesId` both null), not imported from Seerr (`SourceRef`); a `requestFailed` event goes out |
 | `Failed` | `Approved` | an approver retries | the add goes through this time |
 | none | `Pending`, `Approved`, `Declined` or `Failed` | the Seerr import (`SeerrImportService`) writes the row as Seerr had it (Seerr's "completed" is `Approved`) | not imported before (`SourceRef`); its title and requester exist in Seerr. No outbox event, no library add, no forward, no search |
 
@@ -429,8 +430,11 @@ Invariants:
 
 - Every add from the UI is a request: the admin's goes through the same approval and forward as anyone's, attributed
   to them, so it shows in Requests and in its events. A retry adds the title the same way (`AddOptions`).
-- Approval saves `Approved` (and its outbox event) before touching the library, so a crash mid-add leaves an approved
-  request, never a lost one; the add then writes the library's rows through `MovieService` / `SeriesService`, and the
+- Approval saves `Approved` (and its outbox event) before touching the library, so a crash never loses a request. Whatever
+  the add does or throws, the request ends `Approved` with its library id or `Failed` with the reason (the outcome is
+  written on no token: the caller leaving changes nothing). Only a process stop between the two saves leaves an
+  `Approved` request with nothing in the library, and the next startup turns it into `Failed` where Retry works; the add
+  then writes the library's rows through `MovieService` / `SeriesService`, and the
   request's library id and version name.
 - "Available" goes to the outbox once per request: `AvailableAt` is set by `RequestAvailabilityJob` when the derived
   state first reads `Available`, and never cleared.
@@ -923,6 +927,22 @@ Fix: the film import judges the quality the import carries (`plan.Quality`), as 
 hand-added torrent is attributed to a version with that same quality. The plan's parsed title is no longer written to
 by the check.
 Test: `ImportFlowTests.An_overridden_quality_is_the_one_judged_against_the_file_in_place`.
+
+#### F38. An approved request whose add threw stayed approved for good
+
+`ApproveCoreAsync` saved `Approved`, then added the title inside a `catch` that knew three exception types. Anything else
+escaped: a metadata provider timeout (a `TaskCanceledException`, which the film add does not catch), or the approver
+closing the tab during the add. The approval answered 500 and the request stayed `Approved` with nothing in the library;
+"approve" refused (not pending) and "retry" refused (not failed), so it was a dead end. A process stop between the two
+saves left the same state.
+
+Fix: the add (and the target lookup before it) is wrapped in a catch for every exception but out-of-memory, including the
+caller's own cancellation: the request becomes `Failed` with the reason, `requestFailed` is published and Retry works.
+What follows the add (the request's save and the forward) runs on `CancellationToken.None`. A startup task,
+`StrandedApprovals`, turns an `Approved` request with no library id and no Seerr source into `Failed`.
+Tests: `RequestLifecycleTests.An_add_that_times_out_fails_the_request_and_a_retry_takes_it`,
+`RequestLifecycleTests.An_approval_whose_caller_goes_away_still_ends_failed_or_approved`,
+`RequestLifecycleTests.A_stop_between_the_approval_and_the_add_is_repaired_at_startup`.
 
 ### Open
 
