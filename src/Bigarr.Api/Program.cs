@@ -94,6 +94,7 @@ builder.Services.AddScoped<RequestTargets>();
 builder.Services.AddScoped<RequestStates>();
 builder.Services.AddScoped<RequestLibrary>();
 builder.Services.AddScoped<RequestService>();
+builder.Services.AddScoped<IStartupTask, StrandedApprovals>();
 builder.Services.AddHttpClient(ArrForwarder.HttpClientName, http => http.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddSingleton<ArrForwarder>();
 builder.Services.AddScoped<IScheduledJob, RequestAvailabilityJob>();

@@ -292,7 +292,9 @@ public sealed class RequestService(
 
     /// <summary>
     /// Approved: into the library (failed when it cannot take it), then to the followed Radarr/Sonarr of its version. The
-    /// approval is saved first, so a crash in between leaves an approved request, never a lost one.
+    /// approval is saved first; whatever the add does or throws, the request ends approved with its title in the library,
+    /// or failed with the reason. Only a process stop in between leaves it approved with nothing added: the next startup
+    /// puts it back to failed (<see cref="StrandedApprovals"/>).
     /// </summary>
     private async Task ApproveCoreAsync(MediaRequest request, int? profileId, int? rootFolderId, string? approver, string requestedBy, CancellationToken ct, bool retry = false)
     {
@@ -306,27 +308,30 @@ public sealed class RequestService(
 
         await db.SaveChangesAsync(ct);
 
-        var resolved = await targets.ResolveAsync(request.MediaType, request.FourK, profileId, rootFolderId, ct);
         Result<bool> added;
-        if (resolved.IsSuccess)
+        try
         {
-            var (profile, root) = resolved.Value;
-            request.QualityProfileId = profile.Id;
-            request.RootFolderId = root.Id;
-            try
+            var resolved = await targets.ResolveAsync(request.MediaType, request.FourK, profileId, rootFolderId, ct);
+            if (resolved.IsSuccess)
             {
+                var (profile, root) = resolved.Value;
+                request.QualityProfileId = profile.Id;
+                request.RootFolderId = root.Id;
                 added = await libraryAdd.AddAsync(request, profile, root, ct);
             }
-            catch (Exception ex) when (ex is HttpRequestException or DbUpdateException or InvalidOperationException)
+            else
             {
-                logger.LogWarning(ex, "Request {Id} ({Title}) could not be added to the library", request.Id, request.Title);
-                added = new Failure(StatusCodes.Status500InternalServerError, "The library could not take it", ex.Message);
+                added = resolved.Failure!;
             }
         }
-        else
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            added = resolved.Failure!;
+            // Whatever the add threw (a provider timeout is a TaskCanceledException), the request says so and can be retried.
+            logger.LogWarning(ex, "Request {Id} ({Title}) could not be added to the library", request.Id, request.Title);
+            added = new Failure(StatusCodes.Status500InternalServerError, "The library could not take it", ex is OperationCanceledException ? "The add was interrupted or timed out." : ex.Message);
         }
+
+        ct = CancellationToken.None; // the approval is saved: its outcome is written whatever the caller does
 
         // The library's add may have left tracked entities in an odd state on failure: start clean for the request.
         db.ChangeTracker.Clear();

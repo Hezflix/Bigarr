@@ -1,13 +1,19 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Claims;
 using Bigarr.Api.Features.Discover;
 using Bigarr.Api.Features.Requests;
+using Bigarr.Api.Infrastructure.Metadata.Fixtures;
+using Bigarr.Api.Infrastructure.Persistence;
+using Bigarr.Api.Tests.Auth;
 using Bigarr.Api.Tests.Persistence;
 using Bigarr.Domain.Auth;
 using Bigarr.Domain.Events;
+using Bigarr.Domain.Metadata;
 using Bigarr.Domain.Requests;
 using Bigarr.Domain.Tv;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using static Bigarr.Api.Tests.Requests.RequestsEnv;
 
 namespace Bigarr.Api.Tests.Requests;
@@ -243,6 +249,136 @@ public sealed class RequestLifecycleTests
         var after = (await retried.Content.ReadFromJsonAsync<MediaRequestResponse>(Json))!;
         Assert.Equal(RequestStatus.Approved, after.Status);
         Assert.Null(after.Error);
+    }
+
+    [Fact]
+    public async Task An_add_that_times_out_fails_the_request_and_a_retry_takes_it()
+    {
+        var provider = new FlakyMetadata();
+        await using var env = await StartAsync(testServices: services => services.AddSingleton<IMetadataProvider>(provider));
+        var user = await env.UserAsync("demo-friend", Defaults);
+        var asked = await AskOkAsync(user, RequestMediaType.Movie, 604);
+
+        // The metadata provider times out (a TaskCanceledException, not an HttpRequestException).
+        var approved = await env.ApproveAsync(env.Admin, asked.Id);
+        Assert.Equal(RequestState.Failed, approved.State);
+        Assert.False(string.IsNullOrEmpty(approved.Error));
+        var outbox = await env.OutboxTypesAsync();
+        Assert.Contains("requestFailed", outbox);
+        Assert.Equal(1, outbox.Count(t => t == "requestApproved"));
+
+        var retried = await env.Admin.PostAsync($"/api/v1/requests/{asked.Id}/retry", null);
+        Assert.Equal(HttpStatusCode.OK, retried.StatusCode);
+        var after = (await retried.Content.ReadFromJsonAsync<MediaRequestResponse>(Json))!;
+        Assert.Equal(RequestStatus.Approved, after.Status);
+        Assert.Null(after.Error);
+        Assert.Equal(1, (await env.OutboxTypesAsync()).Count(t => t == "requestApproved"));
+        Assert.True(await env.DbAsync(db => db.Movies.AnyAsync(m => m.TmdbId == 604)));
+    }
+
+    [Fact]
+    public async Task An_approval_whose_caller_goes_away_still_ends_failed_or_approved()
+    {
+        var provider = new FlakyMetadata();
+        await using var env = await StartAsync(testServices: services => services.AddSingleton<IMetadataProvider>(provider));
+        var user = await env.UserAsync("demo-friend", Defaults);
+        var asked = await AskOkAsync(user, RequestMediaType.Movie, 604);
+
+        // The caller leaves while the library add waits for the metadata provider.
+        using var gone = new CancellationTokenSource();
+        provider.CancelCaller = gone;
+        var adminId = await env.DbAsync(db => db.Users.Where(u => u.Username == BigarrApiFactory.AdminUsername).Select(u => u.Id).SingleAsync());
+        var admin = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, adminId.ToString(System.Globalization.CultureInfo.InvariantCulture)), new Claim(ClaimTypes.Name, BigarrApiFactory.AdminUsername), new Claim(ClaimTypes.Role, nameof(UserRole.Admin))],
+            "test"));
+        await using (var scope = env.App.Services.CreateAsyncScope())
+        {
+            var result = await scope.ServiceProvider.GetRequiredService<RequestService>().ApproveAsync(admin, asked.Id, new ApproveRequestRequest(), gone.Token);
+            Assert.True(result.IsSuccess);
+        }
+
+        Assert.True(gone.IsCancellationRequested, "the caller never left");
+        var stored = await env.DbAsync(db => db.MediaRequests.AsNoTracking().SingleAsync(r => r.Id == asked.Id));
+        Assert.Equal(RequestStatus.Failed, stored.Status);
+        Assert.False(string.IsNullOrEmpty(stored.Error));
+        Assert.Contains("requestFailed", await env.OutboxTypesAsync());
+
+        Assert.Equal(HttpStatusCode.OK, (await env.Admin.PostAsync($"/api/v1/requests/{asked.Id}/retry", null)).StatusCode);
+        Assert.True(await env.DbAsync(db => db.Movies.AnyAsync(m => m.TmdbId == 604)));
+    }
+
+    [Fact]
+    public async Task A_stop_between_the_approval_and_the_add_is_repaired_at_startup()
+    {
+        await using var env = await StartAsync();
+        var user = await env.UserAsync("demo-friend", Defaults);
+        var stranded = await AskOkAsync(user, RequestMediaType.Movie, 604);
+        var inLibrary = await AskOkAsync(user, RequestMediaType.Movie, 603);
+        await env.ApproveAsync(env.Admin, inLibrary.Id);
+        var imported = await AskOkAsync(user, RequestMediaType.Series, 1396, seasons: [1]);
+        var pending = await AskOkAsync(user, RequestMediaType.Series, 1396, seasons: [2]);
+
+        // The process stopped after the approval was saved: approved, nothing in the library, nothing imported.
+        await env.DbAsync(async db =>
+        {
+            foreach (var request in await db.MediaRequests.Where(r => r.Id == stranded.Id || r.Id == imported.Id).ToListAsync())
+            {
+                request.Status = RequestStatus.Approved;
+                request.AutoApproved = true;
+            }
+
+            (await db.MediaRequests.SingleAsync(r => r.Id == imported.Id)).SourceRef = "seerr:request:7";
+            await db.SaveChangesAsync();
+            return 0;
+        });
+
+        await using (var scope = env.App.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetServices<IStartupTask>().OfType<StrandedApprovals>().Single().RunAsync(CancellationToken.None);
+        }
+
+        var rows = await env.DbAsync(db => db.MediaRequests.AsNoTracking().ToDictionaryAsync(r => r.Id));
+        Assert.Equal(RequestStatus.Failed, rows[stranded.Id].Status);
+        Assert.False(string.IsNullOrEmpty(rows[stranded.Id].Error));
+        Assert.Equal(RequestStatus.Approved, rows[inLibrary.Id].Status);
+        Assert.Equal(RequestStatus.Approved, rows[imported.Id].Status);
+        Assert.Equal(RequestStatus.Pending, rows[pending.Id].Status);
+        Assert.Contains("requestFailed", await env.OutboxTypesAsync());
+
+        // Failed, so the Retry button takes it.
+        Assert.Equal(HttpStatusCode.OK, (await env.Admin.PostAsync($"/api/v1/requests/{stranded.Id}/retry", null)).StatusCode);
+        Assert.True(await env.DbAsync(db => db.Movies.AnyAsync(m => m.TmdbId == 604)));
+    }
+
+    /// <summary>The fixture metadata, except that the first film lookup times out (as the TMDB client does), or cancels the caller then throws.</summary>
+    private sealed class FlakyMetadata : IMetadataProvider
+    {
+        private readonly FixtureMetadataProvider _inner = new();
+        private int _lookups;
+
+        public CancellationTokenSource? CancelCaller { get; set; }
+
+        public string Name => _inner.Name;
+
+        public async Task<MovieMetadata?> GetMovieAsync(int tmdbId, CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref _lookups) == 1)
+            {
+                if (CancelCaller is { } caller)
+                {
+                    await caller.CancelAsync();
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+
+                throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout.");
+            }
+
+            return await _inner.GetMovieAsync(tmdbId, cancellationToken);
+        }
+
+        public Task<MovieMetadata?> GetMovieByImdbIdAsync(string imdbId, CancellationToken cancellationToken) => _inner.GetMovieByImdbIdAsync(imdbId, cancellationToken);
+
+        public Task<IReadOnlyList<MovieMetadata>> SearchAsync(string query, int? year, CancellationToken cancellationToken) => _inner.SearchAsync(query, year, cancellationToken);
     }
 
     [Fact]
