@@ -45,6 +45,9 @@ public sealed class EpisodeFile
     /// <summary>Filled by ffprobe after the scan or import, nullable like a film's.</summary>
     public MediaInfo? MediaInfo { get; set; }
 
+    /// <summary>When the backfill last tried to read this file's media info and got nothing: it waits before trying again.</summary>
+    public DateTime? MediaInfoTriedAt { get; set; }
+
     /// <summary>
     /// Set on a file that is a hardlink of a linked film's file (S8): the film engine owns it. The series side never
     /// imports, upgrades or renames it on its own; the link keeper re-creates it when the film's file changes.

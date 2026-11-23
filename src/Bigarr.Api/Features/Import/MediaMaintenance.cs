@@ -8,7 +8,10 @@ using Microsoft.Extensions.Options;
 
 namespace Bigarr.Api.Features.Import;
 
-/// <summary>Fills media info on files that were scanned or imported without it and empties the recycle bin.</summary>
+/// <summary>
+/// Fills media info on files that were scanned or imported without it and empties the recycle bin. A file that could not
+/// be read is recorded as tried and comes back after <see cref="MediaOptions.BackfillRetryHours"/>, behind the files never tried.
+/// </summary>
 public sealed class MediaMaintenance(BigarrDbContext db, MediaManagementService settings, IMediaInfoReader probe, RecycleBin recycleBin, IOptions<MediaOptions> options, IOptions<NotificationsOptions> notifications, TimeProvider time, ILogger<MediaMaintenance> logger)
 {
     public async Task<BackfillResponse> BackfillAsync(int? batchSize, CancellationToken ct)
@@ -22,10 +25,12 @@ public sealed class MediaMaintenance(BigarrDbContext db, MediaManagementService 
         }
 
         var take = Math.Clamp(batchSize ?? options.Value.BackfillBatchSize, 1, 500);
+        var now = time.GetUtcNow().UtcDateTime;
+        var retryBefore = now.AddHours(-Math.Max(1, options.Value.BackfillRetryHours));
         var files = await db.MediaFiles
             .Include(f => f.Version).ThenInclude(v => v.RootFolder)
-            .Where(f => f.MediaInfo == null)
-            .OrderBy(f => f.Id)
+            .Where(f => f.MediaInfo == null && (f.MediaInfoTriedAt == null || f.MediaInfoTriedAt < retryBefore))
+            .OrderBy(f => f.MediaInfoTriedAt != null).ThenBy(f => f.MediaInfoTriedAt).ThenBy(f => f.Id)
             .Take(take)
             .ToListAsync(ct);
 
@@ -34,9 +39,10 @@ public sealed class MediaMaintenance(BigarrDbContext db, MediaManagementService 
         {
             ct.ThrowIfCancellationRequested();
             var info = await ProbeAsync(Path.Combine(file.Version.RootFolder.Path, file.Version.FolderName, file.RelativePath), file.OriginalReleaseTitle, ct);
+            file.MediaInfo = info;
+            file.MediaInfoTriedAt = info is null ? now : null;
             if (info is not null)
             {
-                file.MediaInfo = info;
                 probed++;
             }
         }
@@ -45,8 +51,8 @@ public sealed class MediaMaintenance(BigarrDbContext db, MediaManagementService 
         {
             var episodeFiles = await db.EpisodeFiles
                 .Include(f => f.Version).ThenInclude(v => v.RootFolder)
-                .Where(f => f.MediaInfo == null)
-                .OrderBy(f => f.Id)
+                .Where(f => f.MediaInfo == null && (f.MediaInfoTriedAt == null || f.MediaInfoTriedAt < retryBefore))
+                .OrderBy(f => f.MediaInfoTriedAt != null).ThenBy(f => f.MediaInfoTriedAt).ThenBy(f => f.Id)
                 .Take(take - files.Count)
                 .ToListAsync(ct);
 
@@ -54,17 +60,23 @@ public sealed class MediaMaintenance(BigarrDbContext db, MediaManagementService 
             {
                 ct.ThrowIfCancellationRequested();
                 var info = await ProbeAsync(Path.Combine(file.Version.RootFolder.Path, file.Version.FolderName, file.RelativePath), file.OriginalReleaseTitle, ct);
+                file.MediaInfo = info;
+                file.MediaInfoTriedAt = info is null ? now : null;
                 if (info is not null)
                 {
-                    file.MediaInfo = info;
                     probed++;
                 }
             }
         }
 
-        if (probed > 0)
+        // A failed attempt is saved too: that is what moves the file behind the ones never tried.
+        if (db.ChangeTracker.HasChanges())
         {
             await db.SaveChangesAsync(ct);
+        }
+
+        if (probed > 0)
+        {
             logger.LogInformation("Media info backfill: {Count} file(s) probed, {Remaining} left", probed, remaining - probed);
         }
 

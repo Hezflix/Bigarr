@@ -19,4 +19,7 @@ public sealed class MediaOptions
 
     /// <summary>Files probed per backfill pass.</summary>
     public int BackfillBatchSize { get; set; } = 25;
+
+    /// <summary>Hours before the backfill tries again a file it could not read.</summary>
+    public int BackfillRetryHours { get; set; } = 24;
 }
