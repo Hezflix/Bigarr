@@ -268,7 +268,7 @@ derived from the row.
 
 | Operation | Order | Consequence of stopping in between |
 |---|---|---|
-| import, assign an unmatched episode file, delete an episode file | file transferred or recycled, then row, the rows whatever becomes of the request | guarded since [F34](#f34-an-import-an-assign-or-an-episode-file-delete-whose-caller-went-away-left-disk-and-database-apart); a process killed in between still leaves a file without a row, and the retry finds "destination already exists" |
+| import, assign an unmatched episode file, delete an episode file | file transferred or recycled, then row, the rows whatever becomes of the request | guarded since [F34](#f34-an-import-an-assign-or-an-episode-file-delete-whose-caller-went-away-left-disk-and-database-apart); a process killed in between still leaves a file without a row, and the retry finds "destination already exists"; a series one waits for the show's turn since [F36](#f36-series-imports-did-not-wait-for-the-shows-turn) |
 | rename, order switch, undo | files moved, then one save | guarded since [F5](#f5-a-rename-or-order-switch-whose-caller-went-away-left-disk-and-database-apart) |
 | delete a version with its files | checks, then file, then row | guarded since [F1](#f1-deleting-the-default-version-with-its-files-destroyed-the-file-then-refused) |
 | delete a series or a version with its files | folders, then rows, the rows whatever becomes of the request | guarded since [F15](#f15-a-series-delete-whose-caller-went-away-left-the-series-with-no-files) |
@@ -294,7 +294,7 @@ switch, holding the previous numbers and every file move.
 
 | From | To | Trigger | Guard |
 |---|---|---|---|
-| order A | order B, change journaled, files moved | apply | B differs from A; one writer per show (`SeriesFileGate`, shared with rename, reassign, refresh and "add version") |
+| order A | order B, change journaled, files moved | apply | B differs from A; one writer per show (`SeriesFileGate`, shared with rename, reassign, refresh, "add version", the series import, the manual assign and the episode-file delete) |
 | latest change applied | undone (`UndoneAt`), order A, files back | undo | latest change of the show, not undone; a file moved since is left alone |
 
 Invariants: only the latest change can be undone, once; a journaled move is a move that happened; an apply and its
@@ -894,6 +894,23 @@ past `Bigarr__Downloads__ErroredTimeoutMinutes` (60 by default, 0 keeps it a war
 one that clears before is a download like any other. `Failed` stays for a definitive failure.
 Tests: `FailedHandlingTests.A_download_the_client_reports_in_error_is_a_warning_until_the_delay_then_fails`,
 `FailedHandlingTests.A_download_that_recovers_from_an_error_carries_on`.
+
+#### F36. Series imports did not wait for the show's turn
+
+One writer at a time may move a show's files: an order switch, its undo and a rename each read every path, move files
+and save once, and `SeriesFileGate` keeps them from overlapping. The series import (automatic and manual), assigning
+an unmatched episode file and deleting an episode file did not take that gate. An import landing while an order switch
+or a rename ran read the existing paths before the other writer moved them: the file it meant to replace was no longer
+where it looked, so the moved file stayed on disk without a row and the order journal described a move whose row was
+gone. The race was found by reading the code; it was not reproduced.
+
+Fix: `SeriesImportService.ExecuteGuardedAsync` (the one entry of both imports), `AssignUnmatchedAsync` and
+`DeleteEpisodeFileAsync` take the show's turn before they read anything, on the request's token (nothing has changed
+yet, so a caller that gives up while waiting is harmless). `SeriesImportPlan` now carries the series id for that. The
+gate is not re-entrant: none of the three is called from a method that holds it, and none of them calls one.
+An import of another show is not delayed.
+Test: `ConcurrentSeriesWritersTests.An_episode_file_delete_waits_for_the_writer_that_holds_the_show` (one of the three
+entries; the import and the assign share the same one-line change and are covered by the existing import suites).
 
 ### Open
 

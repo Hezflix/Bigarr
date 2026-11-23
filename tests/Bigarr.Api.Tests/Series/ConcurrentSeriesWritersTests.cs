@@ -100,4 +100,63 @@ public sealed class ConcurrentSeriesWritersTests(SeriesApiFactory factory) : ICl
         var result = await reassign;
         Assert.True(result.IsSuccess);
     }
+
+    [Fact]
+    public async Task An_episode_file_delete_waits_for_the_writer_that_holds_the_show()
+    {
+        var client = await ClientAsync(factory);
+        var series = await SeriesSetup.AddAsync(client, SeriesSearchTests.BreakingBad);
+        var version = series.Versions.OrderBy(v => v.Id).First();
+        var folder = Path.Combine(version.RootFolderPath, version.FolderName);
+        const string relative = "Season 1/Breaking Bad - S01E03 - Bluray-1080p.mkv";
+        var path = Path.Combine(folder, relative);
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await File.WriteAllBytesAsync(path, new byte[4096]);
+            int fileId;
+            using (var scope = factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+                var target = await db.EpisodeTargets.Include(t => t.Episode).SingleAsync(t => t.VersionId == version.Id && t.Episode.SeriesId == series.Id && t.Episode.SeasonNumber == 1 && t.Episode.EpisodeNumber == 3);
+                var file = new EpisodeFile
+                {
+                    VersionId = version.Id,
+                    RelativePath = relative,
+                    SeasonNumber = 1,
+                    Size = 4096,
+                    QualityId = ParserQuality.Bluray1080p.Id,
+                    OriginalReleaseTitle = "Breaking.Bad.S01E03.1080p.BluRay.x264-GRP",
+                    ReleaseGroup = "GRP",
+                };
+                target.EpisodeFile = file;
+                await db.SaveChangesAsync();
+                fileId = file.Id;
+            }
+
+            // Another writer of the show holds its turn.
+            using var deleteScope = factory.Services.CreateScope();
+            var manual = deleteScope.ServiceProvider.GetRequiredService<SeriesManualImportService>();
+            var turn = await SeriesFileGate.EnterAsync(series.Id, CancellationToken.None);
+            Task<Bigarr.Api.Infrastructure.Result<bool>> delete;
+            try
+            {
+                delete = manual.DeleteEpisodeFileAsync(series.Id, fileId, CancellationToken.None);
+                Assert.NotSame(delete, await Task.WhenAny(delete, Task.Delay(300)));
+                Assert.True(File.Exists(path), "the delete touched the file while another writer held the show");
+            }
+            finally
+            {
+                turn.Dispose();
+            }
+
+            var result = await delete;
+            Assert.True(result.IsSuccess);
+            Assert.False(File.Exists(path));
+        }
+        finally
+        {
+            TryDelete(folder);
+        }
+    }
 }

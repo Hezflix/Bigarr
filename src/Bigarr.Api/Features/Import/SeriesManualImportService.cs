@@ -312,6 +312,7 @@ public sealed class SeriesManualImportService(
 
         var plan = new SeriesImportPlan(
             item.Path,
+            version.SeriesId,
             version.Id,
             item.EpisodeIds.Distinct().ToList(),
             grab?.ReleaseTitle ?? Path.GetFileNameWithoutExtension(item.Path),
@@ -340,6 +341,7 @@ public sealed class SeriesManualImportService(
     public async Task<Result<EpisodeFileDetailResponse>> AssignUnmatchedAsync(int seriesId, int unmatchedId, AssignUnmatchedRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
+        using var turn = await SeriesFileGate.EnterAsync(seriesId, ct);
         var unmatched = await db.UnmatchedEpisodeFiles.FirstOrDefaultAsync(u => u.Id == unmatchedId && u.SeriesId == seriesId, ct);
         if (unmatched is null)
         {
@@ -556,6 +558,7 @@ public sealed class SeriesManualImportService(
 
     public async Task<Result<bool>> DeleteEpisodeFileAsync(int seriesId, int fileId, CancellationToken ct)
     {
+        using var turn = await SeriesFileGate.EnterAsync(seriesId, ct);
         var file = await db.EpisodeFiles
             .Include(f => f.Version).ThenInclude(v => v.RootFolder)
             .Include(f => f.Version).ThenInclude(v => v.Series)

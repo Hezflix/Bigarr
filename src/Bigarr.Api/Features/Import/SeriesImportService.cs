@@ -31,6 +31,7 @@ using Series = Bigarr.Domain.Tv.Series;
 /// <summary>One video file to bring into a series version's folder for the given episodes. Shared by the automatic path and the manual import.</summary>
 public sealed record SeriesImportPlan(
     string SourcePath,
+    int SeriesId,
     int VersionId,
     IReadOnlyList<int> EpisodeIds,
     string ReleaseTitle,
@@ -191,6 +192,7 @@ public sealed class SeriesImportService(
             var parsedFile = TryParsePath(file.FullName);
             plans.Add(new SeriesImportPlan(
                 file.FullName,
+                version.SeriesId,
                 version.Id,
                 episodes.Select(e => e.Id).ToList(),
                 files.Count == 1 ? grab.ReleaseTitle : Path.GetFileNameWithoutExtension(file.Name),
@@ -218,6 +220,10 @@ public sealed class SeriesImportService(
         ArgumentNullException.ThrowIfNull(plan);
         try
         {
+            // One writer per show: an order switch or a rename reads every path, moves files and saves once, so an
+            // import landing in the middle would look for a file where it no longer is. Waiting here (not in
+            // ExecuteAsync) keeps a cancelled wait inside the catch below.
+            using var turn = await SeriesFileGate.EnterAsync(plan.SeriesId, ct);
             var outcome = await ExecuteAsync(plan, judge, ct);
             db.ChangeTracker.Clear();
             return outcome;
