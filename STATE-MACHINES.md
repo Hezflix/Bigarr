@@ -97,6 +97,9 @@ Invariants:
 5. An `ImportPending` grab whose download is complete is queued at every poll until it leaves that state.
 6. Failed handling commits state, blocklist, history and event together; the torrent leaves its client and the
    replacement search is queued only after that commit ([F21](#f21-failed-handling-removed-the-torrent-before-its-own-save)).
+7. Once a download client has accepted the torrent, the grab row is written whatever the caller does: the grab runs on
+   no cancellation token after the send, and the qBittorrent check that follows the add does not stop either
+   ([F31](#f31-a-grab-whose-caller-went-away-after-the-send-left-an-untracked-download)).
 
 A failed grab whose torrent has left the client stays `ImportFailed` or `DownloadFailed` in the table and is simply no
 longer shown (`QueuePoller.cs:173-177`). That is by design.
@@ -810,6 +813,19 @@ request's token: a caller that went away in between left the file under its new 
 Fix: reassign takes the show's turn before it loads the show, and the save that follows the move ignores the
 request's token. The first save (the episode links) still honours it: nothing on disk has changed by then.
 Test: `ConcurrentSeriesWritersTests.A_reassign_waits_for_the_writer_that_holds_the_show`.
+
+#### F31. A grab whose caller went away after the send left an untracked download
+
+The torrent was sent to the client, then the grab row was written (two saves and a commit) on the caller's cancellation
+token, and the qBittorrent client's check that the torrent is listed (up to about 4.5 s) used it too. A caller that
+went away in that window, such as an aborted `POST /api/v1/grab`, RSS sync or search request, left a download with no
+`Grab` row: the version looked idle, the next RSS pass or search grabbed again, and the orphan was later adopted by
+title, possibly for another version than the one chosen.
+
+Fix: once a client accepted the torrent, `GrabService` (films and series) goes on with no cancellation token, and the
+qBittorrent add check runs to its end. Everything before the send stays cancellable.
+Test: `InterruptedGrabTests.A_grab_whose_caller_goes_away_once_the_client_has_the_torrent_is_still_recorded` (film
+path; the series path has the same two lines and is covered by the existing series grab tests).
 
 ### Open
 
