@@ -2,12 +2,15 @@ using System.Net;
 using System.Net.Http.Json;
 using Bigarr.Api.Features.Blocklist;
 using Bigarr.Api.Features.Movies;
+using Bigarr.Api.Infrastructure.Downloads.Mock;
 using Bigarr.Api.Tests.Auth;
 using Bigarr.Api.Tests.Metadata;
 using Bigarr.Domain.Acquisition;
 using Bigarr.Domain.Downloads;
 using Bigarr.Domain.History;
 using Bigarr.Domain.Movies;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using static Bigarr.Api.Tests.Import.ImportTestHelpers;
@@ -160,6 +163,58 @@ public sealed class FailedHandlingTests(BigarrApiFactory factory) : IClassFixtur
     }
 
     [Fact]
+    public async Task A_failed_download_whose_removal_blows_up_is_still_searched_again_and_says_it_was_not_removed()
+    {
+        // Its own app: the removal fails with something that is not a DownloadClientException, and the replacement search
+        // this leaves behind must not show in the other tests' queue.
+        using var app = new RemovalBlowsUpFactory();
+        var client = await ClientAsync(app);
+        var (hd, _) = await ProfilesAsync(client);
+        var root = await AddRootAsync(client, Path.Combine(Path.GetTempPath(), $"bigarr-failed-blowup-{Guid.NewGuid():N}"));
+        var movie = await AddMovieAsync(client, 603, hd, root.Id); // The Matrix
+        var version = movie.Versions.Single();
+        var indexer = await AddMockIndexerAsync(client, "Mock fail blowup");
+        var downloadClient = await AddMockClientAsync(client, "Mock qbt fail blowup");
+
+        try
+        {
+            var first = (await SearchAsync(client, movie.Id)).Releases.First(r => r.Versions.Any(v => v.Approved));
+            var grab = await GrabAsync(client, first, version.Id);
+            await RefreshAsync(client);
+            Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/v1/downloadclients/mock/{grab.DownloadId}/fail?message=Disk%20full", null)).StatusCode);
+
+            // The poll still answers: the removal that went wrong does not take the tick down with it.
+            var queue = await RefreshAsync(client);
+            var row = Assert.Single(queue.Items, r => r.GrabId == grab.GrabId);
+            Assert.Equal(GrabState.DownloadFailed, row.State);
+
+            // The answer of that poll was built before the removal; the next read shows the corrected note.
+            row = Assert.Single((await RefreshAsync(client)).Items, r => r.GrabId == grab.GrabId);
+            var handling = Assert.Single(row.StatusMessages, m => m.Title == "Failed handling");
+            Assert.Contains("Release blocklisted.", handling.Messages);
+            Assert.Contains("Searching for a replacement.", handling.Messages);
+            Assert.Contains(handling.Messages, m => m.StartsWith("Could not remove it from Mock qbt fail blowup:", StringComparison.Ordinal));
+            Assert.DoesNotContain("Removed from Mock qbt fail blowup.", handling.Messages);
+
+            var failed = Assert.Single(await HistoryAsync(client, movie.Id, HistoryEventType.DownloadFailed));
+            Assert.Equal("false", failed.Data["removedFromClient"]);
+            Assert.Equal("true", failed.Data["searchQueued"]);
+
+            // The replacement search ran all the same.
+            var replacement = await WaitUntilAsync(async () => (await HistoryAsync(client, movie.Id, HistoryEventType.Grabbed)).FirstOrDefault(h => h.SourceTitle != first.Title), "the replacement grab");
+            Assert.Equal("search:failed", replacement.Data["trigger"]);
+            Assert.Equal(version.Id, replacement.VersionId);
+        }
+        finally
+        {
+            await client.DeleteAsync($"/api/v1/downloadclients/{downloadClient.Id}");
+            await client.DeleteAsync($"/api/v1/indexers/{indexer.Id}");
+            await client.DeleteAsync($"/api/v1/movies/{movie.Id}");
+            TryDelete(root.Path);
+        }
+    }
+
+    [Fact]
     public async Task A_download_stalled_past_the_threshold_is_treated_as_failed()
     {
         // The clock is the test's: the stall timer counts from the first poll that saw it.
@@ -225,5 +280,37 @@ public sealed class FailedHandlingTests(BigarrApiFactory factory) : IClassFixtur
             await client.DeleteAsync($"/api/v1/movies/{movie.Id}");
             TryDelete(root.Path);
         }
+    }
+
+    /// <summary>The real app with a mock client whose removal fails like a dropped connection would.</summary>
+    private sealed class RemovalBlowsUpFactory : BigarrApiFactory
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            builder.ConfigureTestServices(services =>
+            {
+                foreach (var mock in services.Where(s => s.ServiceType == typeof(IDownloadClient) && s.ImplementationType == typeof(MockDownloadClient)).ToList())
+                {
+                    services.Remove(mock);
+                }
+
+                services.AddSingleton<IDownloadClient>(sp => new RemovalBlowsUpClient(new MockDownloadClient(sp.GetRequiredService<MockDownloadClientState>())));
+            });
+        }
+    }
+
+    private sealed class RemovalBlowsUpClient(MockDownloadClient inner) : IDownloadClient
+    {
+        public DownloadClientImplementation Implementation => inner.Implementation;
+
+        public Task<DownloadClientInfo> TestAsync(DownloadClient client, CancellationToken cancellationToken) => inner.TestAsync(client, cancellationToken);
+
+        public Task<string> AddAsync(DownloadClient client, DownloadRequest request, CancellationToken cancellationToken) => inner.AddAsync(client, request, cancellationToken);
+
+        public Task<IReadOnlyList<DownloadItem>> GetItemsAsync(DownloadClient client, CancellationToken cancellationToken) => inner.GetItemsAsync(client, cancellationToken);
+
+        public Task RemoveAsync(DownloadClient client, string downloadId, bool deleteFiles, CancellationToken cancellationToken) =>
+            throw new HttpRequestException("The connection was closed while the client answered.");
     }
 }

@@ -101,6 +101,11 @@ Invariants:
    no cancellation token after the send, and the qBittorrent check that follows the add does not stop either
    ([F31](#f31-a-grab-whose-caller-went-away-after-the-send-left-an-untracked-download)).
 
+6. Failed handling commits state, blocklist, history and event together; the replacement search is queued only after
+   that commit ([F21](#f21-failed-handling-removed-the-torrent-before-its-own-save)), and the torrent leaves its client
+   after the search is queued, so a removal that goes wrong cannot stop it
+   ([F32](#f32-a-failed-download-whose-removal-threw-lost-its-replacement-search)).
+
 A failed grab whose torrent has left the client stays `ImportFailed` or `DownloadFailed` in the table and is simply no
 longer shown (`QueuePoller.cs:173-177`). That is by design.
 
@@ -116,6 +121,10 @@ time a stall began.
 | counted (n = `RemovedAfterPolls`) | forgotten | grab becomes `Removed` |
 | not stalled | stalled since t | client reports `Stalled` |
 | stalled | not stalled | any other client status (`NotStalled`) |
+
+Order at the end of a poll: commit the transitions, queue the imports and the replacement searches, then remove the
+failed torrents from their client. The removal catches anything and runs to its end whatever the caller does (it takes
+no cancellation token); a torrent it could not remove is noted on the grab and its journal line.
 
 Invariants: one poll at a time (`QueueState.PollLock`); a client that did not answer counts neither as a miss nor as
 a stall. Both counters restart from zero after a restart, so a stall or an absence is measured again from the first
@@ -826,6 +835,18 @@ Fix: once a client accepted the torrent, `GrabService` (films and series) goes o
 qBittorrent add check runs to its end. Everything before the send stays cancellable.
 Test: `InterruptedGrabTests.A_grab_whose_caller_goes_away_once_the_client_has_the_torrent_is_still_recorded` (film
 path; the series path has the same two lines and is covered by the existing series grab tests).
+
+#### F32. A failed download whose removal threw lost its replacement search
+
+The removal from the download client ran before the replacement search was queued and only caught
+`DownloadClientException`. Any other exception (a network error while reading the answer) or a cancelled token (the
+refresh endpoint polls with the request's token) ended the poll there: no replacement search, no import queued for the
+other finished downloads of that tick, the torrent still in the client, and a journal that said it was removed and a
+search queued. Nothing retried, since the handling only runs on the transition into failed.
+
+Fix: the imports and searches are queued right after the commit, then the removal runs with no cancellation token and
+catches everything: the grab's note and its journal line say the torrent could not be removed and the poll goes on.
+Test: `FailedHandlingTests.A_failed_download_whose_removal_blows_up_is_still_searched_again_and_says_it_was_not_removed`.
 
 ### Open
 

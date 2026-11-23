@@ -234,14 +234,13 @@ public sealed class QueuePoller(
             await db.SaveChangesAsync(ct);
         }
 
-        await RemoveFailedAsync(ct);
-
         foreach (var grabId in readyToImport)
         {
             imports.TryEnqueue(grabId);
         }
 
-        // Only once the failed state is committed: the search checks for an active grab on its own connection.
+        // Only once the failed state is committed: the search checks for an active grab on its own connection. Queued
+        // before the removal, which can no longer stop them whatever goes wrong there.
         foreach (var versionId in searchAfterSave)
         {
             searches.TryEnqueue(versionId, SearchTrigger.FailedDownload);
@@ -251,6 +250,8 @@ public sealed class QueuePoller(
         {
             seriesSearches.TryEnqueue(request);
         }
+
+        await RemoveFailedAsync();
 
         var ordered = rows.OrderByDescending(r => r.Tracked).ThenByDescending(r => r.AddedAt).ToList();
         return state.Publish(new QueueResponse(now, now + settings.PollInterval, (int)settings.PollInterval.TotalSeconds, 0, ordered, state.ClientStatuses()));
@@ -478,17 +479,18 @@ public sealed class QueuePoller(
     /// The failed torrents leave their client, now that the failure is committed. One the client would not let go
     /// stays there and shows in the queue as failed; the grab's note and its journal line are corrected to say so.
     /// </summary>
-    private async Task RemoveFailedAsync(CancellationToken ct)
+    private async Task RemoveFailedAsync()
     {
         var corrected = false;
         foreach (var removal in _removeAfterSave)
         {
             try
             {
-                await resolver.For(removal.Client).RemoveAsync(removal.Client, removal.Grab.DownloadId!, deleteFiles: true, ct);
+                await resolver.For(removal.Client).RemoveAsync(removal.Client, removal.Grab.DownloadId!, deleteFiles: true, CancellationToken.None);
             }
-            catch (DownloadClientException ex)
+            catch (Exception ex)
             {
+                // Whatever goes wrong here, the note says so and the tick goes on.
                 logger.LogWarning("Could not remove the failed download {Title} from {Client}: {Message}", removal.Grab.ReleaseTitle, removal.Client.Name, ex.Message);
                 var instead = $"Could not remove it from {removal.Client.Name}: {ex.Message}";
                 removal.Grab.StatusMessages = removal.Grab.StatusMessages
@@ -506,7 +508,7 @@ public sealed class QueuePoller(
         _removeAfterSave.Clear();
         if (corrected)
         {
-            await db.SaveChangesAsync(ct);
+            await db.SaveChangesAsync(CancellationToken.None);
         }
     }
 
