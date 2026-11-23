@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
+import { useMemo, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { cn } from 'cn'
@@ -299,14 +299,19 @@ function MediaManagementForm({ film, series }: { film: MediaManagement; series: 
 
   const debouncedFile = useDebounced(filmForm.fileNameTemplate, 300)
   const debouncedFolder = useDebounced(filmForm.folderNameTemplate, 300)
-  const debouncedCleaning = useDebounced({ replaceIllegalCharacters: filmForm.replaceIllegalCharacters, colonReplacement: filmForm.colonReplacement, sampleTitle: filmSample }, 300)
+  const cleaning = useMemo(
+    () => ({ replaceIllegalCharacters: filmForm.replaceIllegalCharacters, colonReplacement: filmForm.colonReplacement, sampleTitle: filmSample }),
+    [filmForm.replaceIllegalCharacters, filmForm.colonReplacement, filmSample],
+  )
+  const debouncedCleaning = useDebounced(cleaning, 300)
   const filmPreview = useQuery({
     queryKey: ['namingPreview', debouncedFile, debouncedFolder, debouncedCleaning],
     queryFn: () => mediaManagement.preview(debouncedFile, debouncedFolder, debouncedCleaning),
     staleTime: Number.POSITIVE_INFINITY,
     placeholderData: (previous) => previous,
   })
-  const debouncedSeries = useDebounced({ ...seriesForm, sampleTitle: seriesSample }, 300)
+  const seriesInput = useMemo(() => ({ ...seriesForm, sampleTitle: seriesSample }), [seriesForm, seriesSample])
+  const debouncedSeries = useDebounced(seriesInput, 300)
   const seriesPreview = useQuery({
     queryKey: ['seriesNamingPreview', debouncedSeries],
     queryFn: () => mediaManagement.previewSeriesNaming(debouncedSeries),
