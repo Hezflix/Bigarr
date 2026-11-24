@@ -14179,6 +14179,16 @@ export interface components {
             reason: string;
             temporary: boolean;
         };
+        /** @enum {unknown} */
+        ReleasePickKind: "downloading" | "onDisk" | "imported" | "failed" | "grabbed" | "shadow";
+        ReleasePickResponse: {
+            /** Format: int32 */
+            versionId: number;
+            versionName: string;
+            kind: components["schemas"]["ReleasePickKind"];
+            /** Format: date-time */
+            at: string;
+        };
         ReleaseResponse: {
             guid: string;
             title: string;
@@ -14221,6 +14231,7 @@ export interface components {
             versions: components["schemas"]["VersionDecisionResponse"][];
             /** Format: int32 */
             suggestedVersionId: null | number;
+            picks: null | components["schemas"]["ReleasePickResponse"][];
         };
         /** @enum {unknown} */
         ReleaseType: "inCinemas" | "digital" | "physical";
