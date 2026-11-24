@@ -15282,6 +15282,7 @@ export interface components {
             numbering: null | components["schemas"]["EpisodeNumbering"];
             /** @default false */
             held: boolean;
+            picks: null | components["schemas"]["ReleasePickResponse"][];
         };
         SeriesRenamePreviewResponse: {
             /** Format: int32 */

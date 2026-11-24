@@ -69,7 +69,7 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
         // Ranking: quality, then custom format score, then indexer priority, then seeders.
         var releases = results
             .SelectMany(r => r.Releases)
-            .Select(release => Evaluate(release, movie, targets, minimumSeeders.GetValueOrDefault(release.IndexerId), calculator) with { Picks = picks.For(release) })
+            .Select(release => Evaluate(release, movie, targets, minimumSeeders.GetValueOrDefault(release.IndexerId), calculator) with { Picks = picks.For(release.IndexerId, release.Guid, release.InfoHash, release.Title) })
             .OrderByDescending(r => r.MatchesMovie)
             .ThenByDescending(r => r.Versions.Any(v => v.Approved))
             .ThenByDescending(r => ReleaseRanking.WeightOf(r.QualityId))

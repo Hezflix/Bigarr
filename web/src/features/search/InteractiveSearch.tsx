@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
-import { CircleCheckIcon, CircleIcon, CopyPlusIcon, PencilLineIcon } from 'lucide-react'
+import { CopyPlusIcon, PencilLineIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, queue, search, type Movie, type Release, type Version } from '@/api/client'
@@ -36,13 +36,11 @@ import {
   VerdictIcon,
 } from '@/features/search/releaseTable'
 import { versionFits } from '@/features/search/rejectionReasons'
-import { isCurrentPick, PickBadge, pickedVariant, pickIcons, picksOf, pickStyles } from '@/features/search/releasePicks'
+import { PickBadges, pickedRowClass, PicksBanner, releaseKey, useFlashRow } from '@/features/search/releasePicks'
 import { pickKey } from '@/features/search/searchIndexers'
 import { formatAge, formatDateTime } from '@/i18n'
 
 type SortKey = keyof typeof commonComparators
-
-const releaseKey = (release: Release) => `${release.indexerId}:${release.guid}`
 
 const SortableHead = (props: Omit<Parameters<typeof SharedSortableHead<SortKey>>[0], 'testIdPrefix'>) => <SharedSortableHead testIdPrefix="sort" {...props} />
 
@@ -83,15 +81,6 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
   const [pending, setPending] = useState<PendingGrab | null>(null)
   const [overriding, setOverriding] = useState<{ release: Release; versionId: number | undefined } | null>(null)
   const [showQueries, setShowQueries] = useShowQueries()
-  const variant = pickedVariant()
-  // The row just grabbed (or asked for from the picks banner): scrolled to and lit for a moment.
-  const [flash, setFlash] = useState<string | null>(null)
-  useEffect(() => {
-    if (flash === null) return
-    section.current?.querySelector(`[data-release-key="${CSS.escape(flash)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-    const timer = setTimeout(() => setFlash(null), 2400)
-    return () => clearTimeout(timer)
-  }, [flash])
   const query = useQuery({
     queryKey: ['search', movie.id, submitted?.text ?? '', pickKey(submitted?.ids)],
     queryFn: () => search.movie(movie.id, { query: submitted?.text || undefined, includeQueries: showQueries, indexerIds: submitted?.ids }),
@@ -118,6 +107,8 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
     run(submitted.text)
   }, [indexerPick.settledKey])
   const section = useRef<HTMLElement>(null)
+  // The row just grabbed, or asked for from the picks banner: scrolled to and lit for a moment.
+  const [flash, setFlash] = useFlashRow(section)
   const lastRun = useRef(runRequest)
   // biome-ignore lint/correctness/useExhaustiveDependencies: only a new request from the header runs it, with the text as it is then
   useEffect(() => {
@@ -170,11 +161,7 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
   }
 
   const data = query.data
-  const sorted = data ? sortReleases(data.releases, sort, commonComparators) : []
-  // Proposal 3: the picked releases stay on top, whatever the sort.
-  const pinned = variant === 3 ? sorted.filter((r) => (r.picks ?? []).length > 0) : []
-  const releases = variant === 3 ? sorted.filter((r) => (r.picks ?? []).length === 0) : sorted
-  const picked = sorted.filter((r) => (r.picks ?? []).length > 0)
+  const releases = data ? sortReleases(data.releases, sort, commonComparators) : []
   const fitsOf = (release: Release) => versionFits(release.versions, release.matchesMovie ? [] : release.rejections.map((r) => t('search.notThisFilm', { reason: r.reason })), t('search.reasons.release'))
   const acceptable = movie.versions.map((v) => ({
     version: v,
@@ -244,38 +231,15 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
 
           {showQueries && <SearchQueriesPanel queries={data.queries} />}
 
-          {variant === 4 && picked.length > 0 && (
-            <div className="flex flex-col gap-1.5 rounded-lg border bg-muted/40 p-3" data-testid="search-picks">
-              <p className="text-xs font-medium text-muted-foreground">{t('search.pick.bannerTitle')}</p>
-              {picked.flatMap((release) =>
-                picksOf(release).map((pick) => (
-                  <div key={`${releaseKey(release)}:${pick.versionId}`} className="flex flex-wrap items-center gap-2 text-sm">
-                    <PickBadge pick={pick} />
-                    <span className="min-w-0 flex-1 truncate" title={release.title}>
-                      {release.title}
-                    </span>
-                    <span className="text-xs text-muted-foreground">{release.indexer}</span>
-                    <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => setFlash(releaseKey(release))}>
-                      {t('search.pick.showInList')}
-                    </Button>
-                  </div>
-                )),
-              )}
-            </div>
-          )}
+          <PicksBanner releases={releases} onShow={setFlash} />
 
-          {sorted.length === 0 ? (
+          {releases.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('search.noResults')}</p>
           ) : (
             <div className="max-h-[32rem] overflow-y-auto overflow-x-auto rounded-lg border">
               <Table data-testid="search-results">
                 <TableHeader className="sticky top-0 z-10 bg-background">
                   <TableRow>
-                    {variant === 5 && (
-                      <TableHead className="w-8 px-2">
-                        <span className="sr-only">{t('search.pick.column')}</span>
-                      </TableHead>
-                    )}
                     <SortableHead column="age" sort={sort} onSort={onSort}>
                       {t('search.age')}
                     </SortableHead>
@@ -298,15 +262,12 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pinned.length > 0 && <GroupRow label={t('search.pick.pinnedGroup')} columns={7} />}
-                  {[...pinned, ...(pinned.length > 0 ? [null] : []), ...releases].map((release) => {
-                    if (release === null) return <GroupRow key="others" label={t('search.pick.otherGroup')} columns={7} />
+                  {releases.map((release) => {
                     const target = versionById.get(release.suggestedVersionId ?? -1) ?? defaultVersion
                     return (
                       <ReleaseRow
                         key={releaseKey(release)}
-                        variant={variant}
-                        flash={flash === releaseKey(release)}
+                        flash={flash}
                         release={release}
                         fits={fitsOf(release)}
                         versions={movie.versions}
@@ -342,18 +303,7 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
   )
 }
 
-function GroupRow({ label, columns }: { label: string; columns: number }) {
-  return (
-    <TableRow className="hover:bg-transparent">
-      <TableCell colSpan={columns} className="bg-muted/50 py-1.5 text-xs font-medium text-muted-foreground">
-        {label}
-      </TableCell>
-    </TableRow>
-  )
-}
-
 function ReleaseRow({
-  variant,
   flash,
   release,
   fits,
@@ -364,10 +314,8 @@ function ReleaseRow({
   onGrabOneShot,
   onOverride,
 }: {
-  /** Which proposal shows the picks (?picked=N). */
-  variant: number
-  /** Just grabbed or asked for: lit for a moment. */
-  flash: boolean
+  /** The row lit for a moment: just grabbed, or asked for from the picks banner. */
+  flash: string | null
   release: Release
   fits: ReturnType<typeof versionFits>
   versions: Version[]
@@ -393,9 +341,6 @@ function ReleaseRow({
   const targetDecision = target ? decisionFor(target.id) : undefined
   const targetBusy = target?.status === 'downloading'
   const accepted = release.matchesMovie && !!targetDecision?.approved
-  const picks = picksOf(release)
-  const current = isCurrentPick(release)
-  const badges = picks.map((pick) => <PickBadge key={pick.versionId} pick={pick} />)
 
   const grabTip = !grabbable
     ? t('search.grabNoLink')
@@ -408,39 +353,7 @@ function ReleaseRow({
           : t('search.grabAnyway', { version: target?.name ?? '' })
 
   return (
-    <TableRow
-      className={cn(
-        !good && 'text-muted-foreground',
-        variant === 1 && current && 'bg-primary/[0.06] shadow-[inset_3px_0_0_var(--color-primary)] hover:bg-primary/10',
-        flash && 'bg-primary/15 transition-colors duration-700',
-      )}
-      data-fits={good}
-      data-picked={picks.length > 0}
-      data-release-key={`${release.indexerId}:${release.guid}`}
-    >
-      {variant === 5 && (
-        <TableCell className="w-8 px-2 align-top">
-          {picks.length > 0 ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className={cn('inline-flex size-6 items-center justify-center rounded-full border', pickStyles[picks[0].kind])} data-testid="release-pick-dot">
-                  {(() => {
-                    const Icon = current ? CircleCheckIcon : pickIcons[picks[0].kind]
-                    return <Icon className="size-3.5" aria-hidden="true" />
-                  })()}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <div className="flex flex-col gap-1">
-                  {badges}
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          ) : (
-            <CircleIcon className="mt-1 size-3.5 text-muted-foreground/30" aria-hidden="true" />
-          )}
-        </TableCell>
-      )}
+    <TableRow className={cn(!good && 'text-muted-foreground', pickedRowClass(release, flash))} data-fits={good} data-picked={(release.picks ?? []).length > 0} data-release-key={releaseKey(release)}>
       <TableCell className="align-top whitespace-nowrap">
         <Tooltip>
           <TooltipTrigger asChild>
@@ -449,11 +362,10 @@ function ReleaseRow({
           <TooltipContent>{formatDateTime(release.publishDate)}</TooltipContent>
         </Tooltip>
       </TableCell>
-      <ReleaseTitleCell release={release} good={good} details={details} className="min-w-[24rem]" extra={variant === 1 || variant === 3 ? badges : undefined} />
+      <ReleaseTitleCell release={release} good={good} details={details} className="min-w-[24rem]" extra={<PickBadges release={release} />} />
       <IndexerSizePeersCells release={release} />
       <FitCell fits={fits} matches={release.matchesMovie} testId="release-fit" />
       <TableCell className="align-top">
-        {variant === 2 && picks.length > 0 && <div className="mb-1.5 flex flex-col items-end gap-1">{badges}</div>}
         <GrabSplitButton
           accepted={accepted}
           tip={grabTip}

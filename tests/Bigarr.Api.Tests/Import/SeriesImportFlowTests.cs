@@ -107,6 +107,10 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
             Assert.Equal(7, history.Count(h => h.EventType == HistoryEventType.Grabbed && h.SourceTitle == pack.Title));
             await WaitOffQueueAsync(client, grab.GrabId!.Value); // imported: off the queue
 
+            // Searched again, the pack is on disk for the version: its files carry their own names, the grab says it.
+            var packAgain = await SeriesSearchTests.SearchAsync(client, series.Id, "season=1");
+            Assert.Equal(Bigarr.Api.Features.Search.ReleasePickKind.OnDisk, Assert.Single(packAgain.Releases.Single(r => r.Title == pack.Title).Picks!).Kind);
+
             // 3. A better single replaces one episode.
             var e02Id = (await SeriesSetup.EpisodeAsync(client, series.Id, 1, 2)).Id;
             await GrabAndCompleteAsync(client, Crafted("Breaking.Bad.S01E02.REPACK.1080p.BluRay.x264-DEMAND", version.Id, e02Id));

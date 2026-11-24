@@ -144,6 +144,13 @@ public sealed class SeriesSearchTests(SeriesApiFactory factory) : IClassFixture<
             var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
             Assert.Equal(13, await db.GrabTargets.CountAsync(t => t.GrabId == grabbed.GrabId && t.Active));
 
+            // Searched again, the pack says it is downloading for the version, once for its 13 episodes.
+            var again = await SearchAsync(client, series.Id, "season=2");
+            var pick = Assert.Single(again.Releases.Single(r => r.Title == pack.Title).Picks!);
+            Assert.Equal(ReleasePickKind.Downloading, pick.Kind);
+            Assert.Equal(pack.SuggestedVersionId, pick.VersionId);
+            Assert.All(again.Releases.Where(r => r.Title != pack.Title), r => Assert.Empty(r.Picks!));
+
             // One active download per episode: the same season again is refused.
             Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync("/api/v1/grab", SeriesSetup.Grab(pack) with { Guid = "other", InfoHash = new string('b', 40) }, Json)).StatusCode);
         }
@@ -224,6 +231,7 @@ public sealed class SeriesShadowTests(SeriesShadowApiFactory factory) : IClassFi
         // The pick stands in for the files: the same pack is no upgrade any more, a 720p single neither.
         var again = await SeriesSeriesSearchAgain(client, series.Id);
         Assert.Contains(again.Releases.Single(r => r.Title == pack.Title).Versions.Single().Rejections, r => r.Reason.StartsWith("Not an upgrade for every episode", StringComparison.Ordinal));
+        Assert.Equal(ReleasePickKind.Shadow, Assert.Single(again.Releases.Single(r => r.Title == pack.Title).Picks!).Kind);
     }
 
     [Fact]
