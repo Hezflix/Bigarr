@@ -257,9 +257,13 @@ export type ApiKey = Schemas['ApiKeyResponse']
 /** The only response that carries the key itself. */
 export type ApiKeyCreated = Schemas['ApiKeyCreatedResponse']
 
+/** Which surfaces a key opens: `compat` (Radarr and Sonarr), `full` (also Bigarr's own API) or `calendar` (the feed only). */
+export type ApiKeyScope = 'compat' | 'full' | 'calendar'
+
 export const apiKeys = {
   list: () => api<ApiKey[]>('/api/v1/apikeys'),
-  create: (name: string, compatView: string) => post<ApiKeyCreated>('/api/v1/apikeys', { name, compatView }),
+  create: (name: string, compatView: string, scope: ApiKeyScope = 'compat') => post<ApiKeyCreated>('/api/v1/apikeys', { name, compatView, scope }),
+  setScope: (id: number, scope: ApiKeyScope) => put<ApiKey>(`/api/v1/apikeys/${id}`, { scope }),
   revoke: (id: number) => del(`/api/v1/apikeys/${id}`),
 }
 
