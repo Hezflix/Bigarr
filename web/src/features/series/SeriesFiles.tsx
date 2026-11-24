@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
-import { FileSearchIcon, InfoIcon, Trash2Icon } from 'lucide-react'
+import { FileSearchIcon, InfoIcon, PencilIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, seriesFiles, type EpisodeFile, type Series, type UnmatchedEpisodeFile } from '@/api/client'
@@ -24,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { EpisodePicker } from '@/features/import/SeriesManualImportDialog'
+import { EditFileDialog } from '@/features/library/EditFileDialog'
 import { ProbeDialog } from '@/features/library/ProbeDialog'
 import { formatBytes, formatDate } from '@/i18n'
 
@@ -126,11 +127,22 @@ export function RenameSeriesDialog({ series: s, versionId, onClose, onDone }: { 
   )
 }
 
-/** Info and delete for one episode file, at the end of its row. */
+/** Info, edit and delete for one episode file, at the end of its row. */
 export function EpisodeFileActions({ seriesId, file, onChanged }: { seriesId: number; file: EpisodeFile; onChanged: () => void }) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const [info, setInfo] = useState(false)
+  const [edit, setEdit] = useState(false)
   const [confirm, setConfirm] = useState(false)
+  const save = useMutation({
+    mutationFn: (body: Parameters<typeof seriesFiles.updateFile>[2]) => seriesFiles.updateFile(seriesId, file.id, body),
+    onSuccess: () => {
+      toast.success(t('editFile.saved'))
+      setEdit(false)
+      void queryClient.invalidateQueries({ queryKey: ['episodeFile', seriesId, file.id] })
+      onChanged()
+    },
+  })
   const remove = useMutation({
     mutationFn: () => seriesFiles.deleteFile(seriesId, file.id),
     onSuccess: () => {
@@ -150,6 +162,21 @@ export function EpisodeFileActions({ seriesId, file, onChanged }: { seriesId: nu
         type="button"
         size="icon"
         variant="ghost"
+        className="size-7"
+        onClick={() => {
+          save.reset()
+          setEdit(true)
+        }}
+        aria-label={t('editFile.open')}
+        title={t('editFile.open')}
+        data-testid="episode-file-edit"
+      >
+        <PencilIcon />
+      </Button>
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
         className="size-7 text-destructive hover:text-destructive"
         onClick={() => setConfirm(true)}
         aria-label={t('seriesFiles.delete')}
@@ -159,6 +186,16 @@ export function EpisodeFileActions({ seriesId, file, onChanged }: { seriesId: nu
         <Trash2Icon />
       </Button>
       {info && <EpisodeFileInfoDialog seriesId={seriesId} fileId={file.id} onClose={() => setInfo(false)} />}
+      {edit && (
+        <EditFileDialog
+          path={file.path}
+          file={{ releaseGroup: file.releaseGroup, qualityId: file.qualityId, languages: file.languages }}
+          pending={save.isPending}
+          error={save.error}
+          onSave={(change) => save.mutate(change)}
+          onClose={() => setEdit(false)}
+        />
+      )}
       <AlertDialog open={confirm} onOpenChange={setConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>

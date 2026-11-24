@@ -301,6 +301,9 @@ export type MediaInfo = Schemas['MediaInfo']
 
 export type MediaFile = Schemas['MediaFileResponse']
 
+/** Radarr's "edit file": a field left out stays, a blank text clears it. The file is not renamed. */
+export type UpdateMediaFileRequest = Schemas['UpdateMediaFileRequest']
+
 export type ExtraFileKind = Schemas['ExtraFileKind']
 
 export type ExtraFile = Schemas['ExtraFileResponse']
@@ -358,6 +361,8 @@ export const movies = {
   /** Drops the version's file (to the recycle bin when configured); the version stays and is missing again. */
   deleteFile: (movieId: number, versionId: number) => api<Version>(`/api/v1/movies/${movieId}/versions/${versionId}/file`, { method: 'DELETE' }),
   probeFile: (movieId: number, versionId: number) => api<MediaProbe>(`/api/v1/movies/${movieId}/versions/${versionId}/file/probe`),
+  /** What the file really is (release group, edition, quality, languages); custom formats follow, the name does not. */
+  updateFile: (movieId: number, versionId: number, body: UpdateMediaFileRequest) => put<Version>(`/api/v1/movies/${movieId}/versions/${versionId}/file`, body),
   bulkUpdate: (body: BulkUpdateRequest) => put<BulkResponse>('/api/v1/movies/bulk', body),
   /** Queues an automatic search per targeted version; they run in the background, one at a time. */
   bulkSearch: (movieIds: number[], versions: VersionSelector) => post<BulkResponse>('/api/v1/movies/bulk/search', { movieIds, versions }),
@@ -912,6 +917,8 @@ export const seriesFiles = {
   file: (seriesId: number, fileId: number) => api<EpisodeFileDetail>(`/api/v1/series/${seriesId}/episodefiles/${fileId}`),
   deleteFile: (seriesId: number, fileId: number) => del(`/api/v1/series/${seriesId}/episodefiles/${fileId}`),
   probe: (seriesId: number, fileId: number) => api<MediaProbe>(`/api/v1/series/${seriesId}/episodefiles/${fileId}/probe`),
+  /** What the episode file really is (release group, quality, languages); custom formats follow, the name does not. */
+  updateFile: (seriesId: number, fileId: number, body: UpdateEpisodeFileRequest) => put<EpisodeFile>(`/api/v1/series/${seriesId}/episodefiles/${fileId}`, body),
   /** The manual fix of a file the series' order could not place: the episodes it holds, optionally renamed. */
   reassign: (seriesId: number, fileId: number, body: { episodeIds: number[]; rename?: boolean }) =>
     post<OrderFileResult>(`/api/v1/series/${seriesId}/episodefiles/${fileId}/reassign`, body),
@@ -1698,6 +1705,8 @@ export const seriesTypes: SeriesType[] = ['standard', 'anime', 'daily']
 export type UnmatchedFileReason = Schemas['UnmatchedFileReason']
 
 export type EpisodeFile = Schemas['EpisodeFileResponse']
+
+export type UpdateEpisodeFileRequest = Schemas['UpdateEpisodeFileRequest']
 
 export type UnmatchedEpisodeFile = Schemas['UnmatchedEpisodeFileResponse']
 

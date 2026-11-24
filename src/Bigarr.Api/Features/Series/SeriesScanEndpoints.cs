@@ -22,6 +22,7 @@ public static class SeriesScanEndpoints
         group.MapPost("/{id:int}/rescan", RescanAsync);
         group.MapGet("/{id:int}/rescan", RescanStatusAsync);
         group.MapGet("/{id:int}/files", FilesAsync);
+        group.MapPut("/{id:int}/episodefiles/{fileId:int}", UpdateFileAsync);
         group.MapPost("/unmapped/{unmappedId:int}/map", MapFolderAsync);
 
         return app;
@@ -58,6 +59,25 @@ public static class SeriesScanEndpoints
             return TypedResults.NotFound();
         }
 
+        return TypedResults.Ok(await LoadFilesAsync(id, versionId, db, scorer, matches, ct));
+    }
+
+    private static async Task<Results<Ok<EpisodeFileResponse>, ProblemHttpResult>> UpdateFileAsync(
+        int id, int fileId, UpdateEpisodeFileRequest request, EpisodeFileEditService files, BigarrDbContext db, CustomFormatScorer scorer, EpisodeFileFormatMatches matches, CancellationToken ct)
+    {
+        var result = await files.UpdateAsync(id, fileId, request, ct);
+        if (!result.IsSuccess)
+        {
+            return result.Failure!.ToProblem();
+        }
+
+        var listed = await LoadFilesAsync(id, result.Value!.VersionId, db, scorer, matches, ct);
+        return TypedResults.Ok(listed.Files.First(f => f.Id == fileId));
+    }
+
+    private static async Task<SeriesFilesResponse> LoadFilesAsync(
+        int id, int? versionId, BigarrDbContext db, CustomFormatScorer scorer, EpisodeFileFormatMatches matches, CancellationToken ct)
+    {
         var versions = await db.SeriesVersions.AsNoTracking().Include(v => v.RootFolder).Include(v => v.Series)
             .Include(v => v.QualityProfile).ThenInclude(p => p.FormatScores)
             .Where(v => v.SeriesId == id && (versionId == null || v.Id == versionId))
@@ -128,7 +148,7 @@ public static class SeriesScanEndpoints
             .Select(u => new UnmatchedEpisodeFileResponse(u.Id, u.VersionId, u.RelativePath, Path.Combine(FolderOf(u.VersionId), u.RelativePath), u.Size, u.Reason, u.Detail, u.DiscoveredAt, u.LastSeenAt))
             .ToList();
 
-        return TypedResults.Ok(new SeriesFilesResponse(fileResponses, unmatchedResponses));
+        return new SeriesFilesResponse(fileResponses, unmatchedResponses);
     }
 
     private static async Task<Results<Ok<MapSeriesFolderResponse>, ProblemHttpResult>> MapFolderAsync(

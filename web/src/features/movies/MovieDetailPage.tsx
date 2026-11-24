@@ -14,6 +14,7 @@ import { MoviePlays } from '@/features/playback/MoviePlays'
 import { extraSummary } from '@/features/import/extraFiles'
 import { ManualImportDialog } from '@/features/import/ManualImportDialog'
 import { ProbeButton, ProbeDialog } from '@/features/library/ProbeDialog'
+import { EditMovieFileButton } from '@/features/movies/EditMovieFile'
 import { EditVersionDialog } from '@/features/movies/EditVersionDialog'
 import { RenameDialog } from '@/features/movies/RenameDialog'
 import { InteractiveSearch } from '@/features/search/InteractiveSearch'
@@ -455,9 +456,13 @@ function VersionsTable({ movie, onChanged, onSearched, onEdit }: { movie: Movie;
                 <TableCell className="align-top">
                   {v.file ? (
                     <>
-                      <span className="block whitespace-nowrap">
-                        {v.file.quality}
-                        {v.file.isRepack ? ` ${t('versions.repack')}` : ''} · {formatBytes(v.file.size)}
+                      <span className="flex items-center gap-1 whitespace-nowrap">
+                        <span>
+                          {v.file.quality}
+                          {v.file.isRepack ? ` ${t('versions.repack')}` : ''} · {formatBytes(v.file.size)}
+                          {v.file.releaseGroup && <span data-testid="file-release-group"> · {v.file.releaseGroup}</span>}
+                        </span>
+                        <EditMovieFileButton movieId={movie.id} version={v} onChanged={onChanged} />
                       </span>
                       <span className="block max-w-[22ch] truncate text-xs text-muted-foreground" title={v.file.path}>
                         {v.file.relativePath}

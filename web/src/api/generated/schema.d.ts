@@ -3199,7 +3199,33 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                    versionId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateMediaFileRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["VersionResponse"];
+                    };
+                };
+            };
+        };
         post?: never;
         delete: {
             parameters: {
@@ -4575,6 +4601,48 @@ export interface paths {
             };
         };
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/series/{id}/episodefiles/{fileId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                    fileId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateEpisodeFileRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EpisodeFileResponse"];
+                    };
+                };
+            };
+        };
         post?: never;
         delete?: never;
         options?: never;
@@ -12451,7 +12519,7 @@ export interface components {
             seriesTitle: null | string;
         };
         /** @enum {unknown} */
-        HistoryEventType: "grabbed" | "downloadFailed" | "imported" | "upgraded" | "importFailed" | "fileDeleted" | "renamed" | "blocklisted" | "defaultChanged";
+        HistoryEventType: "grabbed" | "downloadFailed" | "imported" | "upgraded" | "importFailed" | "fileDeleted" | "renamed" | "blocklisted" | "defaultChanged" | "fileEdited";
         HttpValidationProblemDetails: {
             type: null | string;
             title: null | string;
@@ -16025,8 +16093,21 @@ export interface components {
             value: null | string;
             enabled: boolean;
         };
+        UpdateEpisodeFileRequest: {
+            releaseGroup?: null | string;
+            /** Format: int32 */
+            qualityId?: null | number;
+            languages?: null | string[];
+        };
         UpdateExternalProviderRequest: {
             enabled: boolean;
+        };
+        UpdateMediaFileRequest: {
+            releaseGroup?: null | string;
+            edition?: null | string;
+            /** Format: int32 */
+            qualityId?: null | number;
+            languages?: null | string[];
         };
         UpdatePlaybackUserRequest: {
             displayName: null | string;

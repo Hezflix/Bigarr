@@ -25,6 +25,7 @@ public static class MoviesEndpoints
         group.MapDelete("/{id:int}/versions/{versionId:int}", DeleteVersionAsync);
         group.MapPost("/{id:int}/versions/{versionId:int}/promote", PromoteAsync);
         group.MapDelete("/{id:int}/versions/{versionId:int}/file", DeleteFileAsync);
+        group.MapPut("/{id:int}/versions/{versionId:int}/file", UpdateFileAsync);
         group.MapGet("/{id:int}/versions/{versionId:int}/file/probe", ProbeFileAsync);
         group.MapBulkEdit();
 
@@ -162,6 +163,18 @@ public static class MoviesEndpoints
 
         var result = await probe.ProbeAsync(Path.Combine(version.RootFolder.Path, version.FolderName, version.File.RelativePath), ct);
         return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
+    }
+
+    private static async Task<Results<Ok<VersionResponse>, ProblemHttpResult>> UpdateFileAsync(
+        int id, int versionId, UpdateMediaFileRequest request, MovieFileEditService files, MovieService movies, CustomFormatScorer scorer, CancellationToken ct)
+    {
+        var result = await files.UpdateAsync(id, versionId, request, ct);
+        if (!result.IsSuccess)
+        {
+            return result.Failure!.ToProblem();
+        }
+
+        return TypedResults.Ok(await LoadVersionAsync(id, versionId, movies, scorer, ct));
     }
 
     private static async Task<MovieResponse> ToResponseAsync(Movie movie, MovieService movies, CustomFormatScorer scorer, CancellationToken ct)

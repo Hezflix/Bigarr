@@ -58,6 +58,16 @@ public sealed record UpdateVersionRequest(
     /// <summary>The full list of tag ids; null leaves the tags untouched.</summary>
     List<int>? TagIds = null);
 
+/// <summary>
+/// Radarr's "edit file": what the file really is, when its name reads wrong. A field left out stays as it is, a blank
+/// text clears it, an empty language list means none known. The file is not renamed: the Rename dialog does that.
+/// </summary>
+public sealed record UpdateMediaFileRequest(
+    string? ReleaseGroup = null,
+    string? Edition = null,
+    int? QualityId = null,
+    List<string>? Languages = null);
+
 public sealed record MediaFileResponse(
     int Id,
     string RelativePath,
