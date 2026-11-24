@@ -17,7 +17,7 @@ public sealed class StubHttpHandler(Func<HttpRequestMessage, HttpResponseMessage
         new(status) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/xml") };
 }
 
-public sealed class StubHttpClientFactory(HttpMessageHandler handler) : IHttpClientFactory
+public sealed class StubHttpClientFactory(HttpMessageHandler handler, TimeSpan? timeout = null) : IHttpClientFactory
 {
-    public HttpClient CreateClient(string name) => new(handler, disposeHandler: false) { Timeout = TimeSpan.FromSeconds(5) };
+    public HttpClient CreateClient(string name) => new(handler, disposeHandler: false) { Timeout = timeout ?? TimeSpan.FromSeconds(5) };
 }

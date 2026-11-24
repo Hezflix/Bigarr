@@ -14,6 +14,13 @@ public sealed partial class TorznabClient(IHttpClientFactory httpClientFactory, 
 {
     public const string HttpClientName = "torznab";
 
+    /// <summary>
+    /// How long one request may wait for its answer. Shorter than the search's deadline for the indexer
+    /// (<c>IndexerQueries.PerIndexerTimeout</c>) on purpose: a request that gets no answer must end as this client's
+    /// failure, which pauses the indexer, not as a cancellation from outside, which does not.
+    /// </summary>
+    public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(60);
+
     public const int PageSize = 100;
 
     private static readonly TimeSpan CapabilitiesTtl = TimeSpan.FromHours(6);

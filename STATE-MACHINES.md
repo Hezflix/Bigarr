@@ -262,6 +262,12 @@ Invariants: an id is removed from the pending set on every exit path; a search i
 asks for it has committed (the search reads grab state on its own connection); a whole pass and a recheck never run at
 once, and a recheck never plans another.
 
+An indexer is paused by a failed request (`IndexerGateway`, in memory, lost on restart), and a request that gets no
+answer within `TorznabClient.RequestTimeout` (60 s) is such a failure
+([F46](#f46-an-indexer-that-never-answered-was-never-paused)). The search's deadline for one indexer
+(`IndexerQueries.PerIndexerTimeout`, 90 s) is longer and pauses nothing by itself: a cancellation from outside is not
+counted, since it cannot be told from the user leaving the page.
+
 ## Files on disk
 
 ### File row and file
@@ -1070,6 +1076,29 @@ its files one by one and does the same: the files that went leave the database, 
 A folder emptied halfway by a failing recursive delete counts as not gone: its rows stay until the next scan.
 Tests: `PartialMovieDeleteTests.A_film_delete_that_fails_on_one_folder_clears_the_files_that_did_go_and_keeps_the_film`,
 `PartialSeriesDeleteTests.A_series_delete_that_fails_on_one_folder_clears_the_files_that_did_go_and_keeps_the_series`.
+
+#### F46. An indexer that never answered was never paused
+
+Every indexer goes through `IndexerGateway`, which pauses it after a failed request (5 minutes, then 15, 30, up to a
+day) and marks it unhealthy. An indexer that accepts the connection and never answers escaped this. The HTTP client's
+timeout and the search's deadline for one indexer were both 60 seconds, and the deadline starts first (before the wait
+for the indexer's rate limit), so it always fired first. The request was then cancelled from outside: the Torznab
+client does not turn a cancellation it did not cause into an indexer failure, and the gateway never heard of it. The
+search reported "no answer within 60 seconds" for that indexer, the next search did the same, and the indexer cost 60
+seconds on every search and every RSS pass while staying "healthy". The code that would pause it (the client's own
+timeout becoming an `IndexerException`) could never run.
+
+Fix: the two timeouts are named and ordered. `TorznabClient.RequestTimeout` stays 60 s, so no indexer that answers today
+starts failing; `IndexerQueries.PerIndexerTimeout` is now 90 s. A request that gets no answer ends as the client's
+failure ("did not answer"), the gateway counts it and pauses the indexer. The deadline itself still counts nothing: it
+also covers the waits on the rate limit and cannot be told from the user leaving. A search can therefore wait up to
+30 s longer for an indexer that hangs, once, until it is paused.
+Not covered: a series search of several requests where a late request hangs; the deadline (90 s from the start) can
+fire before that request's own 60 s, and nothing is paused, as before. The RSS pass and the film searches send one
+request and do pause the indexer.
+Tests: `IndexerTimeoutTests.An_indexer_that_never_answers_is_paused_after_its_first_timeout`,
+`IndexerTimeoutTests.A_search_the_user_leaves_does_not_pause_the_indexer` (pins why cancellations are not counted),
+`IndexerTimeoutTests.The_request_timeout_is_shorter_than_the_search_deadline`.
 
 ### Open
 
