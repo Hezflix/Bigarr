@@ -24,6 +24,7 @@ public static class BigarrPrincipal
         {
             claims.Add(new Claim(BigarrClaims.ApiKeyId, apiKey.Id.ToString()));
             claims.Add(new Claim(BigarrClaims.CompatView, apiKey.CompatView.ToString()));
+            claims.Add(new Claim(BigarrClaims.ApiKeyScope, apiKey.Scope.ToString()));
         }
 
         return new ClaimsPrincipal(new ClaimsIdentity(claims, scheme));
@@ -40,6 +41,14 @@ public static class BigarrPrincipal
 
     public static IEnumerable<string> Permissions(this ClaimsPrincipal principal) =>
         principal.FindAll(BigarrClaims.Permission).Select(c => c.Value);
+
+    /// <summary>The scope of the key the request came with; null for a session, or for a key whose scope is missing or unknown.</summary>
+    public static ApiKeyScope? KeyScope(this ClaimsPrincipal principal) =>
+        Enum.TryParse<ApiKeyScope>(principal.FindFirstValue(BigarrClaims.ApiKeyScope), out var scope) && Enum.IsDefined(scope) ? scope : null;
+
+    /// <summary>Whether the request may pass a policy that accepts these key scopes: a session always, a key only with one of them.</summary>
+    public static bool KeyScopeIn(this ClaimsPrincipal principal, params ApiKeyScope[] scopes) =>
+        !principal.HasClaim(c => c.Type == BigarrClaims.ApiKeyId) || (principal.KeyScope() is { } scope && scopes.Contains(scope));
 
     public static CompatView CompatView(this ClaimsPrincipal principal) =>
         Domain.Auth.CompatView.TryParse(principal.FindFirstValue(BigarrClaims.CompatView), out var view) ? view : Domain.Auth.CompatView.Default;

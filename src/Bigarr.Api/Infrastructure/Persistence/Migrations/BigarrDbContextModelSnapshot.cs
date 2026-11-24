@@ -254,6 +254,13 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("RevokedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("Compat");
+
                     b.Property<int>("UserId")
                         .HasColumnType("INTEGER");
 

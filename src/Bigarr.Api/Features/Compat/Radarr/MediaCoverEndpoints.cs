@@ -19,7 +19,7 @@ public static partial class MediaCoverEndpoints
     public static IEndpointRouteBuilder MapMediaCover(this IEndpointRouteBuilder app)
     {
         // Radarr serves both paths; Bazarr's proxy uses the API one, its UI the plain one. Either key placement works.
-        app.MapGet(RadarrCompat.UrlBase + "/MediaCover/{id:int}/{file}", GetAsync).WithTags("Compat").RequireAuthorization(AuthPolicies.Api);
+        app.MapGet(RadarrCompat.UrlBase + "/MediaCover/{id:int}/{file}", GetAsync).WithTags("Compat").RequireAuthorization(AuthPolicies.ConnectedApp);
         app.MapGet(RadarrCompat.RoutePrefix + "/MediaCover/{id:int}/{file}", GetAsync).WithTags("Compat").RequireAuthorization(AuthPolicies.ApiKey);
         return app;
     }

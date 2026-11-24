@@ -53,7 +53,13 @@ public static class ShadowEndpoints
             return TypedResults.Ok(await compare.CompareAsync(version, kind, days ?? 30, windowHours ?? CompareService.DefaultWindowHours, page ?? 1, pageSize ?? 50, ct, tvdbId));
         });
 
-        MapSonarrs(group.MapGroup("/sonarrs"));
+        // What a followed app calls: outside the Api group on purpose, because policies add up and these two routes open
+        // to a key of scope compat (the URL Radarr and Sonarr were given), not only full. The paths are the same as the
+        // rest of the group's, and each webhook is mapped where it always was.
+        var radarrHooks = app.MapGroup("/api/v1/shadow/radarrs").WithTags("Shadow").RequireAuthorization(AuthPolicies.ConnectedApp);
+        var sonarrHooks = app.MapGroup("/api/v1/shadow/sonarrs").WithTags("Shadow").RequireAuthorization(AuthPolicies.ConnectedApp);
+
+        MapSonarrs(group.MapGroup("/sonarrs"), sonarrHooks);
 
         var radarrs = group.MapGroup("/radarrs");
 
@@ -102,7 +108,7 @@ public static class ShadowEndpoints
 
         // Radarr → Settings → Connect → Webhook, with a Bigarr API key in the URL (?apikey=): any event but Test wakes a
         // pass within seconds. Only eventType is read from Radarr's body; a body that is not JSON is no reason to refuse.
-        radarrs.MapPost("/{id:int}/webhook", async Task<Results<Accepted, ProblemHttpResult>> (int id, HttpRequest request, FollowedRadarrService service, CancellationToken ct) =>
+        radarrHooks.MapPost("/{id:int}/webhook", async Task<Results<Accepted, ProblemHttpResult>> (int id, HttpRequest request, FollowedRadarrService service, CancellationToken ct) =>
         {
             string? eventType = null;
             try
@@ -132,7 +138,7 @@ public static class ShadowEndpoints
     }
 
     /// <summary>Settings → Followed Sonarrs: the same routes as the Radarr ones.</summary>
-    private static void MapSonarrs(RouteGroupBuilder sonarrs)
+    private static void MapSonarrs(RouteGroupBuilder sonarrs, RouteGroupBuilder sonarrHooks)
     {
         sonarrs.MapGet("/", async Task<Ok<List<FollowedSonarrResponse>>> (FollowedSonarrService service, CancellationToken ct) => TypedResults.Ok(await service.ListAsync(ct)));
 
@@ -177,7 +183,7 @@ public static class ShadowEndpoints
 
         // Sonarr → Settings → Connect → Webhook, with a Bigarr API key in the URL (?apikey=): any event but Test wakes a
         // pass within seconds. Only eventType is read from Sonarr's body.
-        sonarrs.MapPost("/{id:int}/webhook", async Task<Results<Accepted, ProblemHttpResult>> (int id, HttpRequest request, FollowedSonarrService service, CancellationToken ct) =>
+        sonarrHooks.MapPost("/{id:int}/webhook", async Task<Results<Accepted, ProblemHttpResult>> (int id, HttpRequest request, FollowedSonarrService service, CancellationToken ct) =>
         {
             var result = await service.WebhookAsync(id, await EventTypeAsync(request, ct), ct);
             return result.IsSuccess ? TypedResults.Accepted((string?)null) : result.Failure!.ToProblem();

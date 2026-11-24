@@ -18,6 +18,7 @@ public static class ApiKeysEndpoints
 
         group.MapGet("/", ListAsync);
         group.MapPost("/", CreateAsync);
+        group.MapPut("/{id:int}", UpdateAsync);
         group.MapDelete("/{id:int}", RevokeAsync);
 
         return app;
@@ -33,7 +34,7 @@ public static class ApiKeysEndpoints
             .ToListAsync(cancellationToken);
 
         return TypedResults.Ok(keys
-            .Select(k => new ApiKeyResponse(k.Id, k.Name, k.KeyPrefix, k.CompatView.ToString(), k.CreatedAt, k.LastUsedAt, k.RevokedAt))
+            .Select(ToResponse)
             .ToList());
     }
 
@@ -54,6 +55,15 @@ public static class ApiKeysEndpoints
             errors["compatView"] = ["Expected 'default', 'all' or 'version:<slug>'."];
         }
 
+        if (!TryParseScope(request.Scope, out var scope))
+        {
+            errors["scope"] = [ScopeMessage];
+        }
+        else if (scope == ApiKeyScope.Calendar && view != CompatView.Default && !errors.ContainsKey("compatView"))
+        {
+            errors["compatView"] = [CalendarKeyHasNoView];
+        }
+
         if (errors.Count > 0)
         {
             return TypedResults.ValidationProblem(errors);
@@ -67,6 +77,7 @@ public static class ApiKeysEndpoints
             KeyHash = ApiKeyHasher.Hash(rawKey),
             KeyPrefix = ApiKeyHasher.DisplayPrefix(rawKey),
             CompatView = view,
+            Scope = scope,
         };
 
         db.ApiKeys.Add(key);
@@ -74,7 +85,41 @@ public static class ApiKeysEndpoints
 
         return TypedResults.Created(
             $"/api/v1/apikeys/{key.Id}",
-            new ApiKeyCreatedResponse(key.Id, key.Name, rawKey, key.KeyPrefix, view.ToString(), key.CreatedAt));
+            new ApiKeyCreatedResponse(key.Id, key.Name, rawKey, key.KeyPrefix, view.ToString(), ScopeName(scope), key.CreatedAt));
+    }
+
+    /// <summary>
+    /// Changes what a key may reach, so a script's key can be made <c>full</c> without replacing it in the script. Only
+    /// the session reaches this route (the group's policy): a key can never widen its own scope.
+    /// </summary>
+    private static async Task<Results<Ok<ApiKeyResponse>, NotFound, ValidationProblem>> UpdateAsync(
+        int id,
+        UpdateApiKeyRequest request,
+        ClaimsPrincipal user,
+        BigarrDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var userId = user.UserId();
+        var key = await db.ApiKeys.FirstOrDefaultAsync(k => k.Id == id && k.UserId == userId && k.RevokedAt == null, cancellationToken);
+        if (key is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (!TryParseScope(request.Scope, out var scope) || string.IsNullOrWhiteSpace(request.Scope))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["scope"] = [ScopeMessage] });
+        }
+
+        if (scope == ApiKeyScope.Calendar && key.CompatView != CompatView.Default)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["scope"] = [CalendarKeyHasNoView] });
+        }
+
+        key.Scope = scope;
+        await db.SaveChangesAsync(cancellationToken);
+
+        return TypedResults.Ok(ToResponse(key));
     }
 
     private static async Task<Results<NoContent, NotFound>> RevokeAsync(
@@ -99,4 +144,21 @@ public static class ApiKeysEndpoints
 
         return TypedResults.NoContent();
     }
+
+    private const string ScopeMessage = "Expected 'compat', 'full' or 'calendar'.";
+
+    private const string CalendarKeyHasNoView = "A calendar key has no view.";
+
+    /// <summary>Blank means <see cref="ApiKeyScope.Compat"/>; a number, which <see cref="Enum.TryParse{TEnum}(string?, bool, out TEnum)"/> would take, is refused.</summary>
+    private static bool TryParseScope(string? value, out ApiKeyScope scope)
+    {
+        scope = ApiKeyScope.Compat;
+        return string.IsNullOrWhiteSpace(value)
+            || (Enum.TryParse(value.Trim(), ignoreCase: true, out scope) && Enum.IsDefined(scope) && !char.IsDigit(value.Trim()[0]));
+    }
+
+    private static string ScopeName(ApiKeyScope scope) => scope.ToString().ToLowerInvariant();
+
+    private static ApiKeyResponse ToResponse(ApiKey k) =>
+        new(k.Id, k.Name, k.KeyPrefix, k.CompatView.ToString(), ScopeName(k.Scope), k.CreatedAt, k.LastUsedAt, k.RevokedAt);
 }

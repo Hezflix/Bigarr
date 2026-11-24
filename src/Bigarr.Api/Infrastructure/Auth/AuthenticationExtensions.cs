@@ -69,29 +69,50 @@ public static class AuthenticationExtensions
             .AddScheme<ApiKeyAuthenticationOptions, ApiKeyAuthenticationHandler>(AuthSchemes.ApiKey, _ => { });
 
         var admin = nameof(UserRole.Admin);
-        var adminApi = new AuthorizationPolicyBuilder(AuthSchemes.Session, AuthSchemes.ApiKey).RequireAuthenticatedUser().RequireRole(admin).Build();
+        var adminApi = new AuthorizationPolicyBuilder(AuthSchemes.Session, AuthSchemes.ApiKey)
+            .RequireAuthenticatedUser()
+            .RequireRole(admin)
+            .RequireAssertion(ctx => ctx.User.KeyScopeIn(ApiKeyScope.Full))
+            .Build();
+
+        // The rule, stated once: a request made with a key passes a policy only if the key's scope is one the policy
+        // names; a request made with a cookie is not concerned. Every policy that lists the key scheme says which.
         var builder = services.AddAuthorizationBuilder()
             .AddPolicy(AuthPolicies.Session, p => p.AddAuthenticationSchemes(AuthSchemes.Session).RequireAuthenticatedUser().RequireRole(admin))
             // A key opens these surfaces only while its owner is an admin.
-            .AddPolicy(AuthPolicies.ApiKey, p => p.AddAuthenticationSchemes(AuthSchemes.ApiKey).RequireAuthenticatedUser().RequireRole(admin))
+            .AddPolicy(AuthPolicies.ApiKey, p => p.AddAuthenticationSchemes(AuthSchemes.ApiKey)
+                .RequireAuthenticatedUser()
+                .RequireRole(admin)
+                .RequireAssertion(ctx => ctx.User.KeyScopeIn(ApiKeyScope.Compat, ApiKeyScope.Full)))
             .AddPolicy(AuthPolicies.Api, adminApi)
-            .AddPolicy(AuthPolicies.SignedIn, p => p.AddAuthenticationSchemes(AuthSchemes.Session, AuthSchemes.ApiKey).RequireAuthenticatedUser())
+            .AddPolicy(AuthPolicies.ConnectedApp, p => p.AddAuthenticationSchemes(AuthSchemes.Session, AuthSchemes.ApiKey)
+                .RequireAuthenticatedUser()
+                .RequireRole(admin)
+                .RequireAssertion(ctx => ctx.User.KeyScopeIn(ApiKeyScope.Compat, ApiKeyScope.Full)))
+            .AddPolicy(AuthPolicies.CalendarFeed, p => p.AddAuthenticationSchemes(AuthSchemes.Session, AuthSchemes.ApiKey)
+                .RequireAuthenticatedUser()
+                .RequireRole(admin)
+                .RequireAssertion(ctx => ctx.User.KeyScopeIn(ApiKeyScope.Calendar, ApiKeyScope.Full)))
+            .AddPolicy(AuthPolicies.SignedIn, p => p.AddAuthenticationSchemes(AuthSchemes.Session, AuthSchemes.ApiKey)
+                .RequireAuthenticatedUser()
+                .RequireAssertion(ctx => ctx.User.KeyScopeIn(ApiKeyScope.Full)))
             .AddPolicy(AuthPolicies.ManageRequests, p => p.AddAuthenticationSchemes(AuthSchemes.Session, AuthSchemes.ApiKey)
                 .RequireAuthenticatedUser()
-                .RequireRole(admin, nameof(UserRole.RequestManager)))
+                .RequireRole(admin, nameof(UserRole.RequestManager))
+                .RequireAssertion(ctx => ctx.User.KeyScopeIn(ApiKeyScope.Full)))
 
-            // Default deny: an endpoint that names no policy is the admin's. A request that matched no endpoint is left
-            // alone, so an unknown address still answers 404.
+            // Default deny: an endpoint that names no policy is the admin's, by cookie or by a key of scope full. A
+            // request that matched no endpoint is left alone, so an unknown address still answers 404.
             .SetFallbackPolicy(new AuthorizationPolicyBuilder(AuthSchemes.Session, AuthSchemes.ApiKey)
                 .RequireAssertion(ctx => (ctx.Resource is HttpContext http && http.GetEndpoint() is null)
-                    || (ctx.User.Identity?.IsAuthenticated == true && ctx.User.IsInRole(admin)))
+                    || (ctx.User.Identity?.IsAuthenticated == true && ctx.User.IsInRole(admin) && ctx.User.KeyScopeIn(ApiKeyScope.Full)))
                 .Build());
 
         foreach (var permission in Enum.GetValues<UserPermission>())
         {
             builder.AddPolicy(AuthPolicies.Has(permission), p => p.AddAuthenticationSchemes(AuthSchemes.Session, AuthSchemes.ApiKey)
                 .RequireAuthenticatedUser()
-                .RequireAssertion(ctx => ctx.User.Has(permission)));
+                .RequireAssertion(ctx => ctx.User.Has(permission) && ctx.User.KeyScopeIn(ApiKeyScope.Full)));
         }
 
         return services;

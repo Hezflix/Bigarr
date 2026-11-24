@@ -868,7 +868,48 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateApiKeyRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiKeyResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         post?: never;
         delete: {
             parameters: {
@@ -10481,41 +10522,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/shadow/sonarrs/{id}/webhook": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Accepted */
-                202: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/shadow/sonarrs/{id}/sync": {
         parameters: {
             query?: never;
@@ -10816,6 +10822,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/shadow/radarrs/{id}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RadarrFollowPass"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/shadow/radarrs/{id}/webhook": {
         parameters: {
             query?: never;
@@ -10851,7 +10894,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/shadow/radarrs/{id}/sync": {
+    "/api/v1/shadow/sonarrs/{id}/webhook": {
         parameters: {
             query?: never;
             header?: never;
@@ -10871,14 +10914,12 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
-                200: {
+                /** @description Accepted */
+                202: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["RadarrFollowPass"];
-                    };
+                    content?: never;
                 };
             };
         };
@@ -11007,6 +11048,7 @@ export interface components {
             key: string;
             keyPrefix: string;
             compatView: string;
+            scope: string;
             /** Format: date-time */
             createdAt: string;
         };
@@ -11016,6 +11058,7 @@ export interface components {
             name: string;
             keyPrefix: string;
             compatView: string;
+            scope: string;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -11417,6 +11460,7 @@ export interface components {
         CreateApiKeyRequest: {
             name: string;
             compatView: null | string;
+            scope?: null | string;
         };
         CreateIssueRequest: {
             mediaType: components["schemas"]["RequestMediaType"];
@@ -13003,6 +13047,7 @@ export interface components {
             role: string;
             authKind: string;
             compatView: null | string;
+            scope: null | string;
             permissions: string[];
         };
         /**
@@ -15881,6 +15926,9 @@ export interface components {
         };
         /** @enum {unknown} */
         UnmatchedFileReason: "notParsable" | "episodeNotFound" | "ambiguous" | "wrongSeriesType" | "duplicate" | "notAnEpisode";
+        UpdateApiKeyRequest: {
+            scope: string;
+        };
         UpdateDiscoverSettingsRequest: {
             fourKVersion: null | string;
             sliders: components["schemas"]["UpdateDiscoverSliderRequest"][];

@@ -382,7 +382,9 @@ See [F10](#f10-shadow-follow-searches-and-views-were-lost-for-good).
   with the current ones (`SessionStamps` keeps each user's state in memory, refreshed by `Changed` on every edit). API
   key: active, then revoked, checked on every request; a disabled user's keys are refused too. A key follows its
   owner's role at each request: demoted from admin, it is refused on the Radarr and Sonarr surfaces; promoted again,
-  accepted ([F24](#f24-a-demoted-admins-api-key-kept-the-compat-surfaces)).
+  accepted ([F24](#f24-a-demoted-admins-api-key-kept-the-compat-surfaces)). A key also has a scope (`compat` by default,
+  `full`, `calendar`) that says which policies it passes, checked on top of the role and, on the compatible surfaces,
+  of its view ([F41](#f41-an-api-key-opened-the-whole-admin-api)); the admin changes it from the cookie session only.
 - User: active ⇄ disabled (`DisabledAt`), by the admin only, never the admin's own account; no delete. Role (admin,
   request manager, user) and permissions change freely, except the admin's own role. A Plex account linked to no one
   creates its user (role user, default permissions) on its first sign-in, only when new Plex accounts are let in and
@@ -977,6 +979,26 @@ Tests: `DownloadClientsEndpointsTests.Changing_the_address_with_the_mask_is_refu
 `Testing_another_address_with_the_mask_is_refused_and_nothing_is_contacted` in each of the three,
 `RadarrFollowTests.The_stored_key_is_not_sent_to_another_address`, `SonarrFollowTests.The_stored_key_is_not_sent_to_another_address`,
 `ProwlarrPushTests.Prowlarr_moving_an_indexer_to_another_address_with_the_real_key_still_updates_it` (the compat side).
+
+#### F41. An API key opened the whole admin API
+
+Every API key was full admin access. Keys are made for connected apps (Seerr, Bazarr, Prowlarr) but also opened
+everything under `/api/v1`: downloading and restoring backups, listing the filesystem, changing download clients. They
+end up in other apps' settings, in webhook URLs and in a calendar subscription URL that a third-party service fetches, so
+a key leaked from any of those was the admin's account.
+
+Fix: a key has a scope, stored on the key and carried in its principal (`bigarr:scope`). `compat` (the default) opens the
+`/radarr` and `/sonarr` surfaces (`ApiKey` policy) and what a connected app calls beside them: the cover images under the
+URL base and the followed Radarr and Sonarr webhooks (`ConnectedApp`). `full` opens all of that and the rest of
+`/api/v1` (`Api`, `SignedIn`, `ManageRequests`, the permission policies and the fallback). `calendar` opens the iCal feed
+only (`CalendarFeed`) and has no view. One rule: a request made with a key passes a policy only if the key's scope is one
+the policy names (`KeyScopeIn`); a request made with a cookie is not concerned. Three independent checks apply: the
+owner's role ([F24](#f24-a-demoted-admins-api-key-kept-the-compat-surfaces)), the scope, and the view. Every key that
+existed before is migrated to `compat`. A refusal on scope answers 403 and names the key's scope (never the key). The scope
+is set when the key is created and changed by `PUT /api/v1/apikeys/{id}`, from the cookie session only, so a key can never
+widen itself.
+Tests: `ApiKeyScopeTests` (default and `compat`, `full`, `calendar`, the refusals, changing the scope, the webhooks and
+covers), `UsersAndRolesTests.A_demoted_owner_s_full_key_opens_nothing_admin_until_promoted_again`.
 
 ### Open
 

@@ -1,6 +1,6 @@
 namespace Bigarr.Domain.Auth;
 
-/// <summary>One revocable key per connected app, each with its own compat view.</summary>
+/// <summary>One revocable key per connected app, script or calendar, each with its own scope and compat view.</summary>
 public sealed class ApiKey
 {
     public int Id { get; set; }
@@ -16,6 +16,9 @@ public sealed class ApiKey
 
     /// <summary>First characters of the key, for display.</summary>
     public required string KeyPrefix { get; set; }
+
+    /// <summary>The surfaces the key may reach; <see cref="ApiKeyScope.Compat"/> unless the admin chose otherwise.</summary>
+    public ApiKeyScope Scope { get; set; } = ApiKeyScope.Compat;
 
     public CompatView CompatView { get; set; } = CompatView.Default;
 
