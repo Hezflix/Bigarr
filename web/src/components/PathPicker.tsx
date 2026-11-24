@@ -7,6 +7,7 @@ import { ApiError, filesystem } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { Skeleton } from '@/components/ui/skeleton'
 import { acceptedPath, type PathEntry, pathEntries } from './pathPickerModel'
 
@@ -86,77 +87,95 @@ export function PathPicker({ value, onChange, id, placeholder, className, disabl
     }
   }
 
-  // The panel closes when focus leaves the picker. The suggestions live inside the wrapper, so a click on one is not a
-  // blur out of it. Every focusable control in the wrapper listens, rather than the wrapper itself (a plain <div>).
-  const wrapperRef = useRef<HTMLDivElement>(null)
+  // The panel closes when focus leaves the input. It is portaled out of the input's box (a dialog that scrolls would clip
+  // it otherwise), and a press on a suggestion keeps the focus in the input (see `onMouseDown` below), so the input's
+  // blur is the only one to watch.
+  const panelRef = useRef<HTMLDivElement>(null)
   const onBlur = (event: FocusEvent<HTMLElement>) => {
-    if (!wrapperRef.current?.contains(event.relatedTarget)) setOpen(false)
+    if (!panelRef.current?.contains(event.relatedTarget)) setOpen(false)
   }
 
   const showPanel = open && (listing.isPending || listing.error !== null || suggestions.length > 0)
 
   return (
-    <div ref={wrapperRef} className={cn('relative flex items-center gap-2', className)}>
-      <div className="relative flex-1">
-        <Input
-          id={id}
-          ref={inputRef}
-          value={value}
-          disabled={disabled}
-          placeholder={placeholder}
-          autoComplete="off"
-          spellCheck={false}
-          role="combobox"
-          aria-expanded={showPanel}
-          aria-autocomplete="list"
-          data-testid={testId}
-          className="font-mono text-xs"
-          onChange={(e) => {
-            onChange(e.target.value)
-            setHighlight(0)
-            setOpen(true)
-          }}
-          onFocus={() => setOpen(true)}
-          onBlur={onBlur}
-          onKeyDown={onKeyDown}
-        />
-        {showPanel && (
-          <div
-            role="listbox"
-            data-testid="path-suggestions"
-            className="absolute top-full right-0 left-0 z-50 mt-1 max-h-64 overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
-          >
-            {listing.isPending && <Skeleton className="h-7 w-full" />}
-            {listing.error && (
-              <p className="px-2 py-1.5 text-xs text-destructive">{listing.error instanceof ApiError ? listing.error.message : t('common.unexpectedError')}</p>
-            )}
-            {suggestions.map((item, index) => (
-              <button
-                key={item.path}
-                type="button"
-                role="option"
-                aria-selected={index === highlight}
-                className={cn(
-                  'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left font-mono text-xs',
-                  index === highlight ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/60',
-                )}
-                onMouseEnter={() => setHighlight(index)}
-                onClick={() => accept(item)}
-                onBlur={onBlur}
-              >
-                {item.kind === 'file' ? (
-                  <FileIcon className="size-3.5 shrink-0 text-primary" data-testid="path-suggestion-file" />
-                ) : (
-                  <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                )}
-                <span className="truncate">{item.name}</span>
-              </button>
-            ))}
+    <div className={cn('flex items-center gap-2', className)}>
+      <Popover open={showPanel} modal={false}>
+        <PopoverAnchor asChild>
+          <div className="flex-1">
+            <Input
+              id={id}
+              ref={inputRef}
+              value={value}
+              disabled={disabled}
+              placeholder={placeholder}
+              autoComplete="off"
+              spellCheck={false}
+              role="combobox"
+              aria-expanded={showPanel}
+              aria-autocomplete="list"
+              data-testid={testId}
+              className="font-mono text-xs"
+              onChange={(e) => {
+                onChange(e.target.value)
+                setHighlight(0)
+                setOpen(true)
+              }}
+              onFocus={() => setOpen(true)}
+              onBlur={onBlur}
+              onKeyDown={onKeyDown}
+            />
           </div>
-        )}
-      </div>
+        </PopoverAnchor>
+        <PopoverContent
+          ref={panelRef}
+          role="listbox"
+          data-testid="path-suggestions"
+          align="start"
+          className="max-h-64 w-(--radix-popover-trigger-width) overflow-y-auto p-1"
+          // The focus stays in the input while the suggestions show: typing goes on filtering them.
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => {
+            // Escape closes the suggestions only, never the dialog around the picker.
+            e.preventDefault()
+            setOpen(false)
+          }}
+          onInteractOutside={(e) => {
+            if (!(e.target instanceof Node && inputRef.current?.contains(e.target))) setOpen(false)
+          }}
+        >
+          {listing.isPending && <Skeleton className="h-7 w-full" />}
+          {listing.error && (
+            <p className="px-2 py-1.5 text-xs text-destructive">{listing.error instanceof ApiError ? listing.error.message : t('common.unexpectedError')}</p>
+          )}
+          {suggestions.map((item, index) => (
+            <button
+              key={item.path}
+              type="button"
+              role="option"
+              aria-selected={index === highlight}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left font-mono text-xs',
+                index === highlight ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/60',
+              )}
+              tabIndex={-1}
+              onMouseEnter={() => setHighlight(index)}
+              // Pressing a suggestion must not take the focus from the input: the blur would close the panel before the click lands.
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => accept(item)}
+            >
+              {item.kind === 'file' ? (
+                <FileIcon className="size-3.5 shrink-0 text-primary" data-testid="path-suggestion-file" />
+              ) : (
+                <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
+              )}
+              <span className="truncate">{item.name}</span>
+            </button>
+          ))}
+        </PopoverContent>
+      </Popover>
 
-      <Button type="button" variant="outline" disabled={disabled} onClick={() => setBrowsing(true)} onBlur={onBlur} data-testid="path-browse">
+      <Button type="button" variant="outline" disabled={disabled} onClick={() => setBrowsing(true)} data-testid="path-browse">
         <FolderSearchIcon />
         {t('pathPicker.browse')}
       </Button>
