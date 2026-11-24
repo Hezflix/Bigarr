@@ -46,7 +46,33 @@ public sealed record ReleaseResponse(
     /// Where a grab goes unless the user picks another version: the version that accepts the release (the RSS
     /// attribution rule), otherwise the one closest to accepting it, otherwise the default version.
     /// </summary>
-    int? SuggestedVersionId = null);
+    int? SuggestedVersionId = null,
+    /// <summary>What the film's versions already did with this release (grabbed, imported, on disk, picked in shadow mode); at most one per version.</summary>
+    List<ReleasePickResponse>? Picks = null);
+
+/// <summary>Where a release stands for one version of the film.</summary>
+public enum ReleasePickKind
+{
+    /// <summary>Grabbed and not imported yet: in the download client or waiting for import.</summary>
+    Downloading,
+
+    /// <summary>The version's file came from this release.</summary>
+    OnDisk,
+
+    /// <summary>Grabbed and imported, but the file was replaced since.</summary>
+    Imported,
+
+    /// <summary>Grabbed, then the download or the import failed, or it left the client.</summary>
+    Failed,
+
+    /// <summary>Grabbed, then dismissed by the user.</summary>
+    Grabbed,
+
+    /// <summary>Shadow mode: Bigarr's pick, nothing sent to a client.</summary>
+    Shadow,
+}
+
+public sealed record ReleasePickResponse(int VersionId, string VersionName, ReleasePickKind Kind, DateTime At);
 
 public sealed record IndexerErrorResponse(int IndexerId, string Indexer, IndexerFailureKind Kind, string Message);
 
