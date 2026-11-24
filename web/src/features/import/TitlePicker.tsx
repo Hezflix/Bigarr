@@ -40,6 +40,7 @@ export function TitlePicker({
   guess,
   onChange,
   testId,
+  placeholder,
 }: {
   kind: Kind
   /** The library's films or series: the current pick's label and the guesses come from it. */
@@ -48,6 +49,8 @@ export function TitlePicker({
   guess: { title: string | null; year: number | null; first?: number[] }
   onChange: (id: number | null) => void
   testId?: string
+  /** The button's text while nothing is picked (the bulk bar's "Series…"). */
+  placeholder?: string
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -115,7 +118,7 @@ export function TitlePicker({
       <Popover open={open} onOpenChange={(next) => (next ? setOpen(true) : close())}>
         <PopoverTrigger asChild>
           <Button type="button" variant="outline" size="sm" className={cn('min-w-44 max-w-64 justify-between font-normal', !current && 'text-muted-foreground')} data-testid={testId}>
-            <span className="truncate">{current ? label(current) : t(kind === 'movie' ? 'manualImport.noMovie' : 'seriesImport.noSeries')}</span>
+            <span className="truncate">{current ? label(current) : (placeholder ?? t(kind === 'movie' ? 'manualImport.noMovie' : 'seriesImport.noSeries'))}</span>
             <ChevronDownIcon className="opacity-50" />
           </Button>
         </PopoverTrigger>

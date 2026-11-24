@@ -1470,7 +1470,35 @@
     "importedCount_one": "{{count}} file imported",
     "importedCount_other": "{{count}} files imported",
     "extras_one": "Brings {{count}} extra file",
-    "extras_other": "Brings {{count}} extra files"
+    "extras_other": "Brings {{count}} extra files",
+    "batch": {
+      "label": "Every file",
+      "note": "Rows follow these unless they say otherwise.",
+      "same": "Same as above",
+      "other": "other…",
+      "reset": "Follow the series and version above again"
+    },
+    "bulk": {
+      "selected_one": "{{count}} selected",
+      "selected_other": "{{count}} selected",
+      "selectAll": "Select every file",
+      "series": "Series…",
+      "season": "Season…",
+      "version": "Version…",
+      "quality": "Quality…",
+      "group": "Group…",
+      "groupLabel": "Release group of the selected files (Enter applies)",
+      "renumber": "Renumber…",
+      "renumberTitle_one": "Number the selected file",
+      "renumberTitle_other": "Number the {{count}} selected files in name order",
+      "fromEpisode": "from episode",
+      "pastEnd": "past the end of the season, left as is",
+      "apply": "Apply",
+      "clear": "Clear",
+      "mixed": "The selected files go to several series: season, version and renumbering need one.",
+      "incomplete_one": "{{count}} selected file has no episode yet: it is not imported.",
+      "incomplete_other": "{{count}} selected files have no episode yet: they are not imported."
+    }
   },
   "oneShot": {
     "title": "Grab as a one-shot version",
