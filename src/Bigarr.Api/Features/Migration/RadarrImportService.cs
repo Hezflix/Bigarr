@@ -168,7 +168,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
             {
                 await ImportOneAsync(item, context, progress, ct);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
                 throw;
             }
@@ -324,7 +324,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
             {
                 await ImportOneAsync(item, context, progress, ct);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
                 throw;
             }
@@ -1057,7 +1057,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
         {
             return await metadata.GetMovieAsync(tmdbId, ct);
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
         {
             logger.LogWarning(ex, "Metadata provider failed for TMDB {TmdbId} during the Radarr import", tmdbId);
             return null;

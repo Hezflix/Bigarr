@@ -232,7 +232,7 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
         {
             await ImportOneAsync(item, context, progress, ct);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             throw;
         }
