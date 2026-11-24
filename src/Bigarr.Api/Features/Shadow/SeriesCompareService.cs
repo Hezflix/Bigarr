@@ -173,14 +173,16 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
         var grabs = (await grabQuery.AsSplitQuery().ToListAsync(ct)).ToDictionary(g => g.Id);
         await UseBigarrTvdbIdsAsync(grabs.Values, ct);
         var picks = (await pickQuery.AsSplitQuery().ToListAsync(ct)).ToDictionary(p => p.Id);
-        var filmPicks = await FilmPicksAsync(grabs.Values, loadFrom, ct);
+        await LoadEarlierAsync(grabs, picks, loadFrom, version, ct);
+        var filmPicks = await FilmPicksAsync(grabs.Values, loadFrom == DateTime.MinValue ? loadFrom : loadFrom - ComparePairing.EarlierPickLimit, ct);
         var rows = SeriesComparePairing.Match(
                 grabs.Values.Select(g => new SeriesComparePairing.Grab(g.Id, g.TvdbId, g.VersionName, g.GrabbedAt, g.ReleaseGuid, g.InfoHash, g.ReleaseTitle, g.ResolvedAt, g.State == RadarrGrabState.Grabbed, EpisodesOf(g))),
                 picks.Values.Select(p => new SeriesComparePairing.Pick(p.Id, p.TvdbId!.Value, p.VersionName, p.PickedAt, p.ReleaseGuid, p.InfoHash, p.ReleaseTitle, EpisodesOf(p)))
                     .Concat(filmPicks.Values.Select(f => f.Pair)),
                 window,
                 now)
-            .Where(r => from is null || r.At >= from)
+            // A row belongs to the period when either side does: a grab in it paired with a pick from before still shows.
+            .Where(r => from is null || r.At >= from || r.Sonarr.Any(g => g.At >= from))
             .ToList();
 
         // Differences Bigarr makes on purpose leave the mismatches for their own outcome, with their reason.
@@ -251,6 +253,46 @@ public sealed class SeriesCompareService(BigarrDbContext db, IOptions<ShadowOpti
             .ToList();
 
         return new SeriesCompareResponse(from, now, (int)window.TotalHours, options.Value.SeriesInShadow, versions, summary, byVersion, responses, filtered.Count, page, pageSize);
+    }
+
+    /// <summary>
+    /// For the series and versions Sonarr grabbed in the period, Bigarr's picks from before it (and Sonarr's grabs from
+    /// before it, which would own those picks), back to <see cref="ComparePairing.EarlierPickLimit"/> before it. Every
+    /// one of them, not the latest only as for films: the latest pick counts per episode.
+    /// </summary>
+    private async Task LoadEarlierAsync(Dictionary<int, SonarrGrab> grabs, Dictionary<int, SeriesShadowPick> picks, DateTime loadFrom, string? version, CancellationToken ct)
+    {
+        if (loadFrom == DateTime.MinValue || grabs.Count == 0)
+        {
+            return;
+        }
+
+        var keys = grabs.Values.Select(g => (g.TvdbId, g.VersionName)).ToHashSet();
+        var tvdbIds = keys.Select(k => k.TvdbId).Distinct().ToList();
+        var seriesIds = grabs.Values.Where(g => g.SeriesId != null).Select(g => g.SeriesId!.Value).Distinct().ToList();
+        var since = loadFrom - ComparePairing.EarlierPickLimit;
+        var olderPicks = db.SeriesShadowPicks.AsNoTracking().Include(p => p.Episodes)
+            .Where(p => p.PickedAt < loadFrom && p.PickedAt >= since && p.TvdbId != null && tvdbIds.Contains(p.TvdbId.Value));
+        var olderGrabs = db.SonarrGrabs.AsNoTracking().Include(g => g.FollowedSonarr).Include(g => g.Episodes)
+            .Where(g => g.GrabbedAt < loadFrom && g.GrabbedAt >= since && (tvdbIds.Contains(g.TvdbId) || (g.SeriesId != null && seriesIds.Contains(g.SeriesId.Value))));
+        if (!string.IsNullOrWhiteSpace(version))
+        {
+            olderPicks = olderPicks.Where(p => p.VersionName == version);
+            olderGrabs = olderGrabs.Where(g => g.VersionName == version);
+        }
+
+        foreach (var pick in (await olderPicks.AsSplitQuery().ToListAsync(ct)).Where(p => keys.Contains((p.TvdbId!.Value, p.VersionName))))
+        {
+            picks.TryAdd(pick.Id, pick);
+        }
+
+        // A show TVDB replaced keeps Sonarr's old id in the table: take Bigarr's before the key filter.
+        var older = await olderGrabs.AsSplitQuery().ToListAsync(ct);
+        await UseBigarrTvdbIdsAsync(older, ct);
+        foreach (var grab in older.Where(g => keys.Contains((g.TvdbId, g.VersionName))))
+        {
+            grabs.TryAdd(grab.Id, grab);
+        }
     }
 
     /// <summary>

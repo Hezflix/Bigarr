@@ -1944,7 +1944,7 @@
     "films": "Films",
     "seriesTab": "Series",
     "seriesTitle": "Compare with Sonarr",
-    "seriesIntro": "Shadow mode, newest first: what the followed Sonarr grabbed next to what Bigarr would have grabbed for the same episodes and version. A row is an episode set: a season pack on one side and single episodes on the other land on one row. Paired by release (guid, info hash, title), else by overlapping episodes within the window.",
+    "seriesIntro": "Shadow mode, newest first: what the followed Sonarr grabbed next to what Bigarr would have grabbed for the same episodes and version. A row is an episode set: a season pack on one side and single episodes on the other land on one row. Paired by release (guid, info hash, title), else by overlapping episodes within the window. A grab with no pick in the window pairs with Bigarr's latest picks of the 14 days before it for its episodes, unless another grab of those episodes came between.",
     "seriesOutcomes": {
       "same": "Same release",
       "different": "Different release",
