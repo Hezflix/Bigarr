@@ -16,6 +16,25 @@ public sealed class FfprobeMediaInfoReader(IOptions<MediaOptions> options, ILogg
 
     public async Task<MediaInfo?> ReadAsync(string path, string? releaseTitle, CancellationToken cancellationToken)
     {
+        var probe = await ProbeAsync(path, cancellationToken);
+        if (probe.Outcome != RawProbeOutcome.Read)
+        {
+            return null;
+        }
+
+        try
+        {
+            return FfprobeOutputParser.Parse(probe.Json!, releaseTitle);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "ffprobe output on {Path} could not be read", path);
+            return null;
+        }
+    }
+
+    public async Task<RawProbe> ProbeAsync(string path, CancellationToken cancellationToken)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
         var executable = _executable.Value;
@@ -26,7 +45,7 @@ public sealed class FfprobeMediaInfoReader(IOptions<MediaOptions> options, ILogg
                 logger.LogWarning("ffprobe not found ({Configured}): files are imported without media info. Install ffmpeg or set Bigarr:Media:FfprobePath.", options.Value.FfprobePath);
             }
 
-            return null;
+            return new RawProbe(RawProbeOutcome.ToolMissing, Error: "ffprobe was not found. Install ffmpeg or set Bigarr:Media:FfprobePath.");
         }
 
         var startInfo = new ProcessStartInfo(executable)
@@ -41,8 +60,9 @@ public sealed class FfprobeMediaInfoReader(IOptions<MediaOptions> options, ILogg
             startInfo.ArgumentList.Add(argument);
         }
 
+        var seconds = Math.Max(5, options.Value.ProbeTimeoutSeconds);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(5, options.Value.ProbeTimeoutSeconds)));
+        timeout.CancelAfter(TimeSpan.FromSeconds(seconds));
 
         try
         {
@@ -62,21 +82,22 @@ public sealed class FfprobeMediaInfoReader(IOptions<MediaOptions> options, ILogg
                 }
 
                 logger.LogWarning("ffprobe timed out on {Path}", path);
-                return null;
+                return new RawProbe(RawProbeOutcome.TimedOut, Error: $"ffprobe gave no answer within {seconds} s.");
             }
 
             if (process.ExitCode != 0)
             {
-                logger.LogWarning("ffprobe failed on {Path} (exit {Code}): {Error}", path, process.ExitCode, (await stderr).Trim());
-                return null;
+                var error = (await stderr).Trim();
+                logger.LogWarning("ffprobe failed on {Path} (exit {Code}): {Error}", path, process.ExitCode, error);
+                return new RawProbe(RawProbeOutcome.Failed, Error: $"ffprobe exited with code {process.ExitCode}: {error}");
             }
 
-            return FfprobeOutputParser.Parse(await stdout, releaseTitle);
+            return RawProbe.Ok(await stdout);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "ffprobe could not read {Path}", path);
-            return null;
+            return new RawProbe(RawProbeOutcome.Failed, Error: ex.Message);
         }
     }
 

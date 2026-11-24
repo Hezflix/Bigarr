@@ -1,5 +1,7 @@
+using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Auth;
 using Bigarr.Api.Infrastructure.Decision;
+using Bigarr.Api.Infrastructure.Media;
 using Bigarr.Domain.Movies;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +25,7 @@ public static class MoviesEndpoints
         group.MapDelete("/{id:int}/versions/{versionId:int}", DeleteVersionAsync);
         group.MapPost("/{id:int}/versions/{versionId:int}/promote", PromoteAsync);
         group.MapDelete("/{id:int}/versions/{versionId:int}/file", DeleteFileAsync);
+        group.MapGet("/{id:int}/versions/{versionId:int}/file/probe", ProbeFileAsync);
         group.MapBulkEdit();
 
         return app;
@@ -139,6 +142,26 @@ public static class MoviesEndpoints
         }
 
         return TypedResults.Ok(await LoadVersionAsync(id, versionId, movies, scorer, ct));
+    }
+
+    /// <summary>ffprobe run now on the version's file: everything it reports, beyond the summary kept on the file.</summary>
+    private static async Task<Results<Ok<MediaProbeResponse>, ProblemHttpResult>> ProbeFileAsync(
+        int id, int versionId, MovieService movies, MediaProbeService probe, CancellationToken ct)
+    {
+        var movie = await movies.WithGraph().FirstOrDefaultAsync(m => m.Id == id, ct);
+        var version = movie?.Versions.FirstOrDefault(v => v.Id == versionId);
+        if (version is null)
+        {
+            return Failure.NotFound("Version").ToProblem();
+        }
+
+        if (version.File is null)
+        {
+            return Failure.NotFound("File").ToProblem();
+        }
+
+        var result = await probe.ProbeAsync(Path.Combine(version.RootFolder.Path, version.FolderName, version.File.RelativePath), ct);
+        return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
     }
 
     private static async Task<MovieResponse> ToResponseAsync(Movie movie, MovieService movies, CustomFormatScorer scorer, CancellationToken ct)

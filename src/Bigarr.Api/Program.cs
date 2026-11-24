@@ -153,6 +153,7 @@ builder.Services.AddSingleton<QueueState>();
 builder.Services.AddHostedService<QueueTrackerRunner>();
 builder.Services.Configure<MediaOptions>(builder.Configuration.GetSection(MediaOptions.Section));
 builder.Services.AddSingleton<IMediaInfoReader, FfprobeMediaInfoReader>();
+builder.Services.AddSingleton<MediaProbeService>();
 builder.Services.AddSingleton<FileTransfer>();
 builder.Services.AddSingleton<RecycleBin>();
 builder.Services.AddScoped<MediaManagementService>();

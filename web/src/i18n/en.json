@@ -757,6 +757,62 @@
     "extraSdh": "SDH",
     "extraUnknownLanguage": "language unknown"
   },
+  "probe": {
+    "open": "Show the raw ffprobe details",
+    "title": "ffprobe · {{name}}",
+    "running": "Running ffprobe on the file…",
+    "tabsLabel": "Probe views",
+    "tabs": {
+      "streams": "Streams",
+      "raw": "Raw JSON"
+    },
+    "probedAt": "Probed {{date}}",
+    "rerun": "Probe again",
+    "copy": "Copy JSON",
+    "copied": "JSON copied",
+    "copyFailed": "Could not copy to the clipboard",
+    "failed": "The file could not be probed",
+    "noStreams": "ffprobe reported no stream.",
+    "container": "Container",
+    "kinds": {
+      "video_one": "Video",
+      "video_other": "Video ({{count}})",
+      "audio_one": "Audio",
+      "audio_other": "Audio ({{count}})",
+      "subtitle_one": "Subtitle",
+      "subtitle_other": "Subtitles ({{count}})",
+      "other_one": "Other stream",
+      "other_other": "Other streams ({{count}})"
+    },
+    "default": "Default",
+    "forced": "Forced",
+    "hearingImpaired": "Hearing impaired",
+    "dolbyVision": "Dolby Vision profile {{profile}}",
+    "bits_one": "{{count}} bit",
+    "bits_other": "{{count}} bit",
+    "fps": "{{value}} fps",
+    "hz": "{{value}} Hz",
+    "fields": {
+      "format": "Format",
+      "title": "Title",
+      "duration": "Duration",
+      "size": "Size",
+      "bitrate": "Bitrate",
+      "codec": "Codec",
+      "profile": "Profile",
+      "language": "Language",
+      "resolution": "Resolution",
+      "bitDepth": "Bit depth",
+      "pixelFormat": "Pixel format",
+      "frameRate": "Frame rate",
+      "hdr": "HDR",
+      "primaries": "Colour primaries",
+      "sideData": "Side data",
+      "channels": "Channels",
+      "sampleRate": "Sample rate",
+      "type": "Type"
+    }
+  },
   "settings": {
     "library": "Library",
     "rootFolders": "Root folders",
@@ -1380,7 +1436,8 @@
     "assignRenameHint": "Unchecked, the file stays exactly where and how it is.",
     "assignReplace": "Replace a file already there",
     "assignReplaceHint": "An episode that has a file is refused unless checked; the old file then goes to the recycle bin.",
-    "assigned": "Assigned: {{path}}"
+    "assigned": "Assigned: {{path}}",
+    "probe": "ffprobe"
   },
   "seriesImport": {
     "title": "Manual import (series)",

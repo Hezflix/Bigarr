@@ -1,4 +1,6 @@
+using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Auth;
+using Bigarr.Api.Infrastructure.Media;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Bigarr.Api.Features.Import;
@@ -101,6 +103,19 @@ public static class ImportEndpoints
         series.MapGet("/episodefiles/{fileId:int}", async Task<Results<Ok<EpisodeFileDetailResponse>, ProblemHttpResult>> (int seriesId, int fileId, SeriesManualImportService service, CancellationToken ct) =>
         {
             var result = await service.EpisodeFileAsync(seriesId, fileId, ct);
+            return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
+        });
+
+        // ffprobe run now on the file, as on the film page: everything it reports, beyond the summary kept on the file.
+        series.MapGet("/episodefiles/{fileId:int}/probe", async Task<Results<Ok<MediaProbeResponse>, ProblemHttpResult>> (int seriesId, int fileId, SeriesManualImportService service, MediaProbeService probe, CancellationToken ct) =>
+        {
+            var path = await service.EpisodeFilePathAsync(seriesId, fileId, ct);
+            if (path is null)
+            {
+                return Failure.NotFound("Episode file").ToProblem();
+            }
+
+            var result = await probe.ProbeAsync(path, ct);
             return result.IsSuccess ? TypedResults.Ok(result.Value!) : result.Failure!.ToProblem();
         });
 

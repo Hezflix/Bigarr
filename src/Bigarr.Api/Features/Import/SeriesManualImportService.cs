@@ -504,6 +504,15 @@ public sealed class SeriesManualImportService(
         return await EpisodeFileAsync(seriesId, file.Id, ct);
     }
 
+    /// <summary>Where the file lies on disk; null when the series has no such file.</summary>
+    public async Task<string?> EpisodeFilePathAsync(int seriesId, int fileId, CancellationToken ct)
+    {
+        var file = await db.EpisodeFiles.AsNoTracking()
+            .Include(f => f.Version).ThenInclude(v => v.RootFolder)
+            .FirstOrDefaultAsync(f => f.Id == fileId && f.Version.SeriesId == seriesId, ct);
+        return file is null ? null : Path.Combine(SeriesRenameService.Folder(file.Version), file.RelativePath);
+    }
+
     public async Task<Result<EpisodeFileDetailResponse>> EpisodeFileAsync(int seriesId, int fileId, CancellationToken ct)
     {
         var file = await db.EpisodeFiles.AsNoTracking()

@@ -3229,6 +3229,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/movies/{id}/versions/{versionId}/file/probe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                    versionId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MediaProbeResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/movies/bulk": {
         parameters: {
             query?: never;
@@ -7659,6 +7697,44 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/series/{seriesId}/episodefiles/{fileId}/probe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    seriesId: number;
+                    fileId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MediaProbeResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -12956,6 +13032,12 @@ export interface components {
             colonReplacement: components["schemas"]["ColonReplacement"];
             /** @default false */
             alignSeasonGroups: boolean;
+        };
+        MediaProbeResponse: {
+            path: string;
+            /** Format: date-time */
+            probedAt: string;
+            probe: components["schemas"]["JsonElement"];
         };
         MediaRequestPage: {
             /** Format: int32 */

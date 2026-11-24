@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { cn } from 'cn'
-import { InfoIcon, Trash2Icon } from 'lucide-react'
+import { FileSearchIcon, InfoIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, seriesFiles, type EpisodeFile, type Series, type UnmatchedEpisodeFile } from '@/api/client'
@@ -24,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { EpisodePicker } from '@/features/import/SeriesManualImportDialog'
+import { ProbeDialog } from '@/features/library/ProbeDialog'
 import { formatBytes, formatDate } from '@/i18n'
 
 const errorMessage = (error: unknown, fallback: string) => (error instanceof ApiError ? error.message : fallback)
@@ -199,6 +200,7 @@ export function EpisodeFileDetails({ seriesId, fileId }: { seriesId: number; fil
   const detail = useQuery({ queryKey: ['episodeFile', seriesId, fileId], queryFn: () => seriesFiles.file(seriesId, fileId) })
   const f = detail.data
   const media = f?.mediaInfo
+  const [probing, setProbing] = useState(false)
   const rows: [string, string | null | undefined][] = f
     ? [
         [t('seriesFiles.path'), f.path],
@@ -234,6 +236,15 @@ export function EpisodeFileDetails({ seriesId, fileId }: { seriesId: number; fil
                 <dd className="break-all">{value}</dd>
               </div>
             ))}
+          <div className="contents">
+            <dt className="text-muted-foreground">{t('seriesFiles.probe')}</dt>
+            <dd>
+              <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => setProbing(true)} data-testid="episode-file-probe">
+                <FileSearchIcon />
+                {t('probe.open')}
+              </Button>
+            </dd>
+          </div>
           {f.extras.length > 0 && (
             <div className="contents">
               <dt className="text-muted-foreground">{t('seriesFiles.extras')}</dt>
@@ -247,6 +258,9 @@ export function EpisodeFileDetails({ seriesId, fileId }: { seriesId: number; fil
             </div>
           )}
         </dl>
+      )}
+      {f && probing && (
+        <ProbeDialog title={f.episodes.map((e) => `S${String(e.seasonNumber).padStart(2, '0')}E${String(e.episodeNumber).padStart(2, '0')}`).join(' + ')} queryKey={['episodeFile', seriesId, fileId]} load={() => seriesFiles.probe(seriesId, fileId)} onClose={() => setProbing(false)} />
       )}
     </>
   )
