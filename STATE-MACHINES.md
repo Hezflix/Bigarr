@@ -241,6 +241,9 @@ Explicit, in memory: `ScanState` and `RadarrImportState`, both `Idle`, `Queued`,
 | `Running` | `Completed` | done | |
 | `Running` | `Failed` | exception or cancellation | every exit path sets a terminal state |
 
+A timeout of the metadata provider on one folder or one title is that folder's or that title's failure, not the run's
+([F43](#f43-one-metadata-timeout-failed-a-whole-scan-or-a-whole-import)).
+
 The Tautulli and Seerr runners have one more state, "uploading", taken under the same lock as the enqueue: no import
 starts while a file is being uploaded and no upload while an import is queued or running ([F11](#f11-tautulli-upload-replaced-or-deleted-by-a-running-import)).
 
@@ -1013,6 +1016,23 @@ Fix: both routes answer 409 before reading anything from disk when a `grabId` na
 first moves it to `Imported`. An id that matches no grab keeps its per-file answer ("Queue item not found."). The
 retry-versus-manual-import race on one `ImportFailed` grab stays open.
 Tests: `GrabOwnershipTests.A_manual_import_is_refused_while_the_download_is_active_and_leaves_the_grab_alone`.
+
+#### F43. One metadata timeout failed a whole scan or a whole import
+
+A provider call that gets no answer in time throws a `TaskCanceledException`, which derives from
+`OperationCanceledException`, the type a real cancellation throws. The film scan and the Radarr and Sonarr imports
+protect each folder or title with a `try`, but their first `catch` was a bare `catch (OperationCanceledException)
+{ throw; }`, so one slow answer ended the scan of the whole root folder or the whole import as if the app had stopped.
+The series scan already had the filter.
+
+Fix: those catches carry `when (ct.IsCancellationRequested)`: only a real cancellation stops the run. In the film scan
+`ResolveAsync` also treats a timeout like a provider error (`HttpRequestException`), so the folder is listed as unmapped
+with "metadata error" and the scan goes on; the same for the Radarr import's `FetchAsync`. A rerun picks the failed folder
+up. The Radarr and Sonarr clients still turn their own timeouts into `RadarrUnavailableException` and
+`SonarrUnavailableException`, which still fail the run.
+Test: `LibraryScanTimeoutTests.A_metadata_timeout_on_one_folder_leaves_the_rest_of_the_scan_running`. The import side has
+no test: the Radarr import only asks the provider for a film whose Radarr payload has no title, and both of its loaders
+drop those films first; the Sonarr change is the same one-line filter.
 
 ### Open
 

@@ -67,7 +67,7 @@ public sealed partial class LibraryScanner(BigarrDbContext db, IMetadataProvider
             {
                 await ScanFolderAsync(root, folder, profiles, progress, ct);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
                 throw;
             }
@@ -334,7 +334,7 @@ public sealed partial class LibraryScanner(BigarrDbContext db, IMetadataProvider
                 _ => (null, UnmappedReason.AmbiguousMatch, string.Join("; ", matches.Take(5).Select(m => $"{m.Title} ({m.Year}) tmdb:{m.TmdbId}"))),
             };
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
         {
             return (null, UnmappedReason.MetadataError, ex.Message);
         }
