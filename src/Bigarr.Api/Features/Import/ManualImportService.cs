@@ -162,6 +162,11 @@ public sealed class ManualImportService(BigarrDbContext db, ImportService import
             return Failure.Invalid("Nothing to import", "Pick at least one file.");
         }
 
+        if (await RefuseActiveGrabAsync(db, request.Files.Select(f => f.GrabId), ct) is { } refused)
+        {
+            return refused;
+        }
+
         var config = await settings.GetAsync(ct);
         var mode = request.TransferMode ?? config.TransferMode;
         var results = new List<ManualImportResultResponse>();
@@ -173,6 +178,25 @@ public sealed class ManualImportService(BigarrDbContext db, ImportService import
 
         queue.RequestRefresh();
         return Result<List<ManualImportResultResponse>>.Ok(results);
+    }
+
+    /// <summary>
+    /// A manual import takes a download nobody is working on: one whose import failed, or one that is over. An active
+    /// one belongs to the poller or to the import worker (STATE-MACHINES.md, Grab, ownership): 409.
+    /// </summary>
+    internal static async Task<Failure?> RefuseActiveGrabAsync(BigarrDbContext db, IEnumerable<int?> grabIds, CancellationToken ct)
+    {
+        var ids = grabIds.Where(id => id is not null).Select(id => id!.Value).Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return null;
+        }
+
+        var grabs = await db.Grabs.AsNoTracking().Where(g => ids.Contains(g.Id)).Select(g => new { g.ReleaseTitle, g.State }).ToListAsync(ct);
+        var active = grabs.FirstOrDefault(g => g.State.IsActive());
+        return active is null
+            ? null
+            : Failure.Conflict("This download cannot be imported by hand yet", $"{active.ReleaseTitle} is in state {active.State}; only a failed import, or a download that is over, can be imported by hand.");
     }
 
     private async Task<ManualImportResultResponse> ImportOneAsync(ManualImportItemRequest item, TransferMode mode, CancellationToken ct)

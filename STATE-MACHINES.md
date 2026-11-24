@@ -78,11 +78,11 @@ Explicit. `GrabState` on `Grab.State` (`src/Bigarr.Domain/Acquisition/GrabState.
 | `Importing` | `ImportPending` | client unreachable or torrent not complete after all | still `Importing` | `ImportService.ImportGrabAsync` (deferred) |
 | `Importing` | `ImportPending` | process start, or the worker crashed outside its failure handling | still `Importing` (conditional update) | `InterruptedImports` |
 | `ImportFailed` | `ImportPending` | user retries | | `ImportService.RetryAsync` |
-| `ImportFailed` | `Imported` | user imports by hand | | `ManualImportService`, `SeriesManualImportService.ImportAsync` |
+| `ImportFailed` | `Imported` | user imports by hand | 409 while the grab is active (`Grabbed`, `Downloading`, `ImportPending`, `Importing`); a terminal grab only lends its release title ([F42](#f42-a-manual-import-accepted-a-download-that-was-still-active)) | `ManualImportService`, `SeriesManualImportService.ImportAsync` |
 | any non-terminal except `Importing` | `Ignored` | user removes the queue row | under the poll lock; 409 while `Importing` | `QueueService.RemoveGrabAsync` |
 
 Ownership: `Grabbed` and `Downloading` belong to the poller; `Importing` belongs to the import worker, and neither the
-poller nor the user writes a grab in that state. The three writers that can meet on a grab (the poll, the user's
+poller nor the user writes a grab in that state, and a manual import refuses an active grab. The three writers that can meet on a grab (the poll, the user's
 removal, the worker's claim) all run under `QueueState.PollLock`, so none saves over a state another just wrote
 ([F7](#f7-a-terminal-grab-state-could-be-overwritten-by-a-stale-writer)). The retry and the manual import of an
 `ImportFailed` grab are not under that lock: two of those at once on one grab is still a race.
@@ -999,6 +999,20 @@ is set when the key is created and changed by `PUT /api/v1/apikeys/{id}`, from t
 widen itself.
 Tests: `ApiKeyScopeTests` (default and `compat`, `full`, `calendar`, the refusals, changing the scope, the webhooks and
 covers), `UsersAndRolesTests.A_demoted_owner_s_full_key_opens_nothing_admin_until_promoted_again`.
+
+#### F42. A manual import accepted a download that was still active
+
+`POST /api/v1/manualimport` and `/manualimport/series` took a `grabId` in any state. The web dialog only offers the button
+on an `ImportFailed` grab, but a stale dialog, a script or a second tab could import a file for a grab the worker was
+importing at that moment, then write `Imported` over the worker's state: two writers on one grab, two copies of the
+transfer, and the last save won.
+
+Fix: both routes answer 409 before reading anything from disk when a `grabId` names an active grab (`Grabbed`,
+`Downloading`, `ImportPending`, `Importing`), through one shared check (`ManualImportService.RefuseActiveGrabAsync`).
+`ImportFailed` and the terminal states stay accepted: one film request can carry several files of one grab, and the
+first moves it to `Imported`. An id that matches no grab keeps its per-file answer ("Queue item not found."). The
+retry-versus-manual-import race on one `ImportFailed` grab stays open.
+Tests: `GrabOwnershipTests.A_manual_import_is_refused_while_the_download_is_active_and_leaves_the_grab_alone`.
 
 ### Open
 

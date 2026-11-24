@@ -1,4 +1,6 @@
 using System.Net;
+using System.Net.Http.Json;
+using Bigarr.Api.Features.Import;
 using Bigarr.Api.Infrastructure.Downloads.Mock;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Tests.Auth;
@@ -71,6 +73,60 @@ public sealed class GrabOwnershipTests(BigarrApiFactory factory) : IClassFixture
             await client.DeleteAsync($"/api/v1/indexers/{indexer.Id}");
             await client.DeleteAsync($"/api/v1/movies/{movie.Id}");
         }
+    }
+
+    [Fact]
+    public async Task A_manual_import_is_refused_while_the_download_is_active_and_leaves_the_grab_alone()
+    {
+        var client = await ClientAsync(factory);
+        var (hd, _) = await ProfilesAsync(client);
+        var root = await AddRootAsync(client, Path.Combine(_root, "manual"));
+
+        var movie = await AddMovieAsync(client, 129, hd, root.Id); // Spirited Away
+        var version = movie.Versions.Single();
+        var indexer = await AddMockIndexerAsync(client, "Mock manual idx");
+        var downloadClient = await AddMockClientAsync(client, "Mock manual qbt");
+        try
+        {
+            var release = (await SearchAsync(client, movie.Id)).Releases.First(r => r.Title.Contains("1080p", StringComparison.Ordinal));
+            var grab = await GrabAsync(client, release, version.Id);
+            var grabId = grab.GrabId!.Value;
+            await RefreshAsync(client);
+
+            var filmRequest = new ManualImportRequest([new ManualImportItemRequest(Path.Combine(_root, "nothing.mkv"), version.Id, GrabId: grabId)]);
+            var seriesRequest = new SeriesManualImportRequest([new SeriesManualImportItemRequest(Path.Combine(_root, "nothing.mkv"), version.Id, [1], GrabId: grabId)]);
+
+            // The poller's and the worker's grab: a manual import does not write over it, whichever route it comes by.
+            foreach (var state in new[] { GrabState.Grabbed, GrabState.Downloading, GrabState.ImportPending, GrabState.Importing })
+            {
+                await SetStateAsync(grabId, state);
+                Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync("/api/v1/manualimport", filmRequest, Json)).StatusCode);
+                Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync("/api/v1/manualimport/series", seriesRequest, Json)).StatusCode);
+                Assert.Equal(state, await StateAsync(grabId));
+            }
+
+            // A failed import is what a manual import is for: the route answers per file again.
+            await SetStateAsync(grabId, GrabState.ImportFailed);
+            var accepted = await client.PostAsJsonAsync("/api/v1/manualimport", filmRequest, Json);
+            Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+            var result = Assert.Single((await accepted.Content.ReadFromJsonAsync<List<ManualImportResultResponse>>(Json))!);
+            Assert.False(result.Imported);
+            Assert.Equal("File not found.", result.Reason);
+            Assert.Equal(GrabState.ImportFailed, await StateAsync(grabId));
+        }
+        finally
+        {
+            await client.DeleteAsync($"/api/v1/downloadclients/{downloadClient.Id}");
+            await client.DeleteAsync($"/api/v1/indexers/{indexer.Id}");
+            await client.DeleteAsync($"/api/v1/movies/{movie.Id}");
+        }
+    }
+
+    private async Task<GrabState> StateAsync(int grabId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+        return (await db.Grabs.AsNoTracking().SingleAsync(g => g.Id == grabId)).State;
     }
 
     private async Task SetStateAsync(int grabId, GrabState state)

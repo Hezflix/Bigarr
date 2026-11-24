@@ -223,6 +223,11 @@ public sealed class SeriesManualImportService(
             return Failure.Invalid("Nothing to import", "Pick at least one file.");
         }
 
+        if (await ManualImportService.RefuseActiveGrabAsync(db, request.Files.Select(f => f.GrabId), ct) is { } refused)
+        {
+            return refused;
+        }
+
         var config = await settings.GetAsync(ct);
         var mode = request.TransferMode ?? config.TransferMode;
         var results = new List<SeriesManualImportResultResponse>();
