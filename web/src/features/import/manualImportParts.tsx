@@ -135,7 +135,9 @@ export function ImportFileCell({
   )
 }
 
+/** The server lists the qualities worst first; the pick reads best first, where a file's quality usually is. */
 export function ImportQualityCell({ value, onChange, qualities }: { value: number; onChange: (qualityId: number) => void; qualities: QualityDefinition[] }) {
+  const bestFirst = [...qualities].reverse()
   return (
     <TableCell className="align-top">
       <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
@@ -143,7 +145,7 @@ export function ImportQualityCell({ value, onChange, qualities }: { value: numbe
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {qualities.map((q) => (
+          {bestFirst.map((q) => (
             <SelectItem key={q.id} value={String(q.id)}>
               {q.title ?? q.name}
             </SelectItem>
