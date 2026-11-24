@@ -13,7 +13,7 @@ public static class IndexerExtensions
         // Redirects are never followed: an SSO proxy answering with its login page must surface as an error, not as HTML to parse.
         services.AddHttpClient(TorznabClient.HttpClientName, http =>
             {
-                http.Timeout = TimeSpan.FromSeconds(60);
+                http.Timeout = TorznabClient.RequestTimeout;
                 http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
                 http.DefaultRequestHeaders.Accept.ParseAdd("application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.5");
             })

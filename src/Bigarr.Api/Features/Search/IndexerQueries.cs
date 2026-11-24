@@ -10,7 +10,12 @@ public sealed record IndexerQueryResult(Indexer Indexer, IReadOnlyList<ReleaseIn
 /// <summary>Every indexer in parallel, each with its own timeout; a failing indexer is a line in the result, never an exception.</summary>
 public static class IndexerQueries
 {
-    public static readonly TimeSpan PerIndexerTimeout = TimeSpan.FromSeconds(60);
+    /// <summary>
+    /// Must stay longer than <c>TorznabClient.RequestTimeout</c> by the wait a request can spend on the indexer's rate
+    /// limit. If this deadline fired first, the request would be cancelled from outside, which the gateway does not
+    /// count: an indexer that never answers would cost this wait on every search and never be paused.
+    /// </summary>
+    public static readonly TimeSpan PerIndexerTimeout = TimeSpan.FromSeconds(90);
 
     public static async Task<IndexerQueryResult[]> RunAsync(
         IReadOnlyList<Indexer> indexers,
