@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DialogFooter } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -102,7 +103,6 @@ export function ImportFileCell({
         <span>{formatBytes(file.size)}</span>
         {file.isSample && <Badge variant="outline">{t('manualImport.sample')}</Badge>}
         {edition && <Badge variant="outline">{edition}</Badge>}
-        {file.releaseGroup && <span>{file.releaseGroup}</span>}
         {file.languages.length > 0 && <span>{file.languages.join(', ')}</span>}
       </span>
       {file.extras.length > 0 && (
@@ -150,6 +150,28 @@ export function ImportQualityCell({ value, onChange, qualities }: { value: numbe
           ))}
         </SelectContent>
       </Select>
+    </TableCell>
+  )
+}
+
+/**
+ * The file's release group, the one the names give until the user types another. `value` null is untouched: the import
+ * then keeps what it parses itself; blank imports the file without a group.
+ */
+export function ImportReleaseGroupCell({ value, detected, onChange, fileName }: { value: string | null; detected: string | null; onChange: (group: string) => void; fileName: string }) {
+  const { t } = useTranslation()
+  return (
+    <TableCell className="align-top">
+      <Input
+        value={value ?? detected ?? ''}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={t('manualImport.noReleaseGroup')}
+        aria-label={t('manualImport.releaseGroupLabel', { name: fileName })}
+        spellCheck={false}
+        autoComplete="off"
+        className="h-8 w-32 text-xs"
+        data-testid="manual-import-release-group"
+      />
     </TableCell>
   )
 }

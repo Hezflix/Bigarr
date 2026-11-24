@@ -154,12 +154,15 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
             Assert.True(proposed.Episodes[0].HasFile);
 
             var s2e5 = (await SeriesSetup.EpisodeAsync(client, series.Id, 2, 5)).Id;
-            var forced = await client.PostAsJsonAsync("/api/v1/manualimport/series", new SeriesManualImportRequest([new SeriesManualImportItemRequest(bonus.Path, version.Id, [s2e5], GrabId: partial.GrabId)]), Json);
+            var forced = await client.PostAsJsonAsync("/api/v1/manualimport/series", new SeriesManualImportRequest([new SeriesManualImportItemRequest(bonus.Path, version.Id, [s2e5], GrabId: partial.GrabId, ReleaseGroup: "BONUS")]), Json);
             Assert.Equal(HttpStatusCode.OK, forced.StatusCode);
             var result = Assert.Single((await forced.Content.ReadFromJsonAsync<List<SeriesManualImportResultResponse>>(Json))!);
             Assert.True(result.Imported, result.Reason);
             Assert.EndsWith("Season 2/Breaking Bad - S02E05 - Breakage WEBDL-720p.mkv", result.DestinationPath, StringComparison.Ordinal);
             Assert.DoesNotContain((await RefreshAsync(client)).Items, i => i.GrabId == partial.GrabId); // done by hand: imported
+            // The group typed by hand wins over the pack's (PARTIAL).
+            files = await WaitForFilesAsync(client, series.Id, f => f.Any(x => x.Episodes == "S02E05"));
+            Assert.Equal("BONUS", files.Single(f => f.Episodes == "S02E05").ReleaseGroup);
 
             // 6. A file dropped in the folder by hand: the scan lists it unmatched, assigning it places it (and renames it).
             var dropped = Path.Combine(folder, "mystery cut.mkv");

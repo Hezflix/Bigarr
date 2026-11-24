@@ -20,11 +20,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ImportFileCell, ImportFooter, ImportListingState, ImportPathForm, ImportQualityCell, type TransferChoice } from '@/features/import/manualImportParts'
+import { ImportFileCell, ImportFooter, ImportListingState, ImportPathForm, ImportQualityCell, ImportReleaseGroupCell, type TransferChoice } from '@/features/import/manualImportParts'
 import { ReasonList } from '@/features/search/ReasonsDisplay'
 
 
-type Selection = { selected: boolean; seriesId: number | null; versionId: number | null; episodeIds: number[]; qualityId: number; extras: string[] }
+type Selection = { selected: boolean; seriesId: number | null; versionId: number | null; episodeIds: number[]; qualityId: number; extras: string[]; releaseGroup: string | null }
 
 const code = (e: { seasonNumber: number; episodeNumber: number }) => `S${String(e.seasonNumber).padStart(2, '0')}E${String(e.episodeNumber).padStart(2, '0')}`
 
@@ -64,6 +64,7 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
             episodeIds: f.episodes.map((e) => e.id),
             qualityId: f.qualityId,
             extras: f.extras.map((e) => e.path),
+            releaseGroup: null,
           } satisfies Selection,
         ]),
       ),
@@ -76,7 +77,7 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
   const items: SeriesManualImportItem[] = Object.entries(selections).flatMap(([filePath, s]) =>
     !s.selected || s.versionId === null || s.episodeIds.length === 0
       ? []
-      : [{ path: filePath, versionId: s.versionId, episodeIds: s.episodeIds, qualityId: s.qualityId, grabId: grabId ?? null, extraPaths: s.extras }],
+      : [{ path: filePath, versionId: s.versionId, episodeIds: s.episodeIds, qualityId: s.qualityId, grabId: grabId ?? null, extraPaths: s.extras, releaseGroup: s.releaseGroup }],
   )
 
   const run = useMutation({
@@ -118,6 +119,7 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
                   <TableHead className="w-8" />
                   <TableHead>{t('manualImport.file')}</TableHead>
                   <TableHead>{t('manualImport.quality')}</TableHead>
+                  <TableHead>{t('manualImport.releaseGroup')}</TableHead>
                   <TableHead>{t('seriesImport.series')}</TableHead>
                   <TableHead>{t('manualImport.version')}</TableHead>
                   <TableHead>{t('seriesImport.episodes')}</TableHead>
@@ -153,6 +155,7 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
                         )}
                       </ImportFileCell>
                       <ImportQualityCell value={selection.qualityId} onChange={(qualityId) => update(file.path, { qualityId })} qualities={qualities.data ?? []} />
+                      <ImportReleaseGroupCell value={selection.releaseGroup} detected={file.releaseGroup} onChange={(releaseGroup) => update(file.path, { releaseGroup })} fileName={file.relativePath} />
                       <TableCell className="align-top">
                         <Select
                           value={selection.seriesId === null ? 'none' : String(selection.seriesId)}

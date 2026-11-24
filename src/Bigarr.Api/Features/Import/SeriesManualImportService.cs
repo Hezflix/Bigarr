@@ -317,7 +317,10 @@ public sealed class SeriesManualImportService(
             item.EpisodeIds.Distinct().ToList(),
             grab?.ReleaseTitle ?? Path.GetFileNameWithoutExtension(item.Path),
             quality,
-            SeriesImportService.Group(parsedFile) ?? SeriesImportService.Group(releaseParsed),
+            // The group the user typed wins over the names'; blank means the file has none.
+            item.ReleaseGroup is null
+                ? SeriesImportService.Group(parsedFile) ?? SeriesImportService.Group(releaseParsed)
+                : string.IsNullOrWhiteSpace(item.ReleaseGroup) ? null : item.ReleaseGroup.Trim(),
             SeriesImportService.LanguagesFor(grab, parsedFile, releaseParsed),
             grab?.IndexerFlags ?? IndexerFlags.None,
             grab,

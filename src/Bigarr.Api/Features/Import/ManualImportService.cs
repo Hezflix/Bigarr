@@ -217,8 +217,16 @@ public sealed class ManualImportService(BigarrDbContext db, ImportService import
             quality = new QualityModel(picked, quality.Revision);
         }
 
+        var parsed = parsedRelease ?? parsedFile;
+        if (item.ReleaseGroup is not null)
+        {
+            // The group the user typed wins over the names'; blank means the file has none.
+            parsed ??= new ParsedMovieInfo();
+            parsed.ReleaseGroup = item.ReleaseGroup.Trim();
+        }
+
         var releaseTitle = grab?.ReleaseTitle ?? Path.GetFileNameWithoutExtension(item.Path);
-        var plan = new ImportPlan(item.Path, version, releaseTitle, parsedRelease ?? parsedFile, quality, grab?.IndexerFlags ?? IndexerFlags.None, grab, Force: true, mode, ExtraPaths: item.ExtraPaths);
+        var plan = new ImportPlan(item.Path, version, releaseTitle, parsed, quality, grab?.IndexerFlags ?? IndexerFlags.None, grab, Force: true, mode, ExtraPaths: item.ExtraPaths);
         try
         {
             var outcome = await importer.ExecuteAsync(plan, ct);
