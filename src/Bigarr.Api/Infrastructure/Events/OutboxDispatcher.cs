@@ -1,3 +1,4 @@
+using Bigarr.Api.Features.Notifications.NewEpisodes;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Events;
 using Bigarr.Domain.Notifications;
@@ -9,9 +10,16 @@ namespace Bigarr.Api.Infrastructure.Events;
 /// <summary>
 /// Drains the outbox after commit: every undispatched row goes to the SSE stream and becomes one
 /// <see cref="WebhookDelivery"/> per subscribed endpoint, then is stamped dispatched. Woken by the save interceptor,
-/// with a slow sweep as a safety net.
+/// with a slow sweep as a safety net. Imported episodes also join the new-episode announcements in the same save.
 /// </summary>
-public sealed class OutboxDispatcher(IServiceScopeFactory scopeFactory, OutboxSignal signal, WebhookSignal webhooks, EventStream stream, TimeProvider time, ILogger<OutboxDispatcher> logger) : BackgroundService
+public sealed class OutboxDispatcher(
+    IServiceScopeFactory scopeFactory,
+    OutboxSignal signal,
+    WebhookSignal webhooks,
+    EventStream stream,
+    IOptions<NewEpisodeOptions> newEpisodes,
+    TimeProvider time,
+    ILogger<OutboxDispatcher> logger) : BackgroundService
 {
     public static readonly TimeSpan Sweep = TimeSpan.FromSeconds(30);
 
@@ -62,7 +70,10 @@ public sealed class OutboxDispatcher(IServiceScopeFactory scopeFactory, OutboxSi
         }
 
         var endpoints = await db.NotificationEndpoints.AsNoTracking().Include(e => e.Tags).Where(e => e.Enabled).ToListAsync(ct);
-        var parsed = endpoints.Count == 0 ? [] : events.ToDictionary(e => e.Id, e => EventJson.Deserialize(e.Type, e.Payload));
+        var imported = DomainEventCatalog.NameOf(typeof(EpisodeFileImported));
+        var parsed = endpoints.Count == 0
+            ? events.Where(e => e.Type == imported).ToDictionary(e => e.Id, e => EventJson.Deserialize(e.Type, e.Payload))
+            : events.ToDictionary(e => e.Id, e => EventJson.Deserialize(e.Type, e.Payload));
         var (tags, seriesTags) = await LiveTagsAsync(db, endpoints, parsed.Values, ct);
         IEnumerable<int> TagsOf(VersionRef version) => version.Tags is { Count: > 0 } snapshot ? snapshot.Select(t => t.Id) : tags.GetValueOrDefault(version.Id) ?? [];
         // A series version's tags add to its show's; the snapshot only has the version's, so the live ones win while the version exists.
@@ -91,6 +102,7 @@ public sealed class OutboxDispatcher(IServiceScopeFactory scopeFactory, OutboxSi
             outboxEvent.DispatchedAt = now;
         }
 
+        var episodes = await NewEpisodeCollector.CollectAsync(db, events.Select(e => parsed.GetValueOrDefault(e.Id)), now, newEpisodes.Value, ct);
         await db.SaveChangesAsync(ct);
 
         // Published after the commit: a listener never learns about an event that could still roll back.
@@ -104,7 +116,7 @@ public sealed class OutboxDispatcher(IServiceScopeFactory scopeFactory, OutboxSi
             webhooks.Notify();
         }
 
-        logger.LogDebug("Dispatched {Events} event(s) into {Deliveries} webhook deliver(ies)", events.Count, deliveries);
+        logger.LogDebug("Dispatched {Events} event(s) into {Deliveries} webhook deliver(ies) and {Episodes} new episode(s) to announce", events.Count, deliveries, episodes);
         return events.Count;
     }
 

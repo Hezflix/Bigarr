@@ -70,7 +70,7 @@ public sealed class WebhookClient(IHttpClientFactory httpClientFactory, IOptions
             // Discord says what is wrong in JSON ({"message", "code"}) and how long to wait on a 429 (retry_after).
             var discord = endpoint.Format == WebhookFormat.Discord;
             var answer = discord ? await ReadAsync(response, ct) : null;
-            var retryAfter = response.StatusCode == HttpStatusCode.TooManyRequests ? RetryAfter(response) ?? (discord ? DiscordWebhook.RetryAfter(answer) : null) : null;
+            var retryAfter = response.StatusCode == HttpStatusCode.TooManyRequests ? RetryAfter(response, time.GetUtcNow()) ?? (discord ? DiscordWebhook.RetryAfter(answer) : null) : null;
             var error = (discord ? DiscordWebhook.Error(answer) : null) ?? $"HTTP {status} {response.ReasonPhrase}".Trim();
             return new WebhookResult(false, status, error, stopwatch.Elapsed, retryAfter);
         }
@@ -112,8 +112,9 @@ public sealed class WebhookClient(IHttpClientFactory httpClientFactory, IOptions
         "sha256=" + Convert.ToHexStringLower(HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes(body)));
 
     /// <summary>The <c>Retry-After</c> header: seconds (Discord may send a fraction) or a date.</summary>
-    private TimeSpan? RetryAfter(HttpResponseMessage response)
+    public static TimeSpan? RetryAfter(HttpResponseMessage response, DateTimeOffset now)
     {
+        ArgumentNullException.ThrowIfNull(response);
         if (response.Headers.RetryAfter is { } header)
         {
             if (header.Delta is { } delta)
@@ -123,7 +124,7 @@ public sealed class WebhookClient(IHttpClientFactory httpClientFactory, IOptions
 
             if (header.Date is { } date)
             {
-                var left = date - time.GetUtcNow();
+                var left = date - now;
                 return left > TimeSpan.Zero ? left : TimeSpan.Zero;
             }
         }
@@ -135,7 +136,8 @@ public sealed class WebhookClient(IHttpClientFactory httpClientFactory, IOptions
                 : null;
     }
 
-    private static async Task<string?> ReadAsync(HttpResponseMessage response, CancellationToken ct)
+    /// <summary>The start of an error answer (Discord's JSON), at most 16 KiB; null when it cannot be read.</summary>
+    public static async Task<string?> ReadAsync(HttpResponseMessage response, CancellationToken ct)
     {
         try
         {

@@ -145,6 +145,9 @@ public static class SeerrMapping
             (2048, typeof(IssueReopened)),
         };
         var on = map.Where(m => (bits & m.Bit) != 0).Select(m => DomainEventCatalog.NameOf(m.Event)).ToHashSet(StringComparer.Ordinal);
+
+        // Seerr has nothing like the new-episode messages: on by default, as for any user.
+        on.Add(Domain.Notifications.Mentions.NewEpisode);
         return [.. Domain.Notifications.Mentions.Choices.Where(on.Contains)];
     }
 

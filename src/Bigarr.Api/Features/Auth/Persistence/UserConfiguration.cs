@@ -73,6 +73,7 @@ public sealed class InstanceSettingsConfiguration : IEntityTypeConfiguration<Big
 
         builder.Property(s => s.Id).ValueGeneratedNever();
         builder.Property(s => s.PlexClientIdentifier).HasMaxLength(64);
+        builder.Property(s => s.DiscordBotToken).HasMaxLength(256);
         builder.ComplexProperty(s => s.DefaultPermissions);
         builder.ComplexProperty(s => s.DefaultQuota);
         builder.ComplexProperty(s => s.RequestDefaults);

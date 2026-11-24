@@ -1812,7 +1812,30 @@
     "formatSonarrHint": "The body Sonarr v4's webhook sends, for the series events (and health, test), so tools written for Sonarr work unchanged. A Sonarr series is a series version, seen through the view like an API key's; film events are not sent.",
     "sonarrBadge": "Sonarr · {{view}}",
     "sonarrEventsHint": "Sonarr's format only sends the series events Sonarr has; the others are greyed out.",
-    "notInSonarr": "not sent in Sonarr's format"
+    "notInSonarr": "not sent in Sonarr's format",
+    "bot": {
+      "title": "New episodes in Discord direct messages",
+      "hint": "A Discord bot sends each user a direct message when a new episode of a show they watch is on Plex: everyone who played an episode of it, with a Discord user id in their profile. Create an application in the Discord Developer Portal, add a bot, paste its token here, and invite the bot to a server your users are on: Discord only lets a bot write to people it shares a server with.",
+      "token": "Bot token",
+      "tokenPlaceholder": "Paste the bot's token",
+      "tokenHint": "No token: no direct message, and new episodes are not collected.",
+      "tokenSet": "A token is saved. It is never shown again: paste a new one to replace it, or empty the field to remove it.",
+      "saved": "Bot token saved",
+      "removed": "Bot token removed",
+      "recent": "Latest new episodes",
+      "none": "No new episode yet.",
+      "show": "Show",
+      "plex": "Plex",
+      "messages": "Told",
+      "deletedShow": "Deleted show",
+      "waiting": "Waiting for Plex",
+      "wait": {
+        "seen": "Seen on Plex",
+        "timedOut": "Sent before Plex listed it",
+        "notChecked": "Not checked",
+        "noRecipient": "Nobody to tell"
+      }
+    }
   },
   "system": {
     "title": "System",
@@ -3848,7 +3871,7 @@
     "title": "Profile",
     "saved": "Saved",
     "discordTitle": "Discord mentions",
-    "discordHint": "Request and issue messages are posted to the Discord channel the admin chose. With your Discord user id here, the ones about you mention you, so Discord notifies you.",
+    "discordHint": "Request and issue messages are posted to the Discord channel the admin chose. With your Discord user id here, the ones about you mention you, so Discord notifies you, and the Discord bot sends you a direct message when a new episode of a show you watch is on Plex.",
     "discordId": "Discord user id",
     "discordIdHint": "17 to 20 digits. In Discord: User Settings → Advanced → Developer Mode, then right-click your name → Copy User ID.",
     "discordIdInvalid": "A Discord user id is 17 to 20 digits, not a username.",
@@ -3864,7 +3887,8 @@
       "issueCreated": "Someone reports an issue",
       "issueCommented": "A comment on my issue (admins and request managers: the reporter's answers)",
       "issueResolved": "My issue is resolved",
-      "issueReopened": "My issue is reopened (admins and request managers: anyone's)"
+      "issueReopened": "My issue is reopened (admins and request managers: anyone's)",
+      "newEpisode": "A new episode of a show I watch is on Plex (a direct message)"
     },
     "mentionsTitleOther": "Mention them when",
     "mentionsOther": {
@@ -3876,7 +3900,19 @@
       "issueCreated": "Someone reports an issue",
       "issueCommented": "A comment on their issue (admins and request managers: the reporter's answers)",
       "issueResolved": "Their issue is resolved",
-      "issueReopened": "Their issue is reopened (admins and request managers: anyone's)"
+      "issueReopened": "Their issue is reopened (admins and request managers: anyone's)",
+      "newEpisode": "A new episode of a show they watch is on Plex (a direct message)"
+    },
+    "shows": {
+      "title": "Shows I watch",
+      "hint": "Any show you played an episode of on Plex. When a new episode arrives, the Discord bot sends you a direct message, unless you untick the show.",
+      "notify": "New episodes",
+      "notifyFor": "New episodes of {{title}}",
+      "lastWatched": "Last watched {{age}}",
+      "empty": "No show yet: play an episode on Plex and it shows up here.",
+      "notLinked": "Bigarr does not know your Plex account yet. Sign in with Plex once and the shows you watch show up here.",
+      "noBot": "The admin has not set up the Discord bot: no direct message is sent for now.",
+      "off": "New episode messages are off: set your Discord user id and tick “A new episode of a show I watch” above."
     }
   },
   "editFile": {

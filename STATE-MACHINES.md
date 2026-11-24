@@ -13,7 +13,8 @@ Line numbers are those of the commit that last touched the section; symbols are 
 
 - [Ground rules](#ground-rules)
 - [Acquisition](#acquisition): grab, queue poll, import queue, version status
-- [Events and notifications](#events-and-notifications): outbox, webhook delivery, media-server refresh, compat command
+- [Events and notifications](#events-and-notifications): outbox, webhook delivery, media-server refresh, new-episode
+  announcement, compat command
 - [Background runners](#background-runners): scheduled job, health, scans and imports, search queues
 - [Files on disk](#files-on-disk): file rows, transfer, series order, held releases, blocklist
 - [Playback](#playback): session, play, listener, backstop
@@ -190,6 +191,31 @@ Implicit, in memory: a work item per (server, folder) with an attempt number 0 t
 
 Invariants: the single worker loop never ends (guarded since [F3](#f3-deleting-a-media-server-mid-refresh-stopped-every-later-refresh));
 a deleted or disabled server drops its work. Pending retries are lost on restart, by design.
+
+### New-episode announcement and message
+
+`NewEpisodeAnnouncement` (one per show and batch) and `NewEpisodeMessage` (one per recipient), both rows, written by
+`NewEpisodeCollector` (inside the outbox dispatch) and `NewEpisodeAnnouncements` (the single `NewEpisodeAnnouncer`).
+Implicit states of the announcement: collecting, then waiting for Plex (both `ReadyAt` null), then ready.
+
+| From | To | Trigger | Performed by |
+|---|---|---|---|
+| none | collecting | an `EpisodeFileImported` that is no upgrade, of an episode never announced, while a bot token is set | `NewEpisodeCollector`, in the dispatcher's save |
+| collecting | collecting, `LastAddedAt` = now | another new episode of the show, the batch less than `MaxBatchMinutes` old | `NewEpisodeCollector` |
+| collecting | waiting for Plex | `DebounceSeconds` after the last episode, or `MaxBatchMinutes` after the first | time |
+| waiting for Plex | ready, `NoRecipient` | nobody follows the show (or all opted out) | `NewEpisodeAnnouncements` |
+| waiting for Plex | ready, `Seen` / `NotChecked` / `TimedOut`, one message per recipient | Plex lists every episode; no Plex server knows the show; `PlexWaitMinutes` after the batch closed | `NewEpisodeAnnouncements`, body, recipients and messages in one save |
+
+Messages follow the webhook delivery's states (`Pending`, `Delivered`, `GivenUp`, derived from the same three
+columns): a 429 gives the attempt back and holds the rest of the pass until Discord's delay; a 403 (Discord code
+50007 and the other refusals of a user) gives up that message only; other failures retry on the webhook escalation up
+to `MaxAttempts`.
+
+Invariants: an episode is announced once, ever (unique `EpisodeId`, so another version, a re-download or an upgrade
+tells nobody); recipients are fixed when the announcement becomes ready, so changing an opt-out later does not touch
+messages already made; each message's outcome is saved as soon as Discord answers, on `CancellationToken.None`, so a
+message Discord took is never sent again. Subscriptions are never stored: followers are derived from plays at ready
+time. Removing the token stops collecting, and leaves what was collected waiting for a new one.
 
 ### Compat command
 

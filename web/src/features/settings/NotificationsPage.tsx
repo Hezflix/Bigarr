@@ -44,6 +44,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatAge, formatDateTime } from '@/i18n'
+import { DiscordBotCard } from './DiscordBotCard'
 import { DiscordPreviewPanel } from './DiscordPreview'
 
 const enabledStyle = 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300'
@@ -331,6 +332,8 @@ export function NotificationsPage() {
           </Table>
         </div>
       )}
+
+      <DiscordBotCard />
 
       {editing !== null && (
         <NotificationDialog key={editing === 'new' ? 'new' : editing.id} endpoint={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={() => void invalidate()} />

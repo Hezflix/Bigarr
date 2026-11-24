@@ -106,7 +106,8 @@ public sealed class SeerrImportTests
             Assert.Equal(14, demoFriend.Quota.FilmDays);
             Assert.Null(demoFriend.Quota.SeasonLimit);
             Assert.Equal(FriendDiscord, demoFriend.DiscordUserId);
-            Assert.Equal(["requestApproved", "requestAvailable", "issueCommented"], demoFriend.DiscordMentions);
+            // Seerr has no new-episode messages: they come on, as for any user.
+            Assert.Equal(["requestApproved", "requestAvailable", "issueCommented", "newEpisode"], demoFriend.DiscordMentions);
             Assert.Equal(new DateTime(2024, 1, 2, 3, 4, 5, DateTimeKind.Utc), demoFriend.CreatedAt);
             var friendLogin = logins.Single(l => l.UserId == demoFriend.Id);
             Assert.Equal(("plex", "5002", "demo-friend"), (friendLogin.Provider, friendLogin.ExternalId, friendLogin.ExternalUsername));
@@ -223,7 +224,7 @@ public sealed class SeerrImportTests
         Assert.Equal(1, report.UsersAdded);
         var created = await env.DbAsync(db => db.Users.AsNoTracking().SingleAsync(u => u.Username == "demo-old"));
         Assert.Equal("223456789012345678", created.DiscordUserId);
-        Assert.Equal(["requestCreated"], created.DiscordMentions);
+        Assert.Equal(["requestCreated", "newEpisode"], created.DiscordMentions);
 
         var notSeerr = Path.Combine(Path.GetDirectoryName(path)!, "other.db");
         using (var connection = Open(notSeerr))

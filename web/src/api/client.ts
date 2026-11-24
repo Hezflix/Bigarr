@@ -128,10 +128,16 @@ export const users = {
     put<UserSettings>('/api/v1/users/settings', { plexNewAccounts, defaultPermissions, defaultQuota }),
 }
 
+export type FollowedShows = Schemas['FollowedShowsResponse']
+export type FollowedShow = Schemas['FollowedShow']
+
 /** The signed-in user's own settings, whatever their role. */
 export const profile = {
   notifications: () => api<MyNotifications>('/api/v1/profile/notifications'),
   updateNotifications: (body: UserNotifications) => put<MyNotifications>('/api/v1/profile/notifications', body),
+  /** The shows they watch, whose new episodes the Discord bot tells them about, each with its switch. */
+  shows: () => api<FollowedShows>('/api/v1/profile/shows'),
+  follow: (seriesId: number, notify: boolean) => put<void>(`/api/v1/profile/shows/${seriesId}`, { notify }),
 }
 
 // ---- Discover (every signed-in user) ----------------------------------------
@@ -1054,6 +1060,18 @@ export type DiscordPayload = Schemas['DiscordPayload']
 export type DiscordEmbed = Schemas['DiscordEmbed']
 
 export type DiscordPreview = Schemas['DiscordPreviewResponse']
+
+export type DiscordBot = Schemas['DiscordBotResponse']
+export type NewEpisodeAnnouncement = Schemas['NewEpisodeAnnouncementResponse']
+export type PlexWait = Schemas['PlexWait']
+
+/** The Discord bot that tells users about new episodes in direct messages. */
+export const newEpisodes = {
+  bot: () => api<DiscordBot>('/api/v1/notifications/discord-bot'),
+  /** The mask keeps the stored token, an empty string removes it. */
+  updateBot: (token: string) => put<DiscordBot>('/api/v1/notifications/discord-bot', { token }),
+  announcements: (limit = 20) => api<NewEpisodeAnnouncement[]>(`/api/v1/notifications/new-episodes?limit=${limit}`),
+}
 
 export const notifications = {
   list: () => api<NotificationEndpoint[]>('/api/v1/notifications'),

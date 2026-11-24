@@ -437,6 +437,10 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int?>("BackupRetentionDays")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("DiscordBotToken")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("DiscoverFourKVersion")
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
@@ -1547,6 +1551,131 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("MovieVersionTags", (string)null);
                 });
 
+            modelBuilder.Entity("Bigarr.Domain.Notifications.NewEpisodeAnnouncement", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Body")
+                        .HasMaxLength(16384)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("LastAddedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("PlexCheckedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("PlexWait")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ReadyAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReadyAt", "SeriesId");
+
+                    b.ToTable("NewEpisodeAnnouncements", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Notifications.NewEpisodeAnnouncementEpisode", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("AnnouncementId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("EpisodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("EpisodeNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(4096)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Overview")
+                        .HasMaxLength(4096)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SeasonNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AnnouncementId");
+
+                    b.HasIndex("EpisodeId")
+                        .IsUnique();
+
+                    b.ToTable("NewEpisodeAnnouncementEpisodes", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Notifications.NewEpisodeMessage", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("AnnouncementId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DeliveredAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DiscordUserId")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastAttemptAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("LastStatusCode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("NextAttemptAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AnnouncementId", "UserId")
+                        .IsUnique();
+
+                    b.HasIndex("DeliveredAt", "NextAttemptAt");
+
+                    b.ToTable("NewEpisodeMessages", (string)null);
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Notifications.NotificationEndpoint", b =>
                 {
                     b.Property<int>("Id")
@@ -1609,6 +1738,24 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("TagId");
 
                     b.ToTable("NotificationEndpointTags", (string)null);
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Notifications.SeriesNotificationOptOut", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SeriesId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("UserId", "SeriesId");
+
+                    b.HasIndex("SeriesId");
+
+                    b.ToTable("SeriesNotificationOptOuts", (string)null);
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Notifications.WebhookDelivery", b =>
@@ -4549,6 +4696,28 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Version");
                 });
 
+            modelBuilder.Entity("Bigarr.Domain.Notifications.NewEpisodeAnnouncementEpisode", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Notifications.NewEpisodeAnnouncement", "Announcement")
+                        .WithMany("Episodes")
+                        .HasForeignKey("AnnouncementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Announcement");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Notifications.NewEpisodeMessage", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Notifications.NewEpisodeAnnouncement", "Announcement")
+                        .WithMany("Messages")
+                        .HasForeignKey("AnnouncementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Announcement");
+                });
+
             modelBuilder.Entity("Bigarr.Domain.Notifications.NotificationEndpointTag", b =>
                 {
                     b.HasOne("Bigarr.Domain.Notifications.NotificationEndpoint", "Endpoint")
@@ -4566,6 +4735,21 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Endpoint");
 
                     b.Navigation("Tag");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Notifications.SeriesNotificationOptOut", b =>
+                {
+                    b.HasOne("Bigarr.Domain.Tv.Series", null)
+                        .WithMany()
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Bigarr.Domain.Auth.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Notifications.WebhookDelivery", b =>
@@ -5208,6 +5392,13 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Bigarr.Domain.Movies.Movie", b =>
                 {
                     b.Navigation("Versions");
+                });
+
+            modelBuilder.Entity("Bigarr.Domain.Notifications.NewEpisodeAnnouncement", b =>
+                {
+                    b.Navigation("Episodes");
+
+                    b.Navigation("Messages");
                 });
 
             modelBuilder.Entity("Bigarr.Domain.Playback.Play", b =>

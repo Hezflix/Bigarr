@@ -357,6 +357,10 @@ public sealed class UsersAndRolesTests
             "POST /api/v1/auth/logout",
             "GET /api/v1/profile/notifications",
             "PUT /api/v1/profile/notifications",
+
+            // Their own shows (what they watch) and the switch that stops one show's new-episode messages.
+            "GET /api/v1/profile/shows",
+            "PUT /api/v1/profile/shows/{seriesId:int}",
             "GET /api/v1/discover/",
             "GET /api/v1/discover/sliders/{id:int}",
             "GET /api/v1/discover/movies",
