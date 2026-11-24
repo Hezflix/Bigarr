@@ -46,7 +46,9 @@ public sealed record SeriesImportPlan(
     /// <summary>What the download client reported (folder or file), for the extra files.</summary>
     string? ReleasePath = null,
     /// <summary>The extra files picked in the manual import, exactly; null finds them per the media management settings.</summary>
-    IReadOnlyList<string>? ExtraPaths = null);
+    IReadOnlyList<string>? ExtraPaths = null,
+    /// <summary>A file of a release the user grabbed from the interactive search, a pack's included: imported as they chose, no upgrade check.</summary>
+    bool ChosenByUser = false);
 
 public enum SeriesFileStatus
 {
@@ -203,7 +205,8 @@ public sealed class SeriesImportService(
                 grab,
                 Force: false,
                 config.TransferMode,
-                item.OutputPath));
+                item.OutputPath,
+                ChosenByUser: grab.Interactive));
         }
 
         foreach (var plan in plans)
@@ -307,7 +310,7 @@ public sealed class SeriesImportService(
         var matched = calculator.Match(CustomFormatScorer.EpisodeFileInput(
             plan.ReleaseTitle, source.Name, source.Length, plan.Flags, qualityDefinition, languages, plan.ReleaseGroup, series.Year, series.OriginalLanguage));
 
-        if (!plan.Force && existing.Count > 0)
+        if (!plan.Force && !plan.ChosenByUser && existing.Count > 0)
         {
             judge ??= await targetsFactory.LoadFilesOnlyAsync(series.Id, ct);
             var shared = judge?.Episodes.Where(e => plan.EpisodeIds.Contains(e.Id)).ToList() ?? [];

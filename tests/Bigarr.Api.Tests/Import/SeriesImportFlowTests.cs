@@ -7,6 +7,7 @@ using Bigarr.Api.Features.History;
 using Bigarr.Api.Features.Import;
 using Bigarr.Api.Features.Series;
 using Bigarr.Api.Infrastructure.Downloads.Mock;
+using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Api.Tests.Search;
 using Bigarr.Api.Tests.Series;
 using Bigarr.Domain.Acquisition;
@@ -14,6 +15,7 @@ using Bigarr.Domain.Downloads;
 using Bigarr.Domain.History;
 using Bigarr.Domain.Library;
 using Bigarr.Domain.Movies;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using static Bigarr.Api.Tests.Import.ImportTestHelpers;
 
@@ -55,10 +57,12 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
             await GrabAndCompleteAsync(client, Crafted("Breaking.Bad.S01E05.PROPER.1080p.BluRay.x264-DEMAND", version.Id, e05Id));
             await WaitForFilesAsync(client, series.Id, f => f.Any(x => x.Episodes == "S01E05"));
 
-            // 2. The Bluray pack: seven files, a sample left behind. E05's proper is better than the pack's: skipped;
-            //    E03's WEB-DL is upgraded; the other five are new.
+            // 2. The Bluray pack, grabbed automatically (the API grab loses its "picked by hand" mark): seven files, a
+            //    sample left behind. E05's proper is better than the pack's: skipped; E03's WEB-DL is upgraded; the other
+            //    five are new.
             var pack = season.Releases.Single(r => r.Title == "Breaking.Bad.S01.1080p.BluRay.x264-DEMAND");
             var grab = await GrabAsync(client, SeriesSetup.Grab(pack));
+            await MarkAutomaticAsync(grab.GrabId!.Value);
             var queued = (await RefreshAsync(client)).Items.Single(i => i.GrabId == grab.GrabId);
             Assert.True(queued.Series);
             Assert.Equal(series.Id, queued.SeriesId);
@@ -205,11 +209,31 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
             var pilot = await SeriesSetup.EpisodeAsync(client, series.Id, 1, 1);
             Assert.False(pilot.Versions.Single().HasFile);
             Assert.Contains(await SeriesHistoryAsync(client, series.Id), h => h.EventType == HistoryEventType.FileDeleted && h.Data.GetValueOrDefault("episode") == "S01E01");
+
+            // 9. A lower pack grabbed by hand from the interactive search: every episode takes it, the better propers
+            //    included. The user chose the whole pack.
+            var seasonOne = new List<int>();
+            for (var number = 1; number <= 7; number++)
+            {
+                seasonOne.Add((await SeriesSetup.EpisodeAsync(client, series.Id, 1, number)).Id);
+            }
+
+            await GrabAndCompleteAsync(client, Crafted("Breaking.Bad.S01.720p.HDTV.x264-CTU", version.Id, [.. seasonOne]));
+            files = await WaitForFilesAsync(client, series.Id, f => f.Count(x => x.SeasonNumber == 1 && x.Quality == "HDTV-720p") == 7);
+            Assert.DoesNotContain(files, f => f.SeasonNumber == 1 && f.RevisionVersion != 1);
         }
         finally
         {
             await client.DeleteAsync($"/api/v1/downloadclients/{downloadClient.Id}");
         }
+    }
+
+    /// <summary>What an RSS or automatic search grab looks like: the API grab is the interactive one.</summary>
+    private async Task MarkAutomaticAsync(int grabId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+        Assert.Equal(1, await db.Grabs.Where(g => g.Id == grabId).ExecuteUpdateAsync(s => s.SetProperty(g => g.Interactive, false)));
     }
 
     [Fact]

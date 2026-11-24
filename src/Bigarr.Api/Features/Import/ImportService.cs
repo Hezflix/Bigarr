@@ -331,7 +331,8 @@ public sealed class ImportService(
         var matched = calculator.Match(CustomFormatScorer.FileInput(
             plan.ReleaseTitle, source.Name, source.Length, plan.Flags, qualityDefinition, languages, edition, releaseGroup, movie.Year, movie.OriginalLanguage));
 
-        if (!plan.Force && existing is not null)
+        // A release the user grabbed from the interactive search is imported as they chose, like a forced manual import.
+        if (!plan.Force && plan.Grab?.Interactive != true && existing is not null)
         {
             var context = (await contexts.BuildAsync(movie, [version], ct)).Single();
             var release = new ReleaseInfo

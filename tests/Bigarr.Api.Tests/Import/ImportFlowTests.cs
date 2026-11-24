@@ -98,9 +98,14 @@ public sealed class ImportFlowTests(BigarrApiFactory factory) : IClassFixture<Bi
             Assert.Equal("WEBDL-1080p", upgrade.Data["previousQuality"]);
             Assert.EndsWith("The Matrix (1999) [WEBDL-1080p].mkv", upgrade.Data["recycledTo"], StringComparison.Ordinal);
 
-            // 3. A lower release grabbed on purpose is refused at import: visible, never blocklisted.
+            // 3. A lower release grabbed automatically (the verdict no longer holds by the time it finishes) is refused at
+            // import: visible, never blocklisted. The grab goes through the API, then loses its "picked by hand" mark.
             var yify = search.Releases.Single(r => r.Title.Contains("720p.BluRay.x264-YIFY", StringComparison.Ordinal));
-            var grab3 = await GrabAndCompleteAsync(client, yify, version.Id);
+            var grab3 = await GrabAsync(client, yify, version.Id);
+            await MarkAutomaticAsync(grab3.GrabId!.Value);
+            await RefreshAsync(client);
+            await CompleteAsync(client, grab3.DownloadId!);
+            await RefreshAsync(client);
             var failed = await WaitForQueueRowAsync(client, r => r.GrabId == grab3.GrabId && r.State == GrabState.ImportFailed, "import failed");
             Assert.Contains(failed.StatusMessages, m => m.Title == ImportService.FailedMessageTitle && m.Messages[0].Contains("lower than the existing Bluray-1080p", StringComparison.Ordinal));
             Assert.Single(await HistoryAsync(client, movie.Id, HistoryEventType.ImportFailed));
@@ -141,6 +146,51 @@ public sealed class ImportFlowTests(BigarrApiFactory factory) : IClassFixture<Bi
             await client.DeleteAsync($"/api/v1/indexers/{indexer.Id}");
             await client.DeleteAsync($"/api/v1/movies/{movie.Id}");
         }
+    }
+
+    [Fact]
+    public async Task A_release_grabbed_by_hand_from_the_interactive_search_is_imported_even_when_it_is_not_an_upgrade()
+    {
+        var client = await ClientAsync(factory);
+        var (hd, _) = await ProfilesAsync(client);
+        var root = await AddRootAsync(client, Path.Combine(_root, "by-hand"));
+        await ConfigureAsync(client, _bin);
+
+        var movie = await AddMovieAsync(client, 78, hd, root.Id); // Blade Runner
+        var version = movie.Versions.Single();
+        var indexer = await AddMockIndexerAsync(client, "Mock by-hand idx");
+        var downloadClient = await AddMockClientAsync(client, "Mock by-hand qbt");
+        try
+        {
+            var search = await SearchAsync(client, movie.Id);
+            var webdl = search.Releases.Single(r => r.Title.Contains("1080p.WEB-DL.DDP5.1.H.264-NTb", StringComparison.Ordinal));
+            await GrabAndCompleteAsync(client, webdl, version.Id);
+            await WaitForFileAsync(client, movie.Id, version.Id);
+
+            // The search says no, the user grabs it anyway: the import does not overrule them.
+            var yify = (await SearchAsync(client, movie.Id)).Releases.Single(r => r.Title.Contains("720p.BluRay.x264-YIFY", StringComparison.Ordinal));
+            Assert.False(Assert.Single(yify.Versions).Approved);
+            var grab = await GrabAndCompleteAsync(client, yify, version.Id);
+            var replaced = await WaitForFileAsync(client, movie.Id, version.Id, v => v.File!.Quality == "Bluray-720p");
+            Assert.Equal(yify.Title, replaced.File!.OriginalReleaseTitle);
+            await WaitOffQueueAsync(client, grab.GrabId!.Value);
+            Assert.Single(await HistoryAsync(client, movie.Id, HistoryEventType.Upgraded));
+            Assert.Empty(await HistoryAsync(client, movie.Id, HistoryEventType.ImportFailed));
+        }
+        finally
+        {
+            await client.DeleteAsync($"/api/v1/downloadclients/{downloadClient.Id}");
+            await client.DeleteAsync($"/api/v1/indexers/{indexer.Id}");
+            await client.DeleteAsync($"/api/v1/movies/{movie.Id}");
+        }
+    }
+
+    /// <summary>What an RSS or automatic search grab looks like: the API grab is the interactive one.</summary>
+    private async Task MarkAutomaticAsync(int grabId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+        Assert.Equal(1, await db.Grabs.Where(g => g.Id == grabId).ExecuteUpdateAsync(s => s.SetProperty(g => g.Interactive, false)));
     }
 
     [Fact]
@@ -313,13 +363,18 @@ public sealed class ImportFlowTests(BigarrApiFactory factory) : IClassFixture<Bi
         var downloadClient = await AddMockClientAsync(client, "Mock override judged");
         try
         {
-            async Task<GrabResponse> GrabCraftedAsync(string title, int? qualityId)
+            async Task<GrabResponse> GrabCraftedAsync(string title, int? qualityId, bool automatic = false)
             {
                 var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(title)));
                 var request = new GrabRequest(version.Id, 0, "crafted/" + title, title, InfoHash: hash, Size: 4L * 1024 * 1024 * 1024, Indexer: "by hand", QualityId: qualityId);
                 var response = await client.PostAsJsonAsync("/api/v1/grab", request, Json);
                 Assert.Equal(HttpStatusCode.Created, response.StatusCode);
                 var grab = (await response.Content.ReadFromJsonAsync<GrabResponse>(Json))!;
+                if (automatic)
+                {
+                    await MarkAutomaticAsync(grab.GrabId!.Value);
+                }
+
                 await RefreshAsync(client);
                 await CompleteAsync(client, grab.DownloadId!);
                 await RefreshAsync(client);
@@ -331,8 +386,9 @@ public sealed class ImportFlowTests(BigarrApiFactory factory) : IClassFixture<Bi
             var first = await WaitForFileAsync(client, movie.Id, version.Id);
             Assert.Equal("Bluray-720p", first.File!.Quality);
 
-            // The title says 1080p Bluray (an upgrade), the user says HDTV-720p: judged as HDTV-720p, lower than the file in place, refused.
-            var lower = await GrabCraftedAsync("Spirited.Away.2001.1080p.BluRay.x264-LOW", Bigarr.Parsing.Qualities.Quality.HDTV720p.Id);
+            // The title says 1080p Bluray (an upgrade), the quality given is HDTV-720p: judged as HDTV-720p, lower than the file
+            // in place, refused. Judged only because the grab stands for an automatic one: a grab by hand is imported as chosen.
+            var lower = await GrabCraftedAsync("Spirited.Away.2001.1080p.BluRay.x264-LOW", Bigarr.Parsing.Qualities.Quality.HDTV720p.Id, automatic: true);
             var failed = await WaitForQueueRowAsync(client, r => r.GrabId == lower.GrabId && r.State == GrabState.ImportFailed, "import failed");
             Assert.Contains(failed.StatusMessages, m => m.Title == ImportService.FailedMessageTitle && m.Messages[0].Contains("lower than the existing Bluray-720p", StringComparison.Ordinal));
             var unchanged = (await GetMovieAsync(client, movie.Id)).Versions.Single();
