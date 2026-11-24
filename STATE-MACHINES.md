@@ -1034,6 +1034,22 @@ Test: `LibraryScanTimeoutTests.A_metadata_timeout_on_one_folder_leaves_the_rest_
 no test: the Radarr import only asks the provider for a film whose Radarr payload has no title, and both of its loaders
 drop those films first; the Sonarr change is the same one-line filter.
 
+#### F44. One show whose refresh threw ended every series refresh
+
+The "Refresh series" task asks the providers again about the shows that are due, in batches, the one that waited longest
+first. A provider failure comes back as a result and is counted; anything else that went wrong inside one show's refresh
+(a database constraint, an unexpected shape in the provider's data) was an exception that nothing caught, so the task
+failed there and the shows after it were not refreshed. A show that throws never gets its "last refreshed" date, so it
+stayed the one that waited longest and came first in every later batch: each run stopped on it and no other show was
+refreshed any more.
+
+Fix: the refresh of one show is wrapped. A show that throws (a cancellation excepted) is logged as an error, the tracker
+is cleared, it is counted as "stopped by an error" in the task's summary and the run goes on with the next show. It does
+not count towards the streak of provider failures that stops a run, which is about the provider being down. The show
+keeps its place at the head of the next batches, so it costs one slot per pass until its cause is fixed.
+Tests: `SeriesRefreshTests.A_show_whose_refresh_throws_is_counted_and_the_others_are_still_refreshed`,
+`SeriesRefreshTests.A_cancelled_refresh_still_stops`.
+
 ### Open
 
 What is known and not fixed:
