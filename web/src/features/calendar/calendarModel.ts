@@ -1,4 +1,4 @@
-import type { CalendarEpisode, CalendarMovie, CalendarStatus } from '@/api/client'
+import { calendar, type CalendarEpisode, type CalendarMovie, type CalendarStatus } from '@/api/client'
 import { usePersistedPrefs } from '@/features/library/core'
 import type { ChipTone } from '@/features/library/VersionChip'
 
@@ -114,4 +114,9 @@ export function entriesByDay(films: readonly CalendarMovie[], episodes: readonly
   }
 
   return map
+}
+
+/** The address a calendar app subscribes to: the feed, the page's "unmonitored" choice, and the calendar-only key. */
+export function subscriptionUrl(origin: string, key: string, unmonitored: boolean): string {
+  return `${origin}${calendar.icsUrl}?apikey=${encodeURIComponent(key)}${unmonitored ? '&unmonitored=true' : ''}`
 }

@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { type ChipTone, ToneDot } from '@/features/library/VersionChip'
 import { formatTime } from '@/i18n'
+import { CalendarSubscription } from './CalendarSubscription'
 import { type CalendarDensity, type CalendarEntry, type CalendarView, calendarDensities, calendarKinds, entriesByDay, filmTone, localDay, useCalendarPrefs } from './calendarModel'
 
 /** The library legend's colours as a left bar and a tint: the same green, violet, amber, blue and grey as the chips. */
@@ -218,9 +219,7 @@ export function CalendarPage() {
           })}
         </div>
       )}
-      <p className="text-xs text-muted-foreground">
-        {t('calendar.icalHint')} <code className="break-all">{calendar.icsUrl}?apikey=…</code>
-      </p>
+      <CalendarSubscription unmonitored={unmonitored} />
     </>
   )
 }

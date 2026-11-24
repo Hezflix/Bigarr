@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { CalendarEpisode, CalendarMovie } from '../src/api/client'
-import { defaultCalendarPrefs, entriesByDay, episodeTone, filmTone, localDay, readCalendarPrefs } from '../src/features/calendar/calendarModel'
+import { defaultCalendarPrefs, entriesByDay, episodeTone, filmTone, localDay, readCalendarPrefs, subscriptionUrl } from '../src/features/calendar/calendarModel'
 
 const film = (versionId: number, title: string, releaseType: CalendarMovie['releaseType'], date: string, isDefaultVersion = true) =>
   ({ movieId: versionId, versionId, title, releaseType, date, isDefaultVersion, status: 'pending', monitored: true }) as CalendarMovie
@@ -54,5 +54,16 @@ describe('entriesByDay', () => {
 
   test('localDay pads month and day', () => {
     expect(localDay(new Date(2026, 0, 5))).toBe('2026-01-05')
+  })
+})
+
+describe('subscriptionUrl', () => {
+  test('is the feed with the key, and carries the unmonitored choice only when it is on', () => {
+    expect(subscriptionUrl('https://bigarr.example', 'calendar-key-placeholder', false)).toBe('https://bigarr.example/api/v1/calendar/bigarr.ics?apikey=calendar-key-placeholder')
+    expect(subscriptionUrl('https://bigarr.example', 'calendar-key-placeholder', true)).toBe('https://bigarr.example/api/v1/calendar/bigarr.ics?apikey=calendar-key-placeholder&unmonitored=true')
+  })
+
+  test('escapes a key that is not URL-safe', () => {
+    expect(subscriptionUrl('https://bigarr.example', 'a b&c', false)).toContain('?apikey=a%20b%26c')
   })
 })
