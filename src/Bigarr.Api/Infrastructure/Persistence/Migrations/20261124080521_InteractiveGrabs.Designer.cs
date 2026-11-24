@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(BigarrDbContext))]
-    [Migration("20261123150745_InteractiveGrabs")]
+    [Migration("20261124080521_InteractiveGrabs")]
     partial class InteractiveGrabs
     {
         /// <inheritdoc />
@@ -1348,6 +1348,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("MediaInfo")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("MediaInfoTriedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("OriginalReleaseTitle")
@@ -3556,6 +3559,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("MediaInfo")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("MediaInfoTriedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("OriginalReleaseTitle")

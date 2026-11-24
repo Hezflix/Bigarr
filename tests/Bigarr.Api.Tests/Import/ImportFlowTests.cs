@@ -363,13 +363,18 @@ public sealed class ImportFlowTests(BigarrApiFactory factory) : IClassFixture<Bi
         var downloadClient = await AddMockClientAsync(client, "Mock override judged");
         try
         {
-            async Task<GrabResponse> GrabCraftedAsync(string title, int? qualityId)
+            async Task<GrabResponse> GrabCraftedAsync(string title, int? qualityId, bool automatic = false)
             {
                 var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(title)));
                 var request = new GrabRequest(version.Id, 0, "crafted/" + title, title, InfoHash: hash, Size: 4L * 1024 * 1024 * 1024, Indexer: "by hand", QualityId: qualityId);
                 var response = await client.PostAsJsonAsync("/api/v1/grab", request, Json);
                 Assert.Equal(HttpStatusCode.Created, response.StatusCode);
                 var grab = (await response.Content.ReadFromJsonAsync<GrabResponse>(Json))!;
+                if (automatic)
+                {
+                    await MarkAutomaticAsync(grab.GrabId!.Value);
+                }
+
                 await RefreshAsync(client);
                 await CompleteAsync(client, grab.DownloadId!);
                 await RefreshAsync(client);
@@ -381,8 +386,9 @@ public sealed class ImportFlowTests(BigarrApiFactory factory) : IClassFixture<Bi
             var first = await WaitForFileAsync(client, movie.Id, version.Id);
             Assert.Equal("Bluray-720p", first.File!.Quality);
 
-            // The title says 1080p Bluray (an upgrade), the user says HDTV-720p: judged as HDTV-720p, lower than the file in place, refused.
-            var lower = await GrabCraftedAsync("Spirited.Away.2001.1080p.BluRay.x264-LOW", Bigarr.Parsing.Qualities.Quality.HDTV720p.Id);
+            // The title says 1080p Bluray (an upgrade), the quality given is HDTV-720p: judged as HDTV-720p, lower than the file
+            // in place, refused. Judged only because the grab stands for an automatic one: a grab by hand is imported as chosen.
+            var lower = await GrabCraftedAsync("Spirited.Away.2001.1080p.BluRay.x264-LOW", Bigarr.Parsing.Qualities.Quality.HDTV720p.Id, automatic: true);
             var failed = await WaitForQueueRowAsync(client, r => r.GrabId == lower.GrabId && r.State == GrabState.ImportFailed, "import failed");
             Assert.Contains(failed.StatusMessages, m => m.Title == ImportService.FailedMessageTitle && m.Messages[0].Contains("lower than the existing Bluray-720p", StringComparison.Ordinal));
             var unchanged = (await GetMovieAsync(client, movie.Id)).Versions.Single();

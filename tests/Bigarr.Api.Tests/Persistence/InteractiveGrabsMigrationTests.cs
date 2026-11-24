@@ -37,7 +37,7 @@ public sealed class InteractiveGrabsMigrationTests : IDisposable
 
         await using (var before = new BigarrDbContext(options))
         {
-            await before.GetService<IMigrator>().MigrateAsync("20261123135110_BackupScheduleSettings");
+            await before.GetService<IMigrator>().MigrateAsync("20261123151943_MediaInfoTriedAt");
             await before.Database.ExecuteSqlRawAsync("""
                 INSERT INTO Grabs (Id, DownloadId, ReleaseTitle, Size, IndexerFlags, Protocol, GrabbedAt, State, StatusMessages, EpisodesOverridden)
                 VALUES (1, 'aaaa', 'Godzilla.1998.By.Hand', 0, 0, 1, '2026-11-23 10:00:00', 6, '[]', 0),

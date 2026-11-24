@@ -925,7 +925,8 @@ replaced a better file; a title saying 720p grabbed as 1080p was refused as not 
 
 Fix: the film import judges the quality the import carries (`plan.Quality`), as the series import already did, and a
 hand-added torrent is attributed to a version with that same quality. The plan's parsed title is no longer written to
-by the check.
+by the check. A release grabbed from the interactive search no longer meets this check at all: the import takes it as
+the user chose (`Grab.Interactive`); the check guards automatic grabs and hand-added torrents.
 Test: `ImportFlowTests.An_overridden_quality_is_the_one_judged_against_the_file_in_place`.
 
 #### F38. An approved request whose add threw stayed approved for good
