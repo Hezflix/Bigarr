@@ -1742,7 +1742,7 @@
   },
   "connect": {
     "title": "Connect",
-    "hint": "Bigarr speaks Radarr v3 under the URL base /radarr and Sonarr v3 under /sonarr, so Seerr, Bazarr and Prowlarr plug in as if it were a Radarr and a Sonarr. Each connected app gets its own key, and the key decides which version of each film or series it sees.",
+    "hint": "Bigarr speaks Radarr v3 under the URL base /radarr and Sonarr v3 under /sonarr, so Seerr, Bazarr and Prowlarr plug in as if it were a Radarr and a Sonarr. Each connected app gets its own key, and the key decides which version of each film or series it sees. A key's scope decides which surfaces it opens: connected apps need compat only.",
     "keys": "API keys",
     "add": "New key",
     "name": "Name",
@@ -1771,6 +1771,22 @@
     "noKeys": "No key yet. Create one per app you connect.",
     "createFailed": "The key could not be created.",
     "revokeFailed": "The key could not be revoked.",
+    "scope": "Scope",
+    "scopes": {
+      "compat": "compat",
+      "full": "full",
+      "calendar": "calendar"
+    },
+    "scopeCompat": "Connected app: only the Radarr and Sonarr surfaces (recommended)",
+    "scopeFull": "Script: also Bigarr's own API (/api/v1), everything an admin can do",
+    "scopeCalendar": "Calendar: only the calendar feed, read-only",
+    "scopeFullWarning": "A full key can do everything you can, including downloading and restoring backups. Give it only to a script you run yourself, never to another app or a URL.",
+    "changeScope": "Change scope",
+    "changeScopeTitle": "Change the scope of “{{name}}”?",
+    "confirmScopeFull": "“{{name}}” will open Bigarr's own API as well as the Radarr and Sonarr surfaces.",
+    "confirmScopeNarrow": "“{{name}}” will stop opening everything outside its new scope at once. A script using it on /api/v1 will be refused.",
+    "scopeFailed": "The scope could not be changed.",
+    "scopeUpgradeNote": "Keys created before scopes existed are compat: a script that calls /api/v1 needs its key set to full.",
     "views": {
       "default": "default",
       "all": "all"

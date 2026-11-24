@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
-import { CopyIcon, KeyRoundIcon, PlusIcon, Trash2Icon } from 'lucide-react'
+import { CopyIcon, KeyRoundIcon, PlusIcon, ShieldCheckIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, apiKeys, slugify, system, type ApiKey, type ApiKeyCreated } from '@/api/client'
+import { ApiError, apiKeys, slugify, system, type ApiKey, type ApiKeyCreated, type ApiKeyScope } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -25,8 +25,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatAge, formatDateTime } from '@/i18n'
+import { API_KEY_SCOPES, asScope, scopeChange, scopesFor } from './apiKeyScope'
 
 type ViewKind = 'default' | 'all' | 'version'
+
+/** The scope's long label, shown where one is chosen. */
+const SCOPE_LABELS = {
+  compat: 'connect.scopeCompat',
+  full: 'connect.scopeFull',
+  calendar: 'connect.scopeCalendar',
+} as const satisfies Record<ApiKeyScope, string>
+
+/** The amber tone other pages use for a warning badge: a full key is the one that opens everything. */
+const WARNING_BADGE = 'border-amber-600/30 bg-amber-500/15 text-amber-700 dark:border-amber-400/30 dark:text-amber-300'
 
 const RADARR_VERSION = '5.99.0.0'
 /** The Radarr surface's URL base: Radarr and Sonarr share their routes, so each has its own base on one Bigarr. */
@@ -60,21 +71,26 @@ export function ConnectPage() {
   const [kind, setKind] = useState<ViewKind>('default')
   const [versionName, setVersionName] = useState('')
   const [created, setCreated] = useState<ApiKeyCreated | null>(null)
+  const [scope, setScope] = useState<ApiKeyScope>('compat')
   const [pendingRevoke, setPendingRevoke] = useState<ApiKey | null>(null)
+  const [pendingScope, setPendingScope] = useState<{ key: ApiKey; scope: ApiKeyScope } | null>(null)
   const baseUrl = typeof window === 'undefined' ? '' : window.location.origin
   const radarrUrl = baseUrl + RADARR_URL_BASE
   const sonarrUrl = baseUrl + SONARR_URL_BASE
 
-  const compatView = kind === 'version' ? `version:${slugify(versionName)}` : kind
-  const canCreate = name.trim().length > 0 && (kind !== 'version' || slugify(versionName).length > 0)
+  // A calendar key has no view: the server refuses it with anything but the default.
+  const hasView = scope !== 'calendar'
+  const compatView = hasView && kind === 'version' ? `version:${slugify(versionName)}` : hasView ? kind : 'default'
+  const canCreate = name.trim().length > 0 && (!hasView || kind !== 'version' || slugify(versionName).length > 0)
 
   const create = useMutation({
-    mutationFn: () => apiKeys.create(name.trim(), compatView),
+    mutationFn: () => apiKeys.create(name.trim(), compatView, scope),
     onSuccess: async (key) => {
       setCreated(key)
       setName('')
       setVersionName('')
       setKind('default')
+      setScope('compat')
       await queryClient.invalidateQueries({ queryKey: ['apiKeys'] })
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : t('connect.createFailed')),
@@ -91,6 +107,18 @@ export function ConnectPage() {
     },
   })
 
+  const changeScope = useMutation({
+    mutationFn: ({ id, scope: next }: { id: number; scope: ApiKeyScope }) => apiKeys.setScope(id, next),
+    onSuccess: async () => {
+      setPendingScope(null)
+      await queryClient.invalidateQueries({ queryKey: ['apiKeys'] })
+    },
+    onError: (e) => {
+      setPendingScope(null)
+      toast.error(e instanceof ApiError ? e.message : t('connect.scopeFailed'))
+    },
+  })
+
   const submit = (e: FormEvent) => {
     e.preventDefault()
     if (canCreate) create.mutate()
@@ -101,6 +129,8 @@ export function ConnectPage() {
     if (ok) toast.success(t('connect.copied'))
     else toast.error(t('connect.copyFailed'))
   }
+
+  const pendingChange = pendingScope ? scopeChange(asScope(pendingScope.key.scope), pendingScope.scope) : 'none'
 
   const active = keys.data?.filter((k) => !k.revokedAt) ?? []
   const revoked = keys.data?.filter((k) => k.revokedAt) ?? []
@@ -139,6 +169,7 @@ export function ConnectPage() {
               <TableRow>
                 <TableHead>{t('connect.name')}</TableHead>
                 <TableHead>{t('connect.prefix')}</TableHead>
+                <TableHead>{t('connect.scope')}</TableHead>
                 <TableHead>{t('connect.view')}</TableHead>
                 <TableHead>{t('connect.createdAt')}</TableHead>
                 <TableHead>{t('connect.lastUsed')}</TableHead>
@@ -148,6 +179,7 @@ export function ConnectPage() {
             <TableBody>
               {[...active, ...revoked].map((key) => {
                 const view = splitView(key.compatView)
+                const keyScope = asScope(key.scope)
                 return (
                   <TableRow key={key.id} className={cn(key.revokedAt && 'text-muted-foreground')} data-testid={`apikey-${key.id}`}>
                     <TableCell className="font-medium">
@@ -156,7 +188,16 @@ export function ConnectPage() {
                     </TableCell>
                     <TableCell className="font-mono text-xs">{key.keyPrefix}…</TableCell>
                     <TableCell>
-                      <Badge variant="outline">{view.kind === 'version' ? t('connect.viewVersionLabel', { name: view.name }) : t(`connect.views.${view.kind}`)}</Badge>
+                      <Badge variant="outline" className={cn(keyScope === 'full' && WARNING_BADGE)} data-testid={`scope-badge-${key.id}`}>
+                        {t(`connect.scopes.${keyScope}`)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {keyScope === 'calendar' ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <Badge variant="outline">{view.kind === 'version' ? t('connect.viewVersionLabel', { name: view.name }) : t(`connect.views.${view.kind}`)}</Badge>
+                      )}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
                       <Tooltip>
@@ -183,6 +224,16 @@ export function ConnectPage() {
                         {!key.revokedAt && (
                           <Tooltip>
                             <TooltipTrigger asChild>
+                              <Button type="button" variant="ghost" size="icon" onClick={() => setPendingScope({ key, scope: keyScope })} aria-label={t('connect.changeScope')} data-testid={`scope-${key.id}`}>
+                                <ShieldCheckIcon />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t('connect.changeScope')}</TooltipContent>
+                          </Tooltip>
+                        )}
+                        {!key.revokedAt && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
                               <Button type="button" variant="ghost" size="icon" onClick={() => setPendingRevoke(key)} aria-label={t('connect.revoke')} data-testid={`revoke-${key.id}`}>
                                 <Trash2Icon />
                               </Button>
@@ -197,7 +248,7 @@ export function ConnectPage() {
               })}
               {keys.data?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-muted-foreground">
+                  <TableCell colSpan={7} className="text-muted-foreground">
                     {t('connect.noKeys')}
                   </TableCell>
                 </TableRow>
@@ -205,6 +256,7 @@ export function ConnectPage() {
             </TableBody>
           </Table>
         </div>
+        <p className="max-w-3xl text-xs text-muted-foreground">{t('connect.scopeUpgradeNote')}</p>
 
         <form className="flex max-w-3xl flex-col gap-3 rounded-lg border p-4" onSubmit={submit} data-testid="apikey-form">
           <h3 className="font-medium">{t('connect.add')}</h3>
@@ -214,19 +266,37 @@ export function ConnectPage() {
               <Input id="key-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('connect.namePlaceholder')} maxLength={128} />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="key-view">{t('connect.view')}</Label>
-              <Select value={kind} onValueChange={(value) => setKind(value as ViewKind)}>
-                <SelectTrigger id="key-view" className="w-full">
+              <Label htmlFor="key-scope">{t('connect.scope')}</Label>
+              <Select value={scope} onValueChange={(value) => setScope(value as ApiKeyScope)}>
+                <SelectTrigger id="key-scope" className="w-full" data-testid="key-scope">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="default">{t('connect.viewDefault')}</SelectItem>
-                  <SelectItem value="all">{t('connect.viewAll')}</SelectItem>
-                  <SelectItem value="version">{t('connect.viewVersion')}</SelectItem>
+                  {API_KEY_SCOPES.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {t(SCOPE_LABELS[option])}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {scope === 'full' && <p className="text-xs text-amber-700 dark:text-amber-300">{t('connect.scopeFullWarning')}</p>}
             </div>
-            {kind === 'version' && (
+            {hasView && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="key-view">{t('connect.view')}</Label>
+                <Select value={kind} onValueChange={(value) => setKind(value as ViewKind)}>
+                  <SelectTrigger id="key-view" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">{t('connect.viewDefault')}</SelectItem>
+                    <SelectItem value="all">{t('connect.viewAll')}</SelectItem>
+                    <SelectItem value="version">{t('connect.viewVersion')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {hasView && kind === 'version' && (
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <Label htmlFor="key-version">{t('connect.versionName')}</Label>
                 <Input id="key-version" value={versionName} onChange={(e) => setVersionName(e.target.value)} placeholder={t('connect.versionNamePlaceholder')} />
@@ -300,6 +370,47 @@ export function ConnectPage() {
             <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={() => pendingRevoke && revoke.mutate(pendingRevoke.id)} disabled={revoke.isPending}>
               {t('connect.revoke')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={pendingScope !== null} onOpenChange={(open) => !open && setPendingScope(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{pendingScope && t('connect.changeScopeTitle', { name: pendingScope.key.name })}</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="flex flex-col gap-3">
+                <Select value={pendingScope?.scope} onValueChange={(value) => setPendingScope((p) => p && { ...p, scope: value as ApiKeyScope })}>
+                  <SelectTrigger className="w-full" aria-label={t('connect.scope')} data-testid="change-scope-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pendingScope &&
+                      scopesFor(pendingScope.key.compatView).map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {t(SCOPE_LABELS[option])}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                {pendingChange === 'widen' && pendingScope && (
+                  <p>
+                    {t('connect.confirmScopeFull', { name: pendingScope.key.name })} {t('connect.scopeFullWarning')}
+                  </p>
+                )}
+                {pendingChange === 'narrow' && pendingScope && <p>{t('connect.confirmScopeNarrow', { name: pendingScope.key.name })}</p>}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => pendingScope && changeScope.mutate({ id: pendingScope.key.id, scope: pendingScope.scope })}
+              disabled={pendingChange === 'none' || changeScope.isPending}
+              data-testid="confirm-scope"
+            >
+              {t('connect.changeScope')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
