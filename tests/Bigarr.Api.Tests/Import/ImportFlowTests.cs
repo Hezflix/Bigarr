@@ -454,9 +454,11 @@ public sealed class ImportFlowTests(BigarrApiFactory factory) : IClassFixture<Bi
             Assert.Empty(file.Versions);
             Assert.Equal("Some Unknown Film", file.ParsedTitle);
 
-            // The user knows better: it goes to a one-shot version of Interstellar, with a quality picked by hand so the names do not collide.
+            // The user knows better: it goes to a one-shot version of Interstellar, with a quality picked by hand so the names do not collide,
+            // and the release group typed by hand over the one the title gives.
+            Assert.Equal("GRP", file.ReleaseGroup);
             var extra = await AddVersionAsync(client, movie.Id, new AddVersionRequest("extra", VersionMode.OneShot, hd));
-            var response = await client.PostAsJsonAsync("/api/v1/manualimport", new ManualImportRequest([new ManualImportItemRequest(file.Path, extra.Id, Bigarr.Parsing.Qualities.Quality.WEBDL1080p.Id, failed.GrabId)]), Json);
+            var response = await client.PostAsJsonAsync("/api/v1/manualimport", new ManualImportRequest([new ManualImportItemRequest(file.Path, extra.Id, Bigarr.Parsing.Qualities.Quality.WEBDL1080p.Id, failed.GrabId, ReleaseGroup: " FLUX ")]), Json);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var result = Assert.Single((await response.Content.ReadFromJsonAsync<List<ManualImportResultResponse>>(Json))!);
             Assert.True(result.Imported, result.Reason);
@@ -464,6 +466,7 @@ public sealed class ImportFlowTests(BigarrApiFactory factory) : IClassFixture<Bi
             var refreshed = await GetMovieAsync(client, movie.Id);
             var extraVersion = refreshed.Versions.Single(v => v.Id == extra.Id);
             Assert.Equal("Interstellar (2014) [WEBDL-1080p].mkv", extraVersion.File!.RelativePath);
+            Assert.Equal("FLUX", extraVersion.File.ReleaseGroup);
             Assert.False(extraVersion.Monitored);
             Assert.Empty((await RefreshAsync(client)).Items);
         }

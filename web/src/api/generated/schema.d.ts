@@ -12814,6 +12814,7 @@ export interface components {
             /** Format: int32 */
             grabId?: null | number;
             extraPaths?: null | string[];
+            releaseGroup?: null | string;
         };
         ManualImportRequest: {
             files: components["schemas"]["ManualImportItemRequest"][];
@@ -14974,6 +14975,7 @@ export interface components {
             /** Format: int32 */
             grabId?: null | number;
             extraPaths?: null | string[];
+            releaseGroup?: null | string;
         };
         SeriesManualImportRequest: {
             files: components["schemas"]["SeriesManualImportItemRequest"][];

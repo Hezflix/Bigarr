@@ -10,13 +10,13 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ImportFileCell, ImportFooter, ImportListingState, ImportPathForm, ImportQualityCell, type TransferChoice } from '@/features/import/manualImportParts'
+import { ImportFileCell, ImportFooter, ImportListingState, ImportPathForm, ImportQualityCell, ImportReleaseGroupCell, type TransferChoice } from '@/features/import/manualImportParts'
 import { ReasonList } from '@/features/search/ReasonsDisplay'
 import { approvedStyle } from '@/features/search/releaseTable'
 
 
 /** `extras`: paths of the listed extra files the user keeps (all of them at first). */
-type Selection = { selected: boolean; movieId: number | null; versionId: number | null; qualityId: number; extras: string[] }
+type Selection = { selected: boolean; movieId: number | null; versionId: number | null; qualityId: number; extras: string[]; releaseGroup: string | null }
 
 /**
  * Manual import: the files under a path or behind a queued download, each with the film, version and
@@ -63,6 +63,7 @@ export function ManualImportDialog({ grabId, path: initialPath, movieId: forMovi
               versionId,
               qualityId: f.qualityId,
               extras: f.extras.map((e) => e.path),
+              releaseGroup: null,
             } satisfies Selection,
           ]
         }),
@@ -74,7 +75,7 @@ export function ManualImportDialog({ grabId, path: initialPath, movieId: forMovi
   const sortedMovies = useMemo(() => [...(library.data ?? [])].sort((a, b) => a.sortTitle.localeCompare(b.sortTitle)), [library.data])
 
   const items: ManualImportItem[] = Object.entries(selections).flatMap(([filePath, s]) =>
-    !s.selected || s.versionId === null ? [] : [{ path: filePath, versionId: s.versionId, qualityId: s.qualityId, grabId: grabId ?? null, extraPaths: s.extras }])
+    !s.selected || s.versionId === null ? [] : [{ path: filePath, versionId: s.versionId, qualityId: s.qualityId, grabId: grabId ?? null, extraPaths: s.extras, releaseGroup: s.releaseGroup }])
 
   const run = useMutation({
     mutationFn: () => manualImport.import(items, mode === 'default' ? null : mode),
@@ -116,6 +117,7 @@ export function ManualImportDialog({ grabId, path: initialPath, movieId: forMovi
                   <TableHead className="w-8" />
                   <TableHead>{t('manualImport.file')}</TableHead>
                   <TableHead>{t('manualImport.quality')}</TableHead>
+                  <TableHead>{t('manualImport.releaseGroup')}</TableHead>
                   <TableHead>{t('manualImport.movie')}</TableHead>
                   <TableHead>{t('manualImport.version')}</TableHead>
                   <TableHead>{t('manualImport.verdict')}</TableHead>
@@ -149,6 +151,7 @@ export function ManualImportDialog({ grabId, path: initialPath, movieId: forMovi
                         className="max-w-[24rem]"
                       />
                       <ImportQualityCell value={selection.qualityId} onChange={(qualityId) => update(file.path, { qualityId })} qualities={qualities.data ?? []} />
+                      <ImportReleaseGroupCell value={selection.releaseGroup} detected={file.releaseGroup} onChange={(releaseGroup) => update(file.path, { releaseGroup })} fileName={file.relativePath} />
                       <TableCell className="align-top">
                         <Select
                           value={selection.movieId === null ? 'none' : String(selection.movieId)}

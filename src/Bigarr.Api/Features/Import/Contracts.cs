@@ -106,7 +106,8 @@ public sealed record ManualImportResponse(
     List<ManualImportFileResponse> Files);
 
 /// <param name="ExtraPaths">The side files to bring, as listed; null lets the import find them like an automatic one, empty brings none.</param>
-public sealed record ManualImportItemRequest(string Path, int VersionId, int? QualityId = null, int? GrabId = null, List<string>? ExtraPaths = null);
+/// <param name="ReleaseGroup">The file's release group: null keeps the one the names give, blank imports it without one.</param>
+public sealed record ManualImportItemRequest(string Path, int VersionId, int? QualityId = null, int? GrabId = null, List<string>? ExtraPaths = null, string? ReleaseGroup = null);
 
 public sealed record ManualImportRequest(List<ManualImportItemRequest> Files, TransferMode? TransferMode = null);
 

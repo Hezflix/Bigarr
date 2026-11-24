@@ -102,7 +102,8 @@ public sealed record SeriesManualImportResponse(
     TransferMode DefaultTransferMode,
     List<SeriesManualImportFileResponse> Files);
 
-public sealed record SeriesManualImportItemRequest(string Path, int VersionId, List<int> EpisodeIds, int? QualityId = null, int? GrabId = null, List<string>? ExtraPaths = null);
+/// <param name="ReleaseGroup">The file's release group: null keeps the one the names give, blank imports it without one.</param>
+public sealed record SeriesManualImportItemRequest(string Path, int VersionId, List<int> EpisodeIds, int? QualityId = null, int? GrabId = null, List<string>? ExtraPaths = null, string? ReleaseGroup = null);
 
 public sealed record SeriesManualImportRequest(List<SeriesManualImportItemRequest> Files, TransferMode? TransferMode = null);
 
