@@ -35,6 +35,7 @@ public sealed class AuthEndpointsTests(BigarrApiFactory factory) : IClassFixture
         Assert.Equal("Admin", me.Role);
         Assert.Equal("Session", me.AuthKind);
         Assert.Null(me.CompatView);
+        Assert.Null(me.Scope);
 
         var status = await client.GetAsync("/api/v1/system/status");
         Assert.Equal(HttpStatusCode.OK, status.StatusCode);
@@ -108,9 +109,10 @@ public sealed class AuthEndpointsTests(BigarrApiFactory factory) : IClassFixture
     public async Task An_api_key_authenticates_by_header_and_by_query_string()
     {
         var session = await LoginAsync();
-        var created = await CreateKeyAsync(session, "seerr-4k", "version:4k");
+        var created = await CreateKeyAsync(session, "seerr-4k", "version:4k", "full");
         Assert.StartsWith("bgr_", created.Key);
         Assert.Equal("version:4k", created.CompatView);
+        Assert.Equal("full", created.Scope);
 
         var byHeader = factory.CreateAnonymousClient();
         byHeader.DefaultRequestHeaders.Add("X-Api-Key", created.Key);
@@ -118,6 +120,7 @@ public sealed class AuthEndpointsTests(BigarrApiFactory factory) : IClassFixture
         Assert.NotNull(me);
         Assert.Equal("ApiKey", me.AuthKind);
         Assert.Equal("version:4k", me.CompatView);
+        Assert.Equal("full", me.Scope);
 
         var byQuery = await factory.CreateAnonymousClient()
             .GetFromJsonAsync<MeResponse>($"/api/v1/auth/me?apikey={created.Key}");
@@ -209,9 +212,9 @@ public sealed class AuthEndpointsTests(BigarrApiFactory factory) : IClassFixture
         return client;
     }
 
-    private static async Task<ApiKeyCreatedResponse> CreateKeyAsync(HttpClient session, string name, string? compatView)
+    private static async Task<ApiKeyCreatedResponse> CreateKeyAsync(HttpClient session, string name, string? compatView, string? scope = null)
     {
-        var response = await session.PostAsJsonAsync("/api/v1/apikeys", new CreateApiKeyRequest(name, compatView));
+        var response = await session.PostAsJsonAsync("/api/v1/apikeys", new CreateApiKeyRequest(name, compatView, scope));
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var created = await response.Content.ReadFromJsonAsync<ApiKeyCreatedResponse>();
         Assert.NotNull(created);

@@ -16,6 +16,7 @@ public sealed class ApiKeyConfiguration : IEntityTypeConfiguration<ApiKey>
         builder.Property(k => k.CompatView)
             .HasConversion(v => v.ToString(), s => CompatView.Parse(s))
             .HasMaxLength(80);
+        builder.Property(k => k.Scope).HasConversion<string>().HasMaxLength(16).HasDefaultValue(ApiKeyScope.Compat);
         builder.Ignore(k => k.IsRevoked);
 
         builder.HasIndex(k => k.KeyHash).IsUnique();

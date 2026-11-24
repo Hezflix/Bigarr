@@ -86,7 +86,7 @@ public static class CalendarFeedEndpoints
 {
     public static IEndpointRouteBuilder MapCalendarFeed(this IEndpointRouteBuilder app)
     {
-        // What a calendar app subscribes to with ?apikey=: 7 days back and 28 ahead, like Sonarr and Radarr.
+        // What a calendar app subscribes to with a calendar key in ?apikey=: 7 days back and 28 ahead, like Sonarr and Radarr.
         app.MapGet("/api/v1/calendar/bigarr.ics", async (CalendarService episodes, MovieCalendarService films, TimeProvider time, CancellationToken ct, int pastDays = 7, int futureDays = 28, bool unmonitored = false) =>
             {
                 var now = time.GetUtcNow().UtcDateTime;
@@ -97,7 +97,7 @@ public static class CalendarFeedEndpoints
                 return Results.Text(CalendarFeed.ICal(shows, movies, now), "text/calendar; charset=utf-8");
             })
             .WithTags("Calendar")
-            .RequireAuthorization(Infrastructure.Auth.AuthPolicies.Api);
+            .RequireAuthorization(Infrastructure.Auth.AuthPolicies.CalendarFeed);
         return app;
     }
 }

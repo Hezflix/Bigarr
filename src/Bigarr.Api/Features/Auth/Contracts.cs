@@ -6,23 +6,30 @@ public sealed record ChangePasswordRequest(string CurrentPassword, string NewPas
 
 /// <param name="Role"><c>Admin</c>, <c>RequestManager</c> or <c>User</c>.</param>
 /// <param name="AuthKind">Authentication scheme used for this request: <c>Session</c> or <c>ApiKey</c>.</param>
+/// <param name="Scope">The scope of the key the request came with (<c>compat</c>, <c>full</c> or <c>calendar</c>); null for a session.</param>
 /// <param name="Permissions">What the user may do (<c>RequestFilms</c>…), every one of them for an admin.</param>
-public sealed record MeResponse(int Id, string Username, string Role, string AuthKind, string? CompatView, IReadOnlyList<string> Permissions);
+public sealed record MeResponse(int Id, string Username, string Role, string AuthKind, string? CompatView, string? Scope, IReadOnlyList<string> Permissions);
 
+/// <param name="Scope"><c>compat</c>, <c>full</c> or <c>calendar</c>: the surfaces the key may reach.</param>
 public sealed record ApiKeyResponse(
     int Id,
     string Name,
     string KeyPrefix,
     string CompatView,
+    string Scope,
     DateTime CreatedAt,
     DateTime? LastUsedAt,
     DateTime? RevokedAt);
 
 /// <param name="CompatView"><c>default</c>, <c>all</c> or <c>version:&lt;slug&gt;</c>; defaults to <c>default</c>.</param>
-public sealed record CreateApiKeyRequest(string Name, string? CompatView);
+/// <param name="Scope"><c>compat</c> (default), <c>full</c> or <c>calendar</c>. A calendar key has no view: it is stored with <c>default</c>.</param>
+public sealed record CreateApiKeyRequest(string Name, string? CompatView, string? Scope = null);
+
+/// <param name="Scope"><c>compat</c>, <c>full</c> or <c>calendar</c>.</param>
+public sealed record UpdateApiKeyRequest(string Scope);
 
 /// <summary>The only time the key itself is returned.</summary>
-public sealed record ApiKeyCreatedResponse(int Id, string Name, string Key, string KeyPrefix, string CompatView, DateTime CreatedAt);
+public sealed record ApiKeyCreatedResponse(int Id, string Name, string Key, string KeyPrefix, string CompatView, string Scope, DateTime CreatedAt);
 
 /// <summary>A provider offered on the login page: on, and linked to at least one user or open to new accounts.</summary>
 public sealed record ExternalProviderResponse(string Key, string Name);

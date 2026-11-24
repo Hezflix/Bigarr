@@ -117,6 +117,7 @@ public static class AuthEndpoints
             user.FindFirstValue(ClaimTypes.Role)!,
             user.Identity.AuthenticationType!,
             user.FindFirstValue(BigarrClaims.CompatView),
+            user.KeyScope()?.ToString().ToLowerInvariant(),
             [.. user.Permissions()]));
 
     private static async Task<Results<NoContent, UnauthorizedHttpResult, ValidationProblem>> ChangePasswordAsync(

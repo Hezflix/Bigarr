@@ -252,6 +252,34 @@ public sealed class UsersAndRolesTests
     }
 
     [Fact]
+    public async Task A_demoted_owner_s_full_key_opens_nothing_admin_until_promoted_again()
+    {
+        await using var env = await Env.StartAsync();
+        await env.OpenToNewAccountsAsync(PermissionsDto.From(UserPermissions.Defaults()));
+        env.PlexTv.Share(FakePlexTvSignIn.Friend, FakePlex.MachineIdentifier);
+        var friend = env.Factory.CreateClientWithCookies();
+        Assert.Equal("signedIn", await env.SignInAsync(friend, FakePlexTvSignIn.Friend));
+        var id = (await friend.GetFromJsonAsync<MeResponse>("/api/v1/auth/me"))!.Id;
+        var permissions = PermissionsDto.From(UserPermissions.Defaults());
+
+        // Made an admin for a while, the friend creates a key of scope full for a script.
+        await env.Admin.PutAsJsonAsync($"/api/v1/users/{id}", new { role = "admin", permissions });
+        var created = await friend.PostAsJsonAsync("/api/v1/apikeys", new { name = "friend-script", scope = "full" });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var script = env.Factory.CreateAnonymousClient();
+        script.DefaultRequestHeaders.Add("X-Api-Key", (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("key").GetString()!);
+        Assert.Equal(HttpStatusCode.OK, (await script.GetAsync("/api/v1/movies")).StatusCode);
+
+        // Back to an ordinary user: the scope still says full, but the role no longer allows the admin API.
+        await env.Admin.PutAsJsonAsync($"/api/v1/users/{id}", new { role = "user", permissions });
+        Assert.Equal(HttpStatusCode.Forbidden, (await script.GetAsync("/api/v1/movies")).StatusCode);
+
+        // Promoted again, the same key works again.
+        await env.Admin.PutAsJsonAsync($"/api/v1/users/{id}", new { role = "admin", permissions });
+        Assert.Equal(HttpStatusCode.OK, (await script.GetAsync("/api/v1/movies")).StatusCode);
+    }
+
+    [Fact]
     public async Task A_disabled_local_user_cannot_sign_in_with_the_password()
     {
         await using var env = await Env.StartAsync();
@@ -365,7 +393,7 @@ public sealed class UsersAndRolesTests
             "POST /api/v1/issues/{id:int}/blocklist",
             "POST /api/v1/issues/{id:int}/delete-file",
         ];
-        string[] adminPolicies = [AuthPolicies.Session, AuthPolicies.Api];
+        string[] adminPolicies = [AuthPolicies.Session, AuthPolicies.Api, AuthPolicies.ConnectedApp, AuthPolicies.CalendarFeed];
         var opened = new List<string>();
         foreach (var endpoint in endpoints)
         {
@@ -378,7 +406,7 @@ public sealed class UsersAndRolesTests
             var policies = endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Select(a => a.Policy).ToList();
             if (policies.Count == 0 || policies.All(p => p is null || adminPolicies.Contains(p) || p == AuthPolicies.ApiKey))
             {
-                continue; // the fallback (admin), an admin policy, or the API key surfaces (admin keys only)
+                continue; // the fallback (admin), an admin policy (a key opens those only for an admin owner, within its scope), or the API key surfaces
             }
 
             opened.Add(name);
