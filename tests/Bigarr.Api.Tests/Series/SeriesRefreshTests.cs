@@ -560,6 +560,62 @@ public sealed class SeriesRefreshTests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task A_show_whose_refresh_throws_is_counted_and_the_others_are_still_refreshed()
+    {
+        _provider.Show = Show([1], Ep(101, 1, 1)) with { Title = "Alpha Show" };
+        var (firstId, _, _) = await SeedAsync();
+
+        // A second show, added the same way, that sorts after the first.
+        var second = Show([1], Ep(201, 1, 1)) with { TvdbId = 3, TmdbId = 4, ImdbId = "tt0000003", Title = "Beta Show" };
+        _provider.Show = second;
+        int secondId;
+        await using (var db = _database.CreateContext())
+        {
+            var added = await Service(db).AddSeriesAsync(
+                new AddSeriesRequest(await db.QualityProfiles.Select(p => p.Id).FirstAsync(), await db.RootFolders.Select(r => r.Id).FirstAsync(), TvdbId: 3),
+                CancellationToken.None);
+            Assert.True(added.IsSuccess, added.Failure?.Detail);
+            secondId = added.Value!.Id;
+            await db.Series.ExecuteUpdateAsync(u => u.SetProperty(s => s.LastMetadataRefreshAt, (DateTime?)null));
+        }
+
+        // Both are asked for; the first one throws something that is not a provider failure.
+        _provider.Also = second;
+        _provider.Show = Show([1], Ep(101, 1, 1)) with { Title = "Alpha Show" };
+        _provider.Throws = tvdbId => tvdbId == 1 ? new InvalidOperationException("Sequence contains more than one element") : null;
+
+        string? summary;
+        await using (var db = _database.CreateContext())
+        {
+            summary = await Job(db).RunAsync(CancellationToken.None);
+        }
+
+        Assert.NotNull(summary);
+
+        await using var check = _database.CreateContext();
+        Assert.Null(await check.Series.Where(s => s.Id == firstId).Select(s => s.LastMetadataRefreshAt).SingleAsync());
+        Assert.NotNull(await check.Series.Where(s => s.Id == secondId).Select(s => s.LastMetadataRefreshAt).SingleAsync());
+        Assert.Contains("1 refreshed", summary, StringComparison.Ordinal);
+        Assert.Contains("1 stopped by an error", summary, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_cancelled_refresh_still_stops()
+    {
+        _provider.Show = Show([1], Ep(101, 1, 1));
+        var (seriesId, _, _) = await SeedAsync();
+        await using (var db = _database.CreateContext())
+        {
+            await db.Series.Where(s => s.Id == seriesId).ExecuteUpdateAsync(u => u.SetProperty(s => s.LastMetadataRefreshAt, (DateTime?)null));
+        }
+
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+        await using var job = _database.CreateContext();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Job(job).RunAsync(cancelled.Token));
+    }
+
     private static async Task<(int RootId, int ProfileId)> RootAndProfileAsync(BigarrDbContext db)
     {
         var root = db.RootFolders.Add(new RootFolder { Path = "/data/tv", Kind = MediaKind.Series }).Entity;
@@ -665,11 +721,27 @@ public sealed class SeriesRefreshTests : IDisposable
 
         public bool CanNumberByTvdb { get; set; } = true;
 
+        /// <summary>A second show, answered by its TVDB id next to <see cref="Show"/>.</summary>
+        public SeriesMetadata? Also { get; set; }
+
+        /// <summary>What a TVDB id's lookup throws, when it throws.</summary>
+        public Func<int, Exception?>? Throws { get; set; }
+
         public int Calls { get; private set; }
 
         public Task<SeriesMetadata?> GetByTvdbIdAsync(int tvdbId, bool withEpisodes, CancellationToken cancellationToken)
         {
             Calls++;
+            if (Throws?.Invoke(tvdbId) is { } error)
+            {
+                throw error;
+            }
+
+            if (Also is not null && Also.TvdbId == tvdbId)
+            {
+                return Task.FromResult<SeriesMetadata?>(Also);
+            }
+
             return Task.FromResult(Show is not null && Show.TvdbId == tvdbId ? Show : null);
         }
 

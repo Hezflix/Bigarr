@@ -2,6 +2,7 @@ namespace Bigarr.Api.Features.Series;
 
 using Bigarr.Api.Features.Movies;
 using Bigarr.Api.Features.Server.Tasks;
+using Bigarr.Api.Infrastructure;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Metadata;
 using Bigarr.Domain.Tv;
@@ -122,7 +123,7 @@ public sealed class SeriesRefreshJob(BigarrDbContext db, SeriesService series, I
         var spacing = options.Value.RefreshSpacing;
         var maxFailures = Math.Max(1, options.Value.RefreshMaxConsecutiveFailures);
         var nextCallAt = DateTimeOffset.MinValue;
-        int refreshed = 0, failed = 0, skipped = 0, refused = 0, tvdbDown = 0, streak = 0;
+        int refreshed = 0, failed = 0, crashed = 0, skipped = 0, refused = 0, tvdbDown = 0, streak = 0;
         foreach (var show in due)
         {
             var wait = nextCallAt - time.GetUtcNow();
@@ -139,7 +140,13 @@ public sealed class SeriesRefreshJob(BigarrDbContext db, SeriesService series, I
                 continue;
             }
 
-            var result = await series.RefreshAsync(show.SeriesId, ct);
+            var attempt = await TryRefreshAsync(show, ct);
+            if (attempt is not { } result)
+            {
+                crashed++; // its own data or a bug, not the provider being down: the streak is left alone
+                continue;
+            }
+
             if (result.IsSuccess)
             {
                 streak = 0;
@@ -175,10 +182,29 @@ public sealed class SeriesRefreshJob(BigarrDbContext db, SeriesService series, I
         }
 
         return $"{due.Count} of {allDue.Count} due series refreshed this pass ({shows.Count} in all), {refreshed} refreshed, {failed} failed"
+            + (crashed > 0 ? $", {crashed} stopped by an error" : string.Empty)
             + (refused > 0 ? $", {refused} refused by the safety net" : string.Empty)
             + (tvdbDown > 0 ? $", {tvdbDown} without a TVDB episode list" : string.Empty)
             + (skipped > 0 ? $", {skipped} not in the fixture catalogue" : string.Empty)
             + tail;
+    }
+
+    /// <summary>
+    /// Null when the refresh of this show threw. A provider failure comes back as a result; what is thrown is this
+    /// show's own data or a bug, so it does not count towards the streak that stops a run when the provider is down.
+    /// </summary>
+    private async Task<Result<Series>?> TryRefreshAsync(SeriesRefreshCandidate show, CancellationToken ct)
+    {
+        try
+        {
+            return await series.RefreshAsync(show.SeriesId, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            db.ChangeTracker.Clear();
+            logger.LogError(ex, "Series refresh of {Series} ({Title}) stopped by an error; the pass goes on", show.SeriesId, show.SortTitle);
+            return null;
+        }
     }
 
     private async Task<bool> KnownToFixturesAsync(int seriesId, CancellationToken ct)
