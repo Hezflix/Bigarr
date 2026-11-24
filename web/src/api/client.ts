@@ -306,6 +306,8 @@ export type ExtraFileKind = Schemas['ExtraFileKind']
 export type ExtraFile = Schemas['ExtraFileResponse']
 
 export type Version = Schemas['VersionResponse']
+/** ffprobe run now on a file; `probe` is its JSON (streams and format) as it came, read by features/library/probeStreams. */
+export type MediaProbe = Schemas['MediaProbeResponse']
 
 export type Movie = Schemas['MovieResponse']
 
@@ -355,6 +357,7 @@ export const movies = {
   promote: (movieId: number, versionId: number) => post<Version>(`/api/v1/movies/${movieId}/versions/${versionId}/promote`),
   /** Drops the version's file (to the recycle bin when configured); the version stays and is missing again. */
   deleteFile: (movieId: number, versionId: number) => api<Version>(`/api/v1/movies/${movieId}/versions/${versionId}/file`, { method: 'DELETE' }),
+  probeFile: (movieId: number, versionId: number) => api<MediaProbe>(`/api/v1/movies/${movieId}/versions/${versionId}/file/probe`),
   bulkUpdate: (body: BulkUpdateRequest) => put<BulkResponse>('/api/v1/movies/bulk', body),
   /** Queues an automatic search per targeted version; they run in the background, one at a time. */
   bulkSearch: (movieIds: number[], versions: VersionSelector) => post<BulkResponse>('/api/v1/movies/bulk/search', { movieIds, versions }),
@@ -908,6 +911,7 @@ export const seriesFiles = {
     post<SeriesRenameResult[]>(`/api/v1/series/${seriesId}/rename`, { seriesId, ...body }),
   file: (seriesId: number, fileId: number) => api<EpisodeFileDetail>(`/api/v1/series/${seriesId}/episodefiles/${fileId}`),
   deleteFile: (seriesId: number, fileId: number) => del(`/api/v1/series/${seriesId}/episodefiles/${fileId}`),
+  probe: (seriesId: number, fileId: number) => api<MediaProbe>(`/api/v1/series/${seriesId}/episodefiles/${fileId}/probe`),
   /** The manual fix of a file the series' order could not place: the episodes it holds, optionally renamed. */
   reassign: (seriesId: number, fileId: number, body: { episodeIds: number[]; rename?: boolean }) =>
     post<OrderFileResult>(`/api/v1/series/${seriesId}/episodefiles/${fileId}/reassign`, body),

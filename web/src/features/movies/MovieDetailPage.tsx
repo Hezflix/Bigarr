@@ -13,6 +13,7 @@ import { HistoryTable } from '@/features/activity/HistoryTable'
 import { MoviePlays } from '@/features/playback/MoviePlays'
 import { extraSummary } from '@/features/import/extraFiles'
 import { ManualImportDialog } from '@/features/import/ManualImportDialog'
+import { ProbeButton, ProbeDialog } from '@/features/library/ProbeDialog'
 import { EditVersionDialog } from '@/features/movies/EditVersionDialog'
 import { RenameDialog } from '@/features/movies/RenameDialog'
 import { InteractiveSearch } from '@/features/search/InteractiveSearch'
@@ -356,6 +357,7 @@ function VersionsTable({ movie, onChanged, onSearched, onEdit }: { movie: Movie;
   const { t } = useTranslation()
   const [pendingDelete, setPendingDelete] = useState<Version | null>(null)
   const [pendingFileDelete, setPendingFileDelete] = useState<Version | null>(null)
+  const [probing, setProbing] = useState<Version | null>(null)
   const fail = (e: unknown) => toast.error(e instanceof ApiError ? e.message : t('common.unexpectedError'))
 
   const searchOne = useMutation({
@@ -460,8 +462,9 @@ function VersionsTable({ movie, onChanged, onSearched, onEdit }: { movie: Movie;
                       <span className="block max-w-[22ch] truncate text-xs text-muted-foreground" title={v.file.path}>
                         {v.file.relativePath}
                       </span>
-                      <span className="block text-xs text-muted-foreground" data-testid="media-info">
-                        {v.file.mediaInfo ? mediaInfoSummary(v.file.mediaInfo) : t('versions.mediaInfoMissing')}
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <span data-testid="media-info">{v.file.mediaInfo ? mediaInfoSummary(v.file.mediaInfo) : t('versions.mediaInfoMissing')}</span>
+                        <ProbeButton onClick={() => setProbing(v)} className="-my-1 shrink-0" data-testid={`probe-version-${v.id}`} />
                       </span>
                       {v.file.extras.length > 0 && (
                         <ul className="mt-1 grid gap-0.5 text-xs text-muted-foreground" aria-label={t('versions.extras', { count: v.file.extras.length })} data-testid="extra-files">
@@ -591,6 +594,15 @@ function VersionsTable({ movie, onChanged, onSearched, onEdit }: { movie: Movie;
           </TableBody>
         </Table>
       </div>
+
+      {probing && (
+        <ProbeDialog
+          title={`${movie.title} · ${probing.name}`}
+          queryKey={['movie', movie.id, probing.id]}
+          load={() => movies.probeFile(movie.id, probing.id)}
+          onClose={() => setProbing(null)}
+        />
+      )}
 
       <AlertDialog open={pendingFileDelete !== null} onOpenChange={(open) => !open && setPendingFileDelete(null)}>
         <AlertDialogContent>

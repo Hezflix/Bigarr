@@ -173,5 +173,7 @@ public sealed class MediaBackfillTests : IDisposable
             Calls.Add(path);
             return Task.FromResult<MediaInfo?>(Broken.Contains(path) ? null : new MediaInfo { VideoCodec = "h264", Width = 1920, Height = 1080 });
         }
+
+        public Task<RawProbe> ProbeAsync(string path, CancellationToken ct) => Task.FromResult(RawProbe.Ok("{}"));
     }
 }
