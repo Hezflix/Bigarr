@@ -147,12 +147,66 @@ public sealed class SignInThrottleTests
             throttle.Failed("user" + i, null);
         }
 
-        Assert.Equal(SignInThrottle.MaxKeys, throttle.TrackedKeys);
+        Assert.InRange(throttle.TrackedKeys, 1, SignInThrottle.MaxKeys);
 
-        // Once the window is over the expired keys are swept to make room for a new one.
+        // Once the window is over, the expired keys are swept the next time the table is full: none of the keys still
+        // counting has to be forgotten for them.
         _clock.Advance(TimeSpan.FromMinutes(16));
-        throttle.Failed("late", null);
-        Assert.Equal(1, throttle.TrackedKeys);
+        for (var i = 0; i < 200; i++)
+        {
+            throttle.Failed("late" + i, null);
+        }
+
+        Assert.Equal(200, throttle.TrackedKeys);
+    }
+
+    [Fact]
+    public void A_full_table_still_records_a_new_key_and_forgets_the_one_that_failed_longest_ago()
+    {
+        var throttle = Throttle(perUsername: 3, perAddress: 0);
+
+        for (var i = 0; i < 3; i++)
+        {
+            throttle.Failed("oldest", null);
+        }
+
+        Assert.NotNull(throttle.RetryAfter("oldest", null));
+
+        for (var i = 1; i < SignInThrottle.MaxKeys; i++)
+        {
+            throttle.Failed("user" + i, null);
+        }
+
+        for (var i = 0; i < 3; i++)
+        {
+            throttle.Failed("newcomer", null);
+        }
+
+        Assert.NotNull(throttle.RetryAfter("newcomer", null));
+        Assert.Null(throttle.RetryAfter("oldest", null));
+        Assert.True(throttle.TrackedKeys <= SignInThrottle.MaxKeys);
+    }
+
+    [Fact]
+    public void A_key_that_keeps_failing_is_not_the_one_forgotten()
+    {
+        var throttle = Throttle(perUsername: 1000, perAddress: 0);
+
+        throttle.Failed("target", null);
+        for (var i = 1; i < SignInThrottle.MaxKeys; i++)
+        {
+            throttle.Failed("user" + i, null);
+        }
+
+        throttle.Failed("target", null);
+        throttle.Failed("newcomer", null);
+
+        for (var i = 0; i < 998; i++)
+        {
+            throttle.Failed("target", null);
+        }
+
+        Assert.NotNull(throttle.RetryAfter("target", null));
     }
 
     private SignInThrottle Throttle(int perUsername, int perAddress, int windowMinutes = 15) =>
