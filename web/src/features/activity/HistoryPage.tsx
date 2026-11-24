@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { HistoryTable } from './HistoryTable'
 
-const types: HistoryEventType[] = ['grabbed', 'imported', 'upgraded', 'importFailed', 'downloadFailed', 'blocklisted', 'fileDeleted', 'renamed', 'defaultChanged']
+const types: HistoryEventType[] = ['grabbed', 'imported', 'upgraded', 'importFailed', 'downloadFailed', 'blocklisted', 'fileDeleted', 'renamed', 'fileEdited', 'defaultChanged']
 
 export function HistoryPage() {
   const { t } = useTranslation()

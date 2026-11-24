@@ -11,4 +11,7 @@ public enum HistoryEventType
     Renamed = 7,
     Blocklisted = 8,
     DefaultChanged = 9,
+
+    /// <summary>The user changed what a file is (release group, edition, quality, languages); the file did not move.</summary>
+    FileEdited = 10,
 }

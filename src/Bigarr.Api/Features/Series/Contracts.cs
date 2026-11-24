@@ -262,6 +262,15 @@ public sealed record EpisodeFileResponse(
     List<string>? CustomFormats = null,
     int CustomFormatScore = 0);
 
+/// <summary>
+/// Sonarr's "edit file": what the episode file really is, when its name reads wrong. A field left out stays as it is, a
+/// blank release group clears it, an empty language list means none known. The file is not renamed.
+/// </summary>
+public sealed record UpdateEpisodeFileRequest(
+    string? ReleaseGroup = null,
+    int? QualityId = null,
+    List<string>? Languages = null);
+
 public sealed record UnmatchedEpisodeFileResponse(
     int Id,
     int VersionId,

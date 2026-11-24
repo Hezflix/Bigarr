@@ -1356,6 +1356,7 @@
       "importFailed": "Import failed",
       "fileDeleted": "File deleted",
       "renamed": "Renamed",
+      "fileEdited": "File edited",
       "blocklisted": "Blocklisted",
       "defaultChanged": "Default version changed"
     }
@@ -3822,5 +3823,16 @@
       "issueResolved": "Their issue is resolved",
       "issueReopened": "Their issue is reopened (admins and request managers: anyone's)"
     }
+  },
+  "editFile": {
+    "open": "Edit file",
+    "title": "Edit file",
+    "releaseGroup": "Release group",
+    "edition": "Edition",
+    "none": "None",
+    "noLanguage": "No language known",
+    "clearLanguages": "Clear the languages",
+    "hint": "Custom formats and the cutoff follow at once. The file keeps its name: rename it to show the new release group.",
+    "saved": "File updated"
   }
 }
