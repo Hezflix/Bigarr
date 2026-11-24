@@ -408,8 +408,10 @@ See [F10](#f10-shadow-follow-searches-and-views-were-lost-for-good).
   monitored (or the monitored version has no episode listed yet), not in the library otherwise. An episode that has not
   aired never makes it partial. TMDB answers are cached for a few minutes; availability is not.
 - The web UI holds no state machine of its own: server state lives in the query cache, invalidated by the server's
-  event stream (`web/src/hooks/useServerEvents.ts`). The stream is at most once and the cache is not invalidated on
-  reconnect, so an event missed while disconnected leaves a page stale until its next refetch. Not audited further.
+  event stream (`web/src/hooks/useServerEvents.ts`). The stream is at most once; it is reopened after a hard failure
+  (`web/src/hooks/eventStream.ts`: after 5 s, then 10 s, then every 30 s) and every reopening after an interruption
+  invalidates the whole cache, so what was missed while disconnected is refetched
+  ([F47](#f47-the-event-stream-stayed-closed-after-a-restart-and-missed-events-were-never-refetched)). Not audited further.
 
 ## Requests
 
@@ -1100,6 +1102,21 @@ Tests: `IndexerTimeoutTests.An_indexer_that_never_answers_is_paused_after_its_fi
 `IndexerTimeoutTests.A_search_the_user_leaves_does_not_pause_the_indexer` (pins why cancellations are not counted),
 `IndexerTimeoutTests.The_request_timeout_is_shorter_than_the_search_deadline`.
 
+#### F47. The event stream stayed closed after a restart and missed events were never refetched
+
+The web app keeps one `EventSource` on `/api/v1/events`; each event invalidates the queries of the pages that show it.
+A browser reconnects an `EventSource` by itself only after a network drop. When the server answers the stream request
+with anything but a 200 (a 502 from the reverse proxy while the container restarts, a 401), the browser closes the
+stream for good: no page refreshed any more until the tab was reloaded, and nothing showed it. Events published while
+the stream was down were lost as well, and nothing refetched when it came back.
+
+Fix: the stream is opened by `openEventStream` (`web/src/hooks/eventStream.ts`). When the browser has given up
+(`readyState` closed) it closes the source and opens a new one after 5 s, then 10 s, then every 30 s; a successful open
+resets the wait. Every open that follows an interruption, whether the browser retried or the stream was reopened,
+invalidates every query, which refetches the ones on screen. The first open does not. The queue page keeps its own copy
+of the retry.
+Tests: `web/test/eventStream.test.ts`.
+
 ### Open
 
 What is known and not fixed:
@@ -1107,8 +1124,7 @@ What is known and not fixed:
 - A retry and a manual import of the same failed grab at the same moment are not serialised (see the grab's ownership
   rules).
 - A `.bigarr-partial` left by a killed transfer is only removed by a retry to the same destination.
-- The in-memory event stream is at most once: a subscriber that falls 256 events behind drops the oldest, and the UI
-  does not refetch on reconnect. Suspected only; whether a bulk operation can outrun a subscriber was not measured.
+- The in-memory event stream is at most once: a subscriber that falls 256 events behind drops the oldest. Suspected only; whether a bulk operation can outrun a subscriber was not measured.
 - Two follows may share a version name; the pick view is selected by version name only. Reported, not re-read.
 - Playback: some viewings recorded by Tautulli are missed, often the first of an evening, with the next item on the
   same player recorded from where the missed one ended. One case had its session opened, idle for hours, then closed
