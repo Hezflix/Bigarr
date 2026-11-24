@@ -552,11 +552,8 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
         {
             var config = await MediaManagementAsync(ct);
             var now = time.GetUtcNow().UtcDateTime;
-            foreach (var version in movie.Versions.Where(v => v.File is not null))
-            {
-                db.History.Add(FileDeletedEvent(movie, version, Path.Combine(version.RootFolder.Path, version.FolderName, version.File!.RelativePath), null, now));
-            }
-
+            var gone = new List<MovieVersion>();
+            Failure? failed = null;
             foreach (var group in movie.Versions.GroupBy(v => (v.RootFolderId, v.FolderName)))
             {
                 var root = group.First().RootFolder;
@@ -564,12 +561,35 @@ public sealed partial class MovieService(BigarrDbContext db, IMetadataProvider m
                 try
                 {
                     recycleBin.RemoveDirectory(folder, config.RecycleBinPath, root.Path);
+                    gone.AddRange(group);
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
                     logger.LogWarning(ex, "Could not delete folder {Folder}", folder);
-                    return new Failure(StatusCodes.Status500InternalServerError, "Could not delete the movie folder", $"{folder}: {ex.Message}");
+                    failed ??= new Failure(StatusCodes.Status500InternalServerError, "Could not delete the movie folder", $"{folder}: {ex.Message}");
                 }
+            }
+
+            if (failed is not null)
+            {
+                // Some folders went and one did not: the film stays with what is left, and the files that are gone leave
+                // the database with their history line, whatever the request says by now.
+                foreach (var version in gone.Where(v => v.File is not null))
+                {
+                    var path = Path.Combine(version.RootFolder.Path, version.FolderName, version.File!.RelativePath);
+                    db.History.Add(FileDeletedEvent(movie, version, path, null, now));
+                    outbox.Publish(new FileDeleted(MovieRef.From(movie), VersionRef.From(version), FileRef.From(version.File!, path), "deleted"));
+                    db.MediaFiles.Remove(version.File!);
+                    version.File = null;
+                }
+
+                await db.SaveChangesAsync(CancellationToken.None);
+                return failed;
+            }
+
+            foreach (var version in movie.Versions.Where(v => v.File is not null))
+            {
+                db.History.Add(FileDeletedEvent(movie, version, Path.Combine(version.RootFolder.Path, version.FolderName, version.File!.RelativePath), null, now));
             }
 
             // The folders are gone: the rows follow whatever the request says by now.

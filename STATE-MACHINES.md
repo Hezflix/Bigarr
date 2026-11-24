@@ -276,6 +276,7 @@ derived from the row.
 | delete a version with its files | checks, then file, then row | guarded since [F1](#f1-deleting-the-default-version-with-its-files-destroyed-the-file-then-refused) |
 | delete a series or a version with its files | folders, then rows, the rows whatever becomes of the request | guarded since [F15](#f15-a-series-delete-whose-caller-went-away-left-the-series-with-no-files) |
 | delete a film, a film version or a film's file | file or folders, then rows, the rows whatever becomes of the request | guarded since [F27](#f27-a-film-delete-whose-caller-went-away-left-a-version-with-a-file-that-was-gone) |
+| delete a film or a series over several folders, a series version over a shared folder | every folder (or file) is tried; the rows of those that went are saved with their lines, the film or series stays with what is left, and the answer is the error | guarded since [F45](#f45-a-delete-that-failed-on-one-folder-left-the-others-deleted-with-their-files-still-listed) |
 
 Invariants the code assumes: a file row means the file exists; one physical file has one row, also when two versions
 of a show share a folder ([F8](#f8-two-versions-of-a-show-sharing-a-folder-claimed-each-others-files)); no scan ever
@@ -1049,6 +1050,26 @@ not count towards the streak of provider failures that stops a run, which is abo
 keeps its place at the head of the next batches, so it costs one slot per pass until its cause is fixed.
 Tests: `SeriesRefreshTests.A_show_whose_refresh_throws_is_counted_and_the_others_are_still_refreshed`,
 `SeriesRefreshTests.A_cancelled_refresh_still_stops`.
+
+#### F45. A delete that failed on one folder left the others deleted with their files still listed
+
+A film or a series with versions in several folders loses them one folder after the other. When a later folder could not
+be removed (a read-only mount, a permission, an I/O error) the method returned the error at once. The folders before it
+were already gone, but nothing was saved: their versions still listed their files, and the "file deleted" lines prepared
+before the loop were thrown away with the request. The library showed files that did not exist, with no trace of what
+happened to them. [F15](#f15-a-series-delete-whose-caller-went-away-left-the-series-with-no-files) and
+[F27](#f27-a-film-delete-whose-caller-went-away-left-a-version-with-a-file-that-was-gone) covered the caller going away;
+this is the same gap for a disk error.
+
+Fix: a film delete and a series delete try every folder, then decide. With no failure nothing changes. With a failure,
+the files of the folders that went are removed from the database with their history line (a film also publishes
+`FileDeleted` for each, since the film is still there), on `CancellationToken.None`, the film or series stays with the
+versions whose folder went showing no file, and the answer is still the first error, so the front shows what stayed. A
+failure with nothing gone writes nothing. A series version deleted over a folder it shares with another version removes
+its files one by one and does the same: the files that went leave the database, the one that failed stays listed.
+A folder emptied halfway by a failing recursive delete counts as not gone: its rows stay until the next scan.
+Tests: `PartialMovieDeleteTests.A_film_delete_that_fails_on_one_folder_clears_the_files_that_did_go_and_keeps_the_film`,
+`PartialSeriesDeleteTests.A_series_delete_that_fails_on_one_folder_clears_the_files_that_did_go_and_keeps_the_series`.
 
 ### Open
 

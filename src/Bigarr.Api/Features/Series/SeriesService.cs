@@ -1013,15 +1013,21 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         return Result<bool>.Ok(true);
     }
 
-    /// <summary>The folders of <paramref name="versions"/> to the recycle bin (each once), with a file-deleted line per episode.</summary>
+    /// <summary>
+    /// The folders of <paramref name="versions"/> to the recycle bin (each once), with a file-deleted line per episode.
+    /// Every folder is tried: when one cannot go, the versions of the folders that did go lose their file rows (with
+    /// their lines) and the failure is returned, so the library never lists a file that is gone.
+    /// </summary>
     private async Task<Failure?> RemoveFoldersAsync(Series series, List<SeriesVersion> versions, CancellationToken ct)
     {
         var config = await db.MediaManagement.AsNoTracking().FirstOrDefaultAsync(c => c.Id == MediaManagementConfig.SingletonId, ct) ?? MediaManagementConfig.Default();
-        await JournalDeletedFilesAsync(series, versions, ct);
+        var lines = await DeletedFileLinesAsync(versions, ct);
 
         // Everything is read before the first folder goes: from there on nothing waits on the request.
         var rootIds = versions.Select(v => v.RootFolderId).Distinct().ToList();
         var roots = await db.RootFolders.AsNoTracking().Where(r => rootIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, ct);
+        var goneVersionIds = new HashSet<int>();
+        Failure? failed = null;
         foreach (var group in versions.GroupBy(v => (v.RootFolderId, v.FolderName)))
         {
             var root = roots[group.Key.RootFolderId];
@@ -1029,20 +1035,29 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             try
             {
                 recycleBin.RemoveDirectory(folder, config.RecycleBinPath, root.Path);
+                goneVersionIds.UnionWith(group.Select(v => v.Id));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 logger.LogWarning(ex, "Could not delete folder {Folder}", folder);
-                return new Failure(StatusCodes.Status500InternalServerError, "Could not delete the series folder", $"{folder}: {ex.Message}");
+                failed ??= new Failure(StatusCodes.Status500InternalServerError, "Could not delete the series folder", $"{folder}: {ex.Message}");
             }
         }
 
-        return null;
+        if (failed is null)
+        {
+            db.History.AddRange(lines.Select(l => l.Line));
+            return null;
+        }
+
+        await ForgetGoneFilesAsync(lines.Where(l => goneVersionIds.Contains(l.VersionId)).ToList());
+        return failed;
     }
 
     /// <summary>
     /// One version's files (and extras) to the recycle bin. A folder no other version uses goes whole, as Radarr does
-    /// for a film version; a shared folder keeps the other versions' files.
+    /// for a film version; a shared folder keeps the other versions' files. A file that cannot go stays listed; the
+    /// ones that did go leave the database with their line.
     /// </summary>
     private async Task<Failure?> RemoveVersionFilesAsync(Series series, SeriesVersion version, List<SeriesVersion> siblings, CancellationToken ct)
     {
@@ -1052,26 +1067,44 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
         }
 
         var config = await db.MediaManagement.AsNoTracking().FirstOrDefaultAsync(c => c.Id == MediaManagementConfig.SingletonId, ct) ?? MediaManagementConfig.Default();
-        await JournalDeletedFilesAsync(series, [version], ct);
+        var lines = await DeletedFileLinesAsync([version], ct);
         var root = await db.RootFolders.AsNoTracking().FirstAsync(r => r.Id == version.RootFolderId, ct);
         var folder = Path.Combine(root.Path, version.FolderName);
         var files = await db.EpisodeFiles.AsNoTracking().Include(f => f.Extras).Where(f => f.VersionId == version.Id).ToListAsync(ct);
-        foreach (var path in files.SelectMany(f => new[] { f.RelativePath }.Concat(f.Extras.Select(e => e.RelativePath))))
+        var goneFileIds = new HashSet<int>();
+        Failure? failed = null;
+        foreach (var file in files)
         {
+            var path = file.RelativePath;
             try
             {
                 recycleBin.RemoveFile(Path.Combine(folder, path), config.RecycleBinPath, root.Path);
+                foreach (var extra in file.Extras)
+                {
+                    path = extra.RelativePath;
+                    recycleBin.RemoveFile(Path.Combine(folder, path), config.RecycleBinPath, root.Path);
+                }
+
+                goneFileIds.Add(file.Id);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                return new Failure(StatusCodes.Status500InternalServerError, "Could not delete a file of the version", $"{path}: {ex.Message}");
+                failed ??= new Failure(StatusCodes.Status500InternalServerError, "Could not delete a file of the version", $"{path}: {ex.Message}");
             }
         }
 
-        return null;
+        if (failed is null)
+        {
+            db.History.AddRange(lines.Select(l => l.Line));
+            return null;
+        }
+
+        await ForgetGoneFilesAsync(lines.Where(l => goneFileIds.Contains(l.EpisodeFileId)).ToList());
+        return failed;
     }
 
-    private async Task JournalDeletedFilesAsync(Series series, List<SeriesVersion> versions, CancellationToken ct)
+    /// <summary>One file-deleted line per episode of these versions that has a file, with the version and file it is about.</summary>
+    private async Task<List<(int VersionId, int EpisodeFileId, Bigarr.Domain.History.HistoryEvent Line)>> DeletedFileLinesAsync(List<SeriesVersion> versions, CancellationToken ct)
     {
         var ids = versions.Select(v => v.Id).ToList();
         var targets = await db.EpisodeTargets.AsNoTracking()
@@ -1079,6 +1112,7 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             .Include(t => t.EpisodeFile)
             .Where(t => ids.Contains(t.VersionId) && t.EpisodeFileId != null)
             .ToListAsync(ct);
+        var lines = new List<(int, int, Bigarr.Domain.History.HistoryEvent)>(targets.Count);
         foreach (var target in targets)
         {
             var version = versions.First(v => v.Id == target.VersionId);
@@ -1086,8 +1120,34 @@ public sealed partial class SeriesService(BigarrDbContext db, ISeriesMetadataPro
             line.TargetId = null; // the target goes with the version; the snapshots keep the line meaningful
             line.Data["path"] = Path.Combine(version.FolderName, target.EpisodeFile.RelativePath);
             line.Data["reason"] = "versionDeleted";
-            db.History.Add(line);
+            lines.Add((target.VersionId, target.EpisodeFileId!.Value, line));
         }
+
+        return lines;
+    }
+
+    /// <summary>
+    /// Some files are gone from the disk and the delete failed on the rest: their lines are saved and their rows leave
+    /// the database, whatever the request says by now. The versions stay, those files are missing.
+    /// </summary>
+    private async Task ForgetGoneFilesAsync(List<(int VersionId, int EpisodeFileId, Bigarr.Domain.History.HistoryEvent Line)> gone)
+    {
+        if (gone.Count == 0)
+        {
+            return;
+        }
+
+        db.History.AddRange(gone.Select(l => l.Line));
+        var fileIds = gone.Select(l => l.EpisodeFileId).Distinct().ToList();
+        var files = await db.EpisodeFiles.Include(f => f.Episodes).Where(f => fileIds.Contains(f.Id)).ToListAsync(CancellationToken.None);
+        foreach (var target in files.SelectMany(f => f.Episodes).ToList())
+        {
+            target.EpisodeFileId = null;
+            target.EpisodeFile = null;
+        }
+
+        db.EpisodeFiles.RemoveRange(files);
+        await db.SaveChangesAsync(CancellationToken.None);
     }
 
     private async Task RemoveSeriesAsync(Series series, bool deletedFiles, CancellationToken ct)
