@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatAge } from '@/i18n'
+import { NewEpisodeMessageForm } from './NewEpisodeMessageForm'
 
 const messageStyles: Record<WebhookDeliveryState, string> = {
   delivered: 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300',
@@ -66,6 +67,8 @@ export function DiscordBotCard() {
           </div>
           <p className="text-xs text-muted-foreground">{bot.data?.configured ? t('notifications.bot.tokenSet') : t('notifications.bot.tokenHint')}</p>
         </form>
+
+        {bot.data && <NewEpisodeMessageForm bot={bot.data} />}
 
         <div className="grid gap-2">
           <h3 className="text-sm font-medium">{t('notifications.bot.recent')}</h3>

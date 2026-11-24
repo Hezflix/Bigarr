@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Bigarr.Api.Features.Users;
 using Bigarr.Api.Infrastructure.Auth;
 using Bigarr.Api.Infrastructure.Http;
@@ -46,6 +47,8 @@ public static class NewEpisodeEndpoints
         admin.MapGet("/discord-bot", BotAsync);
         admin.MapPut("/discord-bot", UpdateBotAsync);
         admin.MapGet("/new-episodes", AnnouncementsAsync);
+        admin.MapPut("/new-episodes/message", UpdateMessageAsync);
+        admin.MapPost("/new-episodes/preview", PreviewAsync);
 
         // Every signed-in user's own shows: what they watch is theirs to see, and only they turn a show off.
         var profile = app.MapGroup("/api/v1/profile").WithTags("Users").RequireAuthorization(AuthPolicies.SignedIn);
@@ -83,7 +86,68 @@ public static class NewEpisodeEndpoints
     }
 
     private static DiscordBotResponse ToResponse(InstanceSettings settings) =>
-        new(!string.IsNullOrEmpty(settings.DiscordBotToken), SecretMask.Of(settings.DiscordBotToken));
+        new(
+            !string.IsNullOrEmpty(settings.DiscordBotToken),
+            SecretMask.Of(settings.DiscordBotToken),
+            NewEpisodeMessageSettings.From(settings.NewEpisodes),
+            [.. Enum.GetValues<NewEpisodeText>().Select(f => new NewEpisodeTextInfo(f, NewEpisodeTemplates.Defaults[f], [.. NewEpisodeTemplates.Placeholders[f]]))]);
+
+    /// <summary>Saves the wording and the link target. Unknown placeholders and a bad address are refused, nothing is saved.</summary>
+    private static async Task<Results<Ok<DiscordBotResponse>, ValidationProblem>> UpdateMessageAsync(NewEpisodeMessageSettings request, BigarrDbContext db, CancellationToken ct)
+    {
+        var wanted = request.ToSettings();
+        var errors = new Dictionary<string, string[]>();
+        foreach (var group in NewEpisodeTemplates.Validate(wanted).GroupBy(p => p.Field))
+        {
+            var known = string.Join(", ", NewEpisodeTemplates.Placeholders[group.Key].Select(n => $"{{{n}}}"));
+            errors[JsonNamingPolicy.CamelCase.ConvertName(group.Key.ToString())] =
+                [$"Unknown placeholder {string.Join(", ", group.Select(p => p.Placeholder))}. This text takes {known}."];
+        }
+
+        foreach (var field in Enum.GetValues<NewEpisodeText>())
+        {
+            if (NewEpisodeTemplates.Get(wanted, field) is { Length: > NewEpisodeTemplates.MaxLength })
+            {
+                errors[JsonNamingPolicy.CamelCase.ConvertName(field.ToString())] = [$"At most {NewEpisodeTemplates.MaxLength} characters."];
+            }
+        }
+
+        if (wanted.PlexWebAddress is { } address && (address.Length > NewEpisodeTemplates.MaxAddressLength || NewEpisodeTemplates.WebAddress(address) is null))
+        {
+            errors["plexWebAddress"] = ["Give the full address friends open Plex at, starting with https:// or http://."];
+        }
+
+        if (!Enum.IsDefined(wanted.LinkTarget))
+        {
+            errors["linkTarget"] = ["Unknown link target."];
+        }
+
+        if (errors.Count > 0)
+        {
+            return TypedResults.ValidationProblem(errors, title: "The message has mistakes.");
+        }
+
+        var settings = await UserSettings.EditAsync(db, ct);
+        settings.NewEpisodes = wanted;
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(ToResponse(settings));
+    }
+
+    /// <summary>
+    /// The message as the unsaved form would make it, for one episode and for several, around the show whose episode was
+    /// last put on disk (a sample show when there is none). Nothing is sent.
+    /// </summary>
+    private static async Task<Ok<NewEpisodePreviewResponse>> PreviewAsync(NewEpisodeMessageSettings request, BigarrDbContext db, TimeProvider time, CancellationToken ct)
+    {
+        var settings = request.ToSettings();
+        var now = time.GetUtcNow().UtcDateTime;
+        var sample = await NewEpisodePreview.SubjectAsync(db, ct);
+        var link = new PlexShowLink("0123456789abcdef0123456789abcdef01234567", "12345");
+        var single = NewEpisodeMessages.Payload(sample.Show, sample.Poster, [sample.Episodes[0]], link, now, settings);
+        var batch = NewEpisodeMessages.Payload(sample.Show, sample.Poster, sample.Episodes, link, now, settings);
+        var addressInvalid = settings.LinkTarget == PlexLinkTarget.ServerAddress && settings.PlexWebAddress is not null && NewEpisodeTemplates.WebAddress(settings.PlexWebAddress) is null;
+        return TypedResults.Ok(new NewEpisodePreviewResponse(single, batch, NewEpisodeTemplates.Validate(settings), addressInvalid));
+    }
 
     private static async Task<Ok<List<NewEpisodeAnnouncementResponse>>> AnnouncementsAsync(int? limit, BigarrDbContext db, CancellationToken ct)
     {

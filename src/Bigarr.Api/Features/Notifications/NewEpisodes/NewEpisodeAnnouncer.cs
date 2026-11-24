@@ -38,19 +38,20 @@ public sealed class NewEpisodeAnnouncements(
 
     public async Task<NewEpisodePass> RunAsync(CancellationToken ct)
     {
-        var token = (await db.InstanceSettings.AsNoTracking().FirstOrDefaultAsync(s => s.Id == InstanceSettings.SingletonId, ct))?.DiscordBotToken;
+        var instance = await db.InstanceSettings.AsNoTracking().FirstOrDefaultAsync(s => s.Id == InstanceSettings.SingletonId, ct);
+        var token = instance?.DiscordBotToken;
         if (string.IsNullOrWhiteSpace(token))
         {
             // Nothing is collected without a token; what was collected before it was removed waits for a new one.
             return new NewEpisodePass(0, 0, 0, 0);
         }
 
-        var (ready, waiting) = await CloseAsync(ct);
+        var (ready, waiting) = await CloseAsync(instance!.NewEpisodes, ct);
         var (sent, failed) = await SendAsync(token, ct);
         return new NewEpisodePass(ready, waiting, sent, failed);
     }
 
-    private async Task<(int Ready, int Waiting)> CloseAsync(CancellationToken ct)
+    private async Task<(int Ready, int Waiting)> CloseAsync(NewEpisodeSettings message, CancellationToken ct)
     {
         var settings = options.Value;
         var now = time.GetUtcNow().UtcDateTime;
@@ -65,7 +66,7 @@ public sealed class NewEpisodeAnnouncements(
         var ready = 0;
         foreach (var announcement in due)
         {
-            if (await ReadyAsync(announcement, now, ct))
+            if (await ReadyAsync(announcement, message, now, ct))
             {
                 ready++;
             }
@@ -77,7 +78,7 @@ public sealed class NewEpisodeAnnouncements(
         return (ready, due.Count - ready);
     }
 
-    private async Task<bool> ReadyAsync(NewEpisodeAnnouncement announcement, DateTime now, CancellationToken ct)
+    private async Task<bool> ReadyAsync(NewEpisodeAnnouncement announcement, NewEpisodeSettings message, DateTime now, CancellationToken ct)
     {
         var series = await db.Series.AsNoTracking().Where(s => s.Id == announcement.SeriesId).Select(s => new { s.Title, s.Images }).FirstOrDefaultAsync(ct);
         var found = series is null ? ShowFollowers.None : await followers.ForSeriesAsync(announcement.SeriesId, ct);
@@ -105,7 +106,7 @@ public sealed class NewEpisodeAnnouncements(
         };
         var episodes = announcement.Episodes.Select(e => new AnnouncedEpisode(e.SeasonNumber, e.EpisodeNumber, e.Title, e.Overview)).ToList();
         var poster = series.Images.FirstOrDefault(i => i.Type == ImageType.Poster)?.RemoteUrl;
-        announcement.Body = Discord.DiscordWebhook.Serialize(NewEpisodeMessages.Payload(series.Title, poster, episodes, link, now));
+        announcement.Body = Discord.DiscordWebhook.Serialize(NewEpisodeMessages.Payload(series.Title, poster, episodes, link, now, message));
         announcement.ReadyAt = now;
         foreach (var user in found.Recipients)
         {

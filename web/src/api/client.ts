@@ -1064,6 +1064,9 @@ export type DiscordPreview = Schemas['DiscordPreviewResponse']
 export type DiscordBot = Schemas['DiscordBotResponse']
 export type NewEpisodeAnnouncement = Schemas['NewEpisodeAnnouncementResponse']
 export type PlexWait = Schemas['PlexWait']
+export type NewEpisodeMessageSettings = Schemas['NewEpisodeMessageSettings']
+export type NewEpisodeText = Schemas['NewEpisodeText']
+export type NewEpisodePreview = Schemas['NewEpisodePreviewResponse']
 
 /** The Discord bot that tells users about new episodes in direct messages. */
 export const newEpisodes = {
@@ -1071,6 +1074,10 @@ export const newEpisodes = {
   /** The mask keeps the stored token, an empty string removes it. */
   updateBot: (token: string) => put<DiscordBot>('/api/v1/notifications/discord-bot', { token }),
   announcements: (limit = 20) => api<NewEpisodeAnnouncement[]>(`/api/v1/notifications/new-episodes?limit=${limit}`),
+  /** Empty texts use the English default; unknown placeholders are refused (400) and nothing is saved. */
+  updateMessage: (body: NewEpisodeMessageSettings) => put<DiscordBot>('/api/v1/notifications/new-episodes/message', body),
+  /** The message the unsaved form makes, for one episode and for several, with its mistakes. Nothing is sent. */
+  preview: (body: NewEpisodeMessageSettings) => post<NewEpisodePreview>('/api/v1/notifications/new-episodes/preview', body),
 }
 
 export const notifications = {

@@ -1,3 +1,4 @@
+using Bigarr.Api.Features.Notifications.NewEpisodes;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
@@ -78,5 +79,17 @@ public sealed class InstanceSettingsConfiguration : IEntityTypeConfiguration<Big
         builder.ComplexProperty(s => s.DefaultQuota);
         builder.ComplexProperty(s => s.RequestDefaults);
         builder.Property(s => s.DiscoverFourKVersion).HasMaxLength(64);
+        builder.ComplexProperty(s => s.NewEpisodes, n =>
+        {
+            n.Property(e => e.Content).HasMaxLength(NewEpisodeTemplates.MaxLength);
+            n.Property(e => e.Title).HasMaxLength(NewEpisodeTemplates.MaxLength);
+            n.Property(e => e.BatchContent).HasMaxLength(NewEpisodeTemplates.MaxLength);
+            n.Property(e => e.BatchTitle).HasMaxLength(NewEpisodeTemplates.MaxLength);
+            n.Property(e => e.BatchLine).HasMaxLength(NewEpisodeTemplates.MaxLength);
+            n.Property(e => e.BatchMore).HasMaxLength(NewEpisodeTemplates.MaxLength);
+            n.Property(e => e.LinkName).HasMaxLength(NewEpisodeTemplates.MaxLength);
+            n.Property(e => e.LinkText).HasMaxLength(NewEpisodeTemplates.MaxLength);
+            n.Property(e => e.PlexWebAddress).HasMaxLength(NewEpisodeTemplates.MaxAddressLength);
+        });
     }
 }

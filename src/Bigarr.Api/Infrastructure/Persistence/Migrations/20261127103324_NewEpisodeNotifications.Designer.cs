@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(BigarrDbContext))]
-    [Migration("20261124180617_NewEpisodeNotifications")]
+    [Migration("20261127103324_NewEpisodeNotifications")]
     partial class NewEpisodeNotifications
     {
         /// <inheritdoc />
@@ -493,6 +493,50 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
                             b1.Property<int?>("SeasonLimit")
                                 .HasColumnType("INTEGER");
+                        });
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "NewEpisodes", "Bigarr.Domain.Common.InstanceSettings.NewEpisodes#NewEpisodeSettings", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<string>("BatchContent")
+                                .HasMaxLength(512)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("BatchLine")
+                                .HasMaxLength(512)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("BatchMore")
+                                .HasMaxLength(512)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("BatchTitle")
+                                .HasMaxLength(512)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("Content")
+                                .HasMaxLength(512)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("LinkName")
+                                .HasMaxLength(512)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<int>("LinkTarget")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<string>("LinkText")
+                                .HasMaxLength(512)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("PlexWebAddress")
+                                .HasMaxLength(256)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("Title")
+                                .HasMaxLength(512)
+                                .HasColumnType("TEXT");
                         });
 
                     b.ComplexProperty(typeof(Dictionary<string, object>), "RequestDefaults", "Bigarr.Domain.Common.InstanceSettings.RequestDefaults#RequestDefaults", b1 =>
@@ -1350,6 +1394,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<string>("Edition")
                         .HasMaxLength(255)
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("GrabId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("IndexerFlags")
                         .HasColumnType("INTEGER");
@@ -3697,6 +3744,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime>("DateAdded")
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("GrabId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("IndexerFlags")
                         .HasColumnType("INTEGER");

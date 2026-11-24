@@ -1834,6 +1834,42 @@
         "timedOut": "Sent before Plex listed it",
         "notChecked": "Not checked",
         "noRecipient": "Nobody to tell"
+      },
+      "message": {
+        "title": "Message",
+        "hint": "What the direct message says. Leave a text empty to use the English default shown in it. Placeholders in braces are filled for each message; a number can be padded with zeros, {Season:00} gives 01.",
+        "group": {
+          "single": "One episode",
+          "batch": "Several episodes",
+          "link": "Plex link",
+          "target": "Where the link opens"
+        },
+        "field": {
+          "content": "Line above the card",
+          "title": "Card title",
+          "batchContent": "Line above the card",
+          "batchTitle": "Card title",
+          "batchLine": "One line per episode",
+          "batchMore": "Last line when more came than are listed",
+          "linkName": "Link heading",
+          "linkText": "Link text"
+        },
+        "unknown": "This text does not take {{placeholders}}. It will not be saved.",
+        "linkTarget": "Open the show at",
+        "target": {
+          "appPlexTv": "app.plex.tv (works for everyone)",
+          "serverAddress": "The server's own address"
+        },
+        "address": "Server address",
+        "addressHint": "The address friends open Plex at. Empty: links open app.plex.tv.",
+        "addressInvalid": "Not an http:// or https:// address: links open app.plex.tv.",
+        "preview": "Preview",
+        "show": {
+          "single": "One episode",
+          "batch": "Several"
+        },
+        "discard": "Discard changes",
+        "saved": "Message saved"
       }
     }
   },

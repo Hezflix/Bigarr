@@ -492,6 +492,50 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                                 .HasColumnType("INTEGER");
                         });
 
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "NewEpisodes", "Bigarr.Domain.Common.InstanceSettings.NewEpisodes#NewEpisodeSettings", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<string>("BatchContent")
+                                .HasMaxLength(512)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("BatchLine")
+                                .HasMaxLength(512)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("BatchMore")
+                                .HasMaxLength(512)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("BatchTitle")
+                                .HasMaxLength(512)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("Content")
+                                .HasMaxLength(512)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("LinkName")
+                                .HasMaxLength(512)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<int>("LinkTarget")
+                                .HasColumnType("INTEGER");
+
+                            b1.Property<string>("LinkText")
+                                .HasMaxLength(512)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("PlexWebAddress")
+                                .HasMaxLength(256)
+                                .HasColumnType("TEXT");
+
+                            b1.Property<string>("Title")
+                                .HasMaxLength(512)
+                                .HasColumnType("TEXT");
+                        });
+
                     b.ComplexProperty(typeof(Dictionary<string, object>), "RequestDefaults", "Bigarr.Domain.Common.InstanceSettings.RequestDefaults#RequestDefaults", b1 =>
                         {
                             b1.IsRequired();

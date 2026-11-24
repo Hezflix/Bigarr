@@ -8431,6 +8431,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications/new-episodes/message": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["NewEpisodeMessageSettings"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DiscordBotResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/new-episodes/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["NewEpisodeMessageSettings"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NewEpisodePreviewResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/profile/shows": {
         parameters: {
             query?: never;
@@ -11920,6 +12007,8 @@ export interface components {
         DiscordBotResponse: {
             configured: boolean;
             token: null | string;
+            message: components["schemas"]["NewEpisodeMessageSettings"];
+            texts: components["schemas"]["NewEpisodeTextInfo"][];
         };
         DiscordEmbed: {
             title: null | string;
@@ -13580,6 +13669,31 @@ export interface components {
             lastStatusCode: null | number;
             lastError: null | string;
         };
+        NewEpisodeMessageSettings: {
+            content: null | string;
+            title: null | string;
+            batchContent: null | string;
+            batchTitle: null | string;
+            batchLine: null | string;
+            batchMore: null | string;
+            linkName: null | string;
+            linkText: null | string;
+            linkTarget: components["schemas"]["PlexLinkTarget"];
+            plexWebAddress: null | string;
+        };
+        NewEpisodePreviewResponse: {
+            single: components["schemas"]["DiscordPayload"];
+            batch: components["schemas"]["DiscordPayload"];
+            problems: components["schemas"]["TemplateProblem"][];
+            addressInvalid: boolean;
+        };
+        /** @enum {unknown} */
+        NewEpisodeText: "content" | "title" | "batchContent" | "batchTitle" | "batchLine" | "batchMore" | "linkName" | "linkText";
+        NewEpisodeTextInfo: {
+            field: components["schemas"]["NewEpisodeText"];
+            default: string;
+            placeholders: string[];
+        };
         /**
          * @default all
          * @enum {unknown}
@@ -14009,6 +14123,8 @@ export interface components {
             details: components["schemas"]["StreamDetails"];
             location: null | components["schemas"]["PlaybackLocation"];
         };
+        /** @enum {unknown} */
+        PlexLinkTarget: "appPlexTv" | "serverAddress";
         PlexTranscode: {
             /** Format: double */
             speed: null | number;
@@ -16247,6 +16363,10 @@ export interface components {
             path: string;
             /** Format: int64 */
             bytes: number;
+        };
+        TemplateProblem: {
+            field: components["schemas"]["NewEpisodeText"];
+            placeholder: string;
         };
         TopEntryResponse: {
             title: string;

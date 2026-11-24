@@ -1,5 +1,6 @@
 using System.Globalization;
 using Bigarr.Api.Features.Notifications.Discord;
+using Bigarr.Domain.Notifications;
 
 namespace Bigarr.Api.Features.Notifications.NewEpisodes;
 
@@ -12,8 +13,8 @@ public sealed record PlexShowLink(string MachineIdentifier, string ShowRatingKey
 /// <summary>
 /// The direct message about new episodes, the layout of the Discord bot it replaces: a content line, then an embed with
 /// the show and episode as the title, the episode's summary, the show's poster as the image, dark purple, a timestamp
-/// and a "View on Plex" link. Several episodes make one message that lists them. English, like every Discord message
-/// of Bigarr; nothing in it pings anyone.
+/// and a "View on Plex" link. Several episodes make one message that lists them. The texts are the admin's
+/// (<see cref="NewEpisodeTemplates"/>), English by default; nothing in it pings anyone.
 /// </summary>
 public static class NewEpisodeMessages
 {
@@ -23,7 +24,7 @@ public static class NewEpisodeMessages
     /// <summary>The summary of a single episode is cut here, well under Discord's limit for a description.</summary>
     public const int SummaryLimit = 1024;
 
-    public static DiscordPayload Payload(string showTitle, string? posterUrl, IReadOnlyList<AnnouncedEpisode> episodes, PlexShowLink? plex, DateTime at)
+    public static DiscordPayload Payload(string showTitle, string? posterUrl, IReadOnlyList<AnnouncedEpisode> episodes, PlexShowLink? plex, DateTime at, NewEpisodeSettings? settings = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(showTitle);
         ArgumentNullException.ThrowIfNull(episodes);
@@ -32,31 +33,42 @@ public static class NewEpisodeMessages
             throw new ArgumentException("An announcement tells at least one episode.", nameof(episodes));
         }
 
+        string Text(NewEpisodeText field, Dictionary<string, object> values) => NewEpisodeTemplates.Render(NewEpisodeTemplates.Text(settings, field), values);
+        Dictionary<string, object> Of(AnnouncedEpisode e) => new()
+        {
+            ["Show"] = showTitle,
+            ["Season"] = e.SeasonNumber,
+            ["Episode"] = e.EpisodeNumber,
+            ["EpisodeTitle"] = EpisodeTitle(e),
+        };
+
         var ordered = episodes.OrderBy(e => e.SeasonNumber).ThenBy(e => e.EpisodeNumber).ToList();
         string content;
         string title;
         string? description;
         if (ordered.Count == 1)
         {
-            var e = ordered[0];
-            content = $"📺 {showTitle} - Season {e.SeasonNumber} · Episode {e.EpisodeNumber} - {EpisodeTitle(e)} 👈 just added to Plex!";
-            title = $"{showTitle} - {EpisodeTitle(e)} (S{e.SeasonNumber} · E{e.EpisodeNumber})";
-            description = Cut(e.Overview, SummaryLimit);
+            var values = Of(ordered[0]);
+            content = Text(NewEpisodeText.Content, values);
+            title = Text(NewEpisodeText.Title, values);
+            description = Cut(ordered[0].Overview, SummaryLimit);
         }
         else
         {
-            content = $"📺 {showTitle} - {ordered.Count} new episodes 👈 just added to Plex!";
-            title = $"{showTitle} - {ordered.Count} new episodes ({Range(ordered)})";
-            var lines = ordered.Take(ListedEpisodes).Select(e => $"S{e.SeasonNumber:00} · E{e.EpisodeNumber:00} - {EpisodeTitle(e)}").ToList();
+            var values = new Dictionary<string, object> { ["Show"] = showTitle, ["Count"] = ordered.Count, ["Range"] = Range(ordered) };
+            content = Text(NewEpisodeText.BatchContent, values);
+            title = Text(NewEpisodeText.BatchTitle, values);
+            var lines = ordered.Take(ListedEpisodes).Select(e => Text(NewEpisodeText.BatchLine, Of(e))).ToList();
             if (ordered.Count > ListedEpisodes)
             {
-                lines.Add($"… and {ordered.Count - ListedEpisodes} more");
+                lines.Add(Text(NewEpisodeText.BatchMore, new() { ["Show"] = showTitle, ["More"] = ordered.Count - ListedEpisodes }));
             }
 
             description = string.Join('\n', lines);
         }
 
-        var link = plex is null ? null : PlexUrl(plex);
+        var link = plex is null ? null : PlexUrl(plex, settings);
+        var show = new Dictionary<string, object> { ["Show"] = showTitle };
         var embed = new DiscordEmbed(
             title,
             description,
@@ -66,18 +78,30 @@ public static class NewEpisodeMessages
             null,
             Absolute(posterUrl) is { } poster ? new DiscordImage(poster) : null,
             at.ToString("O", CultureInfo.InvariantCulture),
-            link is null ? null : [new DiscordField("View on Plex", $"[Open the show on Plex]({link})")]);
+            link is null ? null : [new DiscordField(Text(NewEpisodeText.LinkName, show), $"[{LinkLabel(Text(NewEpisodeText.LinkText, show))}]({link})")]);
 
         // A bot's message: no username or avatar to set, and nothing it says may ping anyone.
         return DiscordWebhook.Fit(new DiscordPayload(content, null, null, [embed], new DiscordAllowedMentions([], [])));
     }
 
-    /// <summary>The show on Plex Web, the address every Plex user can open whatever the server's own address.</summary>
-    public static string PlexUrl(PlexShowLink link)
+    /// <summary>
+    /// The show on Plex Web: app.plex.tv, which every Plex user can open, or the server's own address when the admin
+    /// chose it and gave a valid one. Plex Web on any address opens any server the user can reach, by its id.
+    /// </summary>
+    public static string PlexUrl(PlexShowLink link, NewEpisodeSettings? settings = null)
     {
         ArgumentNullException.ThrowIfNull(link);
-        return $"https://app.plex.tv/desktop/#!/server/{Uri.EscapeDataString(link.MachineIdentifier)}/details?key={Uri.EscapeDataString("/library/metadata/" + link.ShowRatingKey)}";
+        var route = $"#!/server/{Uri.EscapeDataString(link.MachineIdentifier)}/details?key={Uri.EscapeDataString("/library/metadata/" + link.ShowRatingKey)}";
+        if (settings is { LinkTarget: PlexLinkTarget.ServerAddress } && NewEpisodeTemplates.WebAddress(settings.PlexWebAddress) is { } address)
+        {
+            return $"{address}/web/index.html{route}";
+        }
+
+        return $"https://app.plex.tv/desktop/{route}";
     }
+
+    /// <summary>Brackets would end Discord's link text early.</summary>
+    private static string LinkLabel(string text) => text.Replace('[', '(').Replace(']', ')');
 
     private static string EpisodeTitle(AnnouncedEpisode e) =>
         string.IsNullOrWhiteSpace(e.Title) ? $"Episode {e.EpisodeNumber}" : e.Title.Trim();

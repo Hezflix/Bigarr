@@ -45,4 +45,7 @@ public sealed class InstanceSettings
     /// never logged. Null: no direct message is sent, and new episodes are not even collected.
     /// </summary>
     public string? DiscordBotToken { get; set; }
+
+    /// <summary>The wording of the new-episode direct message and where its Plex link goes.</summary>
+    public Notifications.NewEpisodeSettings NewEpisodes { get; set; } = new();
 }

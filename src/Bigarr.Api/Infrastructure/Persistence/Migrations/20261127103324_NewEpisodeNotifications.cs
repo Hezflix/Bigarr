@@ -18,6 +18,76 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                 maxLength: 256,
                 nullable: true);
 
+            migrationBuilder.AddColumn<string>(
+                name: "NewEpisodes_BatchContent",
+                table: "InstanceSettings",
+                type: "TEXT",
+                maxLength: 512,
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "NewEpisodes_BatchLine",
+                table: "InstanceSettings",
+                type: "TEXT",
+                maxLength: 512,
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "NewEpisodes_BatchMore",
+                table: "InstanceSettings",
+                type: "TEXT",
+                maxLength: 512,
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "NewEpisodes_BatchTitle",
+                table: "InstanceSettings",
+                type: "TEXT",
+                maxLength: 512,
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "NewEpisodes_Content",
+                table: "InstanceSettings",
+                type: "TEXT",
+                maxLength: 512,
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "NewEpisodes_LinkName",
+                table: "InstanceSettings",
+                type: "TEXT",
+                maxLength: 512,
+                nullable: true);
+
+            migrationBuilder.AddColumn<int>(
+                name: "NewEpisodes_LinkTarget",
+                table: "InstanceSettings",
+                type: "INTEGER",
+                nullable: false,
+                defaultValue: 0);
+
+            migrationBuilder.AddColumn<string>(
+                name: "NewEpisodes_LinkText",
+                table: "InstanceSettings",
+                type: "TEXT",
+                maxLength: 512,
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "NewEpisodes_PlexWebAddress",
+                table: "InstanceSettings",
+                type: "TEXT",
+                maxLength: 256,
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "NewEpisodes_Title",
+                table: "InstanceSettings",
+                type: "TEXT",
+                maxLength: 512,
+                nullable: true);
+
             migrationBuilder.CreateTable(
                 name: "NewEpisodeAnnouncements",
                 columns: table => new
@@ -172,6 +242,46 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
             migrationBuilder.DropColumn(
                 name: "DiscordBotToken",
+                table: "InstanceSettings");
+
+            migrationBuilder.DropColumn(
+                name: "NewEpisodes_BatchContent",
+                table: "InstanceSettings");
+
+            migrationBuilder.DropColumn(
+                name: "NewEpisodes_BatchLine",
+                table: "InstanceSettings");
+
+            migrationBuilder.DropColumn(
+                name: "NewEpisodes_BatchMore",
+                table: "InstanceSettings");
+
+            migrationBuilder.DropColumn(
+                name: "NewEpisodes_BatchTitle",
+                table: "InstanceSettings");
+
+            migrationBuilder.DropColumn(
+                name: "NewEpisodes_Content",
+                table: "InstanceSettings");
+
+            migrationBuilder.DropColumn(
+                name: "NewEpisodes_LinkName",
+                table: "InstanceSettings");
+
+            migrationBuilder.DropColumn(
+                name: "NewEpisodes_LinkTarget",
+                table: "InstanceSettings");
+
+            migrationBuilder.DropColumn(
+                name: "NewEpisodes_LinkText",
+                table: "InstanceSettings");
+
+            migrationBuilder.DropColumn(
+                name: "NewEpisodes_PlexWebAddress",
+                table: "InstanceSettings");
+
+            migrationBuilder.DropColumn(
+                name: "NewEpisodes_Title",
                 table: "InstanceSettings");
         }
     }

@@ -131,3 +131,49 @@ public sealed class SeriesNotificationOptOut
     [SetWhenAdded]
     public DateTime CreatedAt { get; set; }
 }
+
+/// <summary>Where the "View on Plex" link of a new-episode message opens the show.</summary>
+public enum PlexLinkTarget
+{
+    /// <summary><c>https://app.plex.tv</c>: works for every Plex user, whatever the server's own address.</summary>
+    AppPlexTv = 0,
+
+    /// <summary>The server's own public address (<see cref="NewEpisodeSettings.PlexWebAddress"/>); app.plex.tv while it is empty.</summary>
+    ServerAddress = 1,
+}
+
+/// <summary>
+/// The wording of the new-episode direct message and where its Plex link goes, set by the admin in Settings →
+/// Notifications. A null or blank text uses the English default; texts hold placeholders such as <c>{Show}</c>.
+/// </summary>
+public sealed class NewEpisodeSettings
+{
+    /// <summary>The line above the embed, one episode.</summary>
+    public string? Content { get; set; }
+
+    /// <summary>The embed's title, one episode.</summary>
+    public string? Title { get; set; }
+
+    /// <summary>The line above the embed, several episodes.</summary>
+    public string? BatchContent { get; set; }
+
+    /// <summary>The embed's title, several episodes.</summary>
+    public string? BatchTitle { get; set; }
+
+    /// <summary>One line per episode in the embed, several episodes.</summary>
+    public string? BatchLine { get; set; }
+
+    /// <summary>The last line when more episodes came than are listed.</summary>
+    public string? BatchMore { get; set; }
+
+    /// <summary>The heading of the link field.</summary>
+    public string? LinkName { get; set; }
+
+    /// <summary>The text of the link itself.</summary>
+    public string? LinkText { get; set; }
+
+    public PlexLinkTarget LinkTarget { get; set; } = PlexLinkTarget.AppPlexTv;
+
+    /// <summary>The address friends open Plex Web at, e.g. <c>https://plex.example.com</c>; used with <see cref="PlexLinkTarget.ServerAddress"/>.</summary>
+    public string? PlexWebAddress { get; set; }
+}
