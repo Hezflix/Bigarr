@@ -31,6 +31,10 @@ public enum SeriesCompareOutcome
 /// of its season, a Bigarr pack with Sonarr's singles): each group is one "different" row with every release of both
 /// sides covering distinct episodes; a release that covers episodes its side already has in the group (a later upgrade)
 /// is "also picked" for a pick, its own row for a grab;</item>
+/// <item>a grab with nothing in the window pairs with Bigarr's latest picks of the 14 days before it, for its episodes
+/// (Bigarr was first, since a shadow pick downloads nothing), as for films: the latest pick per episode counts, so a
+/// Sonarr pack pairs with the singles Bigarr picked and singles Sonarr grabs after a pack Bigarr picked share that
+/// pack's row; not a pick another grab of the same episodes came after;</item>
 /// <item>a pick made while a paired grab of the same episodes was still downloading is "also picked" on that row, as for
 /// films; the rest are one-sided rows.</item>
 /// </list>
@@ -155,6 +159,67 @@ public static class SeriesComparePairing
             rows.Add(row);
             usedGrabs.UnionWith(mainGrabs.Select(g => g.Id));
             usedPicks.UnionWith(groupPicks.Select(p => p.Id));
+        }
+
+        // 2b. A grab nothing paired with in the window: Bigarr's latest picks of the 14 days before it, for its episodes,
+        // still count (in shadow mode a pick downloads nothing, so Sonarr grabbing later means Bigarr was first), as for
+        // films. Not a pick another grab of the same episodes came after (that grab owns the question), nor one made while
+        // a paired grab of its episodes was downloading (it is listed with that grab). The latest pick per episode counts,
+        // so a Sonarr pack pairs with the singles Bigarr picked; singles Sonarr grabs after a pack Bigarr picked share
+        // that pack's row.
+        var pairedGrabs = rows.Where(r => r.Bigarr.Count > 0).SelectMany(r => r.Sonarr).ToList();
+        var earlier = new List<(List<Grab> Grabs, List<Pick> Picks)>();
+        var earlierOfPick = new Dictionary<int, int>();
+        foreach (var grab in grabs.Where(g => !usedGrabs.Contains(g.Id)))
+        {
+            bool Eligible(Pick pick) =>
+                pick.At < grab.At
+                && grab.At - pick.At <= ComparePairing.EarlierPickLimit
+                && Overlap(grab.Episodes, pick.Episodes)
+                && !grabs.Any(g => g.Id != grab.Id && pick.At <= g.At && g.At < grab.At && Overlap(g.Episodes, pick.Episodes) && Overlap(g.Episodes, grab.Episodes))
+                && !pairedGrabs.Any(g => g.Id != grab.Id && g.At <= pick.At && pick.At <= End(g, window, now) && Overlap(g.Episodes, pick.Episodes));
+
+            // Latest first: one pick per episode, the most recent.
+            var kept = Disjoint(
+                [.. picks.Where(p => (!usedPicks.Contains(p.Id) || earlierOfPick.ContainsKey(p.Id)) && Eligible(p)).OrderByDescending(p => p.At).ThenByDescending(p => p.Id)],
+                p => p.Episodes);
+            var fresh = kept.Where(p => !earlierOfPick.ContainsKey(p.Id)).ToList();
+            int? join = kept
+                .Where(p => earlierOfPick.ContainsKey(p.Id))
+                .Select(p => earlierOfPick[p.Id])
+                .Where(i => !earlier[i].Grabs.Any(g => Overlap(g.Episodes, grab.Episodes)))
+                .Select(i => (int?)i)
+                .FirstOrDefault();
+            if (join is null && fresh.Count == 0)
+            {
+                continue;
+            }
+
+            if (join is null)
+            {
+                earlier.Add(([], []));
+            }
+
+            var index = join ?? earlier.Count - 1;
+            earlier[index].Grabs.Add(grab);
+            foreach (var pick in fresh)
+            {
+                if (join is null || !earlier[index].Picks.Any(q => Overlap(q.Episodes, pick.Episodes)))
+                {
+                    earlier[index].Picks.Add(pick);
+                    earlierOfPick[pick.Id] = index;
+                    usedPicks.Add(pick.Id);
+                }
+            }
+
+            usedGrabs.Add(grab.Id);
+            pairedGrabs.Add(grab);
+        }
+
+        foreach (var (rowGrabs, rowPicks) in earlier)
+        {
+            var outcome = rowGrabs.Count == 1 && rowPicks.Count == 1 && SameRelease(rowGrabs[0], rowPicks[0]) ? SeriesCompareOutcome.Same : SeriesCompareOutcome.Different;
+            rows.Add(new Row(outcome, rowGrabs, [.. rowPicks.OrderBy(p => p.At).ThenBy(p => p.Id)], []));
         }
 
         // 3. A pick made while a paired grab of the same episodes was downloading belongs to that grab's row.
