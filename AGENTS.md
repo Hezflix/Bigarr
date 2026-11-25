@@ -6,6 +6,8 @@ check.
 ## What this is
 
 A .NET 10 API with a React front end, one SQLite database, Bun as the package manager.
+The .NET SDK version is the one in `global.json`: CI and the Docker image use exactly it, and a machine with a later
+patch of the same band builds too.
 
 - `src/Bigarr.Api/Features/<Feature>/`: one folder per feature (endpoints, service, contracts, persistence).
 - `src/Bigarr.Domain`, `src/Bigarr.Decision`: domain types and the release decision engine.
@@ -25,6 +27,8 @@ dotnet build -c Release
 (cd web && bun run gen:api) && git diff --exit-code -- web/src/api/generated
 dotnet test -c Release --no-build
 ```
+
+The pull request also builds the Docker image. To try it locally: `docker build --target build .`.
 
 ## Rules the build enforces
 
