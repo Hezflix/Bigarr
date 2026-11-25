@@ -73,6 +73,15 @@ Ask yourself each question before you open a pull request.
 To add a migration: `dotnet tool restore`, then
 `dotnet ef migrations add <Name> --project src/Bigarr.Api --output-dir Infrastructure/Persistence/Migrations`.
 
+## Dependencies
+
+- Renovate proposes updates on Monday mornings, grouped; nothing merges by itself. Major versions wait for a tick on
+  the "Dependency Dashboard" issue.
+- Two pins are deliberate (FluentAssertions 7.x, xunit 2.x): the reasons are in `renovate.json`.
+- The .NET SDK lives in `global.json` and the Dockerfile; bun in `web/.bun-version` and the Dockerfile. CI fails when
+  a pair disagrees.
+- The two tool versions inside the `gen:api` script of `web/package.json` are bumped by hand.
+
 ## Git
 
 - Branch names start with `feat/`, `fix/` or `chore/`.

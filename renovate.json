@@ -1,0 +1,103 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    ":semanticCommitTypeAll(chore)",
+    ":semanticCommitScope(deps)"
+  ],
+  "timezone": "Europe/Paris",
+  "schedule": ["before 7am on monday"],
+  "automerge": false,
+  "platformAutomerge": false,
+  "branchPrefix": "chore/renovate-",
+  "labels": ["dependencies"],
+  "dependencyDashboard": {
+    "enabled": true
+  },
+  "prConcurrentLimit": 6,
+  "prHourlyLimit": 0,
+  "rebaseWhen": "conflicted",
+  "minimumReleaseAge": "3 days",
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "schedule": ["at any time"],
+    "minimumReleaseAge": null,
+    "labels": ["dependencies", "security"]
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 7am on the first day of the month"]
+  },
+  "packageRules": [
+    {
+      "description": "A major version is a decision: listed on the dashboard, opened when ticked there.",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "FluentAssertions 8 is commercially licensed: stay on 7.x (src/Bigarr.Parsing/VENDORED.md).",
+      "matchDatasources": ["nuget"],
+      "matchPackageNames": ["FluentAssertions"],
+      "allowedVersions": "<8.0.0"
+    },
+    {
+      "description": "xunit 2: version 3 is another package (xunit.v3) and a migration of its own.",
+      "matchDatasources": ["nuget"],
+      "matchPackageNames": ["xunit"],
+      "allowedVersions": "<3.0.0"
+    },
+    {
+      "description": "The .NET SDK: global.json and the Dockerfile's SDK image move together (CI checks they agree).",
+      "matchDatasources": ["dotnet-version"],
+      "groupName": "dotnet sdk"
+    },
+    {
+      "description": "The .NET SDK image, with global.json.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["mcr.microsoft.com/dotnet/sdk"],
+      "groupName": "dotnet sdk"
+    },
+    {
+      "description": "The Microsoft 10.0.x packages and the dotnet-ef tool share one version.",
+      "matchDatasources": ["nuget"],
+      "matchPackageNames": ["/^Microsoft\\.(AspNetCore|EntityFrameworkCore|Extensions)\\./", "dotnet-ef"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "dotnet packages"
+    },
+    {
+      "description": "Test tooling.",
+      "matchDatasources": ["nuget"],
+      "matchPackageNames": ["Microsoft.NET.Test.Sdk", "/^xunit/", "coverlet.collector", "FluentAssertions"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "test tooling"
+    },
+    {
+      "description": "bun: web/.bun-version (CI) and the Dockerfile's bun image move together (CI checks they agree).",
+      "matchManagers": ["bun-version"],
+      "groupName": "bun"
+    },
+    {
+      "description": "The bun image, with web/.bun-version.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["oven/bun"],
+      "groupName": "bun"
+    },
+    {
+      "description": "Web dependencies: one pull request for the minors and patches.",
+      "matchManagers": ["bun"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "web dependencies"
+    },
+    {
+      "description": "GitHub Actions, pinned by commit with the version in a comment.",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    },
+    {
+      "description": "Bigarr's own image in the deployment example is not a dependency.",
+      "matchPackageNames": ["ghcr.io/hezflix/bigarr"],
+      "enabled": false
+    }
+  ]
+}
