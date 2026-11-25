@@ -475,6 +475,7 @@ public sealed class ImportService(
             Languages = languages,
             IndexerFlags = plan.Flags,
             OriginalReleaseTitle = plan.ReleaseTitle,
+            GrabId = plan.Grab?.Id,
             MediaInfo = mediaInfo,
             Extras = extras,
         };
