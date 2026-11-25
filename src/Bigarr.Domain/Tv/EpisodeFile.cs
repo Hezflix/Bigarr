@@ -39,6 +39,12 @@ public sealed class EpisodeFile
 
     public IndexerFlags IndexerFlags { get; set; }
 
+    /// <summary>
+    /// The grab this file was imported from; null for a file found by a scan, imported by hand without a grab, or brought
+    /// over from Radarr/Sonarr. Tells the interactive search which release is on disk, as a pack's files carry their own names.
+    /// </summary>
+    public int? GrabId { get; set; }
+
     /// <summary>Original release name (Sonarr's <c>sceneName</c>), precious to re-parse later.</summary>
     public string? OriginalReleaseTitle { get; set; }
 

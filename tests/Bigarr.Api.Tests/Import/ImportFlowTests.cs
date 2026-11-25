@@ -139,6 +139,33 @@ public sealed class ImportFlowTests(BigarrApiFactory factory) : IClassFixture<Bi
 
             // A retry only makes sense for a failed import.
             Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsync($"/api/v1/queue/{grab3.GrabId}/import", null)).StatusCode);
+
+            // 5. The file names the grab it came from: the search says the forced YIFY is on disk, the replaced SPARKS was
+            //    imported before. A file put in by hand, with no grab, then takes YIFY's place: YIFY is no longer on disk.
+            Assert.Equal(grab3.GrabId, (await FileGrabIdAsync(movie.Id)));
+            var picks = await SearchAsync(client, movie.Id);
+            Assert.Equal(Bigarr.Api.Features.Search.ReleasePickKind.OnDisk, Assert.Single(picks.Releases.Single(r => r.Title == yify.Title).Picks!).Kind);
+            Assert.Equal(Bigarr.Api.Features.Search.ReleasePickKind.Imported, Assert.Single(picks.Releases.Single(r => r.Title == bluray.Title).Picks!).Kind);
+
+            var handFolder = Directory.CreateTempSubdirectory("bigarr-import-hand-").FullName;
+            try
+            {
+                var handFile = Path.Combine(handFolder, "The.Matrix.1999.1080p.BluRay.x264-HANDPLACED.mkv");
+                File.Copy(main.Path, handFile);
+                var byHand = await client.PostAsJsonAsync("/api/v1/manualimport", new ManualImportRequest([new ManualImportItemRequest(handFile, version.Id)]), Json);
+                Assert.Equal(HttpStatusCode.OK, byHand.StatusCode);
+                var handResult = Assert.Single((await byHand.Content.ReadFromJsonAsync<List<ManualImportResultResponse>>(Json))!);
+                Assert.True(handResult.Imported, handResult.Reason);
+                Assert.Null(await FileGrabIdAsync(movie.Id));
+
+                var afterHand = await SearchAsync(client, movie.Id);
+                Assert.Equal(Bigarr.Api.Features.Search.ReleasePickKind.Imported, Assert.Single(afterHand.Releases.Single(r => r.Title == yify.Title).Picks!).Kind);
+                Assert.DoesNotContain(afterHand.Releases, r => r.Picks!.Any(p => p.Kind == Bigarr.Api.Features.Search.ReleasePickKind.OnDisk));
+            }
+            finally
+            {
+                TryDelete(handFolder);
+            }
         }
         finally
         {
@@ -186,6 +213,14 @@ public sealed class ImportFlowTests(BigarrApiFactory factory) : IClassFixture<Bi
     }
 
     /// <summary>What an RSS or automatic search grab looks like: the API grab is the interactive one.</summary>
+    /// <summary>The grab the film's file says it came from.</summary>
+    private async Task<int?> FileGrabIdAsync(int movieId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+        return await db.MediaFiles.AsNoTracking().Where(f => f.Version.MovieId == movieId).Select(f => f.GrabId).SingleAsync();
+    }
+
     private async Task MarkAutomaticAsync(int grabId)
     {
         using var scope = factory.Services.CreateScope();

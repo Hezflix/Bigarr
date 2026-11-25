@@ -446,6 +446,7 @@ public sealed class SeriesImportService(
             Languages = languages,
             IndexerFlags = plan.Flags,
             OriginalReleaseTitle = plan.ReleaseTitle,
+            GrabId = plan.Grab?.Id,
             MediaInfo = mediaInfo,
             Extras = extras,
         };

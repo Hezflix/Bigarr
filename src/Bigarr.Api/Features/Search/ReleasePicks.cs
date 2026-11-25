@@ -35,11 +35,11 @@ public sealed class ReleasePicks
             .Where(t => ids.Contains(t.TargetId))
             .Select(t => new { t.GrabId, t.TargetId, t.Grab.IndexerId, t.Grab.ReleaseGuid, t.Grab.InfoHash, t.Grab.ReleaseTitle, t.Grab.State, t.Grab.GrabbedAt })
             .ToListAsync(ct);
-        var added = movie.Versions.Where(v => v.File is not null).ToDictionary(v => v.Id, v => v.File!.DateAdded);
-        var onDisk = OnDisk(grabs.Select(g => (g.GrabId, g.TargetId, g.State, g.GrabbedAt, added.TryGetValue(g.TargetId, out var at) ? at : (DateTime?)null)));
+        // The file names the grab it came from: that grab's release is on disk, whatever its title.
+        var fileGrabs = movie.Versions.Where(v => v.File?.GrabId is not null).ToDictionary(v => v.Id, v => v.File!.GrabId!.Value);
         foreach (var grab in grabs.OrderByDescending(g => g.GrabbedAt))
         {
-            var kind = onDisk.Contains((grab.GrabId, grab.TargetId)) ? ReleasePickKind.OnDisk : KindOf(grab.State);
+            var kind = fileGrabs.TryGetValue(grab.TargetId, out var fileGrab) && fileGrab == grab.GrabId ? ReleasePickKind.OnDisk : KindOf(grab.State);
             picks.Add((new PickKey(grab.IndexerId, grab.ReleaseGuid, grab.InfoHash, grab.ReleaseTitle), new ReleasePickResponse(grab.TargetId, names[grab.TargetId], kind, grab.GrabbedAt)));
         }
 
@@ -74,11 +74,10 @@ public sealed class ReleasePicks
         }
 
         var grabs = await db.GrabTargets.AsNoTracking()
-            .Join(db.EpisodeTargets.Where(t => t.Version.SeriesId == seriesId), g => g.TargetId, t => t.Id, (g, t) => new { t.VersionId, VersionName = t.Version.Name, g.GrabId, g.TargetId, FileAdded = t.EpisodeFile == null ? (DateTime?)null : t.EpisodeFile.DateAdded, g.Grab.IndexerId, g.Grab.ReleaseGuid, g.Grab.InfoHash, g.Grab.ReleaseTitle, g.Grab.State, g.Grab.GrabbedAt })
+            .Join(db.EpisodeTargets.Where(t => t.Version.SeriesId == seriesId), g => g.TargetId, t => t.Id, (g, t) => new { t.VersionId, VersionName = t.Version.Name, g.GrabId, g.TargetId, FileGrabId = t.EpisodeFile == null ? null : t.EpisodeFile.GrabId, g.Grab.IndexerId, g.Grab.ReleaseGuid, g.Grab.InfoHash, g.Grab.ReleaseTitle, g.Grab.State, g.Grab.GrabbedAt })
             .ToListAsync(ct);
-        // A pack's files carry their own names, not the pack's: an imported grab still in place says "on disk" for them.
-        var onDisk = OnDisk(grabs.Select(g => (g.GrabId, g.TargetId, g.State, g.GrabbedAt, g.FileAdded)));
-        foreach (var grab in grabs.GroupBy(g => (g.GrabId, g.VersionId)).Select(g => (First: g.First(), OnDisk: g.Any(t => onDisk.Contains((t.GrabId, t.TargetId))))).OrderByDescending(g => g.First.GrabbedAt))
+        // A pack's files carry their own names, not the pack's: a file naming the grab it came from says the pack is on disk.
+        foreach (var grab in grabs.GroupBy(g => (g.GrabId, g.VersionId)).Select(g => (First: g.First(), OnDisk: g.Any(t => t.FileGrabId == t.GrabId))).OrderByDescending(g => g.First.GrabbedAt))
         {
             var kind = grab.OnDisk ? ReleasePickKind.OnDisk : KindOf(grab.First.State);
             picks.Add((new PickKey(grab.First.IndexerId, grab.First.ReleaseGuid, grab.First.InfoHash, grab.First.ReleaseTitle), new ReleasePickResponse(grab.First.VersionId, grab.First.VersionName, kind, grab.First.GrabbedAt)));
@@ -95,18 +94,6 @@ public sealed class ReleasePicks
 
         return new ReleasePicks(picks);
     }
-
-    /// <summary>
-    /// The imported grabs whose file is still in place: for each target holding a file, the last grab imported before
-    /// the file was added. A file put in by hand after it is taken for it too: nothing on the file names its grab.
-    /// </summary>
-    private static HashSet<(int GrabId, int TargetId)> OnDisk(IEnumerable<(int GrabId, int TargetId, GrabState State, DateTime GrabbedAt, DateTime? FileAdded)> grabs) =>
-        grabs
-            .Where(g => g.State is GrabState.Imported && g.FileAdded is { } added && g.GrabbedAt <= added)
-            .GroupBy(g => g.TargetId)
-            .Select(g => g.MaxBy(x => x.GrabbedAt))
-            .Select(g => (g.GrabId, g.TargetId))
-            .ToHashSet();
 
     private static ReleasePickKind KindOf(GrabState state) =>
         state.IsActive() ? ReleasePickKind.Downloading

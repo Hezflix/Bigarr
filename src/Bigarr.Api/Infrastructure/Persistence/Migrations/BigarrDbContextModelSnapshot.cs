@@ -1344,6 +1344,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("GrabId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("IndexerFlags")
                         .HasColumnType("INTEGER");
 
@@ -3547,6 +3550,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime>("DateAdded")
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("GrabId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("IndexerFlags")
                         .HasColumnType("INTEGER");
