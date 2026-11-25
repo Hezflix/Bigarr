@@ -58,6 +58,7 @@ builder.Services.AddBigarrPersistence(builder.Configuration);
 builder.Services.AddBigarrAuthentication();
 builder.Services.Configure<SignInOptions>(builder.Configuration.GetSection(SignInOptions.Section));
 builder.Services.AddSingleton<SignInThrottle>();
+builder.Services.Configure<SameOriginOptions>(builder.Configuration.GetSection(SameOriginOptions.Section));
 // Behind a reverse proxy (Traefik, nginx, oauth2-proxy) the scheme and the client address arrive in X-Forwarded-*.
 // In that setup the proxy is the only thing that can reach Bigarr, so its headers are trusted from any address:
 // the session cookie is then marked Secure on https and failed logins log the real client.
@@ -309,6 +310,7 @@ app.UseRouting();
 
 app.UseRadarrCompat();
 app.UseSonarrCompat();
+app.UseSameOriginGuard();
 app.UseAuthentication();
 app.UseAuthorization();
 

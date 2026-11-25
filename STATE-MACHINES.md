@@ -395,6 +395,10 @@ See [F10](#f10-shadow-follow-searches-and-views-were-lost-for-good).
   accepted ([F24](#f24-a-demoted-admins-api-key-kept-the-compat-surfaces)). A key also has a scope (`compat` by default,
   `full`, `calendar`) that says which policies it passes, checked on top of the role and, on the compatible surfaces,
   of its view ([F41](#f41-an-api-key-opened-the-whole-admin-api)); the admin changes it from the cookie session only.
+  A request that changes something (any method but GET, HEAD, OPTIONS, TRACE) and carries the session cookie is refused
+  with 403 unless the browser says it comes from Bigarr's own origin: `Sec-Fetch-Site` is `same-origin` or `none`, or,
+  without it, `Origin` has the request's host and port; a request with neither header passes
+  ([F48](#f48-another-site-on-the-same-host-or-domain-could-act-in-the-admins-session)).
 - User: active ⇄ disabled (`DisabledAt`), by the admin only, never the admin's own account; no delete. Role (admin,
   request manager, user) and permissions change freely, except the admin's own role. A Plex account linked to no one
   creates its user (role user, default permissions) on its first sign-in, only when new Plex accounts are let in and
@@ -1116,6 +1120,24 @@ resets the wait. Every open that follows an interruption, whether the browser re
 invalidates every query, which refetches the ones on screen. The first open does not. The queue page keeps its own copy
 of the retry.
 Tests: `web/test/eventStream.test.ts`.
+
+#### F48. Another site on the same host or domain could act in the admin's session
+
+The web UI signs in with a cookie, and a browser attaches it to any request sent to Bigarr's address, whatever page sent
+it. `SameSite=Lax` stops other *sites*, not another application on the same host and another port (cookies ignore ports)
+or on a sibling subdomain. Several routes that change a lot take no body (restore a backup, run a task), so a hidden form
+or a `fetch` from such a page was enough to trigger them in the admin's session.
+
+Fix: `SameOriginGuard`, a middleware before authentication. A request is refused with 403 when its method is not safe, it
+carries the `bigarr_session` cookie, and either `Sec-Fetch-Site` is present and neither `same-origin` nor `none`, or it is
+absent and `Origin` is `null`, not an address, or has a host and port other than the request's `Host` (compared without
+case, the scheme is not compared so that a proxy ending TLS without forwarding it does not make everything look foreign).
+Safe methods, requests with no session cookie (API keys, sign-in) and requests with neither header (not a browser) pass.
+The host is the one after the forwarded headers, so a proxy must pass `Host` or `X-Forwarded-Host`; the 403's text and
+the log line say so. `Bigarr__Auth__RequireSameOrigin=false` turns the check off.
+Tests: `SameOriginGuardTests` (the rule case by case, then through the real application: each `Sec-Fetch-Site` value,
+`Origin` against `Host` and `X-Forwarded-Host`, a safe method, an API key with no cookie on `/api/v1` and `/radarr`,
+sign-in from the same origin, the switch).
 
 ### Open
 
