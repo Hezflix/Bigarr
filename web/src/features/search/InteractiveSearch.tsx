@@ -36,6 +36,7 @@ import {
   VerdictIcon,
 } from '@/features/search/releaseTable'
 import { versionFits } from '@/features/search/rejectionReasons'
+import { PickBadges, pickedRowClass, PicksBanner, releaseKey, useFlashRow } from '@/features/search/releasePicks'
 import { pickKey } from '@/features/search/searchIndexers'
 import { formatAge, formatDateTime } from '@/i18n'
 
@@ -106,6 +107,8 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
     run(submitted.text)
   }, [indexerPick.settledKey])
   const section = useRef<HTMLElement>(null)
+  // The row just grabbed, or asked for from the picks banner: scrolled to and lit for a moment.
+  const [flash, setFlash] = useFlashRow(section)
   const lastRun = useRef(runRequest)
   // biome-ignore lint/correctness/useExhaustiveDependencies: only a new request from the header runs it, with the text as it is then
   useEffect(() => {
@@ -143,6 +146,7 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
       await queryClient.invalidateQueries({ queryKey: ['queue'] })
       await queryClient.invalidateQueries({ queryKey: ['history'] })
       await query.refetch()
+      setFlash(releaseKey(release))
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : t('search.grabFailed')),
   })
@@ -227,6 +231,8 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
 
           {showQueries && <SearchQueriesPanel queries={data.queries} />}
 
+          <PicksBanner releases={releases} onShow={setFlash} />
+
           {releases.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('search.noResults')}</p>
           ) : (
@@ -260,7 +266,8 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
                     const target = versionById.get(release.suggestedVersionId ?? -1) ?? defaultVersion
                     return (
                       <ReleaseRow
-                        key={`${release.indexerId}:${release.guid}`}
+                        key={releaseKey(release)}
+                        flash={flash}
                         release={release}
                         fits={fitsOf(release)}
                         versions={movie.versions}
@@ -297,6 +304,7 @@ export function InteractiveSearch({ movie, runRequest = 0 }: { movie: Movie; /**
 }
 
 function ReleaseRow({
+  flash,
   release,
   fits,
   versions,
@@ -306,6 +314,8 @@ function ReleaseRow({
   onGrabOneShot,
   onOverride,
 }: {
+  /** The row lit for a moment: just grabbed, or asked for from the picks banner. */
+  flash: string | null
   release: Release
   fits: ReturnType<typeof versionFits>
   versions: Version[]
@@ -343,7 +353,7 @@ function ReleaseRow({
           : t('search.grabAnyway', { version: target?.name ?? '' })
 
   return (
-    <TableRow className={cn(!good && 'text-muted-foreground')} data-fits={good}>
+    <TableRow className={cn(!good && 'text-muted-foreground', pickedRowClass(release, flash))} data-fits={good} data-picked={(release.picks ?? []).length > 0} data-release-key={releaseKey(release)}>
       <TableCell className="align-top whitespace-nowrap">
         <Tooltip>
           <TooltipTrigger asChild>
@@ -352,7 +362,7 @@ function ReleaseRow({
           <TooltipContent>{formatDateTime(release.publishDate)}</TooltipContent>
         </Tooltip>
       </TableCell>
-      <ReleaseTitleCell release={release} good={good} details={details} className="min-w-[24rem]" />
+      <ReleaseTitleCell release={release} good={good} details={details} className="min-w-[24rem]" extra={<PickBadges release={release} />} />
       <IndexerSizePeersCells release={release} />
       <FitCell fits={fits} matches={release.matchesMovie} testId="release-fit" />
       <TableCell className="align-top">

@@ -171,6 +171,7 @@ export function ReleaseTitleCell({
   details,
   className,
   badges = true,
+  extra,
 }: {
   release: ReleaseCommon
   good: boolean
@@ -178,6 +179,8 @@ export function ReleaseTitleCell({
   className: string
   /** False when quality and custom formats have their own columns. */
   badges?: boolean
+  /** Shown first in the badge line (what was done with the release). */
+  extra?: ReactNode
 }) {
   const { t } = useTranslation()
   const flags = release.flags === 'none' ? [] : release.flags.split(', ')
@@ -194,6 +197,7 @@ export function ReleaseTitleCell({
         )}
       </span>
       <span className="mt-1 flex flex-wrap items-center gap-1">
+        {extra}
         {badges && <Badge variant="secondary">{release.quality}</Badge>}
         {flags.map((flag) => (
           <Badge key={flag} variant="outline">

@@ -1034,6 +1034,20 @@
       "temporary": "clears on its own",
       "release": "Release",
       "why": "Why: every version's verdict"
+    },
+    "pick": {
+      "badge": "{{version}} · {{kind}}",
+      "at": "Since {{date}}",
+      "kind": {
+        "downloading": "downloading",
+        "onDisk": "on disk",
+        "imported": "imported before",
+        "failed": "failed",
+        "grabbed": "dismissed",
+        "shadow": "Bigarr's pick"
+      },
+      "bannerTitle": "Picked from this search",
+      "showInList": "Show in list"
     }
   },
   "rss": {

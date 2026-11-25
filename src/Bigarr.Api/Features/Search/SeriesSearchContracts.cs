@@ -48,7 +48,9 @@ public sealed record SeriesReleaseResponse(
     /// <summary>Which numbering found the episodes: <c>tvdb</c>, <c>xem</c>, <c>order</c> (the series' order) or <c>absolute</c>.</summary>
     Bigarr.Domain.Tv.EpisodeNumbering? Numbering = null,
     /// <summary>A fallback hit on the series' order nothing confirms: held for a manual choice, never grabbed automatically.</summary>
-    bool Held = false);
+    bool Held = false,
+    /// <summary>What the series' versions already did with this release (grabbed, imported, on disk, picked in shadow mode); at most one per version.</summary>
+    List<ReleasePickResponse>? Picks = null);
 
 public sealed record SeriesSearchResponse(
     int SeriesId,

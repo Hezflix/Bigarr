@@ -63,12 +63,13 @@ public sealed class InteractiveSearchService(BigarrDbContext db, TargetContextFa
 
         var targets = await contexts.BuildForGrabAsync(movie, versions, ct);
         var calculator = await scorer.CalculatorAsync(ct);
+        var picks = await ReleasePicks.LoadAsync(db, movie, ct);
         var minimumSeeders = indexers.ToDictionary(i => i.Id, i => i.MinimumSeeders);
 
         // Ranking: quality, then custom format score, then indexer priority, then seeders.
         var releases = results
             .SelectMany(r => r.Releases)
-            .Select(release => Evaluate(release, movie, targets, minimumSeeders.GetValueOrDefault(release.IndexerId), calculator))
+            .Select(release => Evaluate(release, movie, targets, minimumSeeders.GetValueOrDefault(release.IndexerId), calculator) with { Picks = picks.For(release.IndexerId, release.Guid, release.InfoHash, release.Title) })
             .OrderByDescending(r => r.MatchesMovie)
             .ThenByDescending(r => r.Versions.Any(v => v.Approved))
             .ThenByDescending(r => ReleaseRanking.WeightOf(r.QualityId))

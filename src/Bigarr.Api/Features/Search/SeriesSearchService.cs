@@ -189,6 +189,8 @@ public sealed class SeriesSearchService(BigarrDbContext db, SeriesTargetsFactory
             .ThenByDescending(r => r.Response.Seeders ?? 0)
             .Select(r => r.Response)
             .ToList();
+        var picks = await ReleasePicks.LoadAsync(db, series.Id, ct);
+        ordered = ordered.Select(r => r with { Picks = picks.For(r.IndexerId, r.Guid, r.InfoHash, r.Title) }).ToList();
 
         var errors = results.Where(r => r.Error is not null)
             .DistinctBy(r => r.Indexer.Id)

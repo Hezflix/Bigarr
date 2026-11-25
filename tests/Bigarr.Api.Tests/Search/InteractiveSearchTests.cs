@@ -268,6 +268,44 @@ public sealed class InteractiveSearchTests(BigarrApiFactory factory) : IClassFix
     }
 
     [Fact]
+    public async Task A_search_run_again_after_a_grab_shows_the_release_that_was_picked()
+    {
+        var client = await ClientAsync();
+        var (profileId, rootId) = await SetupAsync(client);
+        var movie = await AddMovieAsync(client, 603, profileId, rootId); // The Matrix
+        var version = movie.Versions.Single();
+        var indexer = await AddMockIndexerAsync(client, "Mock picks", minimumSeeders: 0);
+        var downloads = await client.PostAsJsonAsync("/api/v1/downloadclients", new DownloadClientRequest("Mock picks client", DownloadClientImplementation.Mock, Category: "mock-picks"), Json);
+        Assert.Equal(HttpStatusCode.Created, downloads.StatusCode);
+        var downloadClient = (await downloads.Content.ReadFromJsonAsync<DownloadClientResponse>(Json))!;
+
+        try
+        {
+            var before = (await client.GetFromJsonAsync<SearchResponse>($"/api/v1/search?movieId={movie.Id}", Json))!;
+            Assert.All(before.Releases, r => Assert.Empty(r.Picks!));
+
+            var sparks = before.Releases.Single(r => r.Title == "The.Matrix.1999.1080p.BluRay.x264-SPARKS");
+            var grabbed = await client.PostAsJsonAsync("/api/v1/grab", new GrabRequest(
+                version.Id, sparks.IndexerId, sparks.Guid, sparks.Title, sparks.DownloadUrl, sparks.MagnetUrl, sparks.InfoHash,
+                sparks.Size, sparks.Seeders, sparks.Flags, sparks.Protocol, sparks.Indexer), Json);
+            Assert.Equal(HttpStatusCode.Created, grabbed.StatusCode);
+
+            var after = (await client.GetFromJsonAsync<SearchResponse>($"/api/v1/search?movieId={movie.Id}", Json))!;
+            var pick = Assert.Single(after.Releases.Single(r => r.Title == sparks.Title).Picks!);
+            Assert.Equal(version.Id, pick.VersionId);
+            Assert.Equal(version.Name, pick.VersionName);
+            Assert.Equal(ReleasePickKind.Downloading, pick.Kind);
+            Assert.All(after.Releases.Where(r => r.Title != sparks.Title), r => Assert.Empty(r.Picks!));
+        }
+        finally
+        {
+            await client.DeleteAsync($"/api/v1/indexers/{indexer.Id}");
+            await client.DeleteAsync($"/api/v1/movies/{movie.Id}");
+            await client.DeleteAsync($"/api/v1/downloadclients/{downloadClient.Id}");
+        }
+    }
+
+    [Fact]
     public async Task A_free_text_search_is_judged_against_the_films_versions_and_a_mismatch_can_be_grabbed_by_hand()
     {
         var client = await ClientAsync();

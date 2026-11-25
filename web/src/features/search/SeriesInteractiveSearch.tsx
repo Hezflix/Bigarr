@@ -1,7 +1,7 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
-import { CheckIcon, PencilLineIcon, SearchIcon } from 'lucide-react'
+import { PencilLineIcon, SearchIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, queue, search, series as seriesApi, type Series, type SeriesRelease, type SeriesVersion } from '@/api/client'
@@ -35,6 +35,7 @@ import {
   VerdictIcon,
 } from '@/features/search/releaseTable'
 import { versionFits } from '@/features/search/rejectionReasons'
+import { PickBadges, pickedRowClass, PicksBanner, releaseKey, useFlashRow } from '@/features/search/releasePicks'
 import { pickKey } from '@/features/search/searchIndexers'
 import { formatAge } from '@/i18n'
 
@@ -68,10 +69,13 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
   const [text, setText] = useState('')
   const [sort, onSort] = useReleaseSort<SortKey>()
   const [pending, setPending] = useState<PendingSeriesGrab | null>(null)
-  // The dialog stays open after a grab: each grabbed row says so, the others can be grabbed too.
+  // The dialog stays open after a grab: a grabbed row cannot be grabbed twice, the others can. What was picked comes
+  // back with the results (picks), for this dialog's grabs and earlier ones.
   const [grabbed, setGrabbed] = useState<Map<string, { version: string; shadow: boolean }>>(new Map())
   const episodes = useQuery({ queryKey: ['seriesEpisodes', series.id], queryFn: () => seriesApi.episodes(series.id) })
   const [showQueries, setShowQueries] = useShowQueries()
+  const results = useRef<HTMLDivElement>(null)
+  const [flash, setFlash] = useFlashRow(results)
   const scopeKey = scope.kind === 'episode' ? `e${scope.episodeId}` : scope.kind === 'season' ? `s${scope.season}${scope.orderSeason ? 'o' : ''}` : 'all'
   const query = useQuery({
     queryKey: ['seriesSearch', series.id, scopeKey, submitted?.text ?? '', pickKey(submitted?.ids)],
@@ -112,6 +116,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
       await queryClient.invalidateQueries({ queryKey: ['queue'] })
       await queryClient.invalidateQueries({ queryKey: ['history'] })
       await query.refetch()
+      setFlash(releaseKey(release))
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : t('search.grabFailed')),
   })
@@ -217,11 +222,13 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
           </p>
         )}
 
+        {data && <PicksBanner releases={releases} onShow={setFlash} />}
+
         {data &&
           (releases.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('search.noResults')}</p>
           ) : (
-            <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
+            <div ref={results} className="min-h-0 flex-1 overflow-auto rounded-lg border">
               <Table data-testid="series-search-results">
                 <TableHeader className="sticky top-0 z-10 bg-background">
                   <TableRow>
@@ -261,7 +268,8 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
                 <TableBody>
                   {releases.map((release) => (
                     <ReleaseRow
-                      key={`${release.indexerId}:${release.guid}`}
+                      key={releaseKey(release)}
+                      flash={flash}
                       release={release}
                       fits={fitsOf(release)}
                       versions={series.versions}
@@ -284,6 +292,7 @@ export function SeriesSearchDialog({ series, scope, onClose }: { series: Series;
 }
 
 function ReleaseRow({
+  flash,
   release,
   fits,
   versions,
@@ -294,6 +303,8 @@ function ReleaseRow({
   onGrab,
   onOverride,
 }: {
+  /** The row lit for a moment: just grabbed, or asked for from the picks banner. */
+  flash: string | null
   release: SeriesRelease
   fits: ReturnType<typeof versionFits>
   versions: SeriesVersion[]
@@ -326,7 +337,13 @@ function ReleaseRow({
           : t('search.grabAnyway', { version: target?.name ?? '' })
 
   return (
-    <TableRow className={cn(!good && !grabbed && 'text-muted-foreground', grabbed && 'bg-emerald-500/5')} data-fits={good} data-grabbed={!!grabbed} data-testid="series-release">
+    <TableRow
+      className={cn(!good && 'text-muted-foreground', pickedRowClass(release, flash))}
+      data-fits={good}
+      data-picked={(release.picks ?? []).length > 0}
+      data-release-key={releaseKey(release)}
+      data-testid="series-release"
+    >
       <TableCell className="align-top whitespace-nowrap">
         <Tooltip>
           <TooltipTrigger asChild>
@@ -335,14 +352,8 @@ function ReleaseRow({
           <TooltipContent>{new Date(release.publishDate).toLocaleString()}</TooltipContent>
         </Tooltip>
       </TableCell>
-      <ReleaseTitleCell release={release} good={good} details={details} className="min-w-[17rem]" badges={false} />
+      <ReleaseTitleCell release={release} good={good} details={details} className="min-w-[17rem]" badges={false} extra={<PickBadges release={release} />} />
       <TableCell className="align-top whitespace-nowrap" data-testid="release-episodes">
-        {grabbed && (
-          <Badge variant="outline" className="mb-1 border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300" data-testid="release-grabbed">
-            <CheckIcon />
-            {t(grabbed.shadow ? 'seriesSearch.pickedFor' : 'seriesSearch.grabbedFor', { version: grabbed.version })}
-          </Badge>
-        )}
         {mapped ? (
           <span className="flex flex-col items-start gap-1">
             {release.fullSeason && <Badge variant="outline">{t('seriesSearch.pack')}</Badge>}
@@ -396,5 +407,3 @@ function ReleaseRow({
     </TableRow>
   )
 }
-
-const releaseKey = (release: SeriesRelease) => `${release.indexerId}:${release.guid}`
