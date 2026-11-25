@@ -21,6 +21,9 @@ public static class AuthSchemes
     /// <summary>Human session: signed HttpOnly cookie. Never opens the compatible APIs (<c>/radarr</c>, <c>/sonarr</c>).</summary>
     public const string Session = "Session";
 
+    /// <summary>The name of the session cookie.</summary>
+    public const string SessionCookie = "bigarr_session";
+
     /// <summary>Machine access: <c>X-Api-Key</c> header or <c>?apikey=</c>. Never opens the UI.</summary>
     public const string ApiKey = "ApiKey";
 }

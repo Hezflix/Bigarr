@@ -19,7 +19,7 @@ public static class AuthenticationExtensions
         services.AddAuthentication(AuthSchemes.Session)
             .AddCookie(AuthSchemes.Session, o =>
             {
-                o.Cookie.Name = "bigarr_session";
+                o.Cookie.Name = AuthSchemes.SessionCookie;
                 o.Cookie.HttpOnly = true;
                 o.Cookie.SameSite = SameSiteMode.Lax;
                 o.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
