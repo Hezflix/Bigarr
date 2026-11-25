@@ -32,6 +32,8 @@ dotnet test -c Release --no-build
   `DateTimeOffset.UtcNow` are banned (`BannedSymbols.txt`).
 - **Warnings are errors** (`Directory.Build.props`). `dotnet build` must print 0 warnings.
 - **`dotnet format`** must have nothing to change.
+- **A model change comes with its migration.** `ModelSnapshotTests` fails when an entity or its mapping changed and
+  no migration carries it.
 - **Biome** (`bun run lint`) must be clean. Its rules are in `web/biome.json`.
 - **Generated API types.** After any change to a request, response or route: `dotnet build`, then
   `cd web && bun run gen:api`, and commit the result.
