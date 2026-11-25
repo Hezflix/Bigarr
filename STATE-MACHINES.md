@@ -1139,6 +1139,22 @@ Tests: `SameOriginGuardTests` (the rule case by case, then through the real appl
 `Origin` against `Host` and `X-Forwarded-Host`, a safe method, an API key with no cookie on `/api/v1` and `/radarr`,
 sign-in from the same origin, the switch).
 
+#### F49. A full sign-in throttle stopped counting new usernames and addresses
+
+`SignInThrottle` counts failed sign-ins per username and per client address and keeps at most 10,000 keys. When the
+table was full and no key had expired, a failure on a new key was not recorded. The address a failure is counted under
+can be forged by a client that reaches Bigarr directly, so such a client could fill the table with made-up usernames and
+addresses and then guess every username not already in it without any limit until the 15-minute window emptied the
+table: the protection turned itself off exactly under attack.
+
+Fix: a full table (after sweeping the expired keys) forgets the 100 keys that have gone longest without a failure and
+always records the new one. "Longest without a failure" is decided by a counter bumped at each recorded failure, not by
+time, since several failures can share an instant; looking a key up never bumps it. The counters are still in memory:
+a restart forgets everything. Not covered: a client able to forge its address can still make a blocked username
+forgotten by causing about 5,000 failures on other keys, which buys it a few more guesses on that username.
+Tests: `SignInThrottleTests.A_full_table_still_records_a_new_key_and_forgets_the_one_that_failed_longest_ago`,
+`SignInThrottleTests.A_key_that_keeps_failing_is_not_the_one_forgotten`.
+
 ### Open
 
 What is known and not fixed:
