@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   build-test:
@@ -19,7 +18,15 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version-file: web/.bun-version
+
+      # One bun for CI and for the image: web/.bun-version and the Dockerfile's bun image move together.
+      - name: Pinned versions agree
+        run: |
+          bun_file=$(tr -d '[:space:]' < web/.bun-version)
+          bun_image=$(sed -n 's|^FROM .*oven/bun:\([0-9.]*\)-alpine.*|\1|p' Dockerfile)
+          echo "bun: file $bun_file, image $bun_image"
+          test -n "$bun_file" && test "$bun_file" = "$bun_image"
 
       - name: Build front
         working-directory: web
@@ -45,10 +52,14 @@ jobs:
             exit 0
           fi
           echo "::warning::Ubuntu's mirror did not answer, using a static ffmpeg build"
-          curl -fsSL --retry 3 --max-time 180 \
-            https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz \
-            | tar -xJ -C "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/ffmpeg-master-latest-linux64-gpl/bin" >> "$GITHUB_PATH"
+          # A dated build of a release branch, checked: the month-end builds are kept two years (until late 2028).
+          ffmpeg_build=ffmpeg-n8.1.3-27-g8dca1586f4-linux64-gpl-8.1
+          ffmpeg_sha256=41e9c565594c390622cf968d82fa4135d9e9a11d06c1515644288cbc844e3380
+          curl -fsSL --retry 3 --max-time 180 -o "$RUNNER_TEMP/ffmpeg.tar.xz" \
+            "https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-10-31-12-59/$ffmpeg_build.tar.xz"
+          echo "$ffmpeg_sha256  $RUNNER_TEMP/ffmpeg.tar.xz" | sha256sum -c -
+          tar -xJ -C "$RUNNER_TEMP" -f "$RUNNER_TEMP/ffmpeg.tar.xz"
+          echo "$RUNNER_TEMP/$ffmpeg_build/bin" >> "$GITHUB_PATH"
 
       - name: Restore
         run: dotnet restore

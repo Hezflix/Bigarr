@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---- front -------------------------------------------------------------------
-FROM --platform=$BUILDPLATFORM oven/bun:1-alpine AS web
+FROM --platform=$BUILDPLATFORM oven/bun:1.4.5-alpine AS web
 WORKDIR /repo/web
 COPY web/package.json web/bun.lock ./
 RUN bun install --frozen-lockfile
