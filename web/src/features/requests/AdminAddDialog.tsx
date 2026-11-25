@@ -33,8 +33,24 @@ export type AddPreset = { title: string; year: number | null; posterUrl: string 
  * The admin's add, on a Discover title: everything the library's former Add pages offered (version name, profile, root
  * folder, monitoring, search on add, series type, season folders, new seasons) plus the version slot and the season
  * picker. It goes through the request path: an approved request in the admin's name, forwarded like any other.
+ * With `onAdded` (the manual import's "Add & pick"), the new title's library id goes back to the caller instead of
+ * opening its page, and no search starts on add: the file to import is already there.
  */
-export function AdminAddDialog({ mediaType, tmdbId, tvdbId, preset, onClose }: { mediaType: RequestMediaType; tmdbId: number | null; tvdbId?: number | null; preset?: AddPreset; onClose: () => void }) {
+export function AdminAddDialog({
+  mediaType,
+  tmdbId,
+  tvdbId,
+  preset,
+  onClose,
+  onAdded,
+}: {
+  mediaType: RequestMediaType
+  tmdbId: number | null
+  tvdbId?: number | null
+  preset?: AddPreset
+  onClose: () => void
+  onAdded?: (libraryId: number) => void
+}) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -49,7 +65,7 @@ export function AdminAddDialog({ mediaType, tmdbId, tvdbId, preset, onClose }: {
   const [profileId, setProfileId] = useState<number | ''>('')
   const [rootId, setRootId] = useState<number | ''>('')
   const [monitored, setMonitored] = useState(true)
-  const [searchOnAdd, setSearchOnAdd] = useState(true)
+  const [searchOnAdd, setSearchOnAdd] = useState(!onAdded)
   const [availability, setAvailability] = useState<MinimumAvailability>('released')
   const [monitor, setMonitor] = useState<MonitoringOption | typeof PICKED>('all')
   const [seasons, setSeasons] = useState<number[] | null>(null)
@@ -102,11 +118,16 @@ export function AdminAddDialog({ mediaType, tmdbId, tvdbId, preset, onClose }: {
       if (done.state === 'failed' || done.libraryId == null) {
         toast.error(t('requests.add.failed', { title: done.title }))
         onClose()
+        if (onAdded) return
         void navigate({ to: '/requests', search: { filter: 'failed' } })
         return
       }
 
       toast.success(t('requests.add.done', { title: done.title }))
+      if (onAdded) {
+        onAdded(done.libraryId)
+        return
+      }
       onClose()
       void (series ? navigate({ to: '/series/$seriesId', params: { seriesId: String(done.libraryId) } }) : navigate({ to: '/movies/$movieId', params: { movieId: String(done.libraryId) } }))
     },

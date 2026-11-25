@@ -1381,7 +1381,7 @@
     "verdict": "Verdict",
     "sample": "sample",
     "noMovie": "No movie matched",
-    "noMovieHint": "Add the film from Discover first, then pick it here.",
+    "noMovieHint": "Search it in the list: a film not in the library yet can be added from there.",
     "extras_one": "Brings {{count}} extra file",
     "extras_other": "Brings {{count}} extra files",
     "selectExtra": "Bring {{name}} with the movie",
@@ -1442,6 +1442,21 @@
     "assignReplaceHint": "An episode that has a file is refused unless checked; the old file then goes to the recycle bin.",
     "assigned": "Assigned: {{path}}",
     "probe": "ffprobe"
+  },
+  "titlePicker": {
+    "searchMovies": "Search the library or TMDB…",
+    "searchSeries": "Search the library or TVDB…",
+    "guesses": "Best guesses for this file",
+    "noGuess": "No title in the library looks like this file's name.",
+    "typeToSearch": "Type to search the whole library.",
+    "library": "In the library",
+    "searching": "Searching…",
+    "noneInLibrary": "Nothing in the library matches “{{term}}”.",
+    "outsideMovies": "Not in the library yet (TMDB)",
+    "outsideSeries": "Not in the library yet (TVDB)",
+    "noneOutside": "Nothing found.",
+    "lookupFailed": "The lookup failed.",
+    "addPick": "Add & pick"
   },
   "seriesImport": {
     "title": "Manual import (series)",

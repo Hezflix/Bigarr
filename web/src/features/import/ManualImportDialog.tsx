@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -10,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { TitlePicker } from '@/features/import/TitlePicker'
 import { ImportFileCell, ImportFooter, ImportListingState, ImportPathForm, ImportQualityCell, ImportReleaseGroupCell, type TransferChoice } from '@/features/import/manualImportParts'
 import { ReasonList } from '@/features/search/ReasonsDisplay'
 import { approvedStyle } from '@/features/search/releaseTable'
@@ -153,34 +153,21 @@ export function ManualImportDialog({ grabId, path: initialPath, movieId: forMovi
                       <ImportQualityCell value={selection.qualityId} onChange={(qualityId) => update(file.path, { qualityId })} qualities={qualities.data ?? []} />
                       <ImportReleaseGroupCell value={selection.releaseGroup} detected={file.releaseGroup} onChange={(releaseGroup) => update(file.path, { releaseGroup })} fileName={file.relativePath} />
                       <TableCell className="align-top">
-                        <Select
-                          value={selection.movieId === null ? 'none' : String(selection.movieId)}
-                          onValueChange={(v) => {
-                            const movieId = v === 'none' ? null : Number(v)
+                        <TitlePicker
+                          kind="movie"
+                          items={sortedMovies}
+                          value={selection.movieId}
+                          guess={{ title: file.parsedTitle, year: file.parsedYear }}
+                          testId="manual-import-movie"
+                          onChange={(movieId) => {
                             const target = sortedMovies.find((m) => m.id === movieId)
                             const defaultVersion = movieId === file.movieId ? file.versionId : (target?.versions.find((x) => x.isDefault)?.id ?? target?.versions[0]?.id ?? null)
                             update(file.path, { movieId, versionId: defaultVersion, selected: defaultVersion !== null })
                           }}
-                        >
-                          <SelectTrigger className="min-w-44 max-w-64" size="sm">
-                            <SelectValue placeholder={t('manualImport.noMovie')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">{t('manualImport.noMovie')}</SelectItem>
-                            {sortedMovies.map((m) => (
-                              <SelectItem key={m.id} value={String(m.id)}>
-                                {m.title}
-                                {m.year ? ` (${m.year})` : ''}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        />
                         {selection.movieId === null && (
                           <span className="mt-1 block max-w-64 text-xs text-muted-foreground">
-                            {file.matchReason ?? t('manualImport.noMovie')}{' '}
-                            <Link to="/discover/search" className="underline underline-offset-4 hover:text-foreground">
-                              {t('manualImport.noMovieHint')}
-                            </Link>
+                            {file.matchReason ?? t('manualImport.noMovie')} {t('manualImport.noMovieHint')}
                           </span>
                         )}
                       </TableCell>

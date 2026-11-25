@@ -20,6 +20,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { TitlePicker } from '@/features/import/TitlePicker'
+import { titleFromFileName } from '@/features/import/titleGuess'
 import { ImportFileCell, ImportFooter, ImportListingState, ImportPathForm, ImportQualityCell, ImportReleaseGroupCell, type TransferChoice } from '@/features/import/manualImportParts'
 import { ReasonList } from '@/features/search/ReasonsDisplay'
 
@@ -72,6 +74,8 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
     setResults(null)
   }, [listing.data])
 
+  // The series other rows went to: the likeliest pick for a row whose name says nothing (bb.209.mkv in a pack).
+  const pickedSeries = [...new Set(Object.values(selections).flatMap((s) => (s.seriesId === null ? [] : [s.seriesId])))]
   const sortedSeries = useMemo(() => [...(library.data ?? [])].sort((a, b) => a.sortTitle.localeCompare(b.sortTitle)), [library.data])
 
   const items: SeriesManualImportItem[] = Object.entries(selections).flatMap(([filePath, s]) =>
@@ -157,28 +161,18 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
                       <ImportQualityCell value={selection.qualityId} onChange={(qualityId) => update(file.path, { qualityId })} qualities={qualities.data ?? []} />
                       <ImportReleaseGroupCell value={selection.releaseGroup} detected={file.releaseGroup} onChange={(releaseGroup) => update(file.path, { releaseGroup })} fileName={file.relativePath} />
                       <TableCell className="align-top">
-                        <Select
-                          value={selection.seriesId === null ? 'none' : String(selection.seriesId)}
-                          onValueChange={(v) => {
-                            const id = v === 'none' ? null : Number(v)
+                        <TitlePicker
+                          kind="series"
+                          items={sortedSeries}
+                          value={selection.seriesId}
+                          guess={{ title: titleFromFileName(file.name), year: null, first: pickedSeries.filter((id) => id !== selection.seriesId) }}
+                          testId="series-manual-import-series"
+                          onChange={(id) => {
                             const target = sortedSeries.find((s) => s.id === id)
                             const version = id === file.seriesId ? file.versionId : (target?.versions.find((x) => x.isDefault)?.id ?? target?.versions[0]?.id ?? null)
                             update(file.path, { seriesId: id, versionId: version, episodeIds: id === file.seriesId ? file.episodes.map((e) => e.id) : [], selected: false })
                           }}
-                        >
-                          <SelectTrigger className="min-w-44 max-w-64" size="sm">
-                            <SelectValue placeholder={t('seriesImport.noSeries')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">{t('seriesImport.noSeries')}</SelectItem>
-                            {sortedSeries.map((s) => (
-                              <SelectItem key={s.id} value={String(s.id)}>
-                                {s.title}
-                                {s.year ? ` (${s.year})` : ''}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        />
                         {file.matchReason && selection.episodeIds.length === 0 && (
                           <span className="mt-1 block max-w-64 text-xs text-muted-foreground" data-testid="series-manual-import-reason">
                             {file.matchReason}
