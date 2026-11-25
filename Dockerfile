@@ -10,12 +10,14 @@ COPY web/ ./
 RUN bun run build
 
 # ---- backend -----------------------------------------------------------------
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0.404-alpine3.24 AS build
 ARG TARGETARCH
 # Set by CI to the release version (X.Y.Z); empty for local builds, which keep the project's version.
 ARG VERSION=
 WORKDIR /repo
-COPY global.json Directory.Build.props BannedSymbols.txt Bigarr.slnx ./
+# .editorconfig is part of the build: it marks the vendored parsers as generated code, which decides how the
+# compiler reads their nullability. Without it the image compiles under other rules than the test job.
+COPY global.json Directory.Build.props BannedSymbols.txt Bigarr.slnx .editorconfig ./
 COPY src/Bigarr.Domain/Bigarr.Domain.csproj src/Bigarr.Domain/
 COPY src/Bigarr.Parsing/Bigarr.Parsing.csproj src/Bigarr.Parsing/
 COPY src/Bigarr.Decision/Bigarr.Decision.csproj src/Bigarr.Decision/

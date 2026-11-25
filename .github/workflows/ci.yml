@@ -20,13 +20,18 @@ jobs:
         with:
           bun-version-file: web/.bun-version
 
-      # One bun for CI and for the image: web/.bun-version and the Dockerfile's bun image move together.
+      # One bun and one .NET SDK for CI and for the image: web/.bun-version and the Dockerfile's bun image move
+      # together, and so do the version in global.json and the Dockerfile's SDK image.
       - name: Pinned versions agree
         run: |
           bun_file=$(tr -d '[:space:]' < web/.bun-version)
           bun_image=$(sed -n 's|^FROM .*oven/bun:\([0-9.]*\)-alpine.*|\1|p' Dockerfile)
           echo "bun: file $bun_file, image $bun_image"
           test -n "$bun_file" && test "$bun_file" = "$bun_image"
+          sdk_file=$(sed -n 's/.*"version": *"\([0-9.]*\)".*/\1/p' global.json)
+          sdk_image=$(sed -n 's|^FROM .*dotnet/sdk:\([0-9.]*\)-alpine.*|\1|p' Dockerfile)
+          echo ".NET SDK: global.json $sdk_file, image $sdk_image"
+          test -n "$sdk_file" && test "$sdk_file" = "$sdk_image"
 
       - name: Build front
         working-directory: web
@@ -85,6 +90,25 @@ jobs:
         with:
           name: test-results
           path: TestResults
+
+  # The image is only published from main, but it is built for every pull request: what breaks the image build
+  # (its own context, its own base images) must fail the pull request, not the release.
+  image:
+    name: Docker image builds
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   # Every merge to main is a release: the version comes from the commits since the last v* tag
   # (.github/scripts/next-version.sh), the image is published as X.Y.Z, X.Y, edge and sha-*, then the tag and a
