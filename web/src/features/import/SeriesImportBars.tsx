@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ListOrderedIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { type QualityDefinition, series as seriesApi, type SeriesSummary } from '@/api/client'
+import { series as seriesApi, type SeriesSummary } from '@/api/client'
+import { QualitySelect } from '@/components/QualitySelect'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -84,7 +85,6 @@ export function SeriesSelectionBar({
   incomplete,
   shared,
   library,
-  qualities,
   hint,
   onAction,
   onClear,
@@ -96,7 +96,6 @@ export function SeriesSelectionBar({
   incomplete: number
   shared: number | null
   library: SeriesSummary[]
-  qualities: QualityDefinition[]
   onAction: (action: BulkAction) => void
   onClear: () => void
 }) {
@@ -125,18 +124,7 @@ export function SeriesSelectionBar({
           </SelectContent>
         </Select>
         <VersionSelect show={show} value={null} onChange={(versionId) => onAction({ kind: 'version', versionId })} placeholder={t('seriesImport.bulk.version')} testId="series-import-bulk-version" />
-        <Select value="" onValueChange={(v) => onAction({ kind: 'quality', qualityId: Number(v) })}>
-          <SelectTrigger size="sm" className="min-w-28" data-testid="series-import-bulk-quality">
-            <SelectValue placeholder={t('seriesImport.bulk.quality')} />
-          </SelectTrigger>
-          <SelectContent>
-            {[...qualities].reverse().map((q) => (
-              <SelectItem key={q.id} value={String(q.id)}>
-                {q.title ?? q.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <QualitySelect value={null} onChange={(qualityId) => onAction({ kind: 'quality', qualityId })} placeholder={t('seriesImport.bulk.quality')} size="sm" className="min-w-28" testId="series-import-bulk-quality" />
         <form
           className="flex items-center gap-1"
           onSubmit={(e) => {

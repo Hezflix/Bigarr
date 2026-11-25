@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   ApiError,
-  quality,
   series as seriesApi,
   seriesFiles,
   type Episode,
@@ -66,7 +65,6 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
     staleTime: Number.POSITIVE_INFINITY,
   })
   const library = useQuery({ queryKey: ['series'], queryFn: seriesApi.list })
-  const qualities = useQuery({ queryKey: ['qualityDefinitions'], queryFn: quality.definitions })
   const sortedSeries = useMemo(() => [...(library.data ?? [])].sort((a, b) => a.sortTitle.localeCompare(b.sortTitle)), [library.data])
 
   // The mapper's proposals seed the form once per listing. The bar takes the series most files went to, and its
@@ -239,7 +237,6 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
                 incomplete={ticked.filter((f) => !complete(selections[f.path])).length}
                 shared={shared}
                 library={sortedSeries}
-                qualities={qualities.data ?? []}
                 hint={hint}
                 onAction={(a) => void onBulk(a)}
                 onClear={() => tickAll(false)}
@@ -286,7 +283,7 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
                             <ReasonList reasons={file.rejections} temporary className="mt-1 max-w-[20rem] text-xs" />
                           )}
                         </ImportFileCell>
-                        <ImportQualityCell value={selection.qualityId} onChange={(qualityId) => update(file.path, { qualityId })} qualities={qualities.data ?? []} />
+                        <ImportQualityCell value={selection.qualityId} onChange={(qualityId) => update(file.path, { qualityId })} />
                         <ImportReleaseGroupCell value={selection.releaseGroup} detected={file.releaseGroup} onChange={(releaseGroup) => update(file.path, { releaseGroup })} fileName={file.relativePath} />
                         <TableCell className="align-top">
                           {ownSeries ? (

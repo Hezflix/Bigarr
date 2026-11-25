@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, manualImport, movies, quality, type ManualImportFile, type ManualImportItem, type ManualImportResult } from '@/api/client'
+import { ApiError, manualImport, movies, type ManualImportFile, type ManualImportItem, type ManualImportResult } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -40,7 +40,6 @@ export function ManualImportDialog({ grabId, path: initialPath, movieId: forMovi
     staleTime: Number.POSITIVE_INFINITY,
   })
   const library = useQuery({ queryKey: ['movies'], queryFn: movies.list })
-  const qualities = useQuery({ queryKey: ['qualityDefinitions'], queryFn: quality.definitions })
 
   // Bigarr's guesses seed the form once per listing, the page's film filling in where it found none; the user's changes then win.
   // Ids, not the film: the library refetches after an import, and a new object would wipe the results shown.
@@ -150,7 +149,7 @@ export function ManualImportDialog({ grabId, path: initialPath, movieId: forMovi
                         result={result}
                         className="max-w-[24rem]"
                       />
-                      <ImportQualityCell value={selection.qualityId} onChange={(qualityId) => update(file.path, { qualityId })} qualities={qualities.data ?? []} />
+                      <ImportQualityCell value={selection.qualityId} onChange={(qualityId) => update(file.path, { qualityId })} />
                       <ImportReleaseGroupCell value={selection.releaseGroup} detected={file.releaseGroup} onChange={(releaseGroup) => update(file.path, { releaseGroup })} fileName={file.relativePath} />
                       <TableCell className="align-top">
                         <TitlePicker
