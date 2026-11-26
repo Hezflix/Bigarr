@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { IdSelect } from '@/components/IdSelect'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 const availabilities: MinimumAvailability[] = ['announced', 'inCinemas', 'released']
@@ -61,18 +62,7 @@ export function EditVersionDialog({ movie, version, onClose, onSaved }: { movie:
           </div>
           <div className="grid gap-2">
             <Label htmlFor="edit-version-profile">{t('addMovie.qualityProfile')}</Label>
-            <Select value={String(profileId)} onValueChange={(value) => setProfileId(Number(value))}>
-              <SelectTrigger id="edit-version-profile" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {profiles.data?.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <IdSelect id="edit-version-profile" value={profileId} onChange={setProfileId} options={profiles.data?.map((p) => ({ id: p.id, label: p.name }))} />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="edit-version-availability">{t('versions.minAvailability')}</Label>

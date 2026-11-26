@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { IdSelect } from '@/components/IdSelect'
 
 /** Escapes a parsed edition into a literal regex the constraint can hold. */
 function escapeRegex(value: string): string {
@@ -102,18 +102,7 @@ export function OneShotGrabDialog({ movie, release, defaultProfileId, onClose }:
             </div>
             <div className="grid gap-2">
               <Label htmlFor="oneshot-profile">{t('oneShot.profile')}</Label>
-              <Select value={String(profileId)} onValueChange={(v) => setProfileId(Number(v))}>
-                <SelectTrigger id="oneshot-profile" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {profiles.data?.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <IdSelect id="oneshot-profile" value={profileId} onChange={setProfileId} options={profiles.data?.map((p) => ({ id: p.id, label: p.name }))} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="oneshot-edition">{t('oneShot.edition')}</Label>

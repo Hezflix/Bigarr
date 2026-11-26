@@ -10,7 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { IdSelect } from '@/components/IdSelect'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { isImportBusy, useImportRun } from '@/features/settings/importWizard'
 import { Toggle } from '@/features/settings/RadarrMapping'
@@ -143,18 +143,7 @@ function SourceStep({
     <form className="flex max-w-xl flex-col gap-5" onSubmit={submit} data-testid="tautulli-source-form">
       <div className="grid grid-cols-1 content-start gap-2">
         <Label htmlFor="tautulli-server">{t('importTautulli.server')}</Label>
-        <Select value={serverId !== null ? String(serverId) : ''} onValueChange={(value) => onServer(Number(value))}>
-          <SelectTrigger id="tautulli-server" className="w-full">
-            <SelectValue placeholder={t('importTautulli.chooseServer')} />
-          </SelectTrigger>
-          <SelectContent>
-            {plexServers.map((s) => (
-              <SelectItem key={s.id} value={String(s.id)}>
-                {s.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <IdSelect id="tautulli-server" value={serverId} onChange={onServer} options={plexServers.map((s) => ({ id: s.id, label: s.name }))} placeholder={t('importTautulli.chooseServer')} />
         <p className="text-xs text-muted-foreground">{t('importTautulli.serverHint')}</p>
       </div>
 

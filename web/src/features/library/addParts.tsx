@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { IdSelect } from '@/components/IdSelect'
 
 /** The pieces of the one add form (`TitleForm`): the dialog around it, labelled fields, the version name and the error line. */
 
@@ -96,18 +96,7 @@ export function FormField({ id, label, hint, children }: { id: string; label: st
 export function IdSelectField({ id, label, value, onChange, options }: { id: string; label: string; value: number | ''; onChange: (id: number) => void; options: { id: number; label: string }[] | undefined }) {
   return (
     <FormField id={id} label={label}>
-      <Select value={value === '' ? undefined : String(value)} onValueChange={(v) => onChange(Number(v))}>
-        <SelectTrigger id={id} className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {options?.map((option) => (
-            <SelectItem key={option.id} value={String(option.id)}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <IdSelect id={id} value={value} onChange={onChange} options={options} />
     </FormField>
   )
 }

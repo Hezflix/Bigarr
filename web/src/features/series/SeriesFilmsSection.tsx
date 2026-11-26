@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { IdSelect } from '@/components/IdSelect'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 /**
@@ -171,11 +171,11 @@ function AddFilmDialog({ seriesId, film, onClose, onDone }: { seriesId: number; 
   const profiles = useQuery({ queryKey: ['qualityProfiles'], queryFn: quality.profiles, select: profilesFor('movies') })
   const filmRoots = (roots.data ?? []).filter((r) => r.kind === 'movies')
   const defaultProfile = profiles.data?.find((p) => p.isSystem && p.name === '1080p') ?? profiles.data?.[0]
-  const [rootId, setRootId] = useState<string | null>(null)
-  const [profileId, setProfileId] = useState<string | null>(null)
+  const [rootId, setRootId] = useState<number | null>(null)
+  const [profileId, setProfileId] = useState<number | null>(null)
   const [search, setSearch] = useState(true)
-  const root = rootId ?? (filmRoots[0] ? String(filmRoots[0].id) : '')
-  const profile = profileId ?? (defaultProfile ? String(defaultProfile.id) : '')
+  const root = rootId ?? filmRoots[0]?.id ?? null
+  const profile = profileId ?? defaultProfile?.id ?? null
   const add = useMutation({
     mutationFn: () => seriesFilms.add(seriesId, { episodeId: film.episodeId, rootFolderId: Number(root), qualityProfileId: Number(profile), searchOnAdd: search }),
     onSuccess: () => {
@@ -196,33 +196,11 @@ function AddFilmDialog({ seriesId, film, onClose, onDone }: { seriesId: number; 
           <div className="grid gap-3">
             <div className="grid gap-1.5">
               <Label htmlFor="series-film-root">{t('seriesFilms.rootFolder')}</Label>
-              <Select value={root} onValueChange={setRootId}>
-                <SelectTrigger id="series-film-root" className="w-full">
-                  <SelectValue placeholder={t('seriesFilms.noFilmRoot')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {filmRoots.map((r) => (
-                    <SelectItem key={r.id} value={String(r.id)}>
-                      {r.path}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <IdSelect id="series-film-root" value={root} onChange={setRootId} options={filmRoots.map((r) => ({ id: r.id, label: r.path }))} placeholder={t('seriesFilms.noFilmRoot')} />
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="series-film-profile">{t('seriesFilms.profile')}</Label>
-              <Select value={profile} onValueChange={setProfileId}>
-                <SelectTrigger id="series-film-profile" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(profiles.data ?? []).map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <IdSelect id="series-film-profile" value={profile} onChange={setProfileId} options={profiles.data?.map((p) => ({ id: p.id, label: p.name }))} />
             </div>
             <div className="flex items-center gap-2">
               <Checkbox id="series-film-search" checked={search} onCheckedChange={(checked) => setSearch(checked === true)} />
