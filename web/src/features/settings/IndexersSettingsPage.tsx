@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { cn } from 'cn'
 import { FlaskConicalIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
@@ -21,7 +20,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Toggle } from '@/components/Toggle'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -547,16 +546,5 @@ function IndexerDialog({ indexer, onClose, onSaved }: { indexer: Indexer | null;
         </form>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function Toggle({ id, label, checked, onChange }: { id: string; label: string; checked: boolean; onChange: (value: boolean) => void }) {
-  return (
-    <div className={cn('flex items-center gap-2')}>
-      <Checkbox id={id} checked={checked} onCheckedChange={(value) => onChange(value === true)} />
-      <Label htmlFor={id} className="font-normal">
-        {label}
-      </Label>
-    </div>
   )
 }

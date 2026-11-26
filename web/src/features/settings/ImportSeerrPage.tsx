@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { isImportBusy, useImportRun } from '@/features/settings/importWizard'
-import { Toggle } from '@/features/settings/RadarrMapping'
+import { Toggle } from '@/components/Toggle'
 import { formatBytes } from '@/i18n'
 
 /** The picker also lists these files, so the database can be clicked rather than typed. */

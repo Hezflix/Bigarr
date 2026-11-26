@@ -17,9 +17,9 @@ import {
   slugPattern,
   sonarrMappingPreview,
   suggestedMapping,
-  Toggle,
   type MappingLabels,
 } from '@/features/settings/RadarrMapping'
+import { Toggle } from '@/components/Toggle'
 
 type Step = 'connect' | 'map'
 

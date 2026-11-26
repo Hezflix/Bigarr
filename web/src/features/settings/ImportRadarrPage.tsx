@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ConnectForm, ImportIssues, ImportReport, isImportBusy, useImportRun } from '@/features/settings/importWizard'
-import { mappingComplete, ProfileMappingTable, RootFolderMappingTable, slugPattern, suggestedMapping, Toggle } from '@/features/settings/RadarrMapping'
+import { mappingComplete, ProfileMappingTable, RootFolderMappingTable, slugPattern, suggestedMapping } from '@/features/settings/RadarrMapping'
+import { Toggle } from '@/components/Toggle'
 
 type Step = 'connect' | 'map'
 
