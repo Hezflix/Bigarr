@@ -5,12 +5,12 @@ import { cn } from 'cn'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, movies, playback, type LinkSuggestion, type MovieSummary, type PlaybackItemRef } from '@/api/client'
+import { NullableIdSelect } from '@/components/IdSelect'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 
 /** How many films the list shows: enough to pick from, short enough to scan. */
@@ -140,19 +140,7 @@ function LinkFilmForm({ item, onClose, onLinked }: { item: PlaybackItemRef; onCl
       {chosen && chosen.versions.length > 0 && (
         <div className="flex flex-col gap-2">
           <Label htmlFor="link-version">{t('playback.version')}</Label>
-          <Select value={versionId === null ? 'none' : String(versionId)} onValueChange={(v) => setVersionId(v === 'none' ? null : Number(v))}>
-            <SelectTrigger id="link-version" className="w-full" data-testid="link-version">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">{t('playback.link.versionUnknown')}</SelectItem>
-              {chosen.versions.map((v) => (
-                <SelectItem key={v.id} value={String(v.id)}>
-                  {v.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <NullableIdSelect id="link-version" value={versionId} onChange={setVersionId} noneLabel={t('playback.link.versionUnknown')} options={chosen.versions.map((v) => ({ id: v.id, label: v.name }))} testId="link-version" />
         </div>
       )}
       <DialogFooter className="gap-2 sm:justify-between">

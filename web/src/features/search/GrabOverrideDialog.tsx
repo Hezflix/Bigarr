@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Release, Version } from '@/api/client'
+import { IdSelect } from '@/components/IdSelect'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { type GrabOverride, grabOverride, overriddenParts } from '@/features/search/grabOverride'
 import { OverrideFields } from '@/features/search/OverrideFields'
 
@@ -45,19 +45,13 @@ export function GrabOverrideDialog({
         <p className="text-sm text-muted-foreground">{t('grabOverride.hintFilm')}</p>
         <div className="grid gap-2">
           <Label htmlFor="grab-override-version">{t('grabOverride.version')}</Label>
-          <Select value={String(versionId)} onValueChange={(v) => setVersionId(Number(v))}>
-            <SelectTrigger id="grab-override-version" className="w-full" data-testid="grab-override-version">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {versions.map((v) => (
-                <SelectItem key={v.id} value={String(v.id)} disabled={v.status === 'downloading'}>
-                  {v.name}
-                  {v.status === 'downloading' && <span className="text-xs text-muted-foreground">{t('search.activeDownload')}</span>}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <IdSelect
+            id="grab-override-version"
+            value={versionId}
+            onChange={setVersionId}
+            options={versions.map((v) => (v.status === 'downloading' ? { id: v.id, label: v.name, disabled: true, note: t('search.activeDownload') } : { id: v.id, label: v.name }))}
+            testId="grab-override-version"
+          />
         </div>
         <OverrideFields
           parsedQuality={release.quality}
