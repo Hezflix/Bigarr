@@ -6,6 +6,7 @@ import { ChevronDownIcon, FolderInputIcon, RefreshCwIcon, RotateCcwIcon, Trash2I
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, queue as queueApi, type Queue, type QueueEpisode, type QueueItem, type StatusMessage } from '@/api/client'
+import { episodeCode } from '@/lib/episodeCode'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -249,12 +250,12 @@ export function QueuePage() {
   )
 }
 
-const episodeCode = (e: QueueEpisode) => `S${String(e.seasonNumber).padStart(2, '0')}E${String(e.episodeNumber).padStart(2, '0')}`
+const code = (e: QueueEpisode) => episodeCode(e.seasonNumber, e.episodeNumber)
 
 /** "S01E05", "S01E01–S01E07 (7)": what a grab covers, compact. */
 function episodesLabel(episodes: QueueEpisode[]) {
-  if (episodes.length === 1) return episodeCode(episodes[0])
-  return `${episodeCode(episodes[0])}–${episodeCode(episodes[episodes.length - 1])} (${episodes.length})`
+  if (episodes.length === 1) return code(episodes[0])
+  return `${code(episodes[0])}–${code(episodes[episodes.length - 1])} (${episodes.length})`
 }
 
 function QueueRow({ item, onRemove, onRetryImport, onManualImport }: { item: QueueItem; onRemove: () => void; onRetryImport: () => void; onManualImport: () => void }) {
@@ -282,7 +283,7 @@ function QueueRow({ item, onRemove, onRetryImport, onManualImport }: { item: Que
                   </span>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-sm whitespace-normal">
-                  {item.episodes.map((e) => `${episodeCode(e)} ${e.title}`).join(' · ')}
+                  {item.episodes.map((e) => `${code(e)} ${e.title}`).join(' · ')}
                 </TooltipContent>
               </Tooltip>
             )}

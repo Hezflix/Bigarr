@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next'
 import type { Episode } from '@/api/client'
+import { episodeCode } from '@/lib/episodeCode'
 import { formatDate } from '@/i18n'
 import type { PaletteParamOption } from './actions'
 
@@ -23,7 +24,7 @@ function numbers(e: Episode, alt: boolean): { season: number; episode: number } 
 /** `S01E03` in the order on screen; the TVDB code for an episode the order leaves out. */
 export function shownEpisodeCode(e: Episode, alt: boolean): string {
   const n = numbers(e, alt) ?? { season: e.seasonNumber, episode: e.episodeNumber }
-  return `S${pad(n.season)}E${pad(n.episode)}`
+  return episodeCode(n.season, n.episode)
 }
 
 /** The searchable episodes (a film's own are left out: the film searches for them), grouped by season of the order on screen. */

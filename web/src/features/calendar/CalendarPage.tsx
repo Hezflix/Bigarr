@@ -5,6 +5,7 @@ import { cn } from 'cn'
 import { CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon, Disc3Icon, MonitorPlayIcon, TicketIcon, type LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { auth, calendar, type CalendarEpisode, type CalendarMovie, type ReleaseType } from '@/api/client'
+import { episodeCode } from '@/lib/episodeCode'
 import { Button } from '@/components/ui/button'
 import { Poster } from '@/components/Poster'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -74,7 +75,7 @@ function range(view: CalendarView, anchor: Date): Date[] {
 }
 
 const code = (episode: CalendarEpisode) =>
-  episode.seriesType === 'daily' ? '' : `S${String(episode.seasonNumber).padStart(2, '0')}E${String(episode.episodeNumber).padStart(2, '0')}`
+  episode.seriesType === 'daily' ? '' : episodeCode(episode.seasonNumber, episode.episodeNumber)
 
 /**
  * Radarr's and Sonarr's calendars in one: the films' cinema, digital and physical dates and the episodes' air times,

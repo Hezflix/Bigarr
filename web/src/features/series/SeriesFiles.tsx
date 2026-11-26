@@ -5,6 +5,7 @@ import { FileSearchIcon, InfoIcon, PencilIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, seriesFiles, type EpisodeFile, type Series, type UnmatchedEpisodeFile } from '@/api/client'
+import { episodeCode } from '@/lib/episodeCode'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -223,7 +224,7 @@ function EpisodeFileInfoDialog({ seriesId, fileId, onClose }: { seriesId: number
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-2xl" data-testid="episode-file-dialog">
         <DialogHeader>
-          <DialogTitle>{f ? f.episodes.map((e) => `S${String(e.seasonNumber).padStart(2, '0')}E${String(e.episodeNumber).padStart(2, '0')} ${e.title}`).join(' + ') : t('seriesFiles.info')}</DialogTitle>
+          <DialogTitle>{f ? f.episodes.map((e) => `${episodeCode(e.seasonNumber, e.episodeNumber)} ${e.title}`).join(' + ') : t('seriesFiles.info')}</DialogTitle>
         </DialogHeader>
         <EpisodeFileDetails seriesId={seriesId} fileId={fileId} />
       </DialogContent>
@@ -297,7 +298,7 @@ export function EpisodeFileDetails({ seriesId, fileId }: { seriesId: number; fil
         </dl>
       )}
       {f && probing && (
-        <ProbeDialog title={f.episodes.map((e) => `S${String(e.seasonNumber).padStart(2, '0')}E${String(e.episodeNumber).padStart(2, '0')}`).join(' + ')} queryKey={['episodeFile', seriesId, fileId]} load={() => seriesFiles.probe(seriesId, fileId)} onClose={() => setProbing(false)} />
+        <ProbeDialog title={f.episodes.map((e) => episodeCode(e.seasonNumber, e.episodeNumber)).join(' + ')} queryKey={['episodeFile', seriesId, fileId]} load={() => seriesFiles.probe(seriesId, fileId)} onClose={() => setProbing(false)} />
       )}
     </>
   )

@@ -5,13 +5,14 @@ import { cn } from 'cn'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, seriesWanted, type SeriesWantedItem } from '@/api/client'
+import { episodeCode } from '@/lib/episodeCode'
 import { TableCell, TableHead, TableRow } from '@/components/ui/table'
 import { AutomaticSearchButton } from '@/features/search/SearchButtons'
 import { WantedFrame, wantedPageSize, WantedTitle, WantedVersionCells, WantedVersionHeads, type WantedFilterChoice } from '@/features/wanted/wantedTable'
 import { useSchedulerEnabled } from '@/hooks/useSchedulerEnabled'
 import { formatDate, formatDateTime } from '@/i18n'
 
-const code = (item: SeriesWantedItem) => `S${String(item.seasonNumber).padStart(2, '0')}E${String(item.episodeNumber).padStart(2, '0')}`
+const code = (item: SeriesWantedItem) => episodeCode(item.seasonNumber, item.episodeNumber)
 
 /** Sonarr's Wanted pages for series: aired monitored episodes per version, missing or below the cutoff, most recently aired first. */
 export function SeriesWantedPage() {

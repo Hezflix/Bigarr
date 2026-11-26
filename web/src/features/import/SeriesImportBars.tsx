@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ListOrderedIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { series as seriesApi, type SeriesSummary } from '@/api/client'
+import { episodeCode } from '@/lib/episodeCode'
 import { QualitySelect } from '@/components/QualitySelect'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -12,8 +13,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { renumber, type Renumbered } from '@/features/import/seriesImportModel'
 import { TitlePicker } from '@/features/import/TitlePicker'
-
-const code = (season: number, episode: number) => `S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}`
 
 function VersionSelect({ show, value, onChange, placeholder, testId }: { show: SeriesSummary | undefined; value: number | null; onChange: (versionId: number) => void; placeholder: string; testId?: string }) {
   const { t } = useTranslation()
@@ -198,7 +197,7 @@ function RenumberButton({ rows, seriesId, hint, onApply }: { rows: BulkRow[]; se
         <div className="grid max-h-56 gap-1 overflow-y-auto rounded-md border p-2 font-mono text-xs" data-testid="series-import-renumber-preview">
           {preview.map((r) => (
             <span key={r.path} className={r.episodeId === null ? 'text-destructive' : undefined}>
-              {nameOf(r.path)} → {code(r.seasonNumber, r.episodeNumber)}
+              {nameOf(r.path)} → {episodeCode(r.seasonNumber, r.episodeNumber)}
               {r.episodeId === null ? ` · ${t('seriesImport.bulk.pastEnd')}` : titleOf(r.episodeId) ? ` · ${titleOf(r.episodeId)}` : ''}
             </span>
           ))}
