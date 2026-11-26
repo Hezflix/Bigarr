@@ -243,7 +243,7 @@ function normalized(filter: LibraryFilter): LibraryFilter {
 // ---- sorting ---------------------------------------------------------------
 
 /**
- * Sorts a copy. `qualityRank` maps a quality name to its position in the definitions list (resolution, then source),
+ * Sorts a copy. `qualityRank` maps a quality name to its position in the definitions list (worst first),
  * so a film sorts by its best file.
  */
 export function sortMovies(movies: MovieSummary[], sort: SortKey, direction: SortDirection, qualityRank: ReadonlyMap<string, number>): MovieSummary[] {
