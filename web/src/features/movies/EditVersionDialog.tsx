@@ -1,12 +1,13 @@
 import { type FormEvent, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ApiError, movies, profilesFor, quality, type MinimumAvailability, type Movie, type Version, type VersionMode, minimumAvailabilities } from '@/api/client'
+import { ApiError, movies, profilesFor, quality, type MinimumAvailability, type Movie, type Version, type VersionMode } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { AvailabilitySelect } from '@/components/AvailabilitySelect'
 import { IdSelect } from '@/components/IdSelect'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
@@ -65,18 +66,7 @@ export function EditVersionDialog({ movie, version, onClose, onSaved }: { movie:
           </div>
           <div className="grid gap-2">
             <Label htmlFor="edit-version-availability">{t('versions.minAvailability')}</Label>
-            <Select value={availability} onValueChange={(value) => setAvailability(value as MinimumAvailability)}>
-              <SelectTrigger id="edit-version-availability" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {minimumAvailabilities.map((a) => (
-                  <SelectItem key={a} value={a}>
-                    {t(`availability.${a}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <AvailabilitySelect id="edit-version-availability" value={availability} onChange={setAvailability} />
           </div>
           {save.error && (
             <Alert variant="destructive">

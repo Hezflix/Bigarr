@@ -12,7 +12,6 @@ import {
   ApiError,
   auth,
   customFormats,
-  monitoringOptions,
   quality,
   series as seriesApi,
   seriesWanted,
@@ -47,7 +46,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { IdSelect } from '@/components/IdSelect'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { MonitoringSelect } from '@/components/MonitoringSelect'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatBytes, formatDate } from '@/i18n'
@@ -609,18 +608,7 @@ function ApplyMonitoringDialog({ series: s, version, open, onOpenChange, onDone 
           <DialogTitle>{t('seriesDetail.applyMonitoringTitle')}</DialogTitle>
           <DialogDescription>{t('seriesDetail.applyMonitoringHint', { version: version.name })}</DialogDescription>
         </DialogHeader>
-        <Select value={option} onValueChange={(value) => setOption(value as MonitoringOption)}>
-          <SelectTrigger className="w-full" aria-label={t('addSeries.monitor')}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {monitoringOptions.map((o) => (
-              <SelectItem key={o} value={o}>
-                {t(`monitoringOption.${o}`)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MonitoringSelect value={option} onChange={setOption} ariaLabel={t('addSeries.monitor')} />
         {apply.error && (
           <Alert variant="destructive">
             <AlertDescription>{errorMessage(apply.error, t('common.unexpectedError'))}</AlertDescription>
@@ -679,18 +667,7 @@ function AddVersionDialog({ series: s, open, onOpenChange, onDone }: { series: S
           </div>
           <div className="grid gap-2">
             <Label htmlFor="series-version-new-monitor">{t('addSeries.monitor')}</Label>
-            <Select value={monitor} onValueChange={(value) => setMonitor(value as MonitoringOption)}>
-              <SelectTrigger id="series-version-new-monitor" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {monitoringOptions.map((o) => (
-                  <SelectItem key={o} value={o}>
-                    {t(`monitoringOption.${o}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <MonitoringSelect id="series-version-new-monitor" value={monitor} onChange={setMonitor} />
           </div>
           {add.error && (
             <Alert variant="destructive">
