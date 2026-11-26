@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import type { PlaybackItemRef, PlaybackLocation, StreamDecision } from '@/api/client'
+import { episodeCode } from '@/lib/episodeCode'
 import { Badge } from '@/components/ui/badge'
 
 /** Codecs and resolutions as players show them: HEVC, EAC3, H264, 4K. Plex sends them in lower case. */
@@ -27,9 +28,7 @@ export function formatOffset(ms: number): string {
 /** "Show — S01E02 · Episode" for an episode, "Title (year)" for a film. */
 export function itemLabel(item: PlaybackItemRef): string {
   if (item.kind === 'episode' && item.showTitle) {
-    const season = String(item.seasonNumber ?? 0).padStart(2, '0')
-    const episode = String(item.episodeNumber ?? 0).padStart(2, '0')
-    return `${item.showTitle} — S${season}E${episode} · ${item.title}`
+    return `${item.showTitle} — ${episodeCode(item.seasonNumber ?? 0, item.episodeNumber ?? 0)} · ${item.title}`
   }
   return item.year ? `${item.title} (${item.year})` : item.title
 }

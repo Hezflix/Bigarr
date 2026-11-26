@@ -30,6 +30,3 @@ export function pickerSeasons(episodes: Episode[]): { season: number; episodes: 
   const seasons = [...new Set(episodes.map((e) => e.seasonNumber))].sort((a, b) => (a === 0 ? 1 : b === 0 ? -1 : a - b))
   return seasons.map((season) => ({ season, episodes: episodes.filter((e) => e.seasonNumber === season).sort((a, b) => a.episodeNumber - b.episodeNumber) }))
 }
-
-/** `S01E03` style, TVDB numbers. */
-export const episodeCode = (e: Pick<Episode, 'seasonNumber' | 'episodeNumber'>) => `S${String(e.seasonNumber).padStart(2, '0')}E${String(e.episodeNumber).padStart(2, '0')}`

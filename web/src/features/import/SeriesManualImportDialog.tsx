@@ -14,6 +14,7 @@ import {
   type SeriesManualImportResult,
   type SeriesSummary,
 } from '@/api/client'
+import { episodeCode } from '@/lib/episodeCode'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -32,7 +33,7 @@ type Selection = { selected: boolean; seriesId: number | null; versionId: number
 
 type Batch = { seriesId: number | null; versionId: number | null }
 
-const code = (e: { seasonNumber: number; episodeNumber: number }) => `S${String(e.seasonNumber).padStart(2, '0')}E${String(e.episodeNumber).padStart(2, '0')}`
+const code = (e: { seasonNumber: number; episodeNumber: number }) => episodeCode(e.seasonNumber, e.episodeNumber)
 
 const complete = (s: Selection) => s.versionId !== null && s.episodeIds.length > 0
 
@@ -387,7 +388,7 @@ export function EpisodePicker({ seriesId, value, proposed, onChange, ordered = f
   const all = episodes.data ?? []
   const seasonOf = (e: Episode) => (ordered ? e.displaySeasonNumber : e.seasonNumber)
   const numberOf = (e: Episode) => (ordered ? e.displayEpisodeNumber : e.episodeNumber)
-  const shown = (e: Episode) => (ordered ? `S${String(e.displaySeasonNumber).padStart(2, '0')}E${String(e.displayEpisodeNumber).padStart(2, '0')}` : code(e))
+  const shown = (e: Episode) => (ordered ? episodeCode(e.displaySeasonNumber, e.displayEpisodeNumber) : code(e))
   const chosen = all.filter((e) => value.includes(e.id))
   // The season shown follows the episodes held (a renumbered row moves with them) until the user picks another.
   const [pickedSeason, setSeason] = useState<number | null>(null)

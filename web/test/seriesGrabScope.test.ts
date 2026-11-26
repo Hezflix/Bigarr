@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { Episode } from '../src/api/client'
-import { episodeCode, pickableEpisodes, pickerSeasons, prefillEpisodeIds, type SeriesSearchScope } from '../src/features/search/seriesGrabScope'
+import { pickableEpisodes, pickerSeasons, prefillEpisodeIds, type SeriesSearchScope } from '../src/features/search/seriesGrabScope'
 
 const ep = (id: number, season: number, number: number, patch: Partial<Episode> = {}) =>
   ({
@@ -66,9 +66,5 @@ describe('pickerSeasons', () => {
     expect(seasons.map((s) => s.season)).toEqual([1, 2, 0])
     expect(seasons[0].episodes.map((e) => e.id)).toEqual([1, 2])
     expect(seasons[1].episodes.map((e) => e.id)).toEqual([3, 6])
-  })
-
-  test('episode codes use TVDB numbers', () => {
-    expect(episodeCode({ seasonNumber: 2, episodeNumber: 13 })).toBe('S02E13')
   })
 })

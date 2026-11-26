@@ -4,6 +4,7 @@ import { cn } from 'cn'
 import { BookmarkIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { history, playback, type Episode, type EpisodeFile, type Play, type Series, type SeriesVersion } from '@/api/client'
+import { episodeCode } from '@/lib/episodeCode'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -14,8 +15,6 @@ import { formatDate } from '@/i18n'
 import { AutomaticSearchButton, InteractiveSearchButton } from '@/features/search/SearchButtons'
 import { EpisodeFileDetails } from './SeriesFiles'
 import { useEpisodeAutomaticSearch } from './useEpisodeAutomaticSearch'
-
-const code = (season: number, episode: number) => `S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}`
 
 const tabs = ['file', 'history', 'plays'] as const
 type Tab = (typeof tabs)[number]
@@ -50,7 +49,7 @@ export function EpisodeDetailDialog({
   const [play, setPlay] = useState<Play | null>(null)
   const automatic = useEpisodeAutomaticSearch(s.id, onChanged)
 
-  const shown = s.ordering !== 'tvdb' && !episode.notInOrder ? code(episode.displaySeasonNumber, episode.displayEpisodeNumber) : code(episode.seasonNumber, episode.episodeNumber)
+  const shown = s.ordering !== 'tvdb' && !episode.notInOrder ? episodeCode(episode.displaySeasonNumber, episode.displayEpisodeNumber) : episodeCode(episode.seasonNumber, episode.episodeNumber)
   const aired = episode.airDate ? formatDate(episode.airDate) : episode.airDateUtc ? formatDate(episode.airDateUtc) : t('seriesDetail.tba')
 
   const tabLabel: Record<Tab, string> = {

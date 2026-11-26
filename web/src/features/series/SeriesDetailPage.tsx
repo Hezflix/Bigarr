@@ -26,6 +26,7 @@ import {
   type UnmatchedEpisodeFile,
   profilesFor,
 } from '@/api/client'
+import { episodeCode } from '@/lib/episodeCode'
 import { Poster } from '@/components/Poster'
 import {
   AlertDialog,
@@ -1024,8 +1025,8 @@ function EpisodeTable({
   const [detail, setDetail] = useState<Episode | null>(null)
   // Another order shows its numbers; TVDB's stay visible beside them (releases, Sonarr and history use them).
   const alt = s.ordering !== 'tvdb'
-  const tvdbCode = (e: Episode) => `S${String(e.seasonNumber).padStart(2, '0')}E${String(e.episodeNumber).padStart(2, '0')}`
-  const shownCode = (e: Episode) => `S${String(e.displaySeasonNumber).padStart(2, '0')}E${String(e.displayEpisodeNumber).padStart(2, '0')}`
+  const tvdbCode = (e: Episode) => episodeCode(e.seasonNumber, e.episodeNumber)
+  const shownCode = (e: Episode) => episodeCode(e.displaySeasonNumber, e.displayEpisodeNumber)
   const automatic = useEpisodeAutomaticSearch(s.id, onChanged)
   const searchEpisode = (e: Episode) => onSearch({ kind: 'episode', episodeId: e.id, label: alt && !e.notInOrder ? `${shownCode(e)} (TVDB ${tvdbCode(e)})` : tvdbCode(e) })
   const toggle = useMutation({

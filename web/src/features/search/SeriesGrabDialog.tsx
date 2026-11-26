@@ -3,6 +3,7 @@ import { cn } from 'cn'
 import { ChevronRightIcon, PencilLineIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Episode } from '@/api/client'
+import { episodeCode } from '@/lib/episodeCode'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,7 +19,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { type GrabOverride, grabOverride, overriddenParts } from '@/features/search/grabOverride'
 import { OverrideFields } from '@/features/search/OverrideFields'
 import { GrabReasons } from '@/features/search/releaseTable'
-import { episodeCode, pickerSeasons } from './seriesGrabScope'
+import { pickerSeasons } from './seriesGrabScope'
 
 /**
  * A series grab waiting for its episodes. Every grab asks: the search scope only decides what is listed, the episodes a
@@ -136,7 +137,7 @@ function SeriesGrabContent({ pending, onClose }: { pending: PendingSeriesGrab; o
                       <li key={episode.id}>
                         <label className="flex cursor-pointer items-center gap-2 px-3 py-1 pl-9 text-sm hover:bg-muted/30">
                           <Checkbox checked={selected.has(episode.id)} onCheckedChange={(checked) => set([episode.id], checked === true)} data-testid={`series-grab-episode-${episode.id}`} />
-                          <span className="text-xs tabular-nums text-muted-foreground">{episodeCode(episode)}</span>
+                          <span className="text-xs tabular-nums text-muted-foreground">{episodeCode(episode.seasonNumber, episode.episodeNumber)}</span>
                           <span className="truncate">{episode.title}</span>
                         </label>
                       </li>
