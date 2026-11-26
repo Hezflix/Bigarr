@@ -5,7 +5,7 @@ import { EyeIcon, EyeOffIcon, FileXIcon, FolderInputIcon, PencilIcon, PlusIcon, 
 import { useTranslation } from 'react-i18next'
 import { LibraryIssuesLink } from '@/features/issues/TitleIssues'
 import { toast } from 'sonner'
-import { ApiError, customFormats, history, movies, seriesFilms, quality, rootFolders, rootsOfKind, search, shadow, type MediaInfo, type MinimumAvailability, type Movie, type Version, type VersionMode, profilesFor, minimumAvailabilities } from '@/api/client'
+import { ApiError, customFormats, history, movies, seriesFilms, quality, rootFolders, rootsOfKind, search, shadow, type MediaInfo, type MinimumAvailability, type Movie, type Version, type VersionMode, profilesFor } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import { StatusBadge } from '@/components/StatusBadge'
 import { CompareTable } from '@/features/activity/CompareTable'
@@ -37,6 +37,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { AvailabilitySelect } from '@/components/AvailabilitySelect'
 import { IdSelect } from '@/components/IdSelect'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -761,18 +762,7 @@ function AddVersionDialog({ movie, onAdded }: { movie: Movie; onAdded: () => voi
 
             <div className="grid grid-cols-1 gap-2">
               <Label htmlFor="version-availability">{t('addMovie.minimumAvailability')}</Label>
-              <Select value={availability} onValueChange={(value) => setAvailability(value as MinimumAvailability)}>
-                <SelectTrigger id="version-availability" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {minimumAvailabilities.map((a) => (
-                    <SelectItem key={a} value={a}>
-                      {t(`availability.${a}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <AvailabilitySelect id="version-availability" value={availability} onChange={setAvailability} />
             </div>
 
             <div className="grid grid-cols-1 gap-2">

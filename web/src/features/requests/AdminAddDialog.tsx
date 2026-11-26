@@ -7,17 +7,17 @@ import {
   discover,
   type MinimumAvailability,
   type MonitoringOption,
-  monitoringOptions,
   type RequestMediaType,
   requests,
   type SeriesType,
   seriesTypes,
   slugify,
-  minimumAvailabilities,
 } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
+import { AvailabilitySelect } from '@/components/AvailabilitySelect'
+import { MonitoringSelect } from '@/components/MonitoringSelect'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FormField, VersionNameField } from '@/features/library/addParts'
 import { TitleForm } from '@/features/library/TitleForm'
@@ -173,34 +173,11 @@ export function AdminAddDialog({
         <VersionNameField id="add-version-name" value={versionName} onChange={setVersionName} placeholder={placeholder} />
         {series ? (
           <FormField id="add-monitor" label={t('addSeries.monitor')} hint={t('addSeries.monitorHint')}>
-            <Select value={monitor} onValueChange={(v) => setMonitor(v as MonitoringOption | typeof PICKED)}>
-              <SelectTrigger id="add-monitor" className="w-full" data-testid="add-monitor">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {tmdbId !== null && <SelectItem value={PICKED}>{t('requests.add.pickedSeasons')}</SelectItem>}
-                {monitoringOptions.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {t(`monitoringOption.${option}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <MonitoringSelect<typeof PICKED> id="add-monitor" value={monitor} onChange={setMonitor} first={tmdbId !== null ? { value: PICKED, label: t('requests.add.pickedSeasons') } : undefined} testId="add-monitor" />
           </FormField>
         ) : (
           <FormField id="add-availability" label={t('addMovie.minimumAvailability')}>
-            <Select value={availability} onValueChange={(v) => setAvailability(v as MinimumAvailability)}>
-              <SelectTrigger id="add-availability" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {minimumAvailabilities.map((a) => (
-                  <SelectItem key={a} value={a}>
-                    {t(`availability.${a}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <AvailabilitySelect id="add-availability" value={availability} onChange={setAvailability} />
           </FormField>
         )}
         {series && (
