@@ -5,6 +5,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import { auth, movies, quality, rootFolders, tags, profilesFor} from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { qualityNamesBestFirst } from '@/components/qualityOptions'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { BulkResultsDialog, toastBulk, type BulkReport } from './BulkResults'
@@ -52,7 +53,14 @@ export function LibraryPage() {
   const items = useMemo(() => library.data ?? [], [library.data])
   const names = useMemo(() => versionNames(items), [items])
   const versionList = useMemo(() => names.map((n) => n.name), [names])
-  const qualities = useMemo(() => [...new Set(items.flatMap((m) => m.versions.map((v) => v.quality).filter((q): q is string => q !== null)))].sort(), [items])
+  const qualities = useMemo(
+    () =>
+      qualityNamesBestFirst(
+        items.flatMap((m) => m.versions.map((v) => v.quality).filter((q): q is string => q !== null)),
+        definitions.data ?? [],
+      ),
+    [items, definitions.data],
+  )
   const rank = useMemo(() => new Map((definitions.data ?? []).map((d, i) => [d.name, i])), [definitions.data])
   const lookups = useMemo<Lookups>(
     () => ({
