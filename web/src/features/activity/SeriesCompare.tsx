@@ -4,22 +4,21 @@ import { Link } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { ChevronDownIcon, ChevronRightIcon, RefreshCwIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { shadow, type SeriesCompareCounts, type SeriesCompareGrab, type SeriesCompareOutcome, type SeriesComparePick, type SeriesCompareRow } from '@/api/client'
+import { shadow, type SeriesCompareGrab, type SeriesCompareOutcome, type SeriesComparePick, type SeriesCompareRow } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { compareAgreement } from '@/features/activity/compareModel'
+import { CompareByVersion, comparePageSize, ComparePager, ComparePeriodSelect, CompareSummary, CompareVersionSelect, CompareWindowSelect, useComparePage } from '@/features/activity/compareParts'
 import { formatGap, TimingNote } from '@/features/activity/TimingNote'
 import { ReasonList } from '@/features/search/ReasonsDisplay'
+import { approvedStyle } from '@/features/search/releaseTable'
 import { formatBytes, formatDateTime } from '@/i18n'
 
-const pageSize = 50
 const outcomes: SeriesCompareOutcome[] = ['same', 'different', 'intended', 'bigarrOnly', 'sonarrOnly']
-const periods = [1, 7, 30, 90, 0] as const
-const windows = [6, 24, 72] as const
 
 export const seriesOutcomeStyles: Record<SeriesCompareOutcome, string> = {
   same: 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300',
@@ -29,7 +28,6 @@ export const seriesOutcomeStyles: Record<SeriesCompareOutcome, string> = {
   // A difference Bigarr makes on purpose (one release group per season): neutral, not a warning.
   intended: 'border-slate-500/30 bg-slate-500/15 text-slate-700 dark:border-slate-400/30 dark:text-slate-300',
 }
-const okStyle = 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300'
 
 /**
  * Activity → Compare, series: one flat table like the Radarr page, newest first, one row per show, version and episode
@@ -42,63 +40,27 @@ export function SonarrComparePage() {
   const [windowHours, setWindowHours] = useState<number>(24)
   const [version, setVersion] = useState<string>('all')
   const [outcome, setOutcome] = useState<SeriesCompareOutcome | 'all'>('all')
-  const [page, setPage] = useState(1)
+  const { page, setPage, resetPage } = useComparePage()
 
   const query = useQuery({
     queryKey: ['compareSeries', days, windowHours, version, outcome, page],
     queryFn: () =>
-      shadow.compareSeries({ days, windowHours, page, pageSize, version: version === 'all' ? undefined : version, outcome: outcome === 'all' ? undefined : outcome }),
+      shadow.compareSeries({ days, windowHours, page, pageSize: comparePageSize, version: version === 'all' ? undefined : version, outcome: outcome === 'all' ? undefined : outcome }),
     refetchInterval: 60_000,
   })
   const status = useQuery({ queryKey: ['shadow'], queryFn: shadow.status, staleTime: 60_000 })
   const data = query.data
-  const pages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1
-  const resetPage = <T,>(set: (value: T) => void) => (value: T) => {
-    set(value)
-    setPage(1)
-  }
+  const pages = data ? Math.max(1, Math.ceil(data.total / comparePageSize)) : 1
+  // The agreement is over Sonarr's grabs: how many Bigarr would have made too.
+  const { grabs, percent } = compareAgreement(data?.summary ?? { same: 0, different: 0 }, data?.summary.sonarrOnly ?? 0)
 
   return (
     <>
       <h1 className="text-2xl font-semibold tracking-tight">{t('compare.seriesTitle')}</h1>
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={String(days)} onValueChange={(value) => resetPage(setDays)(Number(value))}>
-          <SelectTrigger size="sm" aria-label={t('compare.period')}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {periods.map((value) => (
-              <SelectItem key={value} value={String(value)}>
-                {value === 0 ? t('compare.periodAll') : t('compare.periodDays', { count: value })}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={version} onValueChange={resetPage(setVersion)}>
-          <SelectTrigger size="sm" aria-label={t('compare.version')}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t('compare.allVersions')}</SelectItem>
-            {data?.versions.map((name) => (
-              <SelectItem key={name} value={name}>
-                {name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={String(windowHours)} onValueChange={(value) => resetPage(setWindowHours)(Number(value))}>
-          <SelectTrigger size="sm" aria-label={t('compare.window')}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {windows.map((value) => (
-              <SelectItem key={value} value={String(value)}>
-                {t('compare.windowHours', { hours: value })}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <ComparePeriodSelect value={days} onChange={resetPage(setDays)} testId="series-compare-period" />
+        <CompareVersionSelect value={version} onChange={resetPage(setVersion)} versions={data?.versions} testId="series-compare-version" />
+        <CompareWindowSelect value={windowHours} onChange={resetPage(setWindowHours)} />
         <Button type="button" variant="outline" size="sm" onClick={() => void query.refetch()} disabled={query.isFetching} aria-label={t('compare.refresh')}>
           <RefreshCwIcon className={query.isFetching ? 'animate-spin' : undefined} />
         </Button>
@@ -129,37 +91,19 @@ export function SonarrComparePage() {
 
       {data && (
         <>
-          <Summary counts={data.summary} active={outcome} onPick={resetPage(setOutcome)} />
-          {data.byVersion.length > 1 && (
-            <div className="overflow-x-auto rounded-lg border sm:max-w-2xl" data-testid="series-compare-by-version">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('compare.version')}</TableHead>
-                    {outcomes.map((o) => (
-                      <TableHead key={o} className="text-right">
-                        {t(`compare.seriesOutcomes.${o}`)}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.byVersion.map((v) => (
-                    <TableRow key={v.versionName}>
-                      <TableCell>
-                        <Badge variant="secondary">{v.versionName}</Badge>
-                      </TableCell>
-                      {outcomes.map((o) => (
-                        <TableCell key={o} className="text-right tabular-nums">
-                          {v.counts[o]}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+          <CompareSummary<SeriesCompareOutcome>
+            outcomes={outcomes}
+            counts={data.summary}
+            active={outcome}
+            onPick={resetPage(setOutcome)}
+            styles={seriesOutcomeStyles}
+            label={(o) => t(`compare.seriesOutcomes.${o}`)}
+            hint={(o) => t(`compare.seriesOutcomeHints.${o}`)}
+            agreement={percent === null ? t('compare.seriesNoGrabs') : t('compare.seriesAgreement', { percent, same: data.summary.same, grabs })}
+            className="lg:grid-cols-5"
+            testIdPrefix="series-compare"
+          />
+          {data.byVersion.length > 1 && <CompareByVersion<SeriesCompareOutcome> rows={data.byVersion} outcomes={outcomes} label={(o) => t(`compare.seriesOutcomes.${o}`)} testId="series-compare-by-version" />}
           <span className="text-xs text-muted-foreground">
             {data.from ? t('compare.since', { date: formatDateTime(data.from) }) : t('compare.periodAll')} · {t('compare.windowHours', { hours: data.windowHours })}
           </span>
@@ -168,51 +112,10 @@ export function SonarrComparePage() {
           ) : (
             <SeriesCompareTable rows={data.rows} />
           )}
-          {pages > 1 && (
-            <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
-                {t('compare.previous')}
-              </Button>
-              <span className="text-sm text-muted-foreground tabular-nums">{t('compare.page', { page, pages })}</span>
-              <Button type="button" variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page >= pages}>
-                {t('compare.next')}
-              </Button>
-            </div>
-          )}
+          <ComparePager page={page} pages={pages} onPage={setPage} />
         </>
       )}
     </>
-  )
-}
-
-function Summary({ counts, active, onPick }: { counts: SeriesCompareCounts; active: SeriesCompareOutcome | 'all'; onPick: (value: SeriesCompareOutcome | 'all') => void }) {
-  const { t } = useTranslation()
-  const grabs = counts.same + counts.different + counts.sonarrOnly
-  const agreement = grabs > 0 ? Math.round((counts.same / grabs) * 100) : null
-  return (
-    <div className="flex flex-col gap-2" data-testid="series-compare-summary">
-      <dl className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        {outcomes.map((o) => (
-          <button
-            key={o}
-            type="button"
-            onClick={() => onPick(active === o ? 'all' : o)}
-            className={cn('rounded-lg border p-3 text-left transition-colors hover:bg-muted/50', active === o && 'ring-2 ring-ring')}
-            aria-pressed={active === o}
-          >
-            <dt className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className={cn('inline-block size-2 rounded-full border', seriesOutcomeStyles[o])} />
-              {t(`compare.seriesOutcomes.${o}`)}
-            </dt>
-            <dd className="text-2xl font-semibold tabular-nums">{counts[o]}</dd>
-            <dd className="text-xs text-muted-foreground">{t(`compare.seriesOutcomeHints.${o}`)}</dd>
-          </button>
-        ))}
-      </dl>
-      <p className="text-sm text-muted-foreground">
-        {agreement === null ? t('compare.seriesNoGrabs') : t('compare.seriesAgreement', { percent: agreement, same: counts.same, grabs })}
-      </p>
-    </div>
   )
 }
 
@@ -391,7 +294,7 @@ function GrabCard({ grab }: { grab: SeriesCompareGrab }) {
             <>
               {verdict.approved ? (
                 <span>
-                  <Badge variant="outline" className={okStyle}>
+                  <Badge variant="outline" className={approvedStyle}>
                     {t('compare.approved')}
                   </Badge>
                 </span>
