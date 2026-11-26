@@ -1,7 +1,6 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { UploadIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, seerrImport, type SeerrImportPreview, type SeerrImportStatus, type SeerrUserLine, type SeerrUserMatch } from '@/api/client'
@@ -10,11 +9,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { isImportBusy, useImportRun } from '@/features/settings/importWizard'
+import { DatabaseUploadField, ImportFigure, importNumber, ImportReport, isImportBusy, useDatabaseUpload, useImportRun } from '@/features/settings/importWizard'
 import { Toggle } from '@/components/Toggle'
-import { formatBytes } from '@/i18n'
 
 /** The picker also lists these files, so the database can be clicked rather than typed. */
 const SEERR_DB_EXTENSIONS = ['.sqlite3', '.sqlite', '.db']
@@ -22,8 +19,6 @@ const SEERR_DB_EXTENSIONS = ['.sqlite3', '.sqlite', '.db']
 type Step = 'source' | 'preview'
 
 const staleAfterImport = ['requests', 'issues', 'users', 'discover'] as const
-
-const number = new Intl.NumberFormat('en-GB')
 
 /** How many titles the preview lists before "and N more". */
 const titlesShown = 50
@@ -81,19 +76,8 @@ export function ImportSeerrPage() {
 
 function SourceStep({ path, onPath, onPreview }: { path: string; onPath: (path: string) => void; onPreview: (preview: SeerrImportPreview) => void }) {
   const { t } = useTranslation()
-  const fileInput = useRef<HTMLInputElement>(null)
-  const [uploadShare, setUploadShare] = useState<number | null>(null)
-  const [uploadedBytes, setUploadedBytes] = useState<number | null>(null)
 
-  const upload = useMutation({
-    mutationFn: (file: File) => seerrImport.upload(file, setUploadShare),
-    onSuccess: (result) => {
-      onPath(result.path)
-      setUploadedBytes(result.bytes)
-    },
-    onError: (e) => toast.error(e instanceof ApiError ? e.message : t('importSeerr.uploadFailed')),
-    onSettled: () => setUploadShare(null),
-  })
+  const upload = useDatabaseUpload({ upload: seerrImport.upload, onPath, failed: t('importSeerr.uploadFailed') })
 
   const previewMutation = useMutation({ mutationFn: () => seerrImport.preview(path.trim()), onSuccess: onPreview })
 
@@ -110,28 +94,11 @@ function SourceStep({ path, onPath, onPreview }: { path: string; onPath: (path: 
         <p className="text-xs text-muted-foreground">{t('importSeerr.pathHint')}</p>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <input
-            ref={fileInput}
-            type="file"
-            accept=".sqlite3,.sqlite,.db,application/octet-stream"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              e.target.value = ''
-              if (file) upload.mutate(file)
-            }}
-          />
-          <Button type="button" variant="outline" onClick={() => fileInput.current?.click()} disabled={upload.isPending}>
-            <UploadIcon />
-            {upload.isPending ? t('importSeerr.uploading') : t('importSeerr.upload')}
-          </Button>
-          {uploadedBytes !== null && !upload.isPending && <span className="text-xs text-muted-foreground">{t('importSeerr.uploaded', { size: formatBytes(uploadedBytes) })}</span>}
-        </div>
-        {uploadShare !== null && <Progress value={Math.round(uploadShare * 100)} className="max-w-xs" />}
-        <p className="text-xs text-muted-foreground">{t('importSeerr.uploadHint')}</p>
-      </div>
+      <DatabaseUploadField
+        upload={upload}
+        accept=".sqlite3,.sqlite,.db,application/octet-stream"
+        texts={{ upload: t('importSeerr.upload'), uploading: t('importSeerr.uploading'), uploaded: (size) => t('importSeerr.uploaded', { size }), hint: t('importSeerr.uploadHint') }}
+      />
 
       {previewMutation.error && (
         <Alert variant="destructive">
@@ -139,21 +106,11 @@ function SourceStep({ path, onPath, onPreview }: { path: string; onPath: (path: 
         </Alert>
       )}
       <div>
-        <Button type="submit" disabled={previewMutation.isPending || upload.isPending || path.trim().length === 0} data-testid="seerr-preview">
+        <Button type="submit" disabled={previewMutation.isPending || upload.pending || path.trim().length === 0} data-testid="seerr-preview">
           {previewMutation.isPending ? t('importSeerr.previewing') : t('importSeerr.preview')}
         </Button>
       </div>
     </form>
-  )
-}
-
-function Figure({ label, value, hint }: { label: string; value: number | string; hint?: string }) {
-  return (
-    <div className="rounded-lg border p-3">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-lg font-semibold tabular-nums">{typeof value === 'number' ? number.format(value) : value}</dd>
-      {hint && <dd className="text-xs text-muted-foreground">{hint}</dd>}
-    </div>
   )
 }
 
@@ -208,10 +165,10 @@ function PreviewStep({ preview, path, onBack, onStarted }: { preview: SeerrImpor
     <div className="flex flex-col gap-8" data-testid="seerr-preview-step">
       <Section title={t('importSeerr.summary')} hint={t('importSeerr.flavor', { flavor: preview.flavor })}>
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Figure label={t('importSeerr.users')} value={preview.users.length} hint={t('importSeerr.usersHint', { matched: matchedUsers, created: newUsers })} />
-          <Figure label={t('importSeerr.requests')} value={requests.total} hint={t('importSeerr.requestsHint', { movies: number.format(requests.movies), series: number.format(requests.series), fourK: number.format(requests.fourK) })} />
-          <Figure label={t('importSeerr.issues')} value={issues.total} hint={t('importSeerr.issuesHint', { open: number.format(issues.open), comments: number.format(issues.comments) })} />
-          <Figure label={t('importSeerr.sliders')} value={preview.sliders.length} hint={t('importSeerr.slidersHint', { mapped: preview.sliders.filter((s) => s.kind).length })} />
+          <ImportFigure label={t('importSeerr.users')} value={preview.users.length} hint={t('importSeerr.usersHint', { matched: matchedUsers, created: newUsers })} />
+          <ImportFigure label={t('importSeerr.requests')} value={requests.total} hint={t('importSeerr.requestsHint', { movies: importNumber.format(requests.movies), series: importNumber.format(requests.series), fourK: importNumber.format(requests.fourK) })} />
+          <ImportFigure label={t('importSeerr.issues')} value={issues.total} hint={t('importSeerr.issuesHint', { open: importNumber.format(issues.open), comments: importNumber.format(issues.comments) })} />
+          <ImportFigure label={t('importSeerr.sliders')} value={preview.sliders.length} hint={t('importSeerr.slidersHint', { mapped: preview.sliders.filter((s) => s.kind).length })} />
         </dl>
       </Section>
 
@@ -245,8 +202,8 @@ function PreviewStep({ preview, path, onBack, onStarted }: { preview: SeerrImpor
                     </TableCell>
                     <TableCell>{created ? t(`users.roles.${user.role}`) : <span className="text-muted-foreground">{t('importSeerr.keeps')}</span>}</TableCell>
                     <TableCell className="whitespace-normal text-xs">{created ? <Permissions user={user} /> : <span className="text-muted-foreground">{t('importSeerr.keeps')}</span>}</TableCell>
-                    <TableCell className="text-right tabular-nums">{number.format(user.requests)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{number.format(user.issues)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{importNumber.format(user.requests)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{importNumber.format(user.issues)}</TableCell>
                     <TableCell className="whitespace-normal text-xs text-muted-foreground">{user.skipped.length > 0 ? user.skipped.join(', ') : t('common.none')}</TableCell>
                   </TableRow>
                 )
@@ -258,26 +215,26 @@ function PreviewStep({ preview, path, onBack, onStarted }: { preview: SeerrImpor
 
       <Section title={t('importSeerr.requestsTitle')} hint={t('importSeerr.requestsExplain')}>
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <Figure label={t('importSeerr.pending')} value={requests.pending} />
-          <Figure label={t('importSeerr.approved')} value={requests.approved} />
-          <Figure label={t('importSeerr.completed')} value={requests.completed} />
-          <Figure label={t('importSeerr.declined')} value={requests.declined} />
-          <Figure label={t('importSeerr.failed')} value={requests.failed} />
-          <Figure label={t('importSeerr.inLibrary')} value={requests.inLibrary} />
-          <Figure label={t('importSeerr.notInLibrary')} value={requests.notInLibrary} />
-          <Figure label={t('importSeerr.alreadyImported')} value={requests.alreadyImported} />
-          <Figure label={t('importSeerr.skipped')} value={requests.skipped} />
-          <Figure label={t('importSeerr.overlapping')} value={requests.overlappingBigarr} hint={t('importSeerr.overlappingHint')} />
+          <ImportFigure label={t('importSeerr.pending')} value={requests.pending} />
+          <ImportFigure label={t('importSeerr.approved')} value={requests.approved} />
+          <ImportFigure label={t('importSeerr.completed')} value={requests.completed} />
+          <ImportFigure label={t('importSeerr.declined')} value={requests.declined} />
+          <ImportFigure label={t('importSeerr.failed')} value={requests.failed} />
+          <ImportFigure label={t('importSeerr.inLibrary')} value={requests.inLibrary} />
+          <ImportFigure label={t('importSeerr.notInLibrary')} value={requests.notInLibrary} />
+          <ImportFigure label={t('importSeerr.alreadyImported')} value={requests.alreadyImported} />
+          <ImportFigure label={t('importSeerr.skipped')} value={requests.skipped} />
+          <ImportFigure label={t('importSeerr.overlapping')} value={requests.overlappingBigarr} hint={t('importSeerr.overlappingHint')} />
         </dl>
       </Section>
 
       <Section title={t('importSeerr.issuesTitle')} hint={t('importSeerr.issuesExplain')}>
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <Figure label={t('importSeerr.open')} value={issues.open} />
-          <Figure label={t('importSeerr.resolved')} value={issues.resolved} />
-          <Figure label={t('importSeerr.inLibrary')} value={issues.inLibrary} />
-          <Figure label={t('importSeerr.notInLibrary')} value={issues.notInLibrary} />
-          <Figure label={t('importSeerr.alreadyImported')} value={issues.alreadyImported} />
+          <ImportFigure label={t('importSeerr.open')} value={issues.open} />
+          <ImportFigure label={t('importSeerr.resolved')} value={issues.resolved} />
+          <ImportFigure label={t('importSeerr.inLibrary')} value={issues.inLibrary} />
+          <ImportFigure label={t('importSeerr.notInLibrary')} value={issues.notInLibrary} />
+          <ImportFigure label={t('importSeerr.alreadyImported')} value={issues.alreadyImported} />
         </dl>
       </Section>
 
@@ -369,7 +326,7 @@ function PreviewStep({ preview, path, onBack, onStarted }: { preview: SeerrImpor
         <ul className="flex max-w-3xl list-disc flex-col gap-1 pl-5 text-sm">
           {preview.notImported.map((line) => (
             <li key={line.what}>
-              <span className="font-medium">{line.what}</span> ({number.format(line.count)}): <span className="text-muted-foreground">{line.why}</span>
+              <span className="font-medium">{line.what}</span> ({importNumber.format(line.count)}): <span className="text-muted-foreground">{line.why}</span>
             </li>
           ))}
         </ul>
@@ -429,64 +386,50 @@ function SkippedTable({ rows }: { rows: { kind: string; seerrId: number; what: s
 function RunStep({ status, onAgain }: { status: SeerrImportStatus; onAgain: () => void }) {
   const { t } = useTranslation()
   const busy = isImportBusy(status)
-  const progress = status.total > 0 ? Math.round((status.processed / status.total) * 100) : 0
 
   const counters = [
-    ['importSeerr.usersAdded', status.usersAdded],
-    ['importSeerr.usersMatched', status.usersMatched],
-    ['importSeerr.usersUpdated', status.usersUpdated],
-    ['importSeerr.requestsAdded', status.requestsAdded],
-    ['importSeerr.issuesAdded', status.issuesAdded],
-    ['importSeerr.commentsAdded', status.commentsAdded],
-    ['importSeerr.slidersAdded', status.slidersAdded],
-    ['importSeerr.slidersUpdated', status.slidersUpdated],
-    ['importSeerr.titlesFromTmdb', status.titlesFromTmdb],
-    ['importSeerr.alreadyImported', status.alreadyImported],
-    ['importSeerr.skipped', status.skipped],
+    [t('importSeerr.usersAdded'), status.usersAdded],
+    [t('importSeerr.usersMatched'), status.usersMatched],
+    [t('importSeerr.usersUpdated'), status.usersUpdated],
+    [t('importSeerr.requestsAdded'), status.requestsAdded],
+    [t('importSeerr.issuesAdded'), status.issuesAdded],
+    [t('importSeerr.commentsAdded'), status.commentsAdded],
+    [t('importSeerr.slidersAdded'), status.slidersAdded],
+    [t('importSeerr.slidersUpdated'), status.slidersUpdated],
+    [t('importSeerr.titlesFromTmdb'), status.titlesFromTmdb],
+    [t('importSeerr.alreadyImported'), status.alreadyImported],
+    [t('importSeerr.skipped'), status.skipped],
   ] as const
 
   return (
     <div className="flex flex-col gap-6" data-testid="seerr-run">
-      {busy && (
-        <section className="flex max-w-xl flex-col gap-2">
-          <h2 className="text-xl font-semibold tracking-tight">{t('importSeerr.progress')}</h2>
-          <Progress value={progress} />
-          <span className="text-xs text-muted-foreground">
-            {status.state === 'queued' ? t('importSeerr.queued') : t('importSeerr.processedOf', { processed: number.format(status.processed), total: number.format(status.total) })}
-            {status.current ? ` · ${status.current}` : ''}
-          </span>
-        </section>
-      )}
-
-      {!busy && (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-xl font-semibold tracking-tight">{status.state === 'failed' ? t('importSeerr.reportFailed') : t('importSeerr.report')}</h2>
-          {status.error && (
-            <Alert variant="destructive">
-              <AlertDescription>{status.error}</AlertDescription>
-            </Alert>
-          )}
-          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {counters.map(([key, value]) => (
-              <Figure key={key} label={t(key)} value={value} />
-            ))}
-          </dl>
-          {status.uploadDeleted && <p className="text-xs text-muted-foreground">{t('importSeerr.uploadDeleted')}</p>}
-          {status.state === 'completed' && (
-            <p className="flex flex-wrap gap-4 text-sm">
-              <Link to="/requests" className="underline underline-offset-4">
-                {t('importSeerr.seeRequests')}
-              </Link>
-              <Link to="/issues" className="underline underline-offset-4">
-                {t('importSeerr.seeIssues')}
-              </Link>
-              <Link to="/settings/users" className="underline underline-offset-4">
-                {t('importSeerr.seeUsers')}
-              </Link>
-            </p>
-          )}
-        </section>
-      )}
+      <ImportReport
+        status={status}
+        counters={counters}
+        texts={{
+          progress: t('importSeerr.progress'),
+          queued: t('importSeerr.queued'),
+          processed: t('importSeerr.processedOf', { processed: importNumber.format(status.processed), total: importNumber.format(status.total) }),
+          report: t('importSeerr.report'),
+          reportFailed: t('importSeerr.reportFailed'),
+        }}
+        columns="lg:grid-cols-4"
+      >
+        {status.uploadDeleted && <p className="text-xs text-muted-foreground">{t('importSeerr.uploadDeleted')}</p>}
+        {status.state === 'completed' && (
+          <p className="flex flex-wrap gap-4 text-sm">
+            <Link to="/requests" className="underline underline-offset-4">
+              {t('importSeerr.seeRequests')}
+            </Link>
+            <Link to="/issues" className="underline underline-offset-4">
+              {t('importSeerr.seeIssues')}
+            </Link>
+            <Link to="/settings/users" className="underline underline-offset-4">
+              {t('importSeerr.seeUsers')}
+            </Link>
+          </p>
+        )}
+      </ImportReport>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-xl font-semibold tracking-tight">{t('importSeerr.reportIssues')}</h2>

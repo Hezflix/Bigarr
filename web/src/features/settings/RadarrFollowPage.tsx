@@ -34,12 +34,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { mappingComplete, ProfileMappingTable, RootFolderMappingTable, slugPattern, suggestedMapping } from '@/features/settings/RadarrMapping'
 import { Toggle } from '@/components/Toggle'
+import { failingStyle, offStyle, okStyle } from '@/features/settings/followStyles'
 import { formatDateTime } from '@/i18n'
 import { sameDestination } from '@/lib/address'
-
-const okStyle = 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300'
-const offStyle = 'border-border bg-muted text-muted-foreground'
-const failingStyle = 'border-red-600/30 bg-red-500/15 text-red-700 dark:border-red-400/30 dark:text-red-300'
 
 const emptyForm = (): FollowedRadarrRequest => ({
   name: '',
