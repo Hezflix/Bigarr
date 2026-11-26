@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Toggle } from '@/components/Toggle'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -387,16 +387,5 @@ function DownloadClientDialog({ client, onClose, onSaved }: { client: DownloadCl
         </form>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function Toggle({ id, label, checked, onChange }: { id: string; label: string; checked: boolean; onChange: (value: boolean) => void }) {
-  return (
-    <div className="flex items-center gap-2">
-      <Checkbox id={id} checked={checked} onCheckedChange={(value) => onChange(value === true)} />
-      <Label htmlFor={id} className="font-normal">
-        {label}
-      </Label>
-    </div>
   )
 }

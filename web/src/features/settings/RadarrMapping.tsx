@@ -2,8 +2,6 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { profilesFor, quality, rootFolders, rootsOfKind, type RadarrImportPreview, type SonarrImportPreview } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Label } from '@/components/ui/label'
 import { IdSelect } from '@/components/IdSelect'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
@@ -161,20 +159,6 @@ export function RootFolderMappingTable({
           ))}
         </TableBody>
       </Table>
-    </div>
-  )
-}
-
-export function Toggle({ id, label, checked, onChange, disabled, hint }: { id: string; label: string; checked: boolean; onChange: (value: boolean) => void; disabled?: boolean; hint?: string }) {
-  return (
-    <div className="flex items-start gap-2">
-      <Checkbox id={id} className="mt-0.5" checked={checked} disabled={disabled} onCheckedChange={(next) => onChange(next === true)} />
-      <div className="grid gap-0.5">
-        <Label htmlFor={id} className="font-normal">
-          {label}
-        </Label>
-        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-      </div>
     </div>
   )
 }
