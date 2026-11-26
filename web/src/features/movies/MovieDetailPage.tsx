@@ -5,7 +5,7 @@ import { EyeIcon, EyeOffIcon, FileXIcon, FolderInputIcon, PencilIcon, PlusIcon, 
 import { useTranslation } from 'react-i18next'
 import { LibraryIssuesLink } from '@/features/issues/TitleIssues'
 import { toast } from 'sonner'
-import { ApiError, customFormats, history, movies, seriesFilms, quality, rootFolders, rootsOfKind, search, shadow, type MediaInfo, type MinimumAvailability, type Movie, type Version, type VersionMode, profilesFor} from '@/api/client'
+import { ApiError, customFormats, history, movies, seriesFilms, quality, rootFolders, rootsOfKind, search, shadow, type MediaInfo, type MinimumAvailability, type Movie, type Version, type VersionMode, profilesFor, minimumAvailabilities } from '@/api/client'
 import { Poster } from '@/components/Poster'
 import { StatusBadge } from '@/components/StatusBadge'
 import { CompareTable } from '@/features/activity/CompareTable'
@@ -47,7 +47,6 @@ import { useRecordRecent } from '@/features/palette/recent'
 import { usePaletteActions } from '@/features/palette/actions'
 import { versionActions } from '@/features/palette/pageActions'
 
-const availabilities: MinimumAvailability[] = ['announced', 'inCinemas', 'released']
 
 export function MovieDetailPage() {
   const { t } = useTranslation()
@@ -767,7 +766,7 @@ function AddVersionDialog({ movie, onAdded }: { movie: Movie; onAdded: () => voi
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {availabilities.map((a) => (
+                  {minimumAvailabilities.map((a) => (
                     <SelectItem key={a} value={a}>
                       {t(`availability.${a}`)}
                     </SelectItem>

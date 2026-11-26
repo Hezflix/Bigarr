@@ -9,7 +9,7 @@ import {
   tags as tagsApi,
   type BulkDeleteResponse,
   type BulkUpdateRequest,
-  type MinimumAvailability,
+  minimumAvailabilities,
   type MovieSummary,
   type QualityProfile,
   type Tag,
@@ -27,7 +27,6 @@ import { BulkDeleteDialog } from './BulkDeleteDialog'
 import type { BulkReport } from './BulkResults'
 import { targetVersions, type VersionName } from './libraryView'
 
-const availabilities: MinimumAvailability[] = ['announced', 'inCinemas', 'released']
 
 type Props = {
   library: MovieSummary[]
@@ -161,7 +160,7 @@ export function BulkToolbar({ library, shown, filtered, selected, onSelect, onDe
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            {availabilities.map((value) => (
+            {minimumAvailabilities.map((value) => (
               <DropdownMenuItem
                 key={value}
                 onSelect={() =>

@@ -10,7 +10,7 @@ import {
   type QualityProfile,
   type SeriesBulkDeleteResponse,
   type SeriesBulkUpdateRequest,
-  type SeriesType,
+  seriesTypes,
   type Tag,
   type VersionSelector,
 } from '@/api/client'
@@ -23,7 +23,6 @@ import { targetVersions, type VersionName } from '@/features/library/core'
 import type { SeriesRow } from './seriesView'
 
 const newItemOptions: NewItemMonitoring[] = ['all', 'none']
-const seriesTypes: SeriesType[] = ['standard', 'anime', 'daily']
 
 type Props = {
   library: SeriesRow[]

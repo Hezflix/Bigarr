@@ -1,7 +1,7 @@
 import { type FormEvent, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ApiError, movies, profilesFor, quality, type MinimumAvailability, type Movie, type Version, type VersionMode } from '@/api/client'
+import { ApiError, movies, profilesFor, quality, type MinimumAvailability, type Movie, type Version, type VersionMode, minimumAvailabilities } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -10,7 +10,6 @@ import { Label } from '@/components/ui/label'
 import { IdSelect } from '@/components/IdSelect'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-const availabilities: MinimumAvailability[] = ['announced', 'inCinemas', 'released']
 
 /**
  * A film version's settings: name, mode, quality profile, minimum availability. Its folder, monitoring and constraints
@@ -71,7 +70,7 @@ export function EditVersionDialog({ movie, version, onClose, onSaved }: { movie:
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {availabilities.map((a) => (
+                {minimumAvailabilities.map((a) => (
                   <SelectItem key={a} value={a}>
                     {t(`availability.${a}`)}
                   </SelectItem>
