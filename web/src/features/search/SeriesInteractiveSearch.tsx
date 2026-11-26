@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { SortableHead as SharedSortableHead } from '@/components/SortableHead'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { GrabOverride } from '@/features/search/grabOverride'
@@ -28,7 +29,6 @@ import {
   QualityLanguagesFormatsCells,
   ReleaseTitleCell,
   SearchSkeleton,
-  SortableHead as SharedSortableHead,
   sortReleases,
   temporaryStyle,
   useReleaseSort,
@@ -46,7 +46,7 @@ export type { SeriesSearchScope }
 
 type SortKey = keyof typeof commonComparators | 'episodes' | 'quality' | 'languages' | 'score'
 
-const SortableHead = (props: Omit<Parameters<typeof SharedSortableHead<SortKey>>[0], 'testIdPrefix'>) => <SharedSortableHead testIdPrefix="series-sort" {...props} />
+const SortableHead = (props: Omit<Parameters<typeof SharedSortableHead<SortKey | 'fit'>>[0], 'testIdPrefix'>) => <SharedSortableHead testIdPrefix="series-sort" {...props} />
 
 const fitsAny = (release: SeriesRelease) => release.matchesSeries && release.episodes.length > 0 && release.versions.some((v) => v.approved)
 
