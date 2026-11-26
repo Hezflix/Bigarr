@@ -3774,8 +3774,6 @@
       "scopeSeason": "A season",
       "scopeEpisode": "An episode",
       "season": "Season",
-      "seasonName": "Season {{number}}",
-      "specials": "Specials",
       "episode": "Episode",
       "pickEpisode": "Pick an episode",
       "noFile": "no file",
