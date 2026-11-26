@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatGap, TimingNote } from '@/features/activity/TimingNote'
 import { ReasonList } from '@/features/search/ReasonsDisplay'
+import { approvedStyle } from '@/features/search/releaseTable'
 import { formatAge, formatBytes, formatDateTime } from '@/i18n'
 
 export const outcomeStyles: Record<CompareOutcome, string> = {
@@ -21,7 +22,6 @@ export const outcomeStyles: Record<CompareOutcome, string> = {
   radarrOnly: 'border-sky-600/30 bg-sky-500/15 text-sky-700 dark:border-sky-400/30 dark:text-sky-300',
 }
 const formatStyle = 'border-violet-600/30 bg-violet-500/10 text-violet-700 dark:border-violet-400/30 dark:text-violet-300'
-const okStyle = 'border-emerald-600/30 bg-emerald-500/15 text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-300'
 
 function leadText(t: TFunction, row: CompareRow): string | null {
   if (row.bigarrLeadSeconds === null) return null
@@ -292,7 +292,7 @@ function VerdictText({ grab, versionName }: { grab: CompareGrab; versionName: st
     <span className="flex flex-col gap-1">
       <span className="flex flex-wrap items-center gap-1">
         {verdict.approved && (
-          <Badge variant="outline" className={okStyle}>
+          <Badge variant="outline" className={approvedStyle}>
             {verdict.attributedVersion && verdict.attributedVersion !== versionName ? t('compare.approvedElsewhere', { version: verdict.attributedVersion }) : t('compare.approved')}
           </Badge>
         )}
