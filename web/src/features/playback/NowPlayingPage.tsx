@@ -5,6 +5,7 @@ import { AudioLinesIcon, CaptionsIcon, ChevronDownIcon, FilmIcon, GaugeIcon, Lay
 import { cn } from 'cn'
 import { useTranslation } from 'react-i18next'
 import { playback, type PlaybackSession, type PlaybackServerStatus, type PlexTranscode } from '@/api/client'
+import { UserAvatar } from '@/components/UserAvatar'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -273,7 +274,7 @@ function SessionCard({ session, live, onStop }: { session: PlaybackSession; live
               </span>
             </div>
             <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
-              <Avatar name={session.user.name} url={session.user.thumbUrl} className="size-4 text-[9px]" />
+              <UserAvatar name={session.user.name} url={session.user.thumbUrl} className="size-4 text-[9px]" />
               <span className="truncate" title={player}>
                 {session.user.name}
                 {player && ` · ${player}`}
@@ -338,17 +339,6 @@ function StopButton({ session, onStop, className }: { session: PlaybackSession; 
 }
 
 /** The Plex account picture, or the name's initial. */
-function Avatar({ name, url, className }: { name: string; url: string | null; className?: string }) {
-  const [broken, setBroken] = useState(false)
-  return url && !broken ? (
-    <img src={url} alt="" aria-hidden="true" className={cn('size-8 shrink-0 rounded-full object-cover', className)} onError={() => setBroken(true)} />
-  ) : (
-    <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground', className)} aria-hidden="true">
-      {name.slice(0, 1).toUpperCase()}
-    </span>
-  )
-}
-
 /** One line per stream, for evenings with many; a click opens the same details as a card under the row. */
 function SessionRows({ sessions, live, onStop }: { sessions: PlaybackSession[]; live: Live; onStop: (session: PlaybackSession) => void }) {
   const { t } = useTranslation()

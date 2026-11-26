@@ -5,6 +5,7 @@ import { BanIcon, CircleCheckIcon, InfoIcon, KeyRoundIcon, PencilIcon } from 'lu
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, users, type RequestQuotaSettings, type UserNotifications, type UserPermissions, type UserRole, type UserSummary } from '@/api/client'
+import { UserAvatar } from '@/components/UserAvatar'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -100,7 +101,7 @@ function UserRow({ user, onEdit, onDisable }: { user: UserSummary; onEdit: () =>
     <TableRow data-testid={`user-${user.username}`} className={disabled ? 'text-muted-foreground' : undefined}>
       <TableCell>
         <div className="flex min-w-0 items-center gap-3">
-          <Avatar name={user.username} url={user.logins.find((l) => l.thumbUrl)?.thumbUrl ?? null} dimmed={disabled} />
+          <UserAvatar name={user.username} url={user.logins.find((l) => l.thumbUrl)?.thumbUrl ?? null} className={disabled ? 'size-9 opacity-50 grayscale' : 'size-9'} />
           <div className="min-w-0">
             <p className="flex flex-wrap items-center gap-2 font-medium">
               <span className="truncate">{user.username}</span>
@@ -156,18 +157,6 @@ function UserRow({ user, onEdit, onDisable }: { user: UserSummary; onEdit: () =>
 }
 
 /** The Plex picture over the initials, so a picture that does not load leaves the initials showing. */
-function Avatar({ name, url, dimmed }: { name: string; url: string | null; dimmed?: boolean }) {
-  return (
-    <span
-      aria-hidden
-      className={`relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-semibold uppercase ${dimmed ? 'opacity-50 grayscale' : ''}`}
-    >
-      {name.slice(0, 2)}
-      {url && <img src={url} alt="" referrerPolicy="no-referrer" className="absolute inset-0 size-full object-cover" />}
-    </span>
-  )
-}
-
 function PermissionChecks({
   idPrefix,
   value,
