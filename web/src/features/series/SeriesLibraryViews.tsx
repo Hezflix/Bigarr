@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { useTranslation } from 'react-i18next'
-import type { RootFolder, SeriesStatus, SeriesType, Tag } from '@/api/client'
+import { type RootFolder, type SeriesStatus, seriesTypes, type Tag } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { CardContent } from '@/components/ui/card'
 import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
@@ -131,7 +131,6 @@ export function SeriesLibraryControls({ prefs, onChange, term, onTermChange, nam
 }
 
 const seriesStatuses: SeriesStatus[] = ['continuing', 'upcoming', 'ended', 'deleted']
-const seriesTypes: SeriesType[] = ['standard', 'anime', 'daily']
 
 function SeriesFilterMenu({
   filter,

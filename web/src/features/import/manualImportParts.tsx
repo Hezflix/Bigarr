@@ -3,7 +3,7 @@ import { cn } from 'cn'
 import { useTranslation } from 'react-i18next'
 import { PathPicker } from '@/components/PathPicker'
 import { QualitySelect } from '@/components/QualitySelect'
-import { ApiError, type ManualImportExtra, type TransferMode } from '@/api/client'
+import { ApiError, type ManualImportExtra, type TransferMode, transferModes } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,7 +21,6 @@ import { formatBytes } from '@/i18n'
 
 export type TransferChoice = 'default' | TransferMode
 
-const modes: TransferMode[] = ['hardlinkOrCopy', 'copy', 'move']
 
 /** The path to list, for an import that does not start from a queued download. */
 export function ImportPathForm({ id, path, onPath, placeholder, loading, onLoad }: { id: string; path: string; onPath: (path: string) => void; placeholder: string; loading: boolean; onLoad: (path: string) => void }) {
@@ -203,7 +202,7 @@ export function ImportFooter({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="default">{t('manualImport.useDefault', { mode: defaultMode ? t(`mediaManagement.transferModes.${defaultMode}`) : '…' })}</SelectItem>
-            {modes.map((m) => (
+            {transferModes.map((m) => (
               <SelectItem key={m} value={m}>
                 {t(`mediaManagement.transferModes.${m}`)}
               </SelectItem>

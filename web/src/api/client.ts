@@ -291,6 +291,8 @@ export const backups = {
 
 export type VersionMode = Schemas['VersionMode']
 export type MinimumAvailability = Schemas['MinimumAvailability']
+/** In the order a film goes through them. */
+export const minimumAvailabilities: MinimumAvailability[] = ['announced', 'inCinemas', 'released']
 export type VersionStatus = Schemas['VersionStatus']
 export type MovieStatus = Schemas['MovieStatus']
 
@@ -763,6 +765,7 @@ export const queue = {
 // ---- media management ------------------------------------------------------
 
 export type TransferMode = Schemas['TransferMode']
+export const transferModes: TransferMode[] = ['hardlinkOrCopy', 'copy', 'move']
 
 export type NamingToken = Schemas['NamingTokenResponse']
 

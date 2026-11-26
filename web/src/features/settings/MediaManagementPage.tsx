@@ -19,6 +19,7 @@ import {
   type SeriesNaming,
   type SeriesNamingRequest,
   type TransferMode,
+  transferModes,
 } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -33,7 +34,6 @@ import { useDebounced } from '@/hooks/useDebounced'
 import { useSchedulerEnabled } from '@/hooks/useSchedulerEnabled'
 import { dirtyScopes, firstScopeWithError, scopes, type Scope } from './mediaManagementTabs'
 
-const modes: TransferMode[] = ['hardlinkOrCopy', 'copy', 'move']
 
 const scopeIcons: Record<Scope, LucideIcon> = { films: FilmIcon, series: TvIcon, both: LayersIcon }
 
@@ -617,7 +617,7 @@ function MediaManagementForm({ film, series }: { film: MediaManagement; series: 
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {modes.map((mode) => (
+            {transferModes.map((mode) => (
               <SelectItem key={mode} value={mode}>
                 {t(`mediaManagement.transferModes.${mode}`)}
               </SelectItem>

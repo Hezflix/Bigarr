@@ -13,6 +13,7 @@ import {
   type SeriesType,
   seriesTypes,
   slugify,
+  minimumAvailabilities,
 } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -22,7 +23,6 @@ import { FormField, VersionNameField } from '@/features/library/addParts'
 import { TitleForm } from '@/features/library/TitleForm'
 import { seasonChoices, takenReason } from './RequestDialog'
 
-const availabilities: MinimumAvailability[] = ['announced', 'inCinemas', 'released']
 const PICKED = 'picked'
 const AUTO = 'auto'
 
@@ -194,7 +194,7 @@ export function AdminAddDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {availabilities.map((a) => (
+                {minimumAvailabilities.map((a) => (
                   <SelectItem key={a} value={a}>
                     {t(`availability.${a}`)}
                   </SelectItem>
