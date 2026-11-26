@@ -9,7 +9,6 @@ import { LibraryIssuesLink } from '@/features/issues/TitleIssues'
 import { SeriesCompareSection } from '@/features/activity/SeriesCompare'
 import { toast } from 'sonner'
 import {
-  ApiError,
   auth,
   customFormats,
   quality,
@@ -26,6 +25,7 @@ import {
   profilesFor,
 } from '@/api/client'
 import { episodeCode } from '@/lib/episodeCode'
+import { errorMessage } from '@/lib/errorMessage'
 import { Poster } from '@/components/Poster'
 import {
   AlertDialog,
@@ -73,8 +73,6 @@ import { OrderUndoBanner, ReassignFileDialog, SeriesOrderDialog, orderLabel } fr
 import { useRecordRecent } from '@/features/palette/recent'
 import { usePaletteActions } from '@/features/palette/actions'
 import { versionActions } from '@/features/palette/pageActions'
-
-const errorMessage = (error: unknown, fallback: string) => (error instanceof ApiError ? error.message : fallback)
 
 export function SeriesDetailPage() {
   const { t } = useTranslation()
