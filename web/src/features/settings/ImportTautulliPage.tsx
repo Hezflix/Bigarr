@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { UploadIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, mediaServers, tautulliImport, type TautulliImportPreview, type TautulliImportStatus } from '@/api/client'
@@ -9,12 +8,11 @@ import { PathPicker } from '@/components/PathPicker'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Progress } from '@/components/ui/progress'
 import { IdSelect } from '@/components/IdSelect'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { isImportBusy, useImportRun } from '@/features/settings/importWizard'
+import { DatabaseUploadField, ImportFigure, importNumber, ImportReport, isImportBusy, useDatabaseUpload, useImportRun } from '@/features/settings/importWizard'
 import { Toggle } from '@/components/Toggle'
-import { formatBytes, formatDate } from '@/i18n'
+import { formatDate } from '@/i18n'
 
 /** The picker also lists these files, so the database can be clicked rather than typed. */
 const TAUTULLI_DB_EXTENSIONS = ['.db', '.sqlite']
@@ -22,8 +20,6 @@ const TAUTULLI_DB_EXTENSIONS = ['.db', '.sqlite']
 type Step = 'source' | 'preview'
 
 const staleAfterImport = ['playback'] as const
-
-const number = new Intl.NumberFormat('en-GB')
 
 /** Moving in from Tautulli: point at (or upload) a copy of its database, check the preview, follow the import. */
 export function ImportTautulliPage() {
@@ -94,9 +90,6 @@ function SourceStep({
   onPreview: (preview: TautulliImportPreview) => void
 }) {
   const { t } = useTranslation()
-  const fileInput = useRef<HTMLInputElement>(null)
-  const [uploadShare, setUploadShare] = useState<number | null>(null)
-  const [uploadedBytes, setUploadedBytes] = useState<number | null>(null)
 
   const servers = useQuery({ queryKey: ['mediaServers'], queryFn: mediaServers.list })
   const plexServers = (servers.data ?? []).filter((s) => s.kind === 'plex')
@@ -106,15 +99,7 @@ function SourceStep({
     if (serverId === null && plexServers.length === 1) onServer(plexServers[0].id)
   }, [serverId, plexServers, onServer])
 
-  const upload = useMutation({
-    mutationFn: (file: File) => tautulliImport.upload(file, setUploadShare),
-    onSuccess: (result) => {
-      onPath(result.path)
-      setUploadedBytes(result.bytes)
-    },
-    onError: (e) => toast.error(e instanceof ApiError ? e.message : t('importTautulli.uploadFailed')),
-    onSettled: () => setUploadShare(null),
-  })
+  const upload = useDatabaseUpload({ upload: tautulliImport.upload, onPath, failed: t('importTautulli.uploadFailed') })
 
   const previewMutation = useMutation({
     mutationFn: () => tautulliImport.preview({ path: path.trim(), mediaServerId: serverId ?? 0 }),
@@ -153,28 +138,11 @@ function SourceStep({
         <p className="text-xs text-muted-foreground">{t('importTautulli.pathHint')}</p>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <input
-            ref={fileInput}
-            type="file"
-            accept=".db,.sqlite,application/octet-stream"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              e.target.value = ''
-              if (file) upload.mutate(file)
-            }}
-          />
-          <Button type="button" variant="outline" onClick={() => fileInput.current?.click()} disabled={upload.isPending}>
-            <UploadIcon />
-            {upload.isPending ? t('importTautulli.uploading') : t('importTautulli.upload')}
-          </Button>
-          {uploadedBytes !== null && !upload.isPending && <span className="text-xs text-muted-foreground">{t('importTautulli.uploaded', { size: formatBytes(uploadedBytes) })}</span>}
-        </div>
-        {uploadShare !== null && <Progress value={Math.round(uploadShare * 100)} className="max-w-xs" />}
-        <p className="text-xs text-muted-foreground">{t('importTautulli.uploadHint')}</p>
-      </div>
+      <DatabaseUploadField
+        upload={upload}
+        accept=".db,.sqlite,application/octet-stream"
+        texts={{ upload: t('importTautulli.upload'), uploading: t('importTautulli.uploading'), uploaded: (size) => t('importTautulli.uploaded', { size }), hint: t('importTautulli.uploadHint') }}
+      />
 
       {previewMutation.error && (
         <Alert variant="destructive">
@@ -182,21 +150,11 @@ function SourceStep({
         </Alert>
       )}
       <div>
-        <Button type="submit" disabled={previewMutation.isPending || upload.isPending || path.trim().length === 0 || serverId === null} data-testid="tautulli-preview">
+        <Button type="submit" disabled={previewMutation.isPending || upload.pending || path.trim().length === 0 || serverId === null} data-testid="tautulli-preview">
           {previewMutation.isPending ? t('importTautulli.previewing') : t('importTautulli.preview')}
         </Button>
       </div>
     </form>
-  )
-}
-
-function Figure({ label, value, hint }: { label: string; value: number | string; hint?: string }) {
-  return (
-    <div className="rounded-lg border p-3">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-lg font-semibold tabular-nums">{typeof value === 'number' ? number.format(value) : value}</dd>
-      {hint && <dd className="text-xs text-muted-foreground">{hint}</dd>}
-    </div>
   )
 }
 
@@ -218,21 +176,21 @@ function PreviewStep({ preview, path, serverId, onBack, onStarted }: { preview: 
       <section className="flex flex-col gap-3">
         <h2 className="text-xl font-semibold tracking-tight">{t('importTautulli.history')}</h2>
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          <Figure label={t('importTautulli.range')} value={range} hint={preview.tautulliVersion ? t('importTautulli.version', { version: preview.tautulliVersion }) : undefined} />
-          <Figure label={t('importTautulli.users')} value={preview.users} hint={t('importTautulli.usersHint', { deleted: preview.deletedUsers, known: preview.usersKnown })} />
-          <Figure label={t('importTautulli.plays')} value={preview.plays} hint={t('importTautulli.playsHint', { rows: number.format(preview.historyRows) })} />
-          <Figure label={t('importTautulli.episodePlays')} value={preview.episodePlays} hint={t('importTautulli.episodesHint', { episodes: number.format(preview.episodes) })} />
+          <ImportFigure label={t('importTautulli.range')} value={range} hint={preview.tautulliVersion ? t('importTautulli.version', { version: preview.tautulliVersion }) : undefined} />
+          <ImportFigure label={t('importTautulli.users')} value={preview.users} hint={t('importTautulli.usersHint', { deleted: preview.deletedUsers, known: preview.usersKnown })} />
+          <ImportFigure label={t('importTautulli.plays')} value={preview.plays} hint={t('importTautulli.playsHint', { rows: importNumber.format(preview.historyRows) })} />
+          <ImportFigure label={t('importTautulli.episodePlays')} value={preview.episodePlays} hint={t('importTautulli.episodesHint', { episodes: importNumber.format(preview.episodes) })} />
         </dl>
       </section>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-xl font-semibold tracking-tight">{t('importTautulli.films')}</h2>
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <Figure label={t('importTautulli.moviePlays')} value={preview.moviePlays} hint={t('importTautulli.moviesHint', { movies: number.format(preview.movies) })} />
-          <Figure label={t('importTautulli.withFilm')} value={preview.moviePlaysWithFilm} />
-          <Figure label={t('importTautulli.withVersion')} value={preview.moviePlaysWithVersion} />
-          <Figure label={t('importTautulli.askPlexCount')} value={preview.moviePlaysAskPlex} />
-          <Figure label={t('importTautulli.unmatched')} value={preview.moviePlaysUnmatched} />
+          <ImportFigure label={t('importTautulli.moviePlays')} value={preview.moviePlays} hint={t('importTautulli.moviesHint', { movies: importNumber.format(preview.movies) })} />
+          <ImportFigure label={t('importTautulli.withFilm')} value={preview.moviePlaysWithFilm} />
+          <ImportFigure label={t('importTautulli.withVersion')} value={preview.moviePlaysWithVersion} />
+          <ImportFigure label={t('importTautulli.askPlexCount')} value={preview.moviePlaysAskPlex} />
+          <ImportFigure label={t('importTautulli.unmatched')} value={preview.moviePlaysUnmatched} />
         </dl>
         <p className="max-w-3xl text-xs text-muted-foreground">{t('importTautulli.filmsHint')}</p>
       </section>
@@ -240,9 +198,9 @@ function PreviewStep({ preview, path, serverId, onBack, onStarted }: { preview: 
       <section className="flex flex-col gap-3">
         <h2 className="text-xl font-semibold tracking-tight">{t('importTautulli.leftOut')}</h2>
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          <Figure label={t('importTautulli.alreadyImported')} value={preview.alreadyImported} />
-          <Figure label={t('importTautulli.overlappingLive')} value={preview.overlappingLive} />
-          <Figure label={t('importTautulli.otherPlays')} value={preview.otherPlays} />
+          <ImportFigure label={t('importTautulli.alreadyImported')} value={preview.alreadyImported} />
+          <ImportFigure label={t('importTautulli.overlappingLive')} value={preview.overlappingLive} />
+          <ImportFigure label={t('importTautulli.otherPlays')} value={preview.otherPlays} />
         </dl>
       </section>
 
@@ -267,60 +225,46 @@ function PreviewStep({ preview, path, serverId, onBack, onStarted }: { preview: 
 function RunStep({ status, onAgain }: { status: TautulliImportStatus; onAgain: () => void }) {
   const { t } = useTranslation()
   const busy = isImportBusy(status)
-  const progress = status.total > 0 ? Math.round((status.processed / status.total) * 100) : 0
 
   const counters = [
-    ['importTautulli.playsAdded', status.playsAdded],
-    ['importTautulli.streamsAdded', status.streamsAdded],
-    ['importTautulli.playsExtended', status.playsExtended],
-    ['importTautulli.usersAdded', status.usersAdded],
-    ['importTautulli.itemsAdded', status.itemsAdded],
-    ['importTautulli.moviePlays', status.moviePlays],
-    ['importTautulli.withFilm', status.moviePlaysWithFilm],
-    ['importTautulli.withVersion', status.moviePlaysWithVersion],
-    ['importTautulli.plexAsked', status.plexAsked],
-    ['importTautulli.plexResolved', status.plexResolved],
-    ['importTautulli.alreadyImported', status.alreadyImported],
-    ['importTautulli.overlappingLive', status.overlappingLive],
-    ['importTautulli.otherPlays', status.otherSkipped],
+    [t('importTautulli.playsAdded'), status.playsAdded],
+    [t('importTautulli.streamsAdded'), status.streamsAdded],
+    [t('importTautulli.playsExtended'), status.playsExtended],
+    [t('importTautulli.usersAdded'), status.usersAdded],
+    [t('importTautulli.itemsAdded'), status.itemsAdded],
+    [t('importTautulli.moviePlays'), status.moviePlays],
+    [t('importTautulli.withFilm'), status.moviePlaysWithFilm],
+    [t('importTautulli.withVersion'), status.moviePlaysWithVersion],
+    [t('importTautulli.plexAsked'), status.plexAsked],
+    [t('importTautulli.plexResolved'), status.plexResolved],
+    [t('importTautulli.alreadyImported'), status.alreadyImported],
+    [t('importTautulli.overlappingLive'), status.overlappingLive],
+    [t('importTautulli.otherPlays'), status.otherSkipped],
   ] as const
 
   return (
     <div className="flex flex-col gap-6" data-testid="tautulli-run">
-      {busy && (
-        <section className="flex max-w-xl flex-col gap-2">
-          <h2 className="text-xl font-semibold tracking-tight">{t('importTautulli.progress')}</h2>
-          <Progress value={progress} />
-          <span className="text-xs text-muted-foreground">
-            {status.state === 'queued' ? t('importTautulli.queued') : t('importTautulli.processedOf', { processed: number.format(status.processed), total: number.format(status.total) })}
-            {status.current ? ` · ${status.current}` : ''}
-          </span>
-        </section>
-      )}
-
-      {!busy && (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-xl font-semibold tracking-tight">{status.state === 'failed' ? t('importTautulli.reportFailed') : t('importTautulli.report')}</h2>
-          {status.error && (
-            <Alert variant="destructive">
-              <AlertDescription>{status.error}</AlertDescription>
-            </Alert>
-          )}
-          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {counters.map(([key, value]) => (
-              <Figure key={key} label={t(key)} value={value} />
-            ))}
-          </dl>
-          {status.uploadDeleted && <p className="text-xs text-muted-foreground">{t('importTautulli.uploadDeleted')}</p>}
-          {status.state === 'completed' && (
-            <p className="text-sm">
-              <Link to="/playback/plays" className="underline underline-offset-4">
-                {t('importTautulli.seePlays')}
-              </Link>
-            </p>
-          )}
-        </section>
-      )}
+      <ImportReport
+        status={status}
+        counters={counters}
+        texts={{
+          progress: t('importTautulli.progress'),
+          queued: t('importTautulli.queued'),
+          processed: t('importTautulli.processedOf', { processed: importNumber.format(status.processed), total: importNumber.format(status.total) }),
+          report: t('importTautulli.report'),
+          reportFailed: t('importTautulli.reportFailed'),
+        }}
+        columns="lg:grid-cols-5"
+      >
+        {status.uploadDeleted && <p className="text-xs text-muted-foreground">{t('importTautulli.uploadDeleted')}</p>}
+        {status.state === 'completed' && (
+          <p className="text-sm">
+            <Link to="/playback/plays" className="underline underline-offset-4">
+              {t('importTautulli.seePlays')}
+            </Link>
+          </p>
+        )}
+      </ImportReport>
 
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-baseline gap-3">
