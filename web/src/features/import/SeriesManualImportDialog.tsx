@@ -21,10 +21,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { SeasonSelect } from '@/components/SeasonSelect'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { type BulkAction, SeriesBatchBar, SeriesSelectionBar, VersionSelect } from '@/features/import/SeriesImportBars'
+import { type BulkAction, SeriesBatchBar, SeriesSelectionBar } from '@/features/import/SeriesImportBars'
 import { mostCommon, moveToSeason, range, sharedSeries } from '@/features/import/seriesImportModel'
 import { TitlePicker } from '@/features/import/TitlePicker'
 import { titleFromFileName } from '@/features/import/titleGuess'
+import { VersionSelect } from '@/features/import/VersionSelect'
 import { ImportFileCell, ImportFooter, ImportListingState, ImportPathForm, ImportQualityCell, ImportReleaseGroupCell, type TransferChoice } from '@/features/import/manualImportParts'
 import { ReasonList } from '@/features/search/ReasonsDisplay'
 
@@ -316,7 +317,7 @@ export function SeriesManualImportDialog({ grabId, path: initialPath, seriesId, 
                         <TableCell className="align-top">
                           {ownVersion ? (
                             <span className="flex items-start gap-1">
-                              <VersionSelect show={show} value={selection.versionId} onChange={(versionId) => update(file.path, { versionId })} placeholder={t('manualImport.noVersion')} />
+                              <VersionSelect versions={show?.versions} value={selection.versionId} onChange={(versionId) => update(file.path, { versionId })} placeholder={t('manualImport.noVersion')} />
                               {selection.seriesId === batch.seriesId && selection.versionId !== batch.versionId && (
                                 <Button type="button" variant="ghost" size="icon" className="size-8" onClick={() => update(file.path, { versionId: batch.versionId })} aria-label={t('seriesImport.batch.reset')} title={t('seriesImport.batch.reset')}>
                                   <XIcon />

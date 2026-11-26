@@ -7,9 +7,9 @@ import { ApiError, manualImport, movies, type ManualImportFile, type ManualImpor
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { TitlePicker } from '@/features/import/TitlePicker'
+import { VersionSelect } from '@/features/import/VersionSelect'
 import { ImportFileCell, ImportFooter, ImportListingState, ImportPathForm, ImportQualityCell, ImportReleaseGroupCell, type TransferChoice } from '@/features/import/manualImportParts'
 import { ReasonList } from '@/features/search/ReasonsDisplay'
 import { approvedStyle } from '@/features/search/releaseTable'
@@ -171,23 +171,12 @@ export function ManualImportDialog({ grabId, path: initialPath, movieId: forMovi
                         )}
                       </TableCell>
                       <TableCell className="align-top">
-                        <Select
-                          value={selection.versionId === null ? '' : String(selection.versionId)}
-                          onValueChange={(v) => update(file.path, { versionId: Number(v), selected: true })}
-                          disabled={!movie}
-                        >
-                          <SelectTrigger className="min-w-32" size="sm">
-                            <SelectValue placeholder={t('manualImport.noVersion')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(movie?.versions ?? []).map((v) => (
-                              <SelectItem key={v.id} value={String(v.id)}>
-                                {v.name}
-                                {v.isDefault ? ` · ${t('versions.default').toLowerCase()}` : ''}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <VersionSelect
+                          versions={movie?.versions}
+                          value={selection.versionId}
+                          onChange={(versionId) => update(file.path, { versionId, selected: true })}
+                          placeholder={t('manualImport.noVersion')}
+                        />
                       </TableCell>
                       <TableCell className="min-w-[12rem] align-top whitespace-normal">
                         <Verdict file={file} movieId={selection.movieId} versionId={selection.versionId} />

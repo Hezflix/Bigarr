@@ -12,30 +12,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { renumber, type Renumbered } from '@/features/import/seriesImportModel'
 import { TitlePicker } from '@/features/import/TitlePicker'
-
-function VersionSelect({ show, value, onChange, placeholder, testId }: { show: SeriesSummary | undefined; value: number | null; onChange: (versionId: number) => void; placeholder: string; testId?: string }) {
-  const { t } = useTranslation()
-  return (
-    <Select value={value === null ? '' : String(value)} onValueChange={(v) => onChange(Number(v))} disabled={!show}>
-      <SelectTrigger size="sm" className="min-w-32" data-testid={testId}>
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent>
-        {(show?.versions ?? []).map((v) => (
-          <SelectItem key={v.id} value={String(v.id)}>
-            {v.name}
-            {v.isDefault ? ` · ${t('versions.default').toLowerCase()}` : ''}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-}
-
-export { VersionSelect }
+import { VersionSelect } from '@/features/import/VersionSelect'
 
 /** The series and version every file goes to; a row says otherwise only when it differs. */
 export function SeriesBatchBar({
@@ -60,7 +39,7 @@ export function SeriesBatchBar({
       <span className="text-muted-foreground">{t('seriesImport.series')}</span>
       <TitlePicker kind="series" items={library} value={seriesId} guess={{ title: guess.title, year: null, first: guess.first }} onChange={onSeries} testId="series-import-batch-series" />
       <span className="text-muted-foreground">{t('manualImport.version')}</span>
-      <VersionSelect show={library.find((s) => s.id === seriesId)} value={versionId} onChange={onVersion} placeholder={t('manualImport.noVersion')} testId="series-import-batch-version" />
+      <VersionSelect versions={library.find((s) => s.id === seriesId)?.versions} value={versionId} onChange={onVersion} placeholder={t('manualImport.noVersion')} testId="series-import-batch-version" />
       <span className="text-xs text-muted-foreground">{t('seriesImport.batch.note')}</span>
     </div>
   )
@@ -120,7 +99,7 @@ export function SeriesSelectionBar({
           testId="series-import-bulk-season"
           disabled={shared === null}
         />
-        <VersionSelect show={show} value={null} onChange={(versionId) => onAction({ kind: 'version', versionId })} placeholder={t('seriesImport.bulk.version')} testId="series-import-bulk-version" />
+        <VersionSelect versions={show?.versions} value={null} onChange={(versionId) => onAction({ kind: 'version', versionId })} placeholder={t('seriesImport.bulk.version')} testId="series-import-bulk-version" />
         <QualitySelect value={null} onChange={(qualityId) => onAction({ kind: 'quality', qualityId })} placeholder={t('seriesImport.bulk.quality')} size="sm" className="min-w-28" testId="series-import-bulk-quality" />
         <form
           className="flex items-center gap-1"
