@@ -3,11 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { profilesFor, quality, type RequestDefaults, requests, rootFolders, rootsOfKind } from '@/api/client'
+import { NullableIdSelect } from '@/components/IdSelect'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-
-const AUTO = '__auto__'
 
 type Key = keyof RequestDefaults
 
@@ -49,20 +47,8 @@ export function RequestDefaultsCard() {
     onError: (error) => toast.error(error.message),
   })
 
-  const field = (key: Key, label: string, options: { id: number; name: string }[]) => (
-    <Select value={draft[key] == null ? AUTO : String(draft[key])} onValueChange={(v) => setDraft({ ...draft, [key]: v === AUTO ? null : Number(v) })}>
-      <SelectTrigger className="w-full" aria-label={label} data-testid={`request-default-${key}`}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={AUTO}>{t('requests.defaults.auto')}</SelectItem>
-        {options.map((o) => (
-          <SelectItem key={o.id} value={String(o.id)}>
-            {o.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+  const field = (key: Key, label: string, options: { id: number; label: string }[]) => (
+    <NullableIdSelect value={draft[key]} onChange={(id) => setDraft({ ...draft, [key]: id })} noneLabel={t('requests.defaults.auto')} options={options} ariaLabel={label} testId={`request-default-${key}`} />
   )
 
   return (
@@ -74,8 +60,8 @@ export function RequestDefaultsCard() {
       <CardContent className="flex flex-col gap-4">
         {ROWS.map((row) => {
           const name = `${t(row.kind === 'movies' ? 'discover.movies' : 'discover.series')} · ${t(row.fourK ? 'discover.version.fourK' : 'discover.version.standard')}`
-          const profileOptions = (profiles.data ? profilesFor(row.kind)(profiles.data) : []).map((p) => ({ id: p.id, name: p.name }))
-          const rootOptions = (roots.data ? rootsOfKind(row.kind)(roots.data) : []).map((r) => ({ id: r.id, name: r.path }))
+          const profileOptions = (profiles.data ? profilesFor(row.kind)(profiles.data) : []).map((p) => ({ id: p.id, label: p.name }))
+          const rootOptions = (roots.data ? rootsOfKind(row.kind)(roots.data) : []).map((r) => ({ id: r.id, label: r.path }))
           return (
             <div key={row.profile} className="grid gap-2 sm:grid-cols-[10rem_1fr_1fr] sm:items-center">
               <span className="text-sm font-medium">{name}</span>
