@@ -4,6 +4,7 @@ import { Link, useParams } from '@tanstack/react-router'
 import { ArrowLeftIcon, PencilIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { playback, type Play, type PlaybackUserStats } from '@/api/client'
+import { UserAvatar } from '@/components/UserAvatar'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -15,7 +16,7 @@ import { DecisionShare } from './DecisionShare'
 import { formatPlayed, locationText } from './format'
 import { PlayDetailDialog } from './PlayDetailDialog'
 import { PlaysTable } from './PlaysTable'
-import { Avatar, EditUserDialog } from './UsersPage'
+import { EditUserDialog } from './UsersPage'
 
 const pageSize = 25
 
@@ -48,7 +49,7 @@ export function UserPage() {
         {t('playback.usersTitle')}
       </Link>
       <div className="flex flex-wrap items-center gap-3" data-testid="user-header">
-        <Avatar user={{ name: shown, thumbUrl: u.thumbUrl }} className="size-14 text-xl" />
+        <UserAvatar name={shown} url={u.thumbUrl} className="size-14 text-xl" />
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="flex flex-wrap items-center gap-2">
             <h1 className="truncate text-2xl font-semibold tracking-tight">{shown}</h1>

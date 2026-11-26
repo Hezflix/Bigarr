@@ -6,6 +6,7 @@ import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, PencilIcon, SearchIcon } f
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ApiError, playback, type PlaybackUser } from '@/api/client'
+import { UserAvatar } from '@/components/UserAvatar'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -73,7 +74,7 @@ export function UsersPage() {
                 <TableRow key={user.id} data-user={user.id}>
                   <TableCell>
                     <span className="flex items-center gap-2.5">
-                      <Avatar user={user} />
+                      <UserAvatar name={user.name} url={user.thumbUrl} />
                       <span className="flex min-w-0 flex-col leading-tight">
                         <Link to="/playback/users/$userId" params={{ userId: String(user.id) }} className="truncate font-medium underline-offset-4 hover:underline">
                           {user.name}
@@ -146,16 +147,6 @@ function Access({ user }: { user: PlaybackUser }) {
       </TooltipTrigger>
       <TooltipContent>{user.onServerCheckedAt ? t('playback.accessChecked', { date: formatDateTime(user.onServerCheckedAt) }) : t('playback.accessFromImport')}</TooltipContent>
     </Tooltip>
-  )
-}
-
-export function Avatar({ user, className }: { user: Pick<PlaybackUser, 'name' | 'thumbUrl'>; className?: string }) {
-  const [broken, setBroken] = useState(false)
-  if (user.thumbUrl && !broken) return <img src={user.thumbUrl} alt="" aria-hidden="true" className={cn('size-7 shrink-0 rounded-full object-cover', className)} onError={() => setBroken(true)} />
-  return (
-    <span className={cn('flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground uppercase', className)} aria-hidden="true">
-      {user.name.slice(0, 1)}
-    </span>
   )
 }
 
