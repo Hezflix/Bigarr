@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next'
 import { series as seriesApi, type SeriesSummary } from '@/api/client'
 import { episodeCode } from '@/lib/episodeCode'
 import { QualitySelect } from '@/components/QualitySelect'
+import { SeasonSelect } from '@/components/SeasonSelect'
+import { seasonOptions } from '@/components/seasonOptions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -102,26 +104,22 @@ export function SeriesSelectionBar({
   const [group, setGroup] = useState('')
   const show = library.find((s) => s.id === shared)
   const episodes = useQuery({ queryKey: ['episodes', shared], queryFn: () => seriesApi.episodes(shared as number), enabled: shared !== null })
-  const seasons = [...new Set((episodes.data ?? []).map((e) => e.seasonNumber))].sort((a, b) => a - b)
-  const seasonLabel = (n: number) => (n === 0 ? t('seriesDetail.specials') : t('seriesDetail.season', { number: n }))
 
   return (
     <div className="sticky top-0 z-10 grid gap-1 rounded-lg border bg-popover px-3 py-2 text-sm shadow-md" data-testid="series-import-selection">
       <div className="flex flex-wrap items-center gap-2">
         <Badge>{t('seriesImport.bulk.selected', { count: rows.length })}</Badge>
         <TitlePicker kind="series" items={library} value={null} guess={{ title: null, year: null, first: shared === null ? [] : [shared] }} onChange={(seriesId) => onAction({ kind: 'series', seriesId })} placeholder={t('seriesImport.bulk.series')} testId="series-import-bulk-series" />
-        <Select value="" onValueChange={(v) => onAction({ kind: 'season', season: Number(v) })} disabled={shared === null}>
-          <SelectTrigger size="sm" className="min-w-28" data-testid="series-import-bulk-season">
-            <SelectValue placeholder={t('seriesImport.bulk.season')} />
-          </SelectTrigger>
-          <SelectContent>
-            {seasons.map((n) => (
-              <SelectItem key={n} value={String(n)}>
-                {seasonLabel(n)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SeasonSelect
+          size="sm"
+          className="min-w-28"
+          seasons={(episodes.data ?? []).map((e) => e.seasonNumber)}
+          value={null}
+          onChange={(season) => onAction({ kind: 'season', season })}
+          placeholder={t('seriesImport.bulk.season')}
+          testId="series-import-bulk-season"
+          disabled={shared === null}
+        />
         <VersionSelect show={show} value={null} onChange={(versionId) => onAction({ kind: 'version', versionId })} placeholder={t('seriesImport.bulk.version')} testId="series-import-bulk-version" />
         <QualitySelect value={null} onChange={(qualityId) => onAction({ kind: 'quality', qualityId })} placeholder={t('seriesImport.bulk.quality')} size="sm" className="min-w-28" testId="series-import-bulk-quality" />
         <form
@@ -154,7 +152,7 @@ function RenumberButton({ rows, seriesId, hint, onApply }: { rows: BulkRow[]; se
   const [open, setOpen] = useState(false)
   const episodes = useQuery({ queryKey: ['episodes', seriesId], queryFn: () => seriesApi.episodes(seriesId as number), enabled: seriesId !== null })
   const all = episodes.data ?? []
-  const seasons = [...new Set(all.map((e) => e.seasonNumber))].sort((a, b) => a - b)
+  const seasons = seasonOptions(all.map((e) => e.seasonNumber))
   const [season, setSeason] = useState<number | null>(null)
   const [start, setStart] = useState(String(hint.start))
   const chosenSeason = season ?? (hint.season !== null && seasons.includes(hint.season) ? hint.season : null) ?? seasons.find((n) => n > 0) ?? seasons[0] ?? null
@@ -177,18 +175,7 @@ function RenumberButton({ rows, seriesId, hint, onApply }: { rows: BulkRow[]; se
           <Label htmlFor="renumber-season" className="text-muted-foreground">
             {t('seriesImport.pickSeason')}
           </Label>
-          <Select value={chosenSeason === null ? '' : String(chosenSeason)} onValueChange={(v) => setSeason(Number(v))}>
-            <SelectTrigger id="renumber-season" size="sm" className="min-w-24">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {seasons.map((n) => (
-                <SelectItem key={n} value={String(n)}>
-                  {n}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SeasonSelect id="renumber-season" size="sm" className="min-w-28" seasons={seasons} value={chosenSeason} onChange={setSeason} />
           <Label htmlFor="renumber-start" className="text-muted-foreground">
             {t('seriesImport.bulk.fromEpisode')}
           </Label>

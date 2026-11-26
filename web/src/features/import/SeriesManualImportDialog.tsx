@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SeasonSelect } from '@/components/SeasonSelect'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { type BulkAction, SeriesBatchBar, SeriesSelectionBar, VersionSelect } from '@/features/import/SeriesImportBars'
 import { mostCommon, moveToSeason, range, sharedSeries } from '@/features/import/seriesImportModel'
@@ -393,7 +393,6 @@ export function EpisodePicker({ seriesId, value, proposed, onChange, ordered = f
   // The season shown follows the episodes held (a renumbered row moves with them) until the user picks another.
   const [pickedSeason, setSeason] = useState<number | null>(null)
   const season = pickedSeason ?? (chosen[0] ? seasonOf(chosen[0]) : null) ?? proposed?.seasonNumber ?? null
-  const seasons = [...new Set(all.map(seasonOf))].sort((a, b) => a - b)
   const inSeason = all.filter((e) => seasonOf(e) === season).sort((a, b) => numberOf(a) - numberOf(b))
   const label = chosen.length === 0 ? t('seriesImport.pickEpisodes') : chosen.map(shown).join(', ')
 
@@ -408,18 +407,7 @@ export function EpisodePicker({ seriesId, value, proposed, onChange, ordered = f
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-2" align="start">
-        <Select value={season === null ? '' : String(season)} onValueChange={(v) => setSeason(Number(v))}>
-          <SelectTrigger size="sm" className="mb-2 w-full">
-            <SelectValue placeholder={t('seriesImport.pickSeason')} />
-          </SelectTrigger>
-          <SelectContent>
-            {seasons.map((n) => (
-              <SelectItem key={n} value={String(n)}>
-                {n === 0 ? t('seriesDetail.specials') : t('seriesDetail.season', { number: n })}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SeasonSelect size="sm" className="mb-2 w-full" seasons={all.map(seasonOf)} value={season} onChange={setSeason} placeholder={t('seriesImport.pickSeason')} />
         <div className="grid max-h-64 gap-1 overflow-y-auto">
           {inSeason.map((e) => (
             <label key={e.id} className="flex items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-muted">

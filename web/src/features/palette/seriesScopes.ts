@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next'
 import type { Episode } from '@/api/client'
+import { seasonOptions } from '@/components/seasonOptions'
 import { episodeCode } from '@/lib/episodeCode'
 import { formatDate } from '@/i18n'
 import type { PaletteParamOption } from './actions'
@@ -46,7 +47,7 @@ export function seriesScopeOptions(t: TFunction, episodes: Episode[], alt: boole
   const options: PaletteParamOption[] = [{ id: 'series', label: t('palette.param.wholeSeries'), group: scope, keywords: ['all', 'series'] }]
   const bySeason = seasonsOf(episodes, alt)
   // Specials last, as on the page.
-  const seasons = [...bySeason.keys()].sort((a, b) => (a === 0 ? 1 : b === 0 ? -1 : a - b))
+  const seasons = seasonOptions([...bySeason.keys()])
   for (const n of seasons) {
     const label = n === 0 ? t('palette.param.specials') : t('palette.param.season', { number: n })
     const inSeason = [...(bySeason.get(n) ?? [])].sort((a, b) => (numbers(a, alt)?.episode ?? 0) - (numbers(b, alt)?.episode ?? 0))

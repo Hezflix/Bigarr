@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SeasonSelect } from '@/components/SeasonSelect'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { EpisodePicker } from '@/features/import/SeriesManualImportDialog'
@@ -55,7 +55,6 @@ export function RenameSeriesDialog({ series: s, versionId, onClose, onDone }: { 
     },
     onError: (error) => toast.error(errorMessage(error, t('common.unexpectedError'))),
   })
-  const seasons = [...s.seasons].map((x) => x.seasonNumber).sort((a, b) => a - b)
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -66,19 +65,15 @@ export function RenameSeriesDialog({ series: s, versionId, onClose, onDone }: { 
         </DialogHeader>
         <div className="flex items-center gap-2">
           <Label htmlFor="rename-season">{t('seriesFiles.renameScope')}</Label>
-          <Select value={season === null ? 'all' : String(season)} onValueChange={(v) => setSeason(v === 'all' ? null : Number(v))}>
-            <SelectTrigger id="rename-season" size="sm" className="min-w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t('seriesFiles.allSeasons')}</SelectItem>
-              {seasons.map((n) => (
-                <SelectItem key={n} value={String(n)}>
-                  {n === 0 ? t('seriesDetail.specials') : t('seriesDetail.season', { number: n })}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SeasonSelect
+            id="rename-season"
+            size="sm"
+            className="min-w-40"
+            seasons={s.seasons.map((x) => x.seasonNumber)}
+            value={season}
+            onChange={setSeason}
+            all={{ label: t('seriesFiles.allSeasons'), onPick: () => setSeason(null) }}
+          />
         </div>
         {preview.isPending && <Skeleton className="h-24 w-full" />}
         {preview.data && changed.length === 0 && <p className="text-sm text-muted-foreground">{t('seriesFiles.nothingToRename')}</p>}

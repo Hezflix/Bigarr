@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { SeasonSelect } from '@/components/SeasonSelect'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ISSUE_TYPES, IssueTypeIcon } from './issueBits'
 
@@ -70,7 +71,6 @@ export function ReportIssueDialog({ mediaType, tmdbId, tvdbId, title, options, o
     },
   })
 
-  const seasonName = (n: number) => (n === 0 ? t('issues.dialog.specials') : t('issues.dialog.seasonName', { number: n }))
   const versionLabel = (v: IssueTitle['versions'][number]) =>
     v.fourK ? t('issues.dialog.versionFourK', { name: v.name }) : v.isDefault ? t('issues.dialog.versionStandard', { name: v.name }) : v.name
 
@@ -118,24 +118,17 @@ export function ReportIssueDialog({ mediaType, tmdbId, tvdbId, title, options, o
                 <div className="grid gap-2 sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]">
                   <div className="grid gap-1.5">
                     <Label htmlFor="issue-season">{t('issues.dialog.season')}</Label>
-                    <Select
-                      value={season === undefined ? undefined : String(season)}
-                      onValueChange={(v) => {
-                        setSeason(Number(v))
+                    <SeasonSelect
+                      id="issue-season"
+                      className="w-full"
+                      testId="issue-season"
+                      seasons={seasons.map((s) => s.seasonNumber)}
+                      value={season ?? null}
+                      onChange={(n) => {
+                        setSeason(n)
                         setEpisodeId(undefined)
                       }}
-                    >
-                      <SelectTrigger id="issue-season" className="w-full" data-testid="issue-season">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {seasons.map((s) => (
-                          <SelectItem key={s.seasonNumber} value={String(s.seasonNumber)}>
-                            {seasonName(s.seasonNumber)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    />
                   </div>
                   {scope === 'episode' && (
                     <div className="grid min-w-0 gap-1.5">

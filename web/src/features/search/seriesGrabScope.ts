@@ -1,4 +1,5 @@
 import type { Episode } from '@/api/client'
+import { seasonOptions } from '@/components/seasonOptions'
 
 /** What is searched: an episode, a season, or the whole series. */
 export type SeriesSearchScope = { kind: 'episode'; episodeId: number; label: string } | { kind: 'season'; season: number; label: string; orderSeason?: boolean } | { kind: 'series'; label: string }
@@ -27,6 +28,6 @@ export function prefillEpisodeIds(release: { episodes: { id: number }[] }, scope
 
 /** The picker's seasons, in order with the specials last, each with its episodes in order. */
 export function pickerSeasons(episodes: Episode[]): { season: number; episodes: Episode[] }[] {
-  const seasons = [...new Set(episodes.map((e) => e.seasonNumber))].sort((a, b) => (a === 0 ? 1 : b === 0 ? -1 : a - b))
+  const seasons = seasonOptions(episodes.map((e) => e.seasonNumber))
   return seasons.map((season) => ({ season, episodes: episodes.filter((e) => e.seasonNumber === season).sort((a, b) => a.episodeNumber - b.episodeNumber) }))
 }
