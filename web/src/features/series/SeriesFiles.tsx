@@ -4,8 +4,9 @@ import { cn } from 'cn'
 import { FileSearchIcon, InfoIcon, PencilIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, seriesFiles, type EpisodeFile, type Series, type UnmatchedEpisodeFile } from '@/api/client'
+import { seriesFiles, type EpisodeFile, type Series, type UnmatchedEpisodeFile } from '@/api/client'
 import { episodeCode } from '@/lib/episodeCode'
+import { errorMessage } from '@/lib/errorMessage'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,8 +29,6 @@ import { EpisodePicker } from '@/features/import/SeriesManualImportDialog'
 import { EditFileDialog } from '@/features/library/EditFileDialog'
 import { ProbeDialog } from '@/features/library/ProbeDialog'
 import { formatBytes, formatDate } from '@/i18n'
-
-const errorMessage = (error: unknown, fallback: string) => (error instanceof ApiError ? error.message : fallback)
 
 /**
  * Rename a version's episode files to the current templates (Sonarr's preview rename): every file, or one season; the

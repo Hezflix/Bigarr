@@ -5,8 +5,8 @@ import { ArrowRightIcon, TriangleAlertIcon, Undo2Icon } from 'lucide-react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { errorMessage } from '@/lib/errorMessage'
 import {
-  ApiError,
   series as seriesApi,
   seriesFiles,
   type EpisodeFile,
@@ -27,8 +27,6 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { EpisodePicker } from '@/features/import/SeriesManualImportDialog'
-
-const errorMessage = (error: unknown, fallback: string) => (error instanceof ApiError ? error.message : fallback)
 
 /** "TVDB", "TMDB (default)", or the episode group's name. */
 export function orderLabel(t: TFunction, choice: Pick<OrderChoice, 'ordering' | 'episodeGroupName' | 'episodeGroupType'>) {
