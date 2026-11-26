@@ -37,6 +37,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { IdSelect } from '@/components/IdSelect'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -751,34 +752,12 @@ function AddVersionDialog({ movie, onAdded }: { movie: Movie; onAdded: () => voi
 
             <div className="grid grid-cols-1 gap-2">
               <Label htmlFor="version-profile">{t('addMovie.qualityProfile')}</Label>
-              <Select value={String(profileId)} onValueChange={(value) => setProfileId(Number(value))}>
-                <SelectTrigger id="version-profile" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {profiles.data?.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <IdSelect id="version-profile" value={profileId} onChange={setProfileId} options={profiles.data?.map((p) => ({ id: p.id, label: p.name }))} />
             </div>
 
             <div className="grid grid-cols-1 gap-2">
               <Label htmlFor="version-root">{t('addMovie.rootFolder')}</Label>
-              <Select value={String(rootId)} onValueChange={(value) => setRootId(Number(value))}>
-                <SelectTrigger id="version-root" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {roots.data?.map((r) => (
-                    <SelectItem key={r.id} value={String(r.id)}>
-                      {r.path}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <IdSelect id="version-root" value={rootId} onChange={setRootId} options={roots.data?.map((r) => ({ id: r.id, label: r.path }))} />
             </div>
 
             <div className="grid grid-cols-1 gap-2">

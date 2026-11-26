@@ -4,7 +4,7 @@ import { profilesFor, quality, rootFolders, rootsOfKind, type RadarrImportPrevie
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { IdSelect } from '@/components/IdSelect'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 /**
@@ -88,19 +88,13 @@ export function ProfileMappingTable({
               <TableCell className="font-medium">{profile.name}</TableCell>
               <TableCell>{profile.movies}</TableCell>
               <TableCell>
-                <Select value={value[profile.id] !== undefined ? String(value[profile.id]) : ''} onValueChange={(next) => onChange({ ...value, [profile.id]: Number(next) })}>
-                  <SelectTrigger className="w-full" aria-label={t('importRadarr.bigarrProfile')}>
-                    <SelectValue placeholder={t('importRadarr.chooseProfile')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allowCreate && <SelectItem value="0">{t('importSonarr.createProfile')}</SelectItem>}
-                    {profiles.data?.map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <IdSelect
+                  value={value[profile.id]}
+                  onChange={(next) => onChange({ ...value, [profile.id]: next })}
+                  options={[...(allowCreate ? [{ id: 0, label: t('importSonarr.createProfile') }] : []), ...(profiles.data ?? []).map((p) => ({ id: p.id, label: p.name }))]}
+                  placeholder={t('importRadarr.chooseProfile')}
+                  ariaLabel={t('importRadarr.bigarrProfile')}
+                />
               </TableCell>
             </TableRow>
           ))}
@@ -155,18 +149,13 @@ export function RootFolderMappingTable({
               </TableCell>
               <TableCell>{root.movies}</TableCell>
               <TableCell>
-                <Select value={value[root.path] !== undefined ? String(value[root.path]) : ''} onValueChange={(next) => onChange({ ...value, [root.path]: Number(next) })}>
-                  <SelectTrigger className="w-full" aria-label={t('importRadarr.bigarrRootFolder')}>
-                    <SelectValue placeholder={t('importRadarr.chooseRootFolder')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {roots.data?.map((r) => (
-                      <SelectItem key={r.id} value={String(r.id)}>
-                        {r.path}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <IdSelect
+                  value={value[root.path]}
+                  onChange={(next) => onChange({ ...value, [root.path]: next })}
+                  options={roots.data?.map((r) => ({ id: r.id, label: r.path }))}
+                  placeholder={t('importRadarr.chooseRootFolder')}
+                  ariaLabel={t('importRadarr.bigarrRootFolder')}
+                />
               </TableCell>
             </TableRow>
           ))}

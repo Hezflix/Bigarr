@@ -8,7 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { IdSelect } from '@/components/IdSelect'
 
 /**
  * A series version's settings: name, quality profile, season folders, new seasons. Monitoring, constraints and the
@@ -55,18 +55,7 @@ export function EditSeriesVersionDialog({ series: s, version, onClose, onSaved }
           </div>
           <div className="grid gap-2">
             <Label htmlFor="edit-series-version-profile">{t('addMovie.qualityProfile')}</Label>
-            <Select value={String(profileId)} onValueChange={(value) => setProfileId(Number(value))}>
-              <SelectTrigger id="edit-series-version-profile" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {profiles.data?.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <IdSelect id="edit-series-version-profile" value={profileId} onChange={setProfileId} options={profiles.data?.map((p) => ({ id: p.id, label: p.name }))} />
           </div>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2">

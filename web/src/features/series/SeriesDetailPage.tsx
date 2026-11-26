@@ -46,6 +46,7 @@ import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMe
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { IdSelect } from '@/components/IdSelect'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -674,18 +675,7 @@ function AddVersionDialog({ series: s, open, onOpenChange, onDone }: { series: S
           </div>
           <div className="grid gap-2">
             <Label htmlFor="series-version-new-profile">{t('addMovie.qualityProfile')}</Label>
-            <Select value={profile ? String(profile.id) : undefined} onValueChange={(value) => setProfileId(Number(value))}>
-              <SelectTrigger id="series-version-new-profile" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {profiles.data?.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <IdSelect id="series-version-new-profile" value={profile?.id} onChange={setProfileId} options={profiles.data?.map((p) => ({ id: p.id, label: p.name }))} />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="series-version-new-monitor">{t('addSeries.monitor')}</Label>
@@ -747,18 +737,7 @@ function DeleteVersionDialog({ series: s, version, open, onOpenChange, onDone }:
         {version.isDefault && others.length > 0 && (
           <div className="grid gap-2">
             <Label htmlFor="series-version-successor">{t('seriesDetail.promoteTo')}</Label>
-            <Select value={promoteTo ? String(promoteTo) : undefined} onValueChange={(value) => setSuccessor(Number(value))}>
-              <SelectTrigger id="series-version-successor" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {others.map((v) => (
-                  <SelectItem key={v.id} value={String(v.id)}>
-                    {v.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <IdSelect id="series-version-successor" value={promoteTo} onChange={setSuccessor} options={others.map((v) => ({ id: v.id, label: v.name }))} />
           </div>
         )}
         <DeleteFilesOption checked={deleteFiles} onChange={setDeleteFiles} hint={t('seriesFiles.deleteVersionFilesHint')} />
