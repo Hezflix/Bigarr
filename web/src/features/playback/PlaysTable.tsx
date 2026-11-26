@@ -1,8 +1,9 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowDownIcon, ArrowUpIcon, CheckIcon, LinkIcon } from 'lucide-react'
+import { CheckIcon, LinkIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Play, PlaybackItemRef, PlaySortKey } from '@/api/client'
+import { SortableHead } from '@/components/SortableHead'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -36,7 +37,7 @@ export function PlaysTable({
   const [linking, setLinking] = useState<PlaybackItemRef | null>(null)
   const head = (key: PlaySortKey, label: string, className?: string) =>
     sort && onSort ? (
-      <SortableHead column={key} sort={sort} onSort={onSort} className={className}>
+      <SortableHead column={key} sort={sort} onSort={onSort} className={className} testIdPrefix="sort">
         {label}
       </SortableHead>
     ) : (
@@ -130,17 +131,5 @@ export function PlaysTable({
       </Table>
       <LinkFilmDialog item={linking} onClose={() => setLinking(null)} />
     </div>
-  )
-}
-
-function SortableHead({ column, sort, onSort, className, children }: { column: PlaySortKey; sort: PlaySort; onSort: (key: PlaySortKey) => void; className?: string; children: ReactNode }) {
-  const active = sort.key === column
-  return (
-    <TableHead className={className} aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
-      <button type="button" className={`inline-flex items-center gap-1 hover:text-foreground ${className?.includes('text-right') ? 'flex-row-reverse' : ''}`} onClick={() => onSort(column)} data-testid={`sort-${column}`}>
-        {children}
-        {active && (sort.direction === 'asc' ? <ArrowUpIcon className="size-3" /> : <ArrowDownIcon className="size-3" />)}
-      </button>
-    </TableHead>
   )
 }

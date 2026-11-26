@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { SortableHead as SharedSortableHead } from '@/components/SortableHead'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { OneShotGrabDialog } from '@/features/search/OneShotGrabDialog'
@@ -30,7 +31,6 @@ import {
   type PendingGrab,
   ReleaseTitleCell,
   SearchSkeleton,
-  SortableHead as SharedSortableHead,
   sortReleases,
   useReleaseSort,
   VerdictIcon,
@@ -42,7 +42,7 @@ import { formatAge, formatDateTime } from '@/i18n'
 
 type SortKey = keyof typeof commonComparators
 
-const SortableHead = (props: Omit<Parameters<typeof SharedSortableHead<SortKey>>[0], 'testIdPrefix'>) => <SharedSortableHead testIdPrefix="sort" {...props} />
+const SortableHead = (props: Omit<Parameters<typeof SharedSortableHead<SortKey | 'fit'>>[0], 'testIdPrefix'>) => <SharedSortableHead testIdPrefix="sort" {...props} />
 
 /** The film is acceptable for at least one version, and the release is the film. */
 function fitsAny(release: Release) {

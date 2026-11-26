@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { cn } from 'cn'
-import { ArrowDownIcon, ArrowUpIcon, CheckIcon, ChevronDownIcon, ClockIcon, DownloadIcon, ExternalLinkIcon, XIcon } from 'lucide-react'
+import { CheckIcon, ChevronDownIcon, ClockIcon, DownloadIcon, ExternalLinkIcon, XIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { GrabRequest, Release, VersionDecision } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -18,7 +18,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
-import { TableCell, TableHead } from '@/components/ui/table'
+import { TableCell } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ReasonText } from '@/features/search/ReasonsDisplay'
 import { formatBytes } from '@/i18n'
@@ -79,32 +79,6 @@ export function useReleaseSort<K extends string>() {
   const onSort = (key: K | 'fit') =>
     setSort((current) => (key === 'fit' ? { key, direction: 'asc' } : current.key === key ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'asc' }))
   return [sort, onSort] as const
-}
-
-export function SortableHead<K extends string>({
-  column,
-  sort,
-  onSort,
-  title,
-  testIdPrefix,
-  children,
-}: {
-  column: K | 'fit'
-  sort: Sort<K>
-  onSort: (key: K | 'fit') => void
-  title?: string
-  testIdPrefix: string
-  children: ReactNode
-}) {
-  const active = sort.key === column
-  return (
-    <TableHead aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
-      <button type="button" className="flex items-center gap-1 text-left hover:text-foreground" onClick={() => onSort(column)} title={title} data-testid={`${testIdPrefix}-${column}`}>
-        {children}
-        {active && (sort.direction === 'asc' ? <ArrowUpIcon className="size-3" /> : <ArrowDownIcon className="size-3" />)}
-      </button>
-    </TableHead>
-  )
 }
 
 /** ✓ accepted, clock when only temporary reasons stand in the way, ✗ otherwise. */
