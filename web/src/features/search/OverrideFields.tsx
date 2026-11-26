@@ -2,12 +2,12 @@ import { useQuery } from '@tanstack/react-query'
 import { CheckIcon, ChevronsUpDownIcon, XIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { quality } from '@/api/client'
+import { QualitySelect } from '@/components/QualitySelect'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 /** The placeholders and the clear button's text, when the fields describe a file on disk rather than a release title. */
 export type OverrideTexts = { qualityPlaceholder: string; languagesPlaceholder: string; clearLanguages: string }
@@ -41,10 +41,7 @@ export function OverrideFields({
     languagesPlaceholder: t('grabOverride.languagesPlaceholder'),
     clearLanguages: t('grabOverride.clearLanguages'),
   }
-  const definitions = useQuery({ queryKey: ['qualityDefinitions'], queryFn: quality.definitions, staleTime: 5 * 60_000 })
   const languageList = useQuery({ queryKey: ['languages'], queryFn: quality.languages, staleTime: Number.POSITIVE_INFINITY })
-  // Unknown is the parser's placeholder: it cannot be chosen.
-  const qualities = (definitions.data ?? []).filter((q) => q.id !== 0)
   const toggle = (name: string) => onLanguages(languages.includes(name) ? languages.filter((l) => l !== name) : [...languages, name])
 
   return (
@@ -54,18 +51,15 @@ export function OverrideFields({
           {t('grabOverride.quality')}
           {parsedQuality !== undefined && <span className="font-normal text-muted-foreground">{t('grabOverride.parsed', { value: parsedQuality })}</span>}
         </Label>
-        <Select value={qualityId > 0 ? String(qualityId) : undefined} onValueChange={(v) => onQuality(Number(v))}>
-          <SelectTrigger id={`${idPrefix}-quality`} className="w-full" data-testid={`${idPrefix}-quality`}>
-            <SelectValue placeholder={words.qualityPlaceholder} />
-          </SelectTrigger>
-          <SelectContent className="max-h-72">
-            {qualities.map((q) => (
-              <SelectItem key={q.id} value={String(q.id)}>
-                {q.title || q.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <QualitySelect
+          id={`${idPrefix}-quality`}
+          value={qualityId}
+          onChange={onQuality}
+          placeholder={words.qualityPlaceholder}
+          className="w-full"
+          contentClassName="max-h-72"
+          testId={`${idPrefix}-quality`}
+        />
       </div>
       <div className="grid content-start gap-2">
         <Label htmlFor={`${idPrefix}-languages`}>

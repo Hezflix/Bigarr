@@ -2,7 +2,8 @@ import type { FormEvent, ReactNode } from 'react'
 import { cn } from 'cn'
 import { useTranslation } from 'react-i18next'
 import { PathPicker } from '@/components/PathPicker'
-import { ApiError, type ManualImportExtra, type QualityDefinition, type TransferMode } from '@/api/client'
+import { QualitySelect } from '@/components/QualitySelect'
+import { ApiError, type ManualImportExtra, type TransferMode } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -135,23 +136,11 @@ export function ImportFileCell({
   )
 }
 
-/** The server lists the qualities worst first; the pick reads best first, where a file's quality usually is. */
-export function ImportQualityCell({ value, onChange, qualities }: { value: number; onChange: (qualityId: number) => void; qualities: QualityDefinition[] }) {
-  const bestFirst = [...qualities].reverse()
+/** The file's quality, Unknown included: the import keeps what it detected until the user picks another. */
+export function ImportQualityCell({ value, onChange }: { value: number; onChange: (qualityId: number) => void }) {
   return (
     <TableCell className="align-top">
-      <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
-        <SelectTrigger className="min-w-36" size="sm">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {bestFirst.map((q) => (
-            <SelectItem key={q.id} value={String(q.id)}>
-              {q.title ?? q.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <QualitySelect value={value} onChange={onChange} allowUnknown size="sm" className="min-w-36" />
     </TableCell>
   )
 }
