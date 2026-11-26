@@ -120,9 +120,14 @@ public sealed class QualityProfileService(BigarrDbContext db, ILogger<QualityPro
         return Result<bool>.Ok(true);
     }
 
+    /// <summary>
+    /// Every quality, worst first, by the parser's weight: the order of the profile template, and the one Radarr ranks
+    /// by. Resolution and source cannot give it: Bluray-1080p and Remux-1080p share both. Qualities of one weight (the
+    /// WEB-DL and WEBRip pair of each resolution) follow their id.
+    /// </summary>
     public async Task<List<QualityDefinitionResponse>> ListDefinitionsAsync(CancellationToken ct) =>
         (await db.QualityDefinitions.AsNoTracking().ToListAsync(ct))
-        .OrderBy(q => q.Resolution).ThenBy(q => q.Source)
+        .OrderBy(q => Search.ReleaseRanking.WeightOf(q.Id)).ThenBy(q => q.Id)
         .Select(ToResponse)
         .ToList();
 

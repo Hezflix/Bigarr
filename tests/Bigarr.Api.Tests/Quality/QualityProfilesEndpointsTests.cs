@@ -36,6 +36,28 @@ public sealed class QualityProfilesEndpointsTests(BigarrApiFactory factory) : IC
     }
 
     [Fact]
+    public async Task Definitions_are_listed_worst_first_by_quality_weight()
+    {
+        var client = await QualityTestClient.LoginAsync(factory);
+
+        var definitions = (await client.GetFromJsonAsync<List<QualityDefinitionResponse>>("/api/v1/qualitydefinitions", Json))!;
+        var ids = definitions.Select(d => d.Id).ToList();
+
+        // The whole list follows the weights the profile template uses, the id breaking a tie.
+        Assert.Equal(ParserQuality.DefaultQualityDefinitions.OrderBy(d => d.Weight).ThenBy(d => d.Quality.Id).Select(d => d.Quality.Id), ids);
+
+        // Spelled out for 1080p, where resolution and source cannot tell the qualities apart.
+        int At(ParserQuality quality) => ids.IndexOf(quality.Id);
+        Assert.Equal(0, At(ParserQuality.Unknown));
+        Assert.True(At(ParserQuality.HDTV1080p) < At(ParserQuality.WEBDL1080p));
+        Assert.Equal(At(ParserQuality.WEBDL1080p) + 1, At(ParserQuality.WEBRip1080p));
+        Assert.True(At(ParserQuality.WEBRip1080p) < At(ParserQuality.Bluray1080p));
+        Assert.Equal(At(ParserQuality.Bluray1080p) + 1, At(ParserQuality.Remux1080p));
+        Assert.True(At(ParserQuality.Remux1080p) < At(ParserQuality.HDTV2160p));
+        Assert.True(At(ParserQuality.Remux2160p) < At(ParserQuality.BRDISK));
+    }
+
+    [Fact]
     public async Task Profiles_are_created_from_the_schema_validated_updated_and_deleted()
     {
         var client = await QualityTestClient.LoginAsync(factory);
