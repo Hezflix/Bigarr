@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { ApiError, auth, profilesFor, quality, rootFolders, rootsOfKind, series as seriesApi, tags } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { qualityNamesBestFirst } from '@/components/qualityOptions'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { BulkResultsDialog, toastBulk, type BulkReport } from '@/features/library/BulkResults'
@@ -54,7 +55,14 @@ export function SeriesLibraryPage() {
   const items = useMemo(() => (library.data ?? []).map(toRow), [library.data])
   const names = useMemo(() => versionNames(items), [items])
   const versionList = useMemo(() => names.map((n) => n.name), [names])
-  const qualities = useMemo(() => [...new Set(items.flatMap((s) => s.versions.flatMap((v) => v.qualities)))].sort(), [items])
+  const qualities = useMemo(
+    () =>
+      qualityNamesBestFirst(
+        items.flatMap((s) => s.versions.flatMap((v) => v.qualities)),
+        definitions.data ?? [],
+      ),
+    [items, definitions.data],
+  )
   const networks = useMemo(() => [...new Set(items.map((s) => s.network ?? ''))].sort((a, b) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b))), [items])
   const rank = useMemo(() => new Map((definitions.data ?? []).map((d, i) => [d.name, i])), [definitions.data])
   const lookups = useMemo<SeriesLookups>(
