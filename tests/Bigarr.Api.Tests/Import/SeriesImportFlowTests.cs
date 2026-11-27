@@ -337,6 +337,48 @@ public sealed class SeriesImportFlowTests(SeriesApiFactory factory) : IClassFixt
     }
 
     [Fact]
+    public async Task A_manual_import_onto_the_path_of_the_episode_file_replaces_it()
+    {
+        var client = await ClientAsync(factory);
+        await ConfigureAsync(client, _bin);
+        var series = await SeriesSetup.AddAsync(client, SeriesSearchTests.BreakingBad);
+        var version = series.Versions.Single();
+        var e02 = (await SeriesSetup.EpisodeAsync(client, series.Id, 5, 2)).Id;
+        var first = Directory.CreateTempSubdirectory("bigarr-series-manual-").FullName;
+        var second = Directory.CreateTempSubdirectory("bigarr-series-manual-").FullName;
+        try
+        {
+            async Task<SeriesManualImportResultResponse> ImportAsync(string directory, int size)
+            {
+                var path = Path.Combine(directory, "Breaking.Bad.S05E02.1080p.BluRay.x264-DEMAND.mkv");
+                await File.WriteAllBytesAsync(path, new byte[size]);
+                var response = await client.PostAsJsonAsync("/api/v1/manualimport/series", new SeriesManualImportRequest([new SeriesManualImportItemRequest(path, version.Id, [e02])], TransferMode.Copy), Json);
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                return Assert.Single((await response.Content.ReadFromJsonAsync<List<SeriesManualImportResultResponse>>(Json))!);
+            }
+
+            var imported = await ImportAsync(first, 1024);
+            Assert.True(imported.Imported, imported.Reason);
+
+            // The same release again: its name lands on the file in place, whose row leaves as the new one comes in.
+            var replaced = await ImportAsync(second, 2048);
+            Assert.True(replaced.Imported, replaced.Reason);
+            Assert.Equal(imported.DestinationPath, replaced.DestinationPath);
+            Assert.NotEqual(imported.EpisodeFileId, replaced.EpisodeFileId);
+
+            var files = await WaitForFilesAsync(client, series.Id, f => f.Any(x => x.Episodes == "S05E02"));
+            var file = Assert.Single(files, f => f.Episodes == "S05E02");
+            Assert.Equal(replaced.EpisodeFileId, file.Id);
+            Assert.Equal(2048, new FileInfo(replaced.DestinationPath!).Length);
+        }
+        finally
+        {
+            TryDelete(first);
+            TryDelete(second);
+        }
+    }
+
+    [Fact]
     public async Task Series_naming_is_validated_and_previewed_and_new_versions_use_the_folder_template()
     {
         var client = await ClientAsync(factory);
