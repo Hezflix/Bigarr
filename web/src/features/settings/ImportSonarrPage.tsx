@@ -50,7 +50,7 @@ export function ImportSonarrPage() {
 
   return (
     <>
-      <h1 className="text-2xl font-semibold tracking-tight">{t('importSonarr.title')}</h1>
+      <h2 className="text-xl font-semibold tracking-tight">{t('importSonarr.title')}</h2>
       <p className="max-w-3xl text-sm text-muted-foreground">{t('importSonarr.intro')}</p>
 
       {(step === 'connect' || step === null) && (

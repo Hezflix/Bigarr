@@ -238,8 +238,8 @@ export function RadarrFollowPage() {
               <TableRow>
                 <TableCell colSpan={6} className="whitespace-normal text-muted-foreground">
                   {t('radarrFollow.empty')}{' '}
-                  <Link to="/settings/import-radarr" className="underline underline-offset-4">
-                    {t('nav.settingsImportRadarr')}
+                  <Link to="/settings/import" className="underline underline-offset-4">
+                    {t('importRadarr.title')}
                   </Link>
                 </TableCell>
               </TableRow>

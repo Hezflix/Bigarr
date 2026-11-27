@@ -12,6 +12,7 @@ import './index.css'
 
 import { validateIssuesSearch } from './features/issues/issuesSearch'
 import { validateRequestsSearch } from './features/requests/requestsSearch'
+import { importSources, isImportSource, type ImportSource } from './features/settings/importTabs'
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
 })
@@ -231,11 +232,24 @@ const discoverSettingsRoute = createRoute({ getParentRoute: () => appRoute, path
 const usersRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/users', component: lazyRouteComponent(() => import('./features/settings/UsersPage'), 'UsersPage') })
 const securityRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/security', component: lazyRouteComponent(() => import('./features/settings/SecurityPage'), 'SecurityPage') })
 const mediaServersRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/mediaservers', component: lazyRouteComponent(() => import('./features/settings/MediaServersPage'), 'MediaServersPage') })
-const importRadarrRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/import-radarr', component: lazyRouteComponent(() => import('./features/settings/ImportRadarrPage'), 'ImportRadarrPage') })
-const importTautulliRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/import-tautulli', component: lazyRouteComponent(() => import('./features/settings/ImportTautulliPage'), 'ImportTautulliPage') })
-const importSeerrRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/import-seerr', component: lazyRouteComponent(() => import('./features/settings/ImportSeerrPage'), 'ImportSeerrPage') })
+const importRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/settings/import',
+  // `?tab=sonarr`: the source to open on (Radarr when absent). The page keeps it in the URL as you switch tabs.
+  validateSearch: (search: Record<string, unknown>): { tab?: ImportSource } => ({ tab: isImportSource(search.tab) ? search.tab : undefined }),
+  component: lazyRouteComponent(() => import('./features/settings/ImportPage'), 'ImportPage'),
+})
+// The four pages the Import tabs replaced: old links and bookmarks land on the right tab.
+const oldImportRoutes = importSources.map((source) =>
+  createRoute({
+    getParentRoute: () => appRoute,
+    path: `/settings/import-${source}`,
+    beforeLoad: () => {
+      throw redirect({ to: '/settings/import', search: source === 'radarr' ? {} : { tab: source }, replace: true })
+    },
+  }),
+)
 const followedRadarrsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/followed-radarrs', component: lazyRouteComponent(() => import('./features/settings/RadarrFollowPage'), 'RadarrFollowPage') })
-const importSonarrRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/import-sonarr', component: lazyRouteComponent(() => import('./features/settings/ImportSonarrPage'), 'ImportSonarrPage') })
 const followedSonarrsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings/followed-sonarrs', component: lazyRouteComponent(() => import('./features/settings/SonarrFollowPage'), 'SonarrFollowPage') })
 
 const router = createRouter({
@@ -283,11 +297,9 @@ const router = createRouter({
       usersRoute,
       discoverSettingsRoute,
       mediaServersRoute,
-      importRadarrRoute,
-      importTautulliRoute,
-      importSeerrRoute,
+      importRoute,
+      ...oldImportRoutes,
       followedRadarrsRoute,
-      importSonarrRoute,
       followedSonarrsRoute,
       qualitySettingsRoute,
       customFormatsRoute,

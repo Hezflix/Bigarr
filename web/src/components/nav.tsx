@@ -68,11 +68,8 @@ export type NavPath =
   | '/settings/security'
   | '/settings/users'
   | '/settings/mediaservers'
-  | '/settings/import-radarr'
-  | '/settings/import-tautulli'
-  | '/settings/import-seerr'
+  | '/settings/import'
   | '/settings/followed-radarrs'
-  | '/settings/import-sonarr'
   | '/settings/followed-sonarrs'
   | '/system/status'
 
@@ -165,11 +162,8 @@ export function useNavSections(): NavSection[] {
         { to: '/settings/users', label: t('nav.settingsUsers'), icon: UsersIcon },
         { to: '/settings/discover', label: t('nav.settingsDiscover'), icon: CompassIcon },
         { to: '/settings/security', label: t('nav.settingsSecurity'), icon: ShieldCheckIcon },
-        { to: '/settings/import-radarr', label: t('nav.settingsImportRadarr'), icon: ImportIcon },
-        { to: '/settings/import-tautulli', label: t('nav.settingsImportTautulli'), icon: HistoryIcon },
-        { to: '/settings/import-seerr', label: t('nav.settingsImportSeerr'), icon: InboxIcon },
+        { to: '/settings/import', label: t('nav.settingsImport'), icon: ImportIcon },
         ...(radarrs ? [{ to: '/settings/followed-radarrs' as const, label: t('nav.settingsFollowedRadarrs'), icon: GitCompareArrowsIcon }] : []),
-        { to: '/settings/import-sonarr', label: t('nav.settingsImportSonarr'), icon: ImportIcon },
         ...(sonarrs ? [{ to: '/settings/followed-sonarrs' as const, label: t('nav.settingsFollowedSonarrs'), icon: GitCompareArrowsIcon }] : []),
       ],
     },

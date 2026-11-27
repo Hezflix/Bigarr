@@ -34,7 +34,7 @@ export function ImportSeerrPage() {
 
   return (
     <>
-      <h1 className="text-2xl font-semibold tracking-tight">{t('importSeerr.title')}</h1>
+      <h2 className="text-xl font-semibold tracking-tight">{t('importSeerr.title')}</h2>
       <p className="max-w-3xl text-sm text-muted-foreground">{t('importSeerr.intro')}</p>
 
       {(step === 'source' || step === null) && (
