@@ -1,6 +1,8 @@
+using System.Linq.Expressions;
 using Bigarr.Api.Infrastructure.Auth;
 using Bigarr.Api.Infrastructure.Persistence;
 using Bigarr.Domain.History;
+using Bigarr.Domain.Tv;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
@@ -38,9 +40,15 @@ public static class HistoryEndpoints
 
         // eventType is matched by name, case-insensitive: the front sends camelCase like the JSON it reads.
         // episodeId: every line about the episode, whatever the version (its targets), like a film's history.
+        // seasonNumber (with seriesId): every line about the episodes of that season (TVDB numbering), whatever the version.
         group.MapGet("/", async Task<Results<Ok<List<HistoryEventResponse>>, ValidationProblem>> (
-            int? movieId, int? seriesId, int? versionId, string? eventType, int? limit, HistoryService history, BigarrDbContext db, CancellationToken ct, int? episodeId = null) =>
+            int? movieId, int? seriesId, int? versionId, string? eventType, int? limit, HistoryService history, BigarrDbContext db, CancellationToken ct, int? episodeId = null, int? seasonNumber = null) =>
         {
+            if (seasonNumber is not null && seriesId is null)
+            {
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["seasonNumber"] = ["A season is read with its series (seriesId)."] });
+            }
+
             HistoryEventType? type = null;
             if (!string.IsNullOrWhiteSpace(eventType))
             {
@@ -63,7 +71,13 @@ public static class HistoryEndpoints
             }
 
             var take = Math.Clamp(limit ?? DefaultLimit, 1, MaxLimit);
-            var events = await history.ListAsync(new HistoryFilter(movieId, null, versionId, type is null ? null : [type.Value], targets, SeriesId: seriesId), take, ct);
+            Expression<Func<EpisodeTarget, bool>>? season = null;
+            if (seasonNumber is { } number)
+            {
+                season = t => t.Episode.SeasonNumber == number;
+            }
+
+            var events = await history.ListAsync(new HistoryFilter(movieId, null, versionId, type is null ? null : [type.Value], targets, SeriesId: seriesId, TargetEpisodes: season), take, ct);
             return TypedResults.Ok(events.Select(ToResponse).ToList());
         });
 

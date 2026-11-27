@@ -35,8 +35,11 @@ const headline: Record<HistoryEventType, string[]> = {
   blocklisted: ['reason'],
 }
 
-/** The journal: what happened to which version, and why a file is there. A grab opens its release's page on the indexer. */
-export function HistoryTable({ events, showMovie = true }: { events: HistoryEvent[]; showMovie?: boolean }) {
+/**
+ * The journal: what happened to which version, and why a file is there. A grab opens its release's page on the indexer.
+ * `showEpisode`: a column with the episode of each line (a season's history), from its `episode` data.
+ */
+export function HistoryTable({ events, showMovie = true, showEpisode = false }: { events: HistoryEvent[]; showMovie?: boolean; showEpisode?: boolean }) {
   const { t } = useTranslation()
 
   return (
@@ -47,6 +50,7 @@ export function HistoryTable({ events, showMovie = true }: { events: HistoryEven
             <TableHead>{t('history.date')}</TableHead>
             <TableHead>{t('history.event')}</TableHead>
             {showMovie && <TableHead>{t('history.movie')}</TableHead>}
+            {showEpisode && <TableHead>{t('history.episode')}</TableHead>}
             <TableHead>{t('history.version')}</TableHead>
             <TableHead>{t('history.source')}</TableHead>
             <TableHead>{t('history.details')}</TableHead>
@@ -87,6 +91,11 @@ export function HistoryTable({ events, showMovie = true }: { events: HistoryEven
                     ) : (
                       <span className="text-muted-foreground">{event.movieTitle ?? t('common.none')}</span>
                     )}
+                  </TableCell>
+                )}
+                {showEpisode && (
+                  <TableCell className="max-w-[10rem] align-top text-xs whitespace-normal tabular-nums" data-testid="history-episode">
+                    {event.data.episode ?? t('common.none')}
                   </TableCell>
                 )}
                 <TableCell className="align-top">

@@ -956,10 +956,12 @@ export type HistoryEventType = Schemas['HistoryEventType']
 export type HistoryEvent = Schemas['HistoryEventResponse']
 
 export const history = {
-  /** `episodeId`: every line about the episode, whatever the version. */
-  list: (options: { movieId?: number; episodeId?: number; versionId?: number; eventType?: HistoryEventType; limit?: number } = {}) => {
+  /** `episodeId`: every line about the episode, whatever the version. `seasonNumber` (with `seriesId`): the same for a season. */
+  list: (options: { movieId?: number; seriesId?: number; seasonNumber?: number; episodeId?: number; versionId?: number; eventType?: HistoryEventType; limit?: number } = {}) => {
     const params = new URLSearchParams()
     if (options.movieId) params.set('movieId', String(options.movieId))
+    if (options.seriesId) params.set('seriesId', String(options.seriesId))
+    if (options.seasonNumber !== undefined) params.set('seasonNumber', String(options.seasonNumber))
     if (options.episodeId) params.set('episodeId', String(options.episodeId))
     if (options.versionId) params.set('versionId', String(options.versionId))
     if (options.eventType) params.set('eventType', options.eventType)

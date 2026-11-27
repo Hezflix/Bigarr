@@ -53,6 +53,7 @@ import { formatBytes, formatDate } from '@/i18n'
 import { EpisodeDetailDialog } from './EpisodeDetailDialog'
 import { EpisodeProgress } from './EpisodeProgress'
 import { SeasonAlignButton, SeasonAlignDialog } from './SeasonAlignDialog'
+import { SeasonHistoryButton } from './SeasonHistoryDialog'
 import { orderSeason } from './orderSeason'
 import { audioLabel, type EpisodeColumn, episodeColumns, type EpisodeStatus, episodeStatus, fileFlags, fileLanguages } from './episodeColumns'
 import { defaultEpisodeSort, type EpisodeSort, type EpisodeSortKey, nextEpisodeSort, sortEpisodes, sortStillShown } from './episodeSort'
@@ -919,6 +920,8 @@ function SeasonBlock({ series: s, season, version, episodes, files, loading, sho
         {alignable && state && (
           <SeasonAlignButton group={state.seasonGroup ?? null} count={state.offGroupEpisodes} season={name} kept={state.keepAsIs} onClick={() => setAligning(true)} />
         )}
+        {/* By TVDB numbers: a season of another order gathers episodes from several, so it has no history of its own. */}
+        {!synthetic && !outside ? <SeasonHistoryButton seriesId={s.id} seasonNumber={season.seasonNumber} seasonName={name} /> : <span className="size-7" aria-hidden="true" />}
         {!outside ? (
           <InteractiveSearchButton iconOnly target={name} onClick={() => onSearch({ kind: 'season', season: season.seasonNumber, label: name, orderSeason: synthetic })} data-testid="season-search" />
         ) : (
