@@ -3,7 +3,6 @@ import { ClapperboardIcon, TvIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { FilmFileStep, SeriesFilmFileInfo, SeriesFilmReviewRow } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { formatBytes, formatDate } from '@/i18n'
 import { cn } from '@/lib/utils'
 import { channelLayout } from './episodeColumns'
@@ -29,40 +28,41 @@ export function fileSummary(file: SeriesFilmFileInfo): string {
   return [file.quality, resolution(file), file.videoCodec?.toUpperCase(), file.dynamicRange, formatBytes(file.size)].filter(Boolean).join(' · ')
 }
 
-/** The table's files column: one line per side, and the choice when both have a file. */
+/** The table's files column: one line per side. When both have a file, each line is a radio: the one kept. */
 export function FilesCell({ row, keep, onKeep }: { row: SeriesFilmReviewRow; keep: Keep; onKeep: (keep: Keep) => void }) {
   const { t } = useTranslation()
   const special = row.specialFiles[0]
+  const specialText = special
+    ? `${special.isFilmLink ? t('specialsFilms.facts.isFilmLink') : fileSummary(special)}${row.specialFiles.length > 1 ? ` ${t('specialsFilms.moreVersions', { count: row.specialFiles.length - 1 })}` : ''}`
+    : t('specialsFilms.noFile')
+  const filmText = row.filmFile ? fileSummary(row.filmFile) : t('specialsFilms.noFile')
+  const choice = row.keepSpecialPlan !== null
   return (
-    <span className="flex flex-col gap-1 text-xs" data-testid="specials-films-files">
-      <span className="flex items-start gap-1.5">
-        <TvIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-label={t('specialsFilms.side.special')} />
-        <span className={cn(!special && 'text-muted-foreground')}>
-          {special ? (special.isFilmLink ? t('specialsFilms.facts.isFilmLink') : fileSummary(special)) : t('specialsFilms.noFile')}
-          {row.specialFiles.length > 1 && ` ${t('specialsFilms.moreVersions', { count: row.specialFiles.length - 1 })}`}
-        </span>
-      </span>
-      <span className="flex items-start gap-1.5">
-        <ClapperboardIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-label={t('specialsFilms.side.film')} />
-        <span className={cn(!row.filmFile && 'text-muted-foreground')}>{row.filmFile ? fileSummary(row.filmFile) : t('specialsFilms.noFile')}</span>
-      </span>
-      {row.keepSpecialPlan && <KeepChoice keep={keep} onKeep={onKeep} />}
+    <span className="flex flex-col gap-0.5 text-xs" data-testid="specials-films-files">
+      <FileLine side="special" text={specialText} empty={!special} choice={choice} kept={keep === 'special'} name={`keep-row-${row.episodeId}`} onKeep={onKeep} />
+      <FileLine side="film" text={filmText} empty={!row.filmFile} choice={choice} kept={keep === 'film'} name={`keep-row-${row.episodeId}`} onKeep={onKeep} />
     </span>
   )
 }
 
-export function KeepChoice({ keep, onKeep }: { keep: Keep; onKeep: (keep: Keep) => void }) {
+function FileLine({ side, text, empty, choice, kept, name, onKeep }: { side: Keep; text: string; empty: boolean; choice: boolean; kept: boolean; name: string; onKeep: (keep: Keep) => void }) {
   const { t } = useTranslation()
+  const Icon = side === 'film' ? ClapperboardIcon : TvIcon
+  const label = t(`specialsFilms.side.${side}`)
+  if (!choice) {
+    return (
+      <span className={cn('flex items-center gap-1.5', empty && 'text-muted-foreground')}>
+        <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-label={label} />
+        <span className="truncate">{text}</span>
+      </span>
+    )
+  }
   return (
-    <span className="flex flex-wrap items-center gap-1 pt-0.5" data-testid="specials-films-keep">
-      <span className="text-amber-700 dark:text-amber-300">{t('specialsFilms.keep.label')}</span>
-      {(['film', 'special'] as const).map((side) => (
-        <Button key={side} type="button" size="xs" variant={keep === side ? 'secondary' : 'ghost'} aria-pressed={keep === side} onClick={() => onKeep(side)} data-keep={side}>
-          {side === 'film' ? <ClapperboardIcon /> : <TvIcon />}
-          {t(`specialsFilms.keep.${side}`)}
-        </Button>
-      ))}
-    </span>
+    <label className="flex cursor-pointer items-center gap-1.5" title={t('specialsFilms.keep.choose')} data-keep={side}>
+      <input type="radio" name={name} checked={kept} onChange={() => onKeep(side)} aria-label={t(`specialsFilms.keep.${side}`)} className="size-3 shrink-0 accent-primary" />
+      <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-label={label} />
+      <span className={cn('truncate', !kept && 'text-muted-foreground line-through')}>{text}</span>
+    </label>
   )
 }
 

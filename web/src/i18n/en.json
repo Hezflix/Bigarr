@@ -3189,7 +3189,6 @@
       "film": "Film, in the film library"
     },
     "keep": {
-      "label": "Both have a file. Keep:",
       "film": "Film's file",
       "special": "Special's file",
       "choose": "Both have a file: pick the one to keep. The other goes to the recycle bin.",

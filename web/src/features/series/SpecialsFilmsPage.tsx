@@ -37,6 +37,13 @@ export function SpecialsFilmsPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [confirming, setConfirming] = useState<SeriesFilmReviewRow[] | null>(null)
   // The specials whose own file stays when the film has one too; the film's wins otherwise.
+  const [planOpen, setPlanOpen] = useState<Set<number>>(new Set())
+  const togglePlan = (episodeId: number) =>
+    setPlanOpen((current) => {
+      const next = new Set(current)
+      if (!next.delete(episodeId)) next.add(episodeId)
+      return next
+    })
   const [keepSpecial, setKeepSpecial] = useState<Set<number>>(new Set())
   const keepOf = (row: SeriesFilmReviewRow): Keep => (row.keepSpecialPlan && keepSpecial.has(row.episodeId) ? 'special' : 'film')
   const setKeep = (row: SeriesFilmReviewRow, keep: Keep) =>
@@ -152,15 +159,15 @@ export function SpecialsFilmsPage() {
                     aria-label={t('specialsFilms.selectAll')}
                   />
                 </TableHead>
-                <TableHead className="w-[22%]">{t('specialsFilms.columns.special')}</TableHead>
-                <TableHead className="w-[20%]">{t('specialsFilms.columns.film')}</TableHead>
+                <TableHead className="w-[27%]">{t('specialsFilms.columns.special')}</TableHead>
+                <TableHead className="w-[24%]">{t('specialsFilms.columns.film')}</TableHead>
                 <TableHead className="w-28">{t('specialsFilms.columns.state')}</TableHead>
                 <TableHead>{t('specialsFilms.columns.files')}</TableHead>
                 <TableHead className="w-40 pr-4" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => (
+              {rows.flatMap((row) => [
                 <TableRow key={row.episodeId} data-testid="specials-films-row" data-state={row.state}>
                   <TableCell className="pl-4 align-top">
                     {row.state !== 'linked' && (
@@ -172,42 +179,40 @@ export function SpecialsFilmsPage() {
                       />
                     )}
                   </TableCell>
-                  <TableCell className="align-top whitespace-normal">
-                    <Link to="/series/$seriesId" params={{ seriesId: String(row.seriesId) }} className="text-xs text-muted-foreground underline-offset-4 hover:underline">
-                      {row.seriesTitle}
-                    </Link>
-                    <span className="block">
+                  <TableCell className="max-w-0 align-top whitespace-normal">
+                    <span className="block truncate" title={`${row.label} ${row.title}`}>
                       <span className="tabular-nums text-muted-foreground">{row.label}</span> {row.title}
                     </span>
-                    <span className="flex flex-wrap items-center gap-1 pt-0.5 text-xs text-muted-foreground">
-                      {row.confidence && (
-                        <Badge variant={row.confidence === 'flagged' ? 'secondary' : 'outline'} title={row.evidence.join(' · ')}>
-                          {t(`seriesFilms.confidence.${row.confidence}`)}
-                        </Badge>
-                      )}
-                      {row.placementLabel && <span>{row.placementLabel}</span>}
-                      {row.runtime ? <span className="tabular-nums">· {t('seriesFilms.minutes', { count: row.runtime })}</span> : null}
+                    <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+                      <Link to="/series/$seriesId" params={{ seriesId: String(row.seriesId) }} className="truncate underline-offset-4 hover:underline" title={row.seriesTitle}>
+                        {row.seriesTitle}
+                      </Link>
+                      {row.placementLabel && <span className="shrink-0">· {row.placementLabel}</span>}
+                      {row.runtime ? <span className="shrink-0 tabular-nums">· {t('seriesFilms.minutes', { count: row.runtime })}</span> : null}
                     </span>
                   </TableCell>
-                  <TableCell className="align-top whitespace-normal text-sm">
+                  <TableCell className="max-w-0 align-top whitespace-normal text-sm">
                     <FilmCell row={row} />
                   </TableCell>
                   <TableCell className="align-top">
                     <StateBadge row={row} />
                   </TableCell>
-                  <TableCell className="align-top whitespace-normal">
+                  <TableCell className="max-w-0 align-top whitespace-normal">
                     <FilesCell row={row} keep={keepOf(row)} onKeep={(keep) => setKeep(row, keep)} />
-                    <details className="group pt-1.5">
-                      <summary className="flex cursor-pointer list-none items-center gap-1 text-xs text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
-                        <ChevronRightIcon className="size-3.5 transition-transform group-open:rotate-90" />
-                        {row.state === 'linked' ? t('specialsFilms.plan.showLinked') : t('specialsFilms.plan.show')}
-                      </summary>
-                      <div className="pt-1.5">
-                        <Plan steps={planFor(row, keepOf(row))} />
-                      </div>
-                    </details>
                   </TableCell>
                   <TableCell className="py-1 pr-4 text-right align-top whitespace-nowrap">
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={() => togglePlan(row.episodeId)}
+                      aria-expanded={planOpen.has(row.episodeId)}
+                      aria-label={row.state === 'linked' ? t('specialsFilms.plan.showLinked') : t('specialsFilms.plan.show')}
+                      title={row.state === 'linked' ? t('specialsFilms.plan.showLinked') : t('specialsFilms.plan.show')}
+                      data-testid="specials-films-plan-toggle"
+                    >
+                      <ChevronRightIcon className={planOpen.has(row.episodeId) ? 'rotate-90 transition-transform' : 'transition-transform'} />
+                    </Button>
                     {row.state === 'linked' ? (
                       <Button type="button" size="sm" variant="ghost" onClick={() => unlink.mutate(row)} disabled={unlink.isPending} title={t('seriesFilms.unlinkHint')}>
                         <Link2OffIcon />
@@ -233,8 +238,17 @@ export function SpecialsFilmsPage() {
                       </span>
                     )}
                   </TableCell>
-                </TableRow>
-              ))}
+                </TableRow>,
+                planOpen.has(row.episodeId) && (
+                  <TableRow key={`${row.episodeId}-plan`} className="bg-muted/30 hover:bg-muted/30" data-testid="specials-films-plan-row">
+                    <TableCell />
+                    <TableCell colSpan={5} className="whitespace-normal pr-4 pb-3">
+                      <span className="block pb-1.5 text-xs font-medium text-muted-foreground">{row.state === 'linked' ? t('specialsFilms.plan.showLinked') : t('specialsFilms.plan.show')}</span>
+                      <Plan steps={planFor(row, keepOf(row))} />
+                    </TableCell>
+                  </TableRow>
+                ),
+              ])}
             </TableBody>
           </Table>
         </div>
@@ -281,12 +295,12 @@ function FilmCell({ row }: { row: SeriesFilmReviewRow }) {
   return (
     <span className="flex flex-col gap-0.5">
       {row.movieId ? (
-        <Link to="/movies/$movieId" params={{ movieId: String(row.movieId) }} className="flex items-center gap-1 font-medium underline-offset-4 hover:underline">
+        <Link to="/movies/$movieId" params={{ movieId: String(row.movieId) }} title={name} className="flex min-w-0 items-center gap-1 font-medium underline-offset-4 hover:underline">
           <ClapperboardIcon className="size-3.5 shrink-0" />
-          {name}
+          <span className="truncate">{name}</span>
         </Link>
       ) : (
-        <span>{name}</span>
+        <span className="truncate">{name}</span>
       )}
       <span className="text-xs text-muted-foreground tabular-nums">
         {row.tmdbId && `TMDB ${row.tmdbId}`}
@@ -303,6 +317,11 @@ function StateBadge({ row }: { row: SeriesFilmReviewRow }) {
       <Badge variant={row.state === 'linked' ? 'secondary' : 'outline'} className={row.state === 'dismissed' ? 'text-muted-foreground' : undefined}>
         {t(`specialsFilms.state.${row.state}`)}
       </Badge>
+      {row.confidence && (
+        <span className="text-xs text-muted-foreground" title={row.evidence.join(' · ')}>
+          {t(`seriesFilms.confidence.${row.confidence}`)}
+        </span>
+      )}
       {row.linkError && (
         <span className="flex items-center gap-1 text-xs text-destructive" title={row.linkError}>
           <TriangleAlertIcon className="size-3.5 shrink-0" />
