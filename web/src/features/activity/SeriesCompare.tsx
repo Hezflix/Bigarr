@@ -16,6 +16,7 @@ import { CompareByVersion, comparePageSize, ComparePager, ComparePeriodSelect, C
 import { formatGap, TimingNote } from '@/features/activity/TimingNote'
 import { ReasonList } from '@/features/search/ReasonsDisplay'
 import { approvedStyle } from '@/features/search/releaseTable'
+import { useShadowMode } from '@/hooks/useShadowMode'
 import { formatBytes, formatDateTime } from '@/i18n'
 
 const outcomes: SeriesCompareOutcome[] = ['same', 'different', 'intended', 'bigarrOnly', 'sonarrOnly']
@@ -356,16 +357,17 @@ function PickCard({ pick }: { pick: SeriesComparePick }) {
   )
 }
 
-/** The series page's own comparison, shown only when the show has rows. */
+/** The series page's own comparison, shown only while series are in shadow mode and the show has rows. */
 export function SeriesCompareSection({ tvdbId }: { tvdbId: number | null }) {
   const { t } = useTranslation()
+  const { series } = useShadowMode()
   const query = useQuery({
     queryKey: ['compareSeries', 'series', tvdbId],
     queryFn: () => shadow.compareSeries({ days: 0, windowHours: 24, page: 1, pageSize: 50, tvdbId: tvdbId ?? undefined }),
-    enabled: tvdbId !== null,
+    enabled: series && tvdbId !== null,
   })
   const rows = query.data?.rows ?? []
-  if (rows.length === 0) return null
+  if (!series || rows.length === 0) return null
   return (
     <section className="flex flex-col gap-3" data-testid="series-compare-section">
       <h2 className="text-xl font-semibold tracking-tight">{t('compare.seriesTitle')}</h2>

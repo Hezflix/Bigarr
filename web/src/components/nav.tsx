@@ -32,6 +32,7 @@ import {
 } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useShadowMode } from '@/hooks/useShadowMode'
 
 /** Every page the sidebar links to. */
 export type NavPath =
@@ -94,10 +95,15 @@ export type NavSection = { title: string; items: NavItem[] }
 
 /**
  * Adding a page = one entry here. Sections keep the sidebar readable as slices land. The sidebar and the command
- * palette's "Go to" groups both read this list, so a new page shows up in both.
+ * palette's "Go to" groups both read this list, so a new page shows up in both. The shadow mode pages (the comparisons,
+ * the followed apps) only show while their kind is in shadow mode, or while a follow of that kind is still enabled.
  */
 export function useNavSections(): NavSection[] {
   const { t } = useTranslation()
+  const mode = useShadowMode()
+  const { films, series } = mode
+  const radarrs = mode.films || mode.radarrFollowed
+  const sonarrs = mode.series || mode.sonarrFollowed
   return useMemo(() => [
     {
       title: t('nav.requests'),
@@ -131,8 +137,8 @@ export function useNavSections(): NavSection[] {
         { to: '/activity/history', label: t('nav.history'), icon: HistoryIcon },
         { to: '/activity/blocklist', label: t('nav.blocklist'), icon: BanIcon },
         { to: '/activity/held', label: t('nav.held'), icon: HandIcon },
-        { to: '/activity/compare', label: t('nav.compare'), icon: GitCompareIcon },
-        { to: '/activity/compare-sonarr', label: t('nav.compareSonarr'), icon: GitCompareIcon },
+        ...(films ? [{ to: '/activity/compare' as const, label: t('nav.compare'), icon: GitCompareIcon }] : []),
+        ...(series ? [{ to: '/activity/compare-sonarr' as const, label: t('nav.compareSonarr'), icon: GitCompareIcon }] : []),
       ],
     },
     {
@@ -162,14 +168,14 @@ export function useNavSections(): NavSection[] {
         { to: '/settings/import-radarr', label: t('nav.settingsImportRadarr'), icon: ImportIcon },
         { to: '/settings/import-tautulli', label: t('nav.settingsImportTautulli'), icon: HistoryIcon },
         { to: '/settings/import-seerr', label: t('nav.settingsImportSeerr'), icon: InboxIcon },
-        { to: '/settings/followed-radarrs', label: t('nav.settingsFollowedRadarrs'), icon: GitCompareArrowsIcon },
+        ...(radarrs ? [{ to: '/settings/followed-radarrs' as const, label: t('nav.settingsFollowedRadarrs'), icon: GitCompareArrowsIcon }] : []),
         { to: '/settings/import-sonarr', label: t('nav.settingsImportSonarr'), icon: ImportIcon },
-        { to: '/settings/followed-sonarrs', label: t('nav.settingsFollowedSonarrs'), icon: GitCompareArrowsIcon },
+        ...(sonarrs ? [{ to: '/settings/followed-sonarrs' as const, label: t('nav.settingsFollowedSonarrs'), icon: GitCompareArrowsIcon }] : []),
       ],
     },
     {
       title: t('nav.system'),
       items: [{ to: '/system/status', label: t('nav.systemStatus'), icon: HeartPulseIcon, health: true }],
     },
-  ], [t])
+  ], [t, films, series, radarrs, sonarrs])
 }
