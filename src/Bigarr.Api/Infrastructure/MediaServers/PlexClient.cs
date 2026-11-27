@@ -113,6 +113,22 @@ public sealed class PlexClient(IHttpClientFactory httpClientFactory, PlexClientI
         }
     }
 
+    /// <summary>Every episode of a show with its files; null when Plex no longer has the show (re-matched: a new rating key).</summary>
+    public async Task<List<PlexEpisode>?> EpisodesAsync(MediaServer server, string showRatingKey, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(server);
+
+        try
+        {
+            using var doc = await GetJsonAsync(server, $"/library/metadata/{Uri.EscapeDataString(showRatingKey)}/allLeaves", ct);
+            return PlexPlayback.ParseEpisodes(doc.RootElement);
+        }
+        catch (MediaServerException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+    }
+
     /// <summary>The guid, external ids and title of a show (an episode's grandparent); null when Plex no longer has it.</summary>
     public async Task<(string? Guid, PlexIds Ids, string? Title)?> IdsAsync(MediaServer server, string ratingKey, CancellationToken ct)
     {

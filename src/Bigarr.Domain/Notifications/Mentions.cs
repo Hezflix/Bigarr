@@ -16,12 +16,18 @@ public sealed record MentionTarget(int? UserId, bool Managers, string? Actor);
 /// </summary>
 public static class Mentions
 {
+    /// <summary>
+    /// Not an event of the catalogue: a new episode of a show the user watches, told in a direct message from the bot
+    /// rather than a mention in a channel. A choice like the others, on unless the user turns it off.
+    /// </summary>
+    public const string NewEpisode = "newEpisode";
+
     /// <summary>The events a user may choose to be mentioned on, in the order the settings list them.</summary>
     public static IReadOnlyList<string> Choices { get; } = new[]
     {
         typeof(RequestCreated), typeof(RequestApproved), typeof(RequestDeclined), typeof(RequestAvailable), typeof(RequestFailed),
         typeof(IssueCreated), typeof(IssueCommented), typeof(IssueResolved), typeof(IssueReopened),
-    }.Select(DomainEventCatalog.NameOf).ToList();
+    }.Select(DomainEventCatalog.NameOf).Append(NewEpisode).ToList();
 
     /// <summary>
     /// Choices only an admin or a request manager is ever mentioned on: someone else's request waiting for approval, a
@@ -99,6 +105,13 @@ public static class Mentions
             .Select(u => u.DiscordUserId!)
             .Distinct(StringComparer.Ordinal)
             .ToList();
+    }
+
+    /// <summary>Whether the user gets the direct messages about new episodes: an active user with a Discord id who left the choice on.</summary>
+    public static bool WantsNewEpisodes(User user)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        return !user.IsDisabled && IsDiscordUserId(user.DiscordUserId) && Effective(user.DiscordMentions).Contains(NewEpisode, StringComparer.Ordinal);
     }
 
     public static bool IsManager(User user)

@@ -8429,6 +8429,276 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications/discord-bot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DiscordBotResponse"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DiscordBotRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DiscordBotResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/new-episodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NewEpisodeAnnouncementResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/new-episodes/message": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["NewEpisodeMessageSettings"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DiscordBotResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/new-episodes/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["NewEpisodeMessageSettings"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NewEpisodePreviewResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profile/shows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FollowedShowsResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profile/shows/{seriesId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    seriesId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["FollowShowRequest"];
+                };
+            };
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/tasks": {
         parameters: {
             query?: never;
@@ -11826,6 +12096,15 @@ export interface components {
             icon_url: null | string;
             url: null | string;
         };
+        DiscordBotRequest: {
+            token: null | string;
+        };
+        DiscordBotResponse: {
+            configured: boolean;
+            token: null | string;
+            message: components["schemas"]["NewEpisodeMessageSettings"];
+            texts: components["schemas"]["NewEpisodeTextInfo"][];
+        };
         DiscordEmbed: {
             title: null | string;
             description: null | string;
@@ -12420,6 +12699,23 @@ export interface components {
             /** Format: int32 */
             movies: number;
         };
+        FollowedShow: {
+            /** Format: int32 */
+            seriesId: number;
+            title: string;
+            /** Format: int32 */
+            year: null | number;
+            posterUrl: null | string;
+            /** Format: date-time */
+            lastWatchedAt: string;
+            notify: boolean;
+        };
+        FollowedShowsResponse: {
+            linked: boolean;
+            botConfigured: boolean;
+            newEpisodes: boolean;
+            shows: components["schemas"]["FollowedShow"][];
+        };
         FollowedSonarrRequest: {
             name: string;
             url: string;
@@ -12477,6 +12773,9 @@ export interface components {
             version: null | string;
             /** Format: int32 */
             series: number;
+        };
+        FollowShowRequest: {
+            notify: boolean;
         };
         FormatScoreDto: {
             /** Format: int32 */
@@ -13437,6 +13736,62 @@ export interface components {
             example: string;
             folder: boolean;
         };
+        NewEpisodeAnnouncementResponse: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int32 */
+            seriesId: number;
+            seriesTitle: null | string;
+            episodes: string[];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            readyAt: null | string;
+            plexWait: null | components["schemas"]["PlexWait"];
+            messages: components["schemas"]["NewEpisodeMessageResponse"][];
+        };
+        NewEpisodeMessageResponse: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int32 */
+            userId: number;
+            username: null | string;
+            state: components["schemas"]["WebhookDeliveryState"];
+            /** Format: int32 */
+            attempts: number;
+            /** Format: date-time */
+            deliveredAt: null | string;
+            /** Format: date-time */
+            nextAttemptAt: null | string;
+            /** Format: int32 */
+            lastStatusCode: null | number;
+            lastError: null | string;
+        };
+        NewEpisodeMessageSettings: {
+            content: null | string;
+            title: null | string;
+            batchContent: null | string;
+            batchTitle: null | string;
+            batchLine: null | string;
+            batchMore: null | string;
+            linkName: null | string;
+            linkText: null | string;
+            linkTarget: components["schemas"]["PlexLinkTarget"];
+            plexWebAddress: null | string;
+        };
+        NewEpisodePreviewResponse: {
+            single: components["schemas"]["DiscordPayload"];
+            batch: components["schemas"]["DiscordPayload"];
+            problems: components["schemas"]["TemplateProblem"][];
+            addressInvalid: boolean;
+        };
+        /** @enum {unknown} */
+        NewEpisodeText: "content" | "title" | "batchContent" | "batchTitle" | "batchLine" | "batchMore" | "linkName" | "linkText";
+        NewEpisodeTextInfo: {
+            field: components["schemas"]["NewEpisodeText"];
+            default: string;
+            placeholders: string[];
+        };
         /**
          * @default all
          * @enum {unknown}
@@ -13866,6 +14221,8 @@ export interface components {
             details: components["schemas"]["StreamDetails"];
             location: null | components["schemas"]["PlaybackLocation"];
         };
+        /** @enum {unknown} */
+        PlexLinkTarget: "appPlexTv" | "serverAddress";
         PlexTranscode: {
             /** Format: double */
             speed: null | number;
@@ -13877,6 +14234,8 @@ export interface components {
             protocol: null | string;
             complete: null | boolean;
         };
+        /** @enum {unknown} */
+        PlexWait: "seen" | "timedOut" | "notChecked" | "noRecipient" | null;
         /**
          * @default movies
          * @enum {unknown}
@@ -16138,6 +16497,10 @@ export interface components {
             path: string;
             /** Format: int64 */
             bytes: number;
+        };
+        TemplateProblem: {
+            field: components["schemas"]["NewEpisodeText"];
+            placeholder: string;
         };
         TopEntryResponse: {
             title: string;

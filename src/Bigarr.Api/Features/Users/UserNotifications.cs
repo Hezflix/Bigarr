@@ -9,7 +9,9 @@ public static class UserNotifications
 {
     public const string InvalidDiscordId = "A Discord user id is 17 to 20 digits (Discord: User Settings → Advanced → Developer Mode, then Copy User ID).";
 
-    private static readonly Dictionary<string, string> Descriptions = DomainEventCatalog.All.ToDictionary(e => e.Type, e => e.Description, StringComparer.Ordinal);
+    private static readonly Dictionary<string, string> Descriptions = DomainEventCatalog.All
+        .Append((Type: Mentions.NewEpisode, Description: "A new episode of a show you watch is on Plex (a direct message from the bot)"))
+        .ToDictionary(e => e.Type, e => e.Description, StringComparer.Ordinal);
 
     /// <summary>The choices offered; a user who handles no one else's requests does not see those that only concern managers.</summary>
     public static List<MentionChoiceResponse> Choices(bool managers) =>

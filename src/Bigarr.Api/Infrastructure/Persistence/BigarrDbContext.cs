@@ -127,6 +127,14 @@ public sealed class BigarrDbContext : DbContext
 
     public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
 
+    public DbSet<NewEpisodeAnnouncement> NewEpisodeAnnouncements => Set<NewEpisodeAnnouncement>();
+
+    public DbSet<NewEpisodeAnnouncementEpisode> NewEpisodeAnnouncementEpisodes => Set<NewEpisodeAnnouncementEpisode>();
+
+    public DbSet<NewEpisodeMessage> NewEpisodeMessages => Set<NewEpisodeMessage>();
+
+    public DbSet<SeriesNotificationOptOut> SeriesNotificationOptOuts => Set<SeriesNotificationOptOut>();
+
     public DbSet<ScheduledJob> ScheduledJobs => Set<ScheduledJob>();
 
     public DbSet<PendingRepair> PendingRepairs => Set<PendingRepair>();

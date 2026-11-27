@@ -61,7 +61,7 @@ public sealed class RequestDiscordDeliveryTests
         var mine = await SetMineAsync(viewer, $"<@{ViewerDiscord}>", null);
         Assert.Equal(ViewerDiscord, mine.DiscordUserId);
         Assert.DoesNotContain(mine.Choices, c => c.Type == "requestCreated");
-        Assert.Equal(["requestApproved", "requestDeclined", "requestAvailable", "requestFailed", "issueCommented", "issueResolved", "issueReopened"], mine.Mentions);
+        Assert.Equal(["requestApproved", "requestDeclined", "requestAvailable", "requestFailed", "issueCommented", "issueResolved", "issueReopened", "newEpisode"], mine.Mentions);
         var refused = await viewer.PutAsJsonAsync("/api/v1/profile/notifications", new UserNotificationsDto("not-an-id", []), Json);
         Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
         await env.UserAsync("demo-manager", Defaults, UserRole.RequestManager);

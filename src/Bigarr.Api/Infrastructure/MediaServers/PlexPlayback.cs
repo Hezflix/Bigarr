@@ -49,6 +49,9 @@ public sealed record PlexPart(
     int? AudioChannels,
     int? Bitrate);
 
+/// <summary>An episode of a show as Plex lists it (<c>/library/metadata/{show}/allLeaves</c>): its numbers and its files.</summary>
+public sealed record PlexEpisode(int? SeasonNumber, int? EpisodeNumber, IReadOnlyList<string> Files);
+
 /// <summary>An item's metadata from <c>/library/metadata/{ratingKey}</c>: identity, ids, duration, credits, files.</summary>
 public sealed record PlexItem(
     string RatingKey,
@@ -219,6 +222,16 @@ public static class PlexPlayback
             parts,
             Str(item, "originalTitle"));
     }
+
+    /// <summary>A show's episodes, every season, from <c>allLeaves</c>.</summary>
+    public static List<PlexEpisode> ParseEpisodes(JsonElement root) =>
+        Metadata(root)
+            .Where(item => item.ValueKind == JsonValueKind.Object)
+            .Select(item => new PlexEpisode(
+                Int(item, "parentIndex"),
+                Int(item, "index"),
+                Array(item, "Media").SelectMany(media => Array(media, "Part")).Select(part => Str(part, "file")).OfType<string>().ToList()))
+            .ToList();
 
     /// <summary>The guid, external ids and title of any item (a show, a season), or null when Plex has no such item.</summary>
     public static (string? Guid, PlexIds Ids, string? Title)? ParseIds(JsonElement root)
