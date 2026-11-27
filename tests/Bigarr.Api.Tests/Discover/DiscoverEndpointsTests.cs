@@ -46,6 +46,7 @@ public sealed class DiscoverEndpointsTests
         Assert.Null(networks.Single(t => t.Name == "HBO").ImageUrl); // TMDB answers 404: the tile stays, plain
         var studios = home.Sliders.Single(s => s.Kind == DiscoverSliderKind.Studios).Tiles!;
         Assert.Equal("https://image.tmdb.org/t/p/w500/1TjvGVDMYsj6JBxOAkUHpPEwLf7.png", studios.Single(t => t.Id == 3).ImageUrl);
+        Assert.Equal("https://image.tmdb.org/t/p/w500_filter(duotone,ffffff,bababa)/1TjvGVDMYsj6JBxOAkUHpPEwLf7.png", studios.Single(t => t.Id == 3).DarkImageUrl);
         Assert.Equal("Pixar", studios.Single(t => t.Id == 3).Name); // the name stays ours
         Assert.Null(home.Sliders.Single(s => s.Kind == DiscoverSliderKind.Trending).Tiles);
 

@@ -269,13 +269,18 @@ public sealed partial class DiscoverService(TmdbDiscoverClient tmdb, LibraryAvai
     }
 
     /// <summary>
-    /// The studio or network tiles with the logo TMDB holds for each, as Seerr shows them. The names stay ours. A logo
+    /// The studio or network tiles with the logo TMDB holds for each, as Seerr shows them: in
+    /// its own colours for a light tile, in white and grey for a dark one. The names stay ours. A logo
     /// TMDB cannot give leaves its tile plain.
     /// </summary>
     private async Task<List<DiscoverTile>> LogoTilesAsync(DiscoverTile[] tiles, Func<int, CancellationToken, Task<TmdbNamed?>> lookup, CancellationToken ct)
     {
         var logos = await Task.WhenAll(tiles.Select(t => DecorationAsync(() => lookup(t.Id, ct), ct)));
-        return [.. tiles.Select((t, i) => t with { ImageUrl = Image(logos[i]?.LogoPath, "w500") })];
+        return [.. tiles.Select((t, i) => t with
+        {
+            ImageUrl = Image(logos[i]?.LogoPath, "w500"),
+            DarkImageUrl = Image(logos[i]?.LogoPath, "w500_filter(duotone,ffffff,bababa)"),
+        })];
     }
 
     /// <summary>A picture is decoration: a failed or timed-out answer leaves the tile plain, not the row empty.</summary>

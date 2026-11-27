@@ -142,7 +142,7 @@ function TileRow({ slider }: { slider: DiscoverSlider }) {
           const classes = cn(
             'group relative flex h-24 w-44 shrink-0 snap-start overflow-hidden rounded-lg bg-gradient-to-br text-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-28 sm:w-56',
             logo
-              ? 'items-center justify-center from-white to-slate-100 p-5 ring-1 ring-black/10 ring-inset hover:to-slate-200'
+              ? 'items-center justify-center from-white to-slate-100 p-5 ring-1 ring-black/10 ring-inset hover:to-slate-200 dark:from-slate-800 dark:to-slate-900 dark:ring-white/10 dark:hover:to-slate-800'
               : tile.imageUrl
                 ? 'items-center justify-center p-3'
                 : 'items-end p-3 hover:brightness-110',
@@ -171,14 +171,14 @@ function TileContent({ tile, logo }: { tile: NonNullable<DiscoverSlider['tiles']
   }
 
   if (logo) {
-    // TMDB's logos are made for a light background: in their own colours on a light tile, each reads as itself.
+    // TMDB's logos are made for a light background: in their own colours on a light tile, each reads as itself. On the
+    // dark theme's dark tile, TMDB's white and grey version of the same logo, as Seerr shows it.
+    const classes = 'max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105'
     return (
-      <img
-        src={tile.imageUrl}
-        alt={tile.name}
-        loading="lazy"
-        className="max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105"
-      />
+      <>
+        <img src={tile.imageUrl} alt={tile.name} loading="lazy" className={cn(classes, tile.darkImageUrl && 'dark:hidden')} />
+        {tile.darkImageUrl && <img src={tile.darkImageUrl} alt={tile.name} loading="lazy" className={cn(classes, 'hidden dark:block')} />}
+      </>
     )
   }
 
