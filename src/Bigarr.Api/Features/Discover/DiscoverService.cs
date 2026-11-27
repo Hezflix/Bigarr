@@ -45,8 +45,8 @@ public sealed partial class DiscoverService(TmdbDiscoverClient tmdb, LibraryAvai
 
     public async Task<List<DiscoverTile>> TilesAsync(DiscoverSliderKind kind, CancellationToken ct) => kind switch
     {
-        DiscoverSliderKind.MovieGenres => Tiles(await tmdb.MovieGenresAsync(ct)),
-        DiscoverSliderKind.SeriesGenres => Tiles(await tmdb.SeriesGenresAsync(ct)),
+        DiscoverSliderKind.MovieGenres => await GenreTilesAsync(await tmdb.MovieGenresAsync(ct), (genre, c) => tmdb.DiscoverMoviesAsync(genre, null, null, 1, c), ct),
+        DiscoverSliderKind.SeriesGenres => await GenreTilesAsync(await tmdb.SeriesGenresAsync(ct), (genre, c) => tmdb.DiscoverSeriesAsync(genre, null, null, 1, c), ct),
         DiscoverSliderKind.Studios => [.. Studios],
         DiscoverSliderKind.Networks => [.. Networks],
         _ => [],
@@ -268,8 +268,38 @@ public sealed partial class DiscoverService(TmdbDiscoverClient tmdb, LibraryAvai
             [.. page.Results.Select(i => i with { Subtitle = roles.GetValueOrDefault((i.MediaType, i.TmdbId)) })]);
     }
 
-    private static List<DiscoverTile> Tiles(TmdbGenreList? genres) =>
-        [.. (genres?.Genres ?? []).Where(g => !string.IsNullOrWhiteSpace(g.Name)).Select(g => new DiscoverTile(g.Id, g.Name!))];
+    /// <summary>
+    /// A tile per genre, behind it the backdrop of the genre's most popular title, as Seerr shows them. The first page
+    /// asked is the one the genre's own page opens on, so the cache serves it there. Two genres do not share a backdrop
+    /// when another title has one; a genre whose titles TMDB cannot give keeps its tile, without a picture.
+    /// </summary>
+    private async Task<List<DiscoverTile>> GenreTilesAsync(TmdbGenreList? list, Func<int, CancellationToken, Task<TmdbPage?>> titles, CancellationToken ct)
+    {
+        var genres = (list?.Genres ?? []).Where(g => !string.IsNullOrWhiteSpace(g.Name)).ToList();
+        var pages = await Task.WhenAll(genres.Select(async g =>
+        {
+            try
+            {
+                return await titles(g.Id, ct);
+            }
+            catch (Exception e) when (e is HttpRequestException || (e is OperationCanceledException && !ct.IsCancellationRequested))
+            {
+                // A backdrop is decoration: a failed or timed-out page leaves the tile plain, not the row empty.
+                return null;
+            }
+        }));
+
+        var used = new HashSet<string>(StringComparer.Ordinal);
+        var tiles = new List<DiscoverTile>(genres.Count);
+        for (var i = 0; i < genres.Count; i++)
+        {
+            var backdrops = (pages[i]?.Results ?? []).Select(r => r.BackdropPath).OfType<string>().Where(b => b.Length > 0).ToList();
+            var backdrop = backdrops.FirstOrDefault(used.Add) ?? backdrops.FirstOrDefault();
+            tiles.Add(new DiscoverTile(genres[i].Id, genres[i].Name!, Image(backdrop, "w780")));
+        }
+
+        return tiles;
+    }
 
     private async Task<DiscoverPage> PageAsync(TmdbPage? answer, DiscoverMediaType? type, bool keepPeople, CancellationToken ct)
     {
@@ -365,7 +395,7 @@ public sealed partial class DiscoverService(TmdbDiscoverClient tmdb, LibraryAvai
         [.. items.Where(i => !string.IsNullOrWhiteSpace(i.Name)).Select(i => new DiscoverRef(i.Id, i.Name!))];
 
     /// <summary>The <c>original</c> size, which the web's poster picks a smaller TMDB width from.</summary>
-    private string? Image(string? path) => string.IsNullOrWhiteSpace(path) ? null : metadata.Value.ImageBaseUrl.TrimEnd('/') + "/original" + path;
+    private string? Image(string? path, string size = "original") => string.IsNullOrWhiteSpace(path) ? null : metadata.Value.ImageBaseUrl.TrimEnd('/') + "/" + size + path;
 
     private static int? YearOf(string? date) =>
         date is { Length: >= 4 } && int.TryParse(date.AsSpan(0, 4), NumberStyles.None, CultureInfo.InvariantCulture, out var year) ? year : null;

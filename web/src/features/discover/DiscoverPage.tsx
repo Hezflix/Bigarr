@@ -139,22 +139,47 @@ function TileRow({ slider }: { slider: DiscoverSlider }) {
       <div className="-mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 md:-mx-6 md:scroll-px-6 md:px-6">
         {slider.tiles?.map((tile) => {
           const classes = cn(
-            'flex h-20 w-40 shrink-0 snap-start items-end rounded-lg bg-gradient-to-br p-3 text-sm font-semibold text-white shadow-sm outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring sm:w-48',
+            'group relative flex h-24 w-44 shrink-0 snap-start overflow-hidden rounded-lg bg-gradient-to-br text-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-28 sm:w-56',
+            tile.imageUrl ? 'items-center justify-center p-3' : 'items-end p-3 hover:brightness-110',
             tileColours[tile.id % tileColours.length],
           )
           const search = { name: tile.name }
           switch (slider.kind) {
             case 'movieGenres':
-              return <Link key={tile.id} to="/discover/movies" search={{ ...search, genre: tile.id }} className={classes}>{tile.name}</Link>
+              return <Link key={tile.id} to="/discover/movies" search={{ ...search, genre: tile.id }} className={classes}><TileContent tile={tile} /></Link>
             case 'seriesGenres':
-              return <Link key={tile.id} to="/discover/series" search={{ ...search, genre: tile.id }} className={classes}>{tile.name}</Link>
+              return <Link key={tile.id} to="/discover/series" search={{ ...search, genre: tile.id }} className={classes}><TileContent tile={tile} /></Link>
             case 'studios':
-              return <Link key={tile.id} to="/discover/movies" search={{ ...search, studio: tile.id }} className={classes}>{tile.name}</Link>
+              return <Link key={tile.id} to="/discover/movies" search={{ ...search, studio: tile.id }} className={classes}><TileContent tile={tile} /></Link>
             default:
-              return <Link key={tile.id} to="/discover/series" search={{ ...search, network: tile.id }} className={classes}>{tile.name}</Link>
+              return <Link key={tile.id} to="/discover/series" search={{ ...search, network: tile.id }} className={classes}><TileContent tile={tile} /></Link>
           }
         })}
       </div>
     </section>
+  )
+}
+
+function TileContent({ tile }: { tile: NonNullable<DiscoverSlider['tiles']>[number] }) {
+  if (!tile.imageUrl) {
+    return <span className="text-sm font-semibold">{tile.name}</span>
+  }
+
+  return (
+    <>
+      <img
+        src={tile.imageUrl}
+        alt=""
+        loading="lazy"
+        className="absolute inset-0 size-full object-cover grayscale transition-transform duration-300 group-hover:scale-105"
+      />
+      {/* The genre's colour over a greyed backdrop, as a duotone. */}
+      <span
+        aria-hidden="true"
+        className={cn('absolute inset-0 bg-gradient-to-br opacity-80 mix-blend-multiply transition-opacity group-hover:opacity-60', tileColours[tile.id % tileColours.length])}
+      />
+      <span aria-hidden="true" className="absolute inset-0 bg-black/25" />
+      <span className="relative text-center text-base font-bold drop-shadow-md sm:text-lg">{tile.name}</span>
+    </>
   )
 }

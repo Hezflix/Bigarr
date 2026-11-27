@@ -12037,6 +12037,7 @@ export interface components {
             /** Format: int32 */
             id: number;
             name: string;
+            imageUrl: null | string;
         };
         /** @enum {unknown} */
         DownloadClientImplementation: "qBittorrent" | "mock";
