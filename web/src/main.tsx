@@ -178,7 +178,15 @@ const addSeriesRoute = createRoute({
   },
 })
 const seriesRoute = createRoute({ getParentRoute: () => appRoute, path: '/series/$seriesId', component: lazyRouteComponent(() => import('./features/series/SeriesDetailPage'), 'SeriesDetailPage') })
-const queueRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/queue', component: lazyRouteComponent(() => import('./features/activity/QueuePage'), 'QueuePage') })
+// `import` opens the header's manual import on arrival: the palette's "Manual import" lands here.
+const queueRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/activity/queue',
+  validateSearch: (search: Record<string, unknown>): { import?: 'film' | 'series' } => ({
+    import: search.import === 'film' || search.import === 'series' ? search.import : undefined,
+  }),
+  component: lazyRouteComponent(() => import('./features/activity/QueuePage'), 'QueuePage'),
+})
 const releasesRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/releases', component: lazyRouteComponent(() => import('./features/activity/ReleasesPage'), 'ReleasesPage') })
 const historyRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/history', component: lazyRouteComponent(() => import('./features/activity/HistoryPage'), 'HistoryPage') })
 const compareRoute = createRoute({ getParentRoute: () => appRoute, path: '/activity/compare', component: lazyRouteComponent(() => import('./features/activity/ComparePage'), 'ComparePage') })

@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
   ArchiveIcon,
+  FolderInputIcon,
   FolderSearchIcon,
   HeartPulseIcon,
   ListOrderedIcon,
@@ -164,6 +165,20 @@ export function useGlobalActions(): PaletteAction[] {
           },
           (e) => toast.error(e instanceof ApiError ? e.message : t('backups.createFailed')),
         ),
+    },
+    {
+      id: 'manual-import-films',
+      label: t('palette.actions.manualImportFilms'),
+      icon: FolderInputIcon,
+      keywords: ['import', 'files', 'movies', 'manual'],
+      run: () => void navigate({ to: '/activity/queue', search: { import: 'film' } }),
+    },
+    {
+      id: 'manual-import-series',
+      label: t('palette.actions.manualImportSeries'),
+      icon: FolderInputIcon,
+      keywords: ['import', 'files', 'episodes', 'manual'],
+      run: () => void navigate({ to: '/activity/queue', search: { import: 'series' } }),
     },
     {
       id: 'open-queue',

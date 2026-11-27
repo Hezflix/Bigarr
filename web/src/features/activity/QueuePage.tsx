@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { ChevronDownIcon, FolderInputIcon, RefreshCwIcon, RotateCcwIcon, Trash2Icon, WifiIcon, WifiOffIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -108,8 +108,12 @@ export function QueuePage() {
   const query = useQuery({ queryKey: ['queue'], queryFn: queueApi.get, refetchInterval: live ? false : 10_000 })
   const [pendingRemove, setPendingRemove] = useState<QueueItem | null>(null)
   const [manualImportFor, setManualImportFor] = useState<QueueItem | null>(null)
-  // The header's import, for files no grab of Bigarr's knows about (another app's downloads, a copied folder).
-  const [freeImport, setFreeImport] = useState<'film' | 'series' | null>(null)
+  // The header's import, for files no grab of Bigarr's knows about (another app's downloads, a copied folder). It lives in
+  // the address so the palette's "Manual import" can open it from any page.
+  const freeImport = useSearch({ from: '/shell/app/activity/queue' }).import ?? null
+  const navigate = useNavigate()
+  const setFreeImport = (kind: 'film' | 'series' | null) =>
+    void navigate({ to: '/activity/queue', search: kind ? { import: kind } : {}, replace: true })
 
   const retry = useMutation({
     mutationFn: (grabId: number) => queueApi.retryImport(grabId),
