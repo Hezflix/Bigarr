@@ -28,7 +28,9 @@ public sealed record LinkPass(int Created, int Removed, int KeptAsFiles, int Fai
 /// Never a copy: when the hardlink fails (two filesystems, a bind mount), the link records why and health reports it.
 /// A plain file the special has of its own is <b>adopted</b> when the film has none: it is moved into the film's folder
 /// (a rename on the same filesystem, never a copy) and imported there by the film engine, then hardlinked back. When
-/// the film already has its file, the film's wins and the special's own file goes to the recycle bin.
+/// the film already has its file, the film's wins and the special's own file goes to the recycle bin, unless the user
+/// chose to keep the special's (<see cref="SeriesMovieLink.KeepSpecialFile"/>): then it is adopted the same way and
+/// replaces the film's, which goes to the recycle bin.
 /// <see cref="SeriesFilmPlanner"/> runs these rules on paper for the review page.
 /// </summary>
 public sealed class SeriesFilmLinker(BigarrDbContext db, RecycleBin recycleBin, ImportService importer, SeriesFilmLinkQueue queue, TimeProvider time, ILogger<SeriesFilmLinker> logger)
@@ -139,18 +141,23 @@ public sealed class SeriesFilmLinker(BigarrDbContext db, RecycleBin recycleBin, 
             .ToListAsync(ct);
 
         string? failure = null;
-        if (source is null && link.Movie.Versions.FirstOrDefault(v => v.IsDefault) is { } filmVersion
+        if ((source is null || link.KeepSpecialFile) && link.Movie.Versions.FirstOrDefault(v => v.IsDefault) is { } filmVersion
             && SeriesFilmPlanner.Adoptable(link.Series.Versions, targets, link.EpisodeId, (t, _) => t.Monitored) is { } adoption)
         {
-            failure = await AdoptAsync(link, filmVersion, adoption, pass, ct);
+            // The user kept the special's file over the film's: it replaces the film's (through the recycle bin).
+            failure = await AdoptAsync(link, filmVersion, adoption, replace: source is not null, pass, ct);
             source = SourceOf(link.Movie);
             if (failure is not null)
             {
+                // The choice stays: the next pass tries again rather than recycling the special's file.
                 link.LinkError = failure;
                 link.LinkErrorAt = time.GetUtcNow().UtcDateTime;
                 return;
             }
         }
+
+        // Done, or nothing of the special's own left to keep: from now on the film's file is the one.
+        link.KeepSpecialFile = false;
 
         foreach (var version in link.Series.Versions)
         {
@@ -286,8 +293,10 @@ public sealed class SeriesFilmLinker(BigarrDbContext db, RecycleBin recycleBin, 
     /// name in the film's folder (refused across filesystems: never a copy), imported there by the film engine with a
     /// move (a rename in the same folder) under the film naming, with its quality and media info; then the special's
     /// own name goes and the keeper hardlinks the film's file back. Null when done, else why (the special is untouched).
+    /// With <paramref name="replace"/> (the user kept the special's file), it replaces the film's file, which the film
+    /// engine sends to the recycle bin as for any forced import.
     /// </summary>
-    private async Task<string?> AdoptAsync(SeriesMovieLink link, Bigarr.Domain.Movies.MovieVersion filmVersion, SeriesFilmPlanner.Adoption adoption, Counter pass, CancellationToken ct)
+    private async Task<string?> AdoptAsync(SeriesMovieLink link, Bigarr.Domain.Movies.MovieVersion filmVersion, SeriesFilmPlanner.Adoption adoption, bool replace, Counter pass, CancellationToken ct)
     {
         var filmFolder = Path.Combine(filmVersion.RootFolder.Path, filmVersion.FolderName);
         var createdFolder = !Directory.Exists(filmFolder);
@@ -336,7 +345,7 @@ public sealed class SeriesFilmLinker(BigarrDbContext db, RecycleBin recycleBin, 
         try
         {
             outcome = await importer.ExecuteAsync(
-                new ImportPlan(staging, version, releaseTitle, parsed, quality, file.IndexerFlags, null, Force: false, TransferMode.Move, ExtraPaths: [], AdoptedFrom: adoption.Path),
+                new ImportPlan(staging, version, releaseTitle, parsed, quality, file.IndexerFlags, null, Force: replace, TransferMode.Move, ExtraPaths: [], AdoptedFrom: adoption.Path),
                 ct);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

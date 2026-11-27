@@ -66,4 +66,11 @@ public sealed class SeriesMovieLink
     public string? LinkError { get; set; }
 
     public DateTime? LinkErrorAt { get; set; }
+
+    /// <summary>
+    /// The user chose the special's own file over the film's when both had one: the keeper's next pass makes it the
+    /// film's file (the film's goes to the recycle bin), then clears this. Kept while that pass fails, so a refused move
+    /// never falls back to recycling the special's file.
+    /// </summary>
+    public bool KeepSpecialFile { get; set; }
 }

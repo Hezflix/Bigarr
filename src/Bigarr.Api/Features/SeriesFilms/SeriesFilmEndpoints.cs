@@ -74,7 +74,7 @@ public static class SeriesFilmEndpoints
             return Failure.Invalid("Nothing to link", "Pick at least one special.").ToProblem();
         }
 
-        return TypedResults.Ok(await films.LinkManyAsync(request.EpisodeIds, ct));
+        return TypedResults.Ok(await films.LinkManyAsync(request.EpisodeIds, request.KeepSpecialFile ?? [], ct));
     }
 
     private static async Task<Results<NoContent, ProblemHttpResult>> DismissAsync(int id, int episodeId, SeriesFilmService films, CancellationToken ct)

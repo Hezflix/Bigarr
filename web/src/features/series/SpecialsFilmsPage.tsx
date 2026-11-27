@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearch } from '@tanstack/react-router'
-import { ClapperboardIcon, EyeOffIcon, Link2Icon, Link2OffIcon, RotateCcwIcon, TriangleAlertIcon } from 'lucide-react'
+import { ChevronRightIcon, ClapperboardIcon, EyeOffIcon, InfoIcon, Link2Icon, Link2OffIcon, RotateCcwIcon, TriangleAlertIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ApiError, seriesFilms, type FilmFileStep, type SeriesFilmReviewRow, type SeriesFilmState } from '@/api/client'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ApiError, seriesFilms, type SeriesFilmReviewRow, type SeriesFilmState } from '@/api/client'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { FileCompare, FilesCell, type Keep, Plan, planFor } from './SpecialsFilmsFiles'
 
 type StateFilter = 'all' | SeriesFilmState
 type EvidenceFilter = 'all' | 'flagged' | 'likely'
@@ -35,6 +36,16 @@ export function SpecialsFilmsPage() {
   const [files, setFiles] = useState<FilesFilter>(search.files && FILES_FILTERS.includes(search.files) ? search.files : 'all')
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [confirming, setConfirming] = useState<SeriesFilmReviewRow[] | null>(null)
+  // The specials whose own file stays when the film has one too; the film's wins otherwise.
+  const [keepSpecial, setKeepSpecial] = useState<Set<number>>(new Set())
+  const keepOf = (row: SeriesFilmReviewRow): Keep => (row.keepSpecialPlan && keepSpecial.has(row.episodeId) ? 'special' : 'film')
+  const setKeep = (row: SeriesFilmReviewRow, keep: Keep) =>
+    setKeepSpecial((current) => {
+      const next = new Set(current)
+      if (keep === 'special') next.add(row.episodeId)
+      else next.delete(row.episodeId)
+      return next
+    })
 
   const rows = useMemo(
     () =>
@@ -95,7 +106,18 @@ export function SpecialsFilmsPage() {
           </Button>
         </div>
       </div>
-      <p className="max-w-3xl text-sm text-muted-foreground">{t('specialsFilms.hint')}</p>
+      <Alert className="max-w-4xl" data-testid="specials-films-how">
+        <InfoIcon />
+        <AlertTitle>{t('specialsFilms.how.title')}</AlertTitle>
+        <AlertDescription>
+          <ul className="list-disc space-y-0.5 pl-4">
+            <li>{t('specialsFilms.how.film')}</li>
+            <li>{t('specialsFilms.how.special')}</li>
+            <li>{t('specialsFilms.how.both')}</li>
+            <li>{t('specialsFilms.how.nothing')}</li>
+          </ul>
+        </AlertDescription>
+      </Alert>
       {review.data?.shadowEnabled && (
         <Alert>
           <AlertDescription>{t('specialsFilms.shadow')}</AlertDescription>
@@ -133,7 +155,7 @@ export function SpecialsFilmsPage() {
                 <TableHead className="w-[22%]">{t('specialsFilms.columns.special')}</TableHead>
                 <TableHead className="w-[20%]">{t('specialsFilms.columns.film')}</TableHead>
                 <TableHead className="w-28">{t('specialsFilms.columns.state')}</TableHead>
-                <TableHead>{t('specialsFilms.columns.onDisk')}</TableHead>
+                <TableHead>{t('specialsFilms.columns.files')}</TableHead>
                 <TableHead className="w-40 pr-4" />
               </TableRow>
             </TableHeader>
@@ -174,7 +196,16 @@ export function SpecialsFilmsPage() {
                     <StateBadge row={row} />
                   </TableCell>
                   <TableCell className="align-top whitespace-normal">
-                    <Plan steps={row.plan} />
+                    <FilesCell row={row} keep={keepOf(row)} onKeep={(keep) => setKeep(row, keep)} />
+                    <details className="group pt-1.5">
+                      <summary className="flex cursor-pointer list-none items-center gap-1 text-xs text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+                        <ChevronRightIcon className="size-3.5 transition-transform group-open:rotate-90" />
+                        {row.state === 'linked' ? t('specialsFilms.plan.showLinked') : t('specialsFilms.plan.show')}
+                      </summary>
+                      <div className="pt-1.5">
+                        <Plan steps={planFor(row, keepOf(row))} />
+                      </div>
+                    </details>
                   </TableCell>
                   <TableCell className="py-1 pr-4 text-right align-top whitespace-nowrap">
                     {row.state === 'linked' ? (
@@ -211,10 +242,13 @@ export function SpecialsFilmsPage() {
       {confirming && (
         <LinkDialog
           rows={confirming}
+          keepOf={keepOf}
+          onKeep={setKeep}
           shadow={review.data?.shadowEnabled ?? false}
           onClose={() => setConfirming(null)}
           onDone={() => {
             setSelected(new Set())
+            setKeepSpecial(new Set())
             refresh()
           }}
         />
@@ -279,32 +313,29 @@ function StateBadge({ row }: { row: SeriesFilmReviewRow }) {
   )
 }
 
-/** The file operations, one per line, in plain words. */
-function Plan({ steps }: { steps: FilmFileStep[] }) {
-  const { t } = useTranslation()
-  return (
-    <ul className="flex flex-col gap-0.5 text-xs" data-testid="specials-films-plan">
-      {steps.map((step) => (
-        <li key={`${step.kind}|${step.version ?? ''}|${step.from ?? ''}|${step.to ?? ''}`} className={step.kind === 'linkError' ? 'text-destructive' : step.kind === 'filmFileWins' ? 'text-amber-700 dark:text-amber-300' : undefined} data-kind={step.kind}>
-          <span>{t(`specialsFilms.step.${step.kind}`, { version: step.version ?? '', note: step.note ?? '' })}</span>
-          {(step.from || step.to) && (
-            <span className="block break-all font-mono text-[11px] text-muted-foreground">
-              {step.from}
-              {step.from && step.to && ' → '}
-              {step.to}
-            </span>
-          )}
-        </li>
-      ))}
-    </ul>
-  )
-}
-
 /** Link asks first, with the file operations it is about to do. */
-function LinkDialog({ rows, shadow, onClose, onDone }: { rows: SeriesFilmReviewRow[]; shadow: boolean; onClose: () => void; onDone: () => void }) {
+function LinkDialog({
+  rows,
+  keepOf,
+  onKeep,
+  shadow,
+  onClose,
+  onDone,
+}: {
+  rows: SeriesFilmReviewRow[]
+  keepOf: (row: SeriesFilmReviewRow) => Keep
+  onKeep: (row: SeriesFilmReviewRow, keep: Keep) => void
+  shadow: boolean
+  onClose: () => void
+  onDone: () => void
+}) {
   const { t } = useTranslation()
   const link = useMutation({
-    mutationFn: () => seriesFilms.linkMany(rows.map((r) => r.episodeId)),
+    mutationFn: () =>
+      seriesFilms.linkMany(
+        rows.map((r) => r.episodeId),
+        rows.filter((r) => keepOf(r) === 'special').map((r) => r.episodeId),
+      ),
     onSuccess: (results) => {
       const failed = results.filter((r) => !r.linked)
       const ok = results.length - failed.length
@@ -321,18 +352,21 @@ function LinkDialog({ rows, shadow, onClose, onDone }: { rows: SeriesFilmReviewR
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{t('specialsFilms.confirmTitle', { count: rows.length })}</DialogTitle>
           <DialogDescription>{shadow ? t('specialsFilms.shadow') : t('specialsFilms.confirmHint')}</DialogDescription>
         </DialogHeader>
-        <ul className="flex max-h-[50vh] flex-col gap-3 overflow-y-auto pr-1" data-testid="specials-films-confirm">
+        <ul className="flex max-h-[60vh] flex-col gap-5 overflow-y-auto pr-1" data-testid="specials-films-confirm">
           {rows.map((row) => (
-            <li key={row.episodeId} className="flex flex-col gap-1">
+            <li key={row.episodeId} className="flex flex-col gap-2">
               <span className="text-sm font-medium">
                 {row.seriesTitle} {row.label} → {row.filmTitle ?? `TMDB ${row.tmdbId}`}
               </span>
-              <Plan steps={row.plan} />
+              {row.keepSpecialPlan && <span className="text-xs text-amber-700 dark:text-amber-300">{t('specialsFilms.keep.choose')}</span>}
+              <FileCompare row={row} keep={keepOf(row)} onKeep={(keep) => onKeep(row, keep)} />
+              <span className="pt-1 text-xs font-medium text-muted-foreground">{t('specialsFilms.plan.title')}</span>
+              <Plan steps={planFor(row, keepOf(row))} />
             </li>
           ))}
         </ul>

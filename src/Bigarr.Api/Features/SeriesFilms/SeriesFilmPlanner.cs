@@ -121,7 +121,7 @@ public sealed class SeriesFilmPlanner(BigarrDbContext db, IOptions<ShadowOptions
             .AsSplitQuery()
             .ToListAsync(ct);
         var versions = await db.SeriesVersions.AsNoTracking().Include(v => v.RootFolder).Where(v => seriesIds.Contains(v.SeriesId)).ToListAsync(ct);
-        var targets = await db.EpisodeTargets.AsNoTrackingWithIdentityResolution().Include(t => t.EpisodeFile!).ThenInclude(f => f.Episodes)
+        var targets = await db.EpisodeTargets.AsNoTrackingWithIdentityResolution().Include(t => t.EpisodeFile!).ThenInclude(f => f.Episodes).Include(t => t.EpisodeFile!).ThenInclude(f => f.Quality)
             .Where(t => episodeIds.Contains(t.EpisodeId))
             .ToListAsync(ct);
         var seasonsOf = await db.Episodes.AsNoTracking().Where(e => seriesIds.Contains(e.SeriesId) && e.SeasonNumber > 0)
@@ -145,7 +145,18 @@ public sealed class SeriesFilmPlanner(BigarrDbContext db, IOptions<ShadowOptions
             var newFilmFolder = movie is null && filmRoot is not null && episode.MovieTitle is { } title && episode.MovieTmdbId is { } tmdb
                 ? Path.Combine(filmRoot.Path, MovieService.FolderName(config, title, null, episode.MovieYear, tmdb, episode.MovieImdbId, VersionNaming.FromProfile(profile?.Name ?? "1080p")))
                 : filmRoot?.Path;
-            var plan = Plan(config, episode, link, movie, source, showVersions, episodeTargets, newFilmFolder);
+            var plan = Plan(config, episode, link, movie, source, showVersions, episodeTargets, newFilmFolder, keepSpecial: link?.KeepSpecialFile == true);
+
+            // Both have a file and the special's could be kept: the other way round, on paper too.
+            var keepSpecialPlan = link is null && source is not null && !shadow.Value.AnyInShadow
+                && Adoptable(showVersions, episodeTargets, episode.Id, (t, v) => t.Monitored || v.Monitored) is not null
+                ? Plan(config, episode, link, movie, source, showVersions, episodeTargets, newFilmFolder, keepSpecial: true)
+                : null;
+            var specialFiles = showVersions.OrderByDescending(v => v.IsDefault).ThenBy(v => v.Id)
+                .Select(v => (Version: v, episodeTargets.FirstOrDefault(t => t.VersionId == v.Id)?.EpisodeFile))
+                .Where(x => x.EpisodeFile is not null)
+                .Select(x => FileInfoOf(x.Version.Name, Path.Combine(x.Version.RootFolder.Path, x.Version.FolderName, x.EpisodeFile!.RelativePath), x.EpisodeFile!))
+                .ToList();
 
             rows.Add(new SeriesFilmReviewRow(
                 episode.SeriesId,
@@ -166,7 +177,10 @@ public sealed class SeriesFilmPlanner(BigarrDbContext db, IOptions<ShadowOptions
                 episodeTargets.Any(t => t.EpisodeFile is not null),
                 source is not null,
                 link?.LinkError,
-                plan));
+                plan,
+                source is { } film ? FileInfoOf(null, film.Path, film.File) : null,
+                specialFiles,
+                keepSpecialPlan));
         }
 
         return new SeriesFilmReviewResponse(shadow.Value.AnyInShadow, config.AutoAddSeriesFilms, rows);
@@ -181,7 +195,8 @@ public sealed class SeriesFilmPlanner(BigarrDbContext db, IOptions<ShadowOptions
         (MediaFile File, string Path)? source,
         List<SeriesVersion> versions,
         List<EpisodeTarget> targets,
-        string? newFilmFolder)
+        string? newFilmFolder,
+        bool keepSpecial)
     {
         var steps = new List<FilmFileStep>();
         var linked = link is not null;
@@ -207,7 +222,15 @@ public sealed class SeriesFilmPlanner(BigarrDbContext db, IOptions<ShadowOptions
         var filmVersion = movie?.Versions.FirstOrDefault(v => v.IsDefault);
         var filmFolder = filmVersion is not null ? Path.Combine(filmVersion.RootFolder.Path, filmVersion.FolderName) : newFilmFolder;
         Adoption? adoption = null;
-        if (source is null && (movie is null || filmVersion is not null))
+        if (keepSpecial && source is { } replaced && filmVersion is not null && Adoptable(versions, targets, episode.Id, Wanted) is { } kept)
+        {
+            // The special's file replaces the film's: the hardlinks then follow the adopted file, as when the film had none.
+            adoption = kept;
+            steps.Add(new FilmFileStep(FilmFileStepKind.SpecialFileWins, kept.Version.Name, kept.Path, filmFolder));
+            steps.Add(new FilmFileStep(FilmFileStepKind.RecycleFilmFile, From: replaced.Path));
+            source = null;
+        }
+        else if (source is null && (movie is null || filmVersion is not null))
         {
             adoption = Adoptable(versions, targets, episode.Id, Wanted);
             if (adoption is not null)
@@ -282,4 +305,27 @@ public sealed class SeriesFilmPlanner(BigarrDbContext db, IOptions<ShadowOptions
 
         return steps;
     }
+    private static SeriesFilmFileInfo FileInfoOf(string? version, string path, EpisodeFile file) =>
+        Info(version, path, file.Size, file.Quality?.Name, file.ReleaseGroup, file.Languages, file.MediaInfo, file.DateAdded, file.IsFilmLink);
+
+    private static SeriesFilmFileInfo FileInfoOf(string? version, string path, MediaFile file) =>
+        Info(version, path, file.Size, file.Quality?.Name, file.ReleaseGroup, file.Languages, file.MediaInfo, file.DateAdded, false);
+
+    private static SeriesFilmFileInfo Info(string? version, string path, long size, string? quality, string? group, List<string> languages, MediaInfo? media, DateTime added, bool isFilmLink) =>
+        new(
+            version,
+            path,
+            size,
+            quality,
+            group,
+            [.. (media?.AudioLanguages is { Count: > 0 } audio ? audio : languages)],
+            media?.Width,
+            media?.Height,
+            media?.VideoCodec,
+            media?.VideoDynamicRangeType is { Length: > 0 } hdr ? hdr : media?.VideoDynamicRange,
+            media?.AudioCodec,
+            media?.AudioChannels,
+            media?.RunTime is { } run ? (int)Math.Round(run.TotalMinutes) : null,
+            added,
+            isFilmLink);
 }
