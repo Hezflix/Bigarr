@@ -21,14 +21,15 @@ public static class DownloadsExtensions
             })
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
 
-        // Torrent files: trackers redirect (to a mirror, or to a magnet, which the handler leaves to us).
+        // Torrent files: trackers redirect, to a mirror or to a magnet. TorrentFileFetcher follows them itself: the handler
+        // would follow a magnet from a plain http link and fail on its missing host.
         services.AddHttpClient(TorrentFileFetcher.HttpClientName, http =>
             {
                 http.Timeout = TimeSpan.FromSeconds(60);
                 http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
                 http.DefaultRequestHeaders.Accept.ParseAdd("application/x-bittorrent, */*;q=0.5");
             })
-            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 5 });
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 
         services.AddSingleton<TorrentFileFetcher>();
         services.AddSingleton<IDownloadClient, QBittorrentClient>();

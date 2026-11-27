@@ -14,12 +14,19 @@ public sealed record FetchedTorrent(byte[]? File, string? Magnet)
 /// Downloads the <c>.torrent</c> behind an indexer link so the info hash is known before the client sees it (that is
 /// how the queue finds the download again). Trackers often answer with a redirect to a magnet: that is kept as is.
 /// </summary>
+/// <remarks>
+/// Redirects are followed here, not by the HTTP handler: the handler follows any absolute URI from a plain http link,
+/// a magnet included, and then fails on its missing host (Prowlarr answers Nyaa links with exactly that redirect).
+/// </remarks>
 public sealed class TorrentFileFetcher(IHttpClientFactory httpClientFactory)
 {
     public const string HttpClientName = "torrent-files";
 
     /// <summary>Anything bigger is not a torrent file.</summary>
     public const int MaxBytes = 16 * 1024 * 1024;
+
+    /// <summary>Redirects followed before giving up, as many as the handler used to follow.</summary>
+    public const int MaxRedirects = 5;
 
     public async Task<FetchedTorrent> FetchAsync(string downloadUrl, CancellationToken cancellationToken)
     {
@@ -36,42 +43,23 @@ public sealed class TorrentFileFetcher(IHttpClientFactory httpClientFactory)
         var http = httpClientFactory.CreateClient(HttpClientName);
         try
         {
-            using var response = await http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            if ((int)response.StatusCode is >= 300 and < 400)
+            for (var redirects = 0; ; redirects++)
             {
-                // Redirects to http(s) are followed by the handler; only a magnet ends up here.
-                var location = response.Headers.Location?.OriginalString;
-                if (MagnetLink.IsMagnet(location))
+                using var response = await http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                if ((int)response.StatusCode is >= 300 and < 400)
                 {
-                    return new FetchedTorrent(null, location);
+                    var location = response.Headers.Location?.OriginalString;
+                    if (MagnetLink.IsMagnet(location))
+                    {
+                        return new FetchedTorrent(null, location);
+                    }
+
+                    uri = NextHop(uri, response.Headers.Location, redirects);
+                    continue;
                 }
 
-                throw new DownloadClientException(DownloadClientFailureKind.InvalidRelease, $"The indexer redirected the torrent link to {location ?? "nowhere"}.");
+                return await ReadTorrentAsync(response, cancellationToken);
             }
-
-            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-            {
-                throw new DownloadClientException(DownloadClientFailureKind.InvalidRelease, $"The indexer refused the torrent link (HTTP {(int)response.StatusCode}).");
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw new DownloadClientException(DownloadClientFailureKind.InvalidRelease, $"The indexer answered HTTP {(int)response.StatusCode} for the torrent link.");
-            }
-
-            if (response.Content.Headers.ContentLength is > MaxBytes)
-            {
-                throw new DownloadClientException(DownloadClientFailureKind.InvalidRelease, "The torrent link points at something far too large to be a torrent file.");
-            }
-
-            var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-            if (bytes.Length > MaxBytes || Bencode.TryGetInfoHash(bytes) is null)
-            {
-                var type = response.Content.Headers.ContentType?.MediaType ?? "unknown type";
-                throw new DownloadClientException(DownloadClientFailureKind.InvalidRelease, $"The torrent link did not return a torrent file ({type}, {bytes.Length} bytes). A login page in front of the indexer is the usual cause.");
-            }
-
-            return new FetchedTorrent(bytes, null);
         }
         catch (HttpRequestException ex)
         {
@@ -81,5 +69,55 @@ public sealed class TorrentFileFetcher(IHttpClientFactory httpClientFactory)
         {
             throw new DownloadClientException(DownloadClientFailureKind.InvalidRelease, "The indexer did not deliver the torrent file in time.", ex);
         }
+    }
+
+    /// <summary>Where a redirect leads, when it is one we follow: http(s), never from https down to http, at most <see cref="MaxRedirects"/>.</summary>
+    private static Uri NextHop(Uri from, Uri? location, int redirects)
+    {
+        if (location is null)
+        {
+            throw new DownloadClientException(DownloadClientFailureKind.InvalidRelease, "The indexer redirected the torrent link to nowhere.");
+        }
+
+        var next = location.IsAbsoluteUri ? location : new Uri(from, location);
+        if ((next.Scheme != Uri.UriSchemeHttp && next.Scheme != Uri.UriSchemeHttps)
+            || (from.Scheme == Uri.UriSchemeHttps && next.Scheme == Uri.UriSchemeHttp))
+        {
+            throw new DownloadClientException(DownloadClientFailureKind.InvalidRelease, $"The indexer redirected the torrent link to {location.OriginalString}.");
+        }
+
+        if (redirects >= MaxRedirects)
+        {
+            throw new DownloadClientException(DownloadClientFailureKind.InvalidRelease, $"The indexer redirected the torrent link more than {MaxRedirects} times.");
+        }
+
+        return next;
+    }
+
+    private static async Task<FetchedTorrent> ReadTorrentAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            throw new DownloadClientException(DownloadClientFailureKind.InvalidRelease, $"The indexer refused the torrent link (HTTP {(int)response.StatusCode}).");
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new DownloadClientException(DownloadClientFailureKind.InvalidRelease, $"The indexer answered HTTP {(int)response.StatusCode} for the torrent link.");
+        }
+
+        if (response.Content.Headers.ContentLength is > MaxBytes)
+        {
+            throw new DownloadClientException(DownloadClientFailureKind.InvalidRelease, "The torrent link points at something far too large to be a torrent file.");
+        }
+
+        var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        if (bytes.Length > MaxBytes || Bencode.TryGetInfoHash(bytes) is null)
+        {
+            var type = response.Content.Headers.ContentType?.MediaType ?? "unknown type";
+            throw new DownloadClientException(DownloadClientFailureKind.InvalidRelease, $"The torrent link did not return a torrent file ({type}, {bytes.Length} bytes). A login page in front of the indexer is the usual cause.");
+        }
+
+        return new FetchedTorrent(bytes, null);
     }
 }
