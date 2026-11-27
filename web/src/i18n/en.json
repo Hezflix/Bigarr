@@ -3350,6 +3350,8 @@
       "healthCheck": "Check health now",
       "backup": "Back up the database now",
       "openQueue": "Open the Activity queue",
+      "manualImportFilms": "Manual import of films",
+      "manualImportSeries": "Manual import of series",
       "themeDark": "Switch to the dark theme",
       "themeLight": "Switch to the light theme",
       "themeSystem": "Follow the system theme"
