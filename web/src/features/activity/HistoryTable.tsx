@@ -1,10 +1,12 @@
 import { Link } from '@tanstack/react-router'
+import { ExternalLinkIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { HistoryEvent, HistoryEventType } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatBytes, formatDateTime } from '@/i18n'
+import { releasePage } from './releasePage'
 
 const eventStyles: Record<HistoryEventType, string> = {
   grabbed: 'border-blue-600/30 bg-blue-500/15 text-blue-700 dark:border-blue-400/30 dark:text-blue-300',
@@ -33,7 +35,7 @@ const headline: Record<HistoryEventType, string[]> = {
   blocklisted: ['reason'],
 }
 
-/** The journal: what happened to which version, and why a file is there. */
+/** The journal: what happened to which version, and why a file is there. A grab opens its release's page on the indexer. */
 export function HistoryTable({ events, showMovie = true }: { events: HistoryEvent[]; showMovie?: boolean }) {
   const { t } = useTranslation()
 
@@ -51,43 +53,68 @@ export function HistoryTable({ events, showMovie = true }: { events: HistoryEven
           </TableRow>
         </TableHeader>
         <TableBody>
-          {events.map((event) => (
-            <TableRow key={event.id} data-event={event.eventType}>
-              <TableCell className="align-top whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(event.createdAt)}</TableCell>
-              <TableCell className="align-top">
-                <span className="flex flex-wrap items-center gap-1">
-                  <Badge variant="outline" className={eventStyles[event.eventType]}>
-                    {t(`history.events.${event.eventType}`)}
-                  </Badge>
-                  {/* Copied from Radarr by the import or the follow (shadow mode): Radarr did it, not Bigarr. */}
-                  {event.data.importedFrom === 'radarr' && (
-                    <Badge variant="outline" className="border-border bg-muted text-muted-foreground" data-testid="history-from-radarr">
-                      {t('history.fromRadarr')}
-                    </Badge>
-                  )}
-                </span>
-              </TableCell>
-              {showMovie && (
+          {events.map((event) => {
+            const page = releasePage(event)
+            return (
+              <TableRow
+                key={event.id}
+                data-event={event.eventType}
+                className={page ? 'cursor-pointer' : undefined}
+                title={page ? t('history.openReleasePage') : undefined}
+                // A click anywhere on a grab opens its page on the indexer; links inside the row keep their own target.
+                onClick={page ? (e) => (e.target as HTMLElement).closest('a') === null && window.open(page, '_blank', 'noopener,noreferrer') : undefined}
+              >
+                <TableCell className="align-top whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(event.createdAt)}</TableCell>
                 <TableCell className="align-top">
-                  {event.movieId ? (
-                    <Link to="/movies/$movieId" params={{ movieId: String(event.movieId) }} className="font-medium underline-offset-4 hover:underline">
-                      {event.movieTitle}
-                    </Link>
-                  ) : (
-                    <span className="text-muted-foreground">{event.movieTitle ?? t('common.none')}</span>
-                  )}
+                  <span className="flex flex-wrap items-center gap-1">
+                    <Badge variant="outline" className={eventStyles[event.eventType]}>
+                      {t(`history.events.${event.eventType}`)}
+                    </Badge>
+                    {/* Copied from Radarr by the import or the follow (shadow mode): Radarr did it, not Bigarr. */}
+                    {event.data.importedFrom === 'radarr' && (
+                      <Badge variant="outline" className="border-border bg-muted text-muted-foreground" data-testid="history-from-radarr">
+                        {t('history.fromRadarr')}
+                      </Badge>
+                    )}
+                  </span>
                 </TableCell>
-              )}
-              <TableCell className="align-top">{event.versionName ? <Badge variant="secondary">{event.versionName}</Badge> : <span className="text-muted-foreground">{t('common.none')}</span>}</TableCell>
-              <TableCell className="min-w-[16rem] max-w-[28rem] align-top whitespace-normal">
-                <span className="block break-all text-xs">{event.sourceTitle ?? t('common.none')}</span>
-                {event.indexerName && <span className="text-xs text-muted-foreground">{event.indexerName}</span>}
-              </TableCell>
-              <TableCell className="min-w-[14rem] max-w-[28rem] align-top whitespace-normal text-xs text-muted-foreground">
-                <Details event={event} />
-              </TableCell>
-            </TableRow>
-          ))}
+                {showMovie && (
+                  <TableCell className="align-top">
+                    {event.movieId ? (
+                      <Link to="/movies/$movieId" params={{ movieId: String(event.movieId) }} className="font-medium underline-offset-4 hover:underline">
+                        {event.movieTitle}
+                      </Link>
+                    ) : (
+                      <span className="text-muted-foreground">{event.movieTitle ?? t('common.none')}</span>
+                    )}
+                  </TableCell>
+                )}
+                <TableCell className="align-top">
+                  {event.versionName ? <Badge variant="secondary">{event.versionName}</Badge> : <span className="text-muted-foreground">{t('common.none')}</span>}
+                </TableCell>
+                <TableCell className="min-w-[16rem] max-w-[28rem] align-top whitespace-normal">
+                  {page ? (
+                    <a
+                      href={page}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-start gap-1 break-all text-xs underline-offset-4 hover:underline"
+                      data-testid="history-release-page"
+                    >
+                      {event.sourceTitle ?? page}
+                      <ExternalLinkIcon className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
+                    </a>
+                  ) : (
+                    <span className="block break-all text-xs">{event.sourceTitle ?? t('common.none')}</span>
+                  )}
+                  {event.indexerName && <span className="text-xs text-muted-foreground">{event.indexerName}</span>}
+                </TableCell>
+                <TableCell className="min-w-[14rem] max-w-[28rem] align-top whitespace-normal text-xs text-muted-foreground">
+                  <Details event={event} />
+                </TableCell>
+              </TableRow>
+            )
+          })}
         </TableBody>
       </Table>
     </div>

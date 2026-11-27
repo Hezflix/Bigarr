@@ -1348,6 +1348,7 @@
   },
   "history": {
     "fromRadarr": "Radarr",
+    "openReleasePage": "Open the release page on the indexer",
     "title": "History",
     "date": "Date",
     "event": "Event",
