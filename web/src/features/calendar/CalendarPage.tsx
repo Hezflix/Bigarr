@@ -275,16 +275,16 @@ function EpisodeCard({ entry, episode, look }: { entry: CalendarEntry; episode: 
     >
       {look.density === 'comfortable' && <Poster url={episode.posterUrl ?? null} title={episode.seriesTitle} size="calendar" className="rounded-sm" />}
       <span className="flex min-w-0 flex-1 flex-col">
-        {/* Beside a poster the time goes under the title, which needs the whole width. */}
+        {/* Beside a poster the time goes under the episode, as the title needs the whole width. */}
         <span className="flex items-baseline justify-between gap-1">
           <span className={cn(titleClass(look), 'font-medium')}>{episode.seriesTitle}</span>
           {look.density === 'compact' && time && <span className="shrink-0 text-muted-foreground tabular-nums">{time}</span>}
         </span>
-        {look.density === 'comfortable' && time && <span className="text-muted-foreground tabular-nums">{time}</span>}
         <span className="flex items-baseline gap-1">
           {code(episode) && <span className="shrink-0 tabular-nums">{code(episode)}</span>}
           <span className="truncate text-muted-foreground">{episode.title}</span>
         </span>
+        {look.density === 'comfortable' && time && <span className="text-muted-foreground tabular-nums">{time}</span>}
         {!episode.isDefaultVersion && <span className="block text-[10px] text-muted-foreground">{episode.versionName}</span>}
       </span>
     </Link>
