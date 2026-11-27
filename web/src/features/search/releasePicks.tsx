@@ -1,6 +1,6 @@
 import { useEffect, useState, type RefObject } from 'react'
 import { cn } from 'cn'
-import { CircleSlashIcon, CircleXIcon, DownloadIcon, GhostIcon, HardDriveIcon, HistoryIcon, type LucideIcon } from 'lucide-react'
+import { ChevronRightIcon, CircleSlashIcon, CircleXIcon, DownloadIcon, GhostIcon, HardDriveIcon, HistoryIcon, type LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { components } from '@/api/generated/schema'
 import { Badge } from '@/components/ui/badge'
@@ -73,28 +73,58 @@ export function PickBadges({ release }: { release: Picked }) {
   )
 }
 
-/** One line per pick above the table, each with a link to its row. */
+/** Whether the banner is folded, per browser: a long list of picks can push the results off the screen. */
+export const picksFoldedKey = 'bigarr.search.picksFolded'
+
+function readFolded(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(picksFoldedKey) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeFolded(folded: boolean): void {
+  try {
+    globalThis.localStorage?.setItem(picksFoldedKey, folded ? '1' : '0')
+  } catch {
+    // Not remembered: the toggle still works for this page.
+  }
+}
+
+/** One line per pick above the table, each with a link to its row. The title folds the list down to a count. */
 export function PicksBanner({ releases, onShow }: { releases: Picked[]; onShow: (key: string) => void }) {
   const { t } = useTranslation()
+  const [folded, setFolded] = useState(readFolded)
   const picked = releases.filter((r) => (r.picks ?? []).length > 0)
   if (picked.length === 0) return null
+  const count = picked.reduce((sum, r) => sum + (r.picks ?? []).length, 0)
+  const toggle = () => {
+    setFolded(!folded)
+    writeFolded(!folded)
+  }
   return (
     <div className="flex flex-col gap-1.5 rounded-lg border bg-muted/40 p-3" data-testid="search-picks">
-      <p className="text-xs font-medium text-muted-foreground">{t('search.pick.bannerTitle')}</p>
-      {picked.flatMap((release) =>
-        picksOf(release).map((pick) => (
-          <div key={`${releaseKey(release)}:${pick.versionId}`} className="flex flex-wrap items-center gap-2 text-sm">
-            <PickBadge pick={pick} />
-            <span className="min-w-0 flex-1 truncate" title={release.title}>
-              {release.title}
-            </span>
-            <span className="text-xs text-muted-foreground">{release.indexer}</span>
-            <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => onShow(releaseKey(release))} data-testid="search-pick-show">
-              {t('search.pick.showInList')}
-            </Button>
-          </div>
-        )),
-      )}
+      <button type="button" className="flex items-center gap-1 text-left text-xs font-medium text-muted-foreground" onClick={toggle} aria-expanded={!folded} data-testid="search-picks-toggle">
+        <ChevronRightIcon className={cn('size-3.5 transition-transform', !folded && 'rotate-90')} aria-hidden="true" />
+        {t('search.pick.bannerTitle')}
+        <span className="tabular-nums">({count})</span>
+      </button>
+      {!folded &&
+        picked.flatMap((release) =>
+          picksOf(release).map((pick) => (
+            <div key={`${releaseKey(release)}:${pick.versionId}`} className="flex flex-wrap items-center gap-2 text-sm">
+              <PickBadge pick={pick} />
+              <span className="min-w-0 flex-1 truncate" title={release.title}>
+                {release.title}
+              </span>
+              <span className="text-xs text-muted-foreground">{release.indexer}</span>
+              <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => onShow(releaseKey(release))} data-testid="search-pick-show">
+                {t('search.pick.showInList')}
+              </Button>
+            </div>
+          )),
+        )}
     </div>
   )
 }
