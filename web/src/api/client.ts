@@ -1808,6 +1808,7 @@ export type SeriesFilmState = Schemas['SeriesFilmState']
 export type FilmFileStepKind = Schemas['FilmFileStepKind']
 export type FilmFileStep = Schemas['FilmFileStep']
 export type SeriesFilmReviewRow = Schemas['SeriesFilmReviewRow']
+export type SeriesFilmFileInfo = Schemas['SeriesFilmFileInfo']
 export type SeriesFilmReview = Schemas['SeriesFilmReviewResponse']
 export type SeriesFilmSummary = Schemas['SeriesFilmSummaryResponse']
 export type LinkSeriesFilmResult = Schemas['LinkSeriesFilmResult']
@@ -1822,7 +1823,8 @@ export const seriesFilms = {
   /** Every candidate of every show, with what linking it would do on disk (a dry run: nothing is written). */
   review: () => api<SeriesFilmReview>('/api/v1/series-films/review'),
   summary: () => api<SeriesFilmSummary>('/api/v1/series-films/summary'),
-  linkMany: (episodeIds: number[]) => post<LinkSeriesFilmResult[]>('/api/v1/series-films/link', { episodeIds }),
+  /** `keepSpecialFile`: the specials whose own file stays over the film's when both have one. */
+  linkMany: (episodeIds: number[], keepSpecialFile: number[] = []) => post<LinkSeriesFilmResult[]>('/api/v1/series-films/link', { episodeIds, keepSpecialFile }),
   dismiss: (seriesId: number, episodeId: number) => post<void>(`/api/v1/series/${seriesId}/films/${episodeId}/dismiss`),
   restore: (seriesId: number, episodeId: number) => del(`/api/v1/series/${seriesId}/films/${episodeId}/dismiss`),
 }

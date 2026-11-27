@@ -3968,6 +3968,9 @@ namespace Bigarr.Api.Infrastructure.Persistence.Migrations
                     b.Property<int>("EpisodeId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("KeepSpecialFile")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("LinkError")
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");

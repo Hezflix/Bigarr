@@ -11200,6 +11200,8 @@ export interface components {
             searchOnAdd: boolean;
             /** Format: int32 */
             tmdbId?: null | number;
+            /** @default false */
+            keepSpecialFile: boolean;
         };
         AddSeriesRequest: {
             /** Format: int32 */
@@ -12347,7 +12349,7 @@ export interface components {
             note: null | string;
         };
         /** @enum {unknown} */
-        FilmFileStepKind: "shadowNoFiles" | "addFilm" | "reuseFilm" | "searchFilm" | "nothingOnDisk" | "adoptSpecialFile" | "hardlinkIntoSpecials" | "filmFileWins" | "alreadyHardlinked" | "sharedFileLeft" | "removeHardlink" | "linkError";
+        FilmFileStepKind: "shadowNoFiles" | "addFilm" | "reuseFilm" | "searchFilm" | "nothingOnDisk" | "adoptSpecialFile" | "hardlinkIntoSpecials" | "filmFileWins" | "specialFileWins" | "recycleFilmFile" | "alreadyHardlinked" | "sharedFileLeft" | "removeHardlink" | "linkError";
         /** @enum {unknown} */
         FilmPlacementSource: "none" | "tvdb" | "airDate";
         FolderListing: {
@@ -12979,6 +12981,7 @@ export interface components {
         };
         LinkSeriesFilmsRequest: {
             episodeIds: number[];
+            keepSpecialFile?: null | number[];
         };
         LinkSuggestion: {
             /** Format: int32 */
@@ -15074,6 +15077,29 @@ export interface components {
             files: components["schemas"]["EpisodeFileResponse"][];
             unmatched: components["schemas"]["UnmatchedEpisodeFileResponse"][];
         };
+        SeriesFilmFileInfo: {
+            version: null | string;
+            path: string;
+            /** Format: int64 */
+            size: number;
+            quality: null | string;
+            releaseGroup: null | string;
+            languages: string[];
+            /** Format: int32 */
+            width: null | number;
+            /** Format: int32 */
+            height: null | number;
+            videoCodec: null | string;
+            dynamicRange: null | string;
+            audioCodec: null | string;
+            /** Format: double */
+            audioChannels: null | number;
+            /** Format: int32 */
+            runTimeMinutes: null | number;
+            /** Format: date-time */
+            dateAdded: string;
+            isFilmLink: boolean;
+        };
         SeriesFilmLinkResponse: {
             /** Format: int32 */
             id: number;
@@ -15148,6 +15174,9 @@ export interface components {
             filmHasFile: boolean;
             linkError: null | string;
             plan: components["schemas"]["FilmFileStep"][];
+            filmFile: null | components["schemas"]["SeriesFilmFileInfo"];
+            specialFiles: components["schemas"]["SeriesFilmFileInfo"][];
+            keepSpecialPlan: null | components["schemas"]["FilmFileStep"][];
         };
         SeriesFilmSettingsRequest: {
             autoAdd: boolean;

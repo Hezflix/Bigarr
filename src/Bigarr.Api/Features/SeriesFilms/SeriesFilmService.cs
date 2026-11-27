@@ -289,6 +289,7 @@ public sealed class SeriesFilmService(
             PlacementSource = placement.Source,
             AutoAdded = autoAdded,
             CreatedAt = Now,
+            KeepSpecialFile = request.KeepSpecialFile,
         };
         db.SeriesMovieLinks.Add(link);
         if (episode.MovieTmdbId is null)
@@ -327,11 +328,13 @@ public sealed class SeriesFilmService(
 
     /// <summary>
     /// Links several specials at once with the defaults (review page): each one as <see cref="AddAsync"/> does, one
-    /// after the other; a failure is reported for its special and the others go on.
+    /// after the other; a failure is reported for its special and the others go on. The specials in
+    /// <paramref name="keepSpecialFile"/> keep their own file over the film's when both have one.
     /// </summary>
-    public async Task<List<LinkSeriesFilmResult>> LinkManyAsync(IReadOnlyCollection<int> episodeIds, CancellationToken ct)
+    public async Task<List<LinkSeriesFilmResult>> LinkManyAsync(IReadOnlyCollection<int> episodeIds, IReadOnlyCollection<int> keepSpecialFile, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(episodeIds);
+        ArgumentNullException.ThrowIfNull(keepSpecialFile);
         var seriesOf = await db.Episodes.AsNoTracking().Where(e => episodeIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.SeriesId, ct);
         var results = new List<LinkSeriesFilmResult>();
         foreach (var episodeId in episodeIds.Distinct())
@@ -342,7 +345,7 @@ public sealed class SeriesFilmService(
                 continue;
             }
 
-            var result = await AddAsync(seriesId, new AddSeriesFilmRequest(episodeId), ct);
+            var result = await AddAsync(seriesId, new AddSeriesFilmRequest(episodeId, KeepSpecialFile: keepSpecialFile.Contains(episodeId)), ct);
             results.Add(new LinkSeriesFilmResult(episodeId, result.IsSuccess, result.IsSuccess ? null : result.Failure!.Detail ?? result.Failure.Title));
             db.ChangeTracker.Clear();
         }

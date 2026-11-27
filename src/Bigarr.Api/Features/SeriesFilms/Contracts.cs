@@ -43,7 +43,8 @@ public sealed record SeriesFilmVersionLinkResponse(int VersionId, string Version
 /// <param name="QualityProfileId">Defaults to the default film profile (the system <c>1080p</c>).</param>
 /// <param name="RootFolderId">Defaults to the first film root folder.</param>
 /// <param name="TmdbId">For a special detection found no TMDB id for: the user says which film it is.</param>
-public sealed record AddSeriesFilmRequest(int EpisodeId, int? QualityProfileId = null, int? RootFolderId = null, bool SearchOnAdd = true, int? TmdbId = null);
+/// <param name="KeepSpecialFile">When both have a file: the special's becomes the film's, the film's goes to the recycle bin.</param>
+public sealed record AddSeriesFilmRequest(int EpisodeId, int? QualityProfileId = null, int? RootFolderId = null, bool SearchOnAdd = true, int? TmdbId = null, bool KeepSpecialFile = false);
 
 /// <summary>On the film page: "Also special S00E02 of Show (after season 1)".</summary>
 public sealed record MovieSeriesLinkResponse(int SeriesId, string SeriesTitle, int EpisodeId, string Label, int? AfterSeason, int? BeforeSeason, string? PlacementLabel);
@@ -87,6 +88,12 @@ public enum FilmFileStepKind
     /// <summary>Both have a file: the film's wins, the special's (<c>From</c>) goes to the recycle bin.</summary>
     FilmFileWins,
 
+    /// <summary>Both have a file and the special's is kept: moved (a rename, never a copy) from <c>From</c> into the film's folder <c>To</c>.</summary>
+    SpecialFileWins,
+
+    /// <summary>The film's file (<c>From</c>) goes to the recycle bin: the special's replaces it.</summary>
+    RecycleFilmFile,
+
     /// <summary>The special is already the hardlink of the film's file in <c>Version</c>.</summary>
     AlreadyHardlinked,
 
@@ -102,9 +109,33 @@ public enum FilmFileStepKind
 
 public sealed record FilmFileStep(FilmFileStepKind Kind, string? Version = null, string? From = null, string? To = null, string? Note = null);
 
+/// <summary>One file on either side, to compare before choosing which one stays.</summary>
+/// <param name="Version">The series version holding the special's file; null for the film's file.</param>
+/// <param name="IsFilmLink">The special's file is already the hardlink of the film's.</param>
+public sealed record SeriesFilmFileInfo(
+    string? Version,
+    string Path,
+    long Size,
+    string? Quality,
+    string? ReleaseGroup,
+    List<string> Languages,
+    int? Width,
+    int? Height,
+    string? VideoCodec,
+    string? DynamicRange,
+    string? AudioCodec,
+    double? AudioChannels,
+    int? RunTimeMinutes,
+    DateTime DateAdded,
+    bool IsFilmLink);
+
 /// <param name="MovieId">The film of the library: linked, or already there with that TMDB id.</param>
 /// <param name="SpecialHasFile">A file (its own or the hardlink) in any version of the show.</param>
 /// <param name="FilmHasFile">The film's default version has its file on disk.</param>
+/// <param name="Plan">What linking does by default: the film's file wins when both have one.</param>
+/// <param name="FilmFile">The film's default-version file on disk.</param>
+/// <param name="SpecialFiles">The special's file in each series version that has one.</param>
+/// <param name="KeepSpecialPlan">When both have a file and the special's can be kept: what linking does then. Null: no choice.</param>
 public sealed record SeriesFilmReviewRow(
     int SeriesId,
     string SeriesTitle,
@@ -124,13 +155,17 @@ public sealed record SeriesFilmReviewRow(
     bool SpecialHasFile,
     bool FilmHasFile,
     string? LinkError,
-    List<FilmFileStep> Plan);
+    List<FilmFileStep> Plan,
+    SeriesFilmFileInfo? FilmFile,
+    List<SeriesFilmFileInfo> SpecialFiles,
+    List<FilmFileStep>? KeepSpecialPlan);
 
 public sealed record SeriesFilmReviewResponse(bool ShadowEnabled, bool AutoAdd, List<SeriesFilmReviewRow> Rows);
 
 /// <summary>The library toolbars' badge: candidates nobody decided on yet.</summary>
 public sealed record SeriesFilmSummaryResponse(int Suggested, int Linked, int Dismissed);
 
-public sealed record LinkSeriesFilmsRequest(List<int> EpisodeIds);
+/// <param name="KeepSpecialFile">The specials (among <paramref name="EpisodeIds"/>) whose own file is kept over the film's.</param>
+public sealed record LinkSeriesFilmsRequest(List<int> EpisodeIds, List<int>? KeepSpecialFile = null);
 
 public sealed record LinkSeriesFilmResult(int EpisodeId, bool Linked, string? Error);

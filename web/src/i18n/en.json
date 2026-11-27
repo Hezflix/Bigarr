@@ -3160,7 +3160,13 @@
     "buttonHint_one": "{{count}} special detected as a film waits for a decision",
     "buttonHint_other": "{{count}} specials detected as films wait for a decision",
     "counts": "{{suggested}} suggested · {{linked}} linked · {{dismissed}} dismissed",
-    "hint": "Every special detected as a film, in every show. Each row says what linking it would do on disk, worked out from the files as they are now. Nothing happens until you link.",
+    "how": {
+      "title": "How linking works",
+      "film": "The film joins the film library, in its own folder. From then on the film engine searches, grabs and upgrades it.",
+      "special": "The special stays in the show, as a hardlink of the film's file: one copy on disk, seen by both libraries.",
+      "both": "When the special and the film both have a file already, you choose which one stays. The other goes to the recycle bin.",
+      "nothing": "Nothing happens until you link. Each row says what linking would do, worked out from the files as they are now."
+    },
     "shadow": "Shadow mode: linking records the film and the link. No file is touched, on either side.",
     "empty": "No special has been detected as a film yet. Detection runs when a show is added or refreshed.",
     "noneShown": "No row matches these filters.",
@@ -3175,9 +3181,43 @@
     "restore": "Restore",
     "restoreHint": "Back to the suggestions",
     "tmdbOnly": "TMDB film {{id}}",
+    "noFile": "No file",
+    "moreVersions_one": "(+{{count}} version)",
+    "moreVersions_other": "(+{{count}} versions)",
+    "side": {
+      "special": "Special, in the show",
+      "film": "Film, in the film library"
+    },
+    "keep": {
+      "film": "Film's file",
+      "special": "Special's file",
+      "choose": "Both have a file: pick the one to keep. The other goes to the recycle bin.",
+      "kept": "Kept",
+      "recycled": "Goes to the recycle bin"
+    },
+    "facts": {
+      "version": "Version",
+      "quality": "Quality",
+      "resolution": "Resolution",
+      "video": "Video",
+      "audio": "Audio",
+      "languages": "Languages",
+      "group": "Release group",
+      "runtime": "Runtime",
+      "size": "Size",
+      "added": "Added",
+      "isFilmLink": "Already the hardlink of the film's file"
+    },
+    "plan": {
+      "title": "What happens on disk",
+      "show": "What linking does on disk",
+      "showLinked": "What the link keeper does next",
+      "from": "from",
+      "to": "to"
+    },
     "confirmTitle_one": "Link {{count}} special to its film?",
     "confirmTitle_other": "Link {{count}} specials to their films?",
-    "confirmHint": "These are the file operations linking does. The film engine then owns the special: it searches, grabs and upgrades the film, and the special follows as a hardlink.",
+    "confirmHint": "Check which file stays, then the file operations below. The film engine then owns the special: it searches, grabs and upgrades the film, and the special follows as a hardlink.",
     "confirm_one": "Link {{count}} special",
     "confirm_other": "Link {{count}} specials",
     "linked_one": "{{count}} special linked",
@@ -3204,7 +3244,7 @@
       "special": "Special",
       "film": "Film",
       "state": "State",
-      "onDisk": "What linking does on disk"
+      "files": "Files on disk"
     },
     "step": {
       "shadowNoFiles": "Shadow mode: no file will be touched.",
@@ -3212,9 +3252,11 @@
       "reuseFilm": "Film already in the library: reused as it is.",
       "searchFilm": "Nothing on disk yet: the film engine searches the film.",
       "nothingOnDisk": "Nothing on disk yet: the film waits for its own search.",
-      "adoptSpecialFile": "Adopt the special's file ({{version}}) as the film's file: moved, never copied.",
-      "hardlinkIntoSpecials": "Hardlink the film's file into the show ({{version}}).",
-      "filmFileWins": "The film's file wins: the special's own file ({{version}}) goes to the recycle bin.",
+      "adoptSpecialFile": "The film has no file: the special's file ({{version}}) becomes the film's, moved into its folder, never copied.",
+      "hardlinkIntoSpecials": "Hardlink the film's file back into the show ({{version}}): same bytes, no extra space.",
+      "filmFileWins": "Keep the film's file: the special's own file ({{version}}) goes to the recycle bin.",
+      "specialFileWins": "Keep the special's file ({{version}}): moved into the film's folder, never copied. It becomes the film's file.",
+      "recycleFilmFile": "The film's current file goes to the recycle bin.",
       "alreadyHardlinked": "Nothing to do: already the hardlink of the film's file ({{version}}).",
       "sharedFileLeft": "The special's file holds other episodes too ({{version}}): left as is, not linked.",
       "removeHardlink": "Remove the hardlink ({{version}}): the film has no file for it.",
