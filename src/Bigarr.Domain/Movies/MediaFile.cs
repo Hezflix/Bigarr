@@ -49,6 +49,12 @@ public sealed class MediaFile
     /// <summary>When the backfill last tried to read this file's media info and got nothing: it waits before trying again.</summary>
     public DateTime? MediaInfoTriedAt { get; set; }
 
+    /// <summary>
+    /// The media info is the one Radarr or Sonarr gave when the file was imported from it, not yet read by Bigarr: the
+    /// backfill still probes the file and replaces it, and a probe that reads nothing keeps it.
+    /// </summary>
+    public bool MediaInfoFromArr { get; set; }
+
     /// <summary>Side files imported with it: they follow its renames and leave with it.</summary>
     public List<ExtraFile> Extras { get; set; } = [];
 }

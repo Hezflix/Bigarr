@@ -548,6 +548,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
                 else if (version.File is { } renamed && renamed.Size == file.Size && renamed.QualityId == QualityIdOf(file, full, context.QualityIds))
                 {
                     renamed.RelativePath = relative;
+                    renamed.WithArrMediaInfo(file.MediaInfo);
                     progress.FileRenamed();
                 }
                 else
@@ -565,6 +566,11 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
 
                     version.File = BuildFile(file, relative, full, context, now);
                 }
+            }
+            else
+            {
+                // The same file: Radarr may know its media info by now, and Bigarr may not have read it yet.
+                current.WithArrMediaInfo(file.MediaInfo);
             }
         }
         else if (context.Follow && file is null && version.File is { } gone)
@@ -1106,7 +1112,7 @@ public sealed class RadarrImportService(BigarrDbContext db, RadarrClient radarr,
             Languages = (file.Languages ?? []).Select(l => l.Name).Where(n => !string.IsNullOrWhiteSpace(n)).Cast<string>().Distinct().ToList(),
             IndexerFlags = (IndexerFlags)file.IndexerFlags,
             OriginalReleaseTitle = NullIfBlank(file.SceneName) ?? Path.GetFileNameWithoutExtension(file.OriginalFilePath ?? relativePath),
-        };
+        }.WithArrMediaInfo(file.MediaInfo);
     }
 
     /// <summary>Radarr's quality ids are the vendored parser's; an id Bigarr does not know falls back to what the file name says.</summary>

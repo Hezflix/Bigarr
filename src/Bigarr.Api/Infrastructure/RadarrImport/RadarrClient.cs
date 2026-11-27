@@ -88,7 +88,9 @@ public sealed record RadarrMovieFile(
     RadarrQuality? Quality,
     List<RadarrLanguageRef>? Languages,
     /// <summary>Radarr v4+: the file's score in its film's profile.</summary>
-    int? CustomFormatScore = null);
+    int? CustomFormatScore = null,
+    /// <summary>Radarr's <c>mediaInfo</c>, kept raw: <see cref="Bigarr.Api.Features.Migration.ArrMediaInfo"/> reads it and drops what does not parse.</summary>
+    System.Text.Json.JsonElement? MediaInfo = null);
 
 public sealed record RadarrMovie(
     int Id,

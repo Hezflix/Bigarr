@@ -86,7 +86,7 @@ internal sealed class FakeSonarr : IAsyncDisposable
     }
 
     /// <param name="QualityId">Sonarr's quality id (Sonarr's numbering: 20 is Bluray-1080p Remux).</param>
-    public sealed record EpFile(int Id, int Season, string RelativePath, int QualityId, string QualityName, long Size, string ReleaseGroup, string[]? Languages = null);
+    public sealed record EpFile(int Id, int Season, string RelativePath, int QualityId, string QualityName, long Size, string ReleaseGroup, string[]? Languages = null, object? MediaInfo = null);
 
     public sealed record Line(int Id, int SeriesId, int EpisodeId, string EventType, DateTime Date, string SourceTitle, int QualityId, string QualityName, string? DownloadId, Dictionary<string, string> Data);
 
@@ -359,6 +359,7 @@ internal sealed class FakeSonarr : IAsyncDisposable
         indexerFlags = 0,
         releaseType = "singleEpisode",
         qualityCutoffNotMet = false,
+        mediaInfo = file.MediaInfo,
         id = file.Id,
     };
 

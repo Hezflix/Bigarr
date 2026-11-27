@@ -143,6 +143,18 @@ public sealed class RadarrImportTests(BigarrApiFactory factory) : IClassFixture<
             Assert.Equal("Bluray-1080p", upgraded.Data["quality"]);
             Assert.NotNull(upgraded.MediaFileId);
 
+            // Radarr's media info is on the file until Bigarr's probe reads it.
+            var pulpFile = await db.MediaFiles.AsNoTracking().SingleAsync(f => f.RelativePath == "Pulp.Fiction.1994.1080p.BluRay.x264-GRP.mkv");
+            Assert.True(pulpFile.MediaInfoFromArr);
+            Assert.Equal("x264", pulpFile.MediaInfo!.VideoCodec);
+            Assert.Equal(1920, pulpFile.MediaInfo.Width);
+            Assert.Equal(800, pulpFile.MediaInfo.Height);
+            Assert.Equal("DTS-HD MA", pulpFile.MediaInfo.AudioCodec);
+            Assert.Equal(7.1, pulpFile.MediaInfo.AudioChannels);
+            Assert.Equal(["English"], pulpFile.MediaInfo.AudioLanguages);
+            Assert.Equal(["English", "French"], pulpFile.MediaInfo.Subtitles);
+            Assert.Equal(new TimeSpan(2, 34, 11), pulpFile.MediaInfo.RunTime);
+
             // Radarr's formats, and the scores and thresholds of each Radarr profile on the Bigarr profile it maps to.
             var x265 = await db.CustomFormats.SingleAsync(f => f.Name == "Radarr x265");
             Assert.Contains("ReleaseTitleSpecification", x265.SpecificationsJson, StringComparison.Ordinal);
@@ -425,7 +437,8 @@ public sealed class RadarrImportTests(BigarrApiFactory factory) : IClassFixture<
     private static object[] StandardMovies(bool heatMonitored) =>
     [
         Movie(1, "Pulp Fiction", 1994, PulpFiction, "tt0110912", "/radarr-movies", "Pulp Fiction (1994)", true, 1, [1],
-            MovieFile("Pulp.Fiction.1994.1080p.BluRay.x264-GRP.mkv", 7, "Bluray-1080p", 1080, 2048)),
+            MovieFile("Pulp.Fiction.1994.1080p.BluRay.x264-GRP.mkv", 7, "Bluray-1080p", 1080, 2048,
+                new { videoCodec = "x264", resolution = "1920x800", audioCodec = "DTS-HD MA", audioChannels = 7.1, audioLanguages = "eng", runTime = "2:34:11", subtitles = "eng/fre" })),
         Movie(2, "Forrest Gump", 1994, ForrestGump, "tt0109830", "/radarr-movies", "Forrest Gump (1994)", true, 1, [],
             MovieFile("Forrest.Gump.1994.1080p.WEB-DL.x264-GRP.mkv", 3, "WEBDL-1080p", 1080, 1024)),
         Movie(3, "Heat", 1995, Heat, "tt0113277", "/radarr-movies", "Heat (1995)", heatMonitored, 1, [], null, "announced"),
@@ -472,7 +485,7 @@ public sealed class RadarrImportTests(BigarrApiFactory factory) : IClassFixture<
         movieFile,
     };
 
-    private static object MovieFile(string name, int qualityId, string qualityName, int resolution, long size) => new
+    private static object MovieFile(string name, int qualityId, string qualityName, int resolution, long size, object? mediaInfo = null) => new
     {
         id = qualityId * 100,
         relativePath = name,
@@ -484,5 +497,6 @@ public sealed class RadarrImportTests(BigarrApiFactory factory) : IClassFixture<
         indexerFlags = 0,
         quality = new { quality = new { id = qualityId, name = qualityName, source = "bluray", resolution, modifier = "none" }, revision = new { version = 1, real = 0, isRepack = false } },
         languages = new object[] { new { id = 1, name = "English" } },
+        mediaInfo,
     };
 }

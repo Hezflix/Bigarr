@@ -288,6 +288,23 @@ Invariants the code assumes: a file row means the file exists; one physical file
 of a show share a folder ([F8](#f8-two-versions-of-a-show-sharing-a-folder-claimed-each-others-files)); no scan ever
 drops a row whose file is missing, so a broken pair does not heal on its own.
 
+### Media info
+
+Implicit, on a `MediaFile` or `EpisodeFile` row: `MediaInfo`, `MediaInfoFromArr` and `MediaInfoTriedAt`. "Pending" is
+no media info, or the one Radarr/Sonarr gave (`MediaInfoFromArr`); the backfill (`MediaMaintenance`) only reads
+pending files whose `MediaInfoTriedAt` is empty or older than `BackfillRetryHours`.
+
+| From | To | Trigger | Guard |
+|---|---|---|---|
+| none | from the *arr | Radarr/Sonarr import or follow brings a `mediaInfo` with something usable | |
+| from the *arr | from the *arr, updated | a later follow pass, the *arr's `mediaInfo` changed | never over one Bigarr read |
+| none, from the *arr | read by Bigarr | the backfill's probe reads the file | |
+| none, from the *arr | same, `MediaInfoTriedAt` set | the probe reads nothing or the file is missing | the *arr's media info is kept, never wiped |
+
+Invariants: Bigarr's own reading is never replaced by an *arr's. Each backfill batch is shared between film and episode
+files, half each, the unused share going to the other kind; within a kind, files with nothing go before the *arr's,
+the never tried before the failed.
+
 ### File transfer
 
 `FileTransfer`: source, then `<destination>.bigarr-partial`, then destination, for a copy and for a move alike

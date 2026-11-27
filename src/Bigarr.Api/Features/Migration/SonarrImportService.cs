@@ -799,6 +799,8 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
         {
             record.Languages = languages;
         }
+
+        record.WithArrMediaInfo(file.MediaInfo);
     }
 
     private static EpisodeFile BuildFile(SonarrEpisodeFile file, string relativePath, string fullPath, ImportContext context, DateTime now)
@@ -830,7 +832,7 @@ public sealed partial class SonarrImportService(BigarrDbContext db, SonarrClient
             Languages = Languages(file),
             IndexerFlags = SonarrCustomFormats.Flags(file.IndexerFlags),
             OriginalReleaseTitle = NullIfBlank(file.SceneName) ?? Path.GetFileNameWithoutExtension(relativePath),
-        };
+        }.WithArrMediaInfo(file.MediaInfo);
     }
 
     private static List<string> Languages(SonarrEpisodeFile file) =>

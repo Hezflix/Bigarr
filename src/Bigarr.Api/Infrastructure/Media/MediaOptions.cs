@@ -17,8 +17,12 @@ public sealed class MediaOptions
 
     public int BackfillIntervalMinutes { get; set; } = 60;
 
-    /// <summary>Files probed per backfill pass.</summary>
-    public int BackfillBatchSize { get; set; } = 25;
+    /// <summary>
+    /// Files probed per backfill pass (clamped to 1–500), shared between film and episode files. ffprobe reads only the
+    /// headers of a local file, well under a second each, so 200 files take a few minutes of an hourly pass and get
+    /// through about 4,800 files a day: a library of thousands of episodes is read in days, not weeks.
+    /// </summary>
+    public int BackfillBatchSize { get; set; } = 200;
 
     /// <summary>Hours before the backfill tries again a file it could not read.</summary>
     public int BackfillRetryHours { get; set; } = 24;
