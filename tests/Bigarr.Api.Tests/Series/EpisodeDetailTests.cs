@@ -53,6 +53,39 @@ public sealed class EpisodeDetailTests(SeriesApiFactory factory) : IClassFixture
     }
 
     [Fact]
+    public async Task A_season_history_holds_the_lines_of_its_episodes_only()
+    {
+        var client = await ClientAsync(factory);
+        var series = await SeriesSetup.AddAsync(client, SeriesSearchTests.BreakingBad);
+        await SeriesSetup.MockIndexerAsync(client);
+        var created = await client.PostAsJsonAsync("/api/v1/downloadclients", new DownloadClientRequest("Mock season history", Bigarr.Domain.Downloads.DownloadClientImplementation.Mock, Category: "films-season", SeriesCategory: "tv-season"), Json);
+        var downloadClient = (await created.Content.ReadFromJsonAsync<DownloadClientResponse>(Json))!;
+        try
+        {
+            var fourth = await SeriesSetup.EpisodeAsync(client, series.Id, 1, 4);
+            var nextSeason = await SeriesSetup.EpisodeAsync(client, series.Id, 2, 1);
+            foreach (var episode in new[] { fourth, nextSeason })
+            {
+                var result = await SeriesSearchTests.SearchAsync(client, series.Id, $"episodeId={episode.Id}");
+                var single = result.Releases.First(r => r.Episodes.Count == 1 && r.Episodes[0].Id == episode.Id && r.Versions.Any(v => v.Approved));
+                Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/api/v1/grab", SeriesSetup.Grab(single), Json)).StatusCode);
+            }
+
+            var first = (await client.GetFromJsonAsync<List<HistoryEventResponse>>($"/api/v1/history?seriesId={series.Id}&seasonNumber=1", Json))!;
+            Assert.Equal("S01E04", Assert.Single(first).Data["episode"]);
+            var second = (await client.GetFromJsonAsync<List<HistoryEventResponse>>($"/api/v1/history?seriesId={series.Id}&seasonNumber=2", Json))!;
+            Assert.Equal("S02E01", Assert.Single(second).Data["episode"]);
+            Assert.Empty((await client.GetFromJsonAsync<List<HistoryEventResponse>>($"/api/v1/history?seriesId={series.Id}&seasonNumber=3", Json))!);
+
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/v1/history?seasonNumber=1")).StatusCode);
+        }
+        finally
+        {
+            await client.DeleteAsync($"/api/v1/downloadclients/{downloadClient.Id}");
+        }
+    }
+
+    [Fact]
     public async Task An_episode_plays_are_found_by_its_tvdb_id_or_by_the_show_and_its_numbers()
     {
         var client = await ClientAsync(factory);

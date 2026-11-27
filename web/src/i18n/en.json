@@ -1353,6 +1353,7 @@
     "date": "Date",
     "event": "Event",
     "movie": "Movie",
+    "episode": "Episode",
     "version": "Version",
     "source": "Release",
     "details": "Details",
@@ -3219,6 +3220,12 @@
       "removeHardlink": "Remove the hardlink ({{version}}): the film has no file for it.",
       "linkError": "Last attempt failed, nothing copied: {{note}}"
     }
+  },
+  "seasonHistory": {
+    "open": "History of {{season}}",
+    "title": "History · {{season}}",
+    "hint": "Every grab, import, failure, deletion and rename of the season's episodes, whatever the version. A release grabbed for several episodes is one line.",
+    "empty": "Nothing happened to this season's episodes yet."
   },
   "episodeDetail": {
     "open": "Details of “{{title}}”",

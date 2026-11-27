@@ -7289,6 +7289,7 @@ export interface paths {
                     eventType?: string;
                     limit?: number;
                     episodeId?: number;
+                    seasonNumber?: number;
                 };
                 header?: never;
                 path?: never;
