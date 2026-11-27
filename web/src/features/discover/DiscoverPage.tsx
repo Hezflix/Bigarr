@@ -138,21 +138,26 @@ function TileRow({ slider }: { slider: DiscoverSlider }) {
       <RowHeader title={title} />
       <div className="-mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 md:-mx-6 md:scroll-px-6 md:px-6">
         {slider.tiles?.map((tile) => {
+          const logo = tile.imageUrl != null && (slider.kind === 'studios' || slider.kind === 'networks')
           const classes = cn(
             'group relative flex h-24 w-44 shrink-0 snap-start overflow-hidden rounded-lg bg-gradient-to-br text-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-28 sm:w-56',
-            tile.imageUrl ? 'items-center justify-center p-3' : 'items-end p-3 hover:brightness-110',
-            tileColours[tile.id % tileColours.length],
+            logo
+              ? 'items-center justify-center from-white to-slate-100 p-5 ring-1 ring-black/10 ring-inset hover:to-slate-200 dark:from-slate-800 dark:to-slate-900 dark:ring-white/10 dark:hover:to-slate-800'
+              : tile.imageUrl
+                ? 'items-center justify-center p-3'
+                : 'items-end p-3 hover:brightness-110',
+            !logo && tileColours[tile.id % tileColours.length],
           )
           const search = { name: tile.name }
           switch (slider.kind) {
             case 'movieGenres':
-              return <Link key={tile.id} to="/discover/movies" search={{ ...search, genre: tile.id }} className={classes}><TileContent tile={tile} /></Link>
+              return <Link key={tile.id} to="/discover/movies" search={{ ...search, genre: tile.id }} className={classes}><TileContent tile={tile} logo={logo} /></Link>
             case 'seriesGenres':
-              return <Link key={tile.id} to="/discover/series" search={{ ...search, genre: tile.id }} className={classes}><TileContent tile={tile} /></Link>
+              return <Link key={tile.id} to="/discover/series" search={{ ...search, genre: tile.id }} className={classes}><TileContent tile={tile} logo={logo} /></Link>
             case 'studios':
-              return <Link key={tile.id} to="/discover/movies" search={{ ...search, studio: tile.id }} className={classes}><TileContent tile={tile} /></Link>
+              return <Link key={tile.id} to="/discover/movies" search={{ ...search, studio: tile.id }} className={classes}><TileContent tile={tile} logo={logo} /></Link>
             default:
-              return <Link key={tile.id} to="/discover/series" search={{ ...search, network: tile.id }} className={classes}><TileContent tile={tile} /></Link>
+              return <Link key={tile.id} to="/discover/series" search={{ ...search, network: tile.id }} className={classes}><TileContent tile={tile} logo={logo} /></Link>
           }
         })}
       </div>
@@ -160,9 +165,21 @@ function TileRow({ slider }: { slider: DiscoverSlider }) {
   )
 }
 
-function TileContent({ tile }: { tile: NonNullable<DiscoverSlider['tiles']>[number] }) {
+function TileContent({ tile, logo }: { tile: NonNullable<DiscoverSlider['tiles']>[number]; logo: boolean }) {
   if (!tile.imageUrl) {
     return <span className="text-sm font-semibold">{tile.name}</span>
+  }
+
+  if (logo) {
+    // TMDB's logos are made for a light background: in their own colours on a light tile, each reads as itself. On the
+    // dark theme's dark tile, TMDB's white and grey version of the same logo, as Seerr shows it.
+    const classes = 'max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105'
+    return (
+      <>
+        <img src={tile.imageUrl} alt={tile.name} loading="lazy" className={cn(classes, tile.darkImageUrl && 'dark:hidden')} />
+        {tile.darkImageUrl && <img src={tile.darkImageUrl} alt={tile.name} loading="lazy" className={cn(classes, 'hidden dark:block')} />}
+      </>
+    )
   }
 
   return (

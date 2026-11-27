@@ -40,6 +40,14 @@ public static class DiscoverRecorded
     { "genres": [ { "id": 18, "name": "Drama" }, { "id": 10765, "name": "Sci-Fi & Fantasy" } ] }
     """;
 
+    public const string Company3 = """
+    { "description": "", "headquarters": "Emeryville, California, United States", "homepage": "https://www.pixar.com", "id": 3, "logo_path": "/1TjvGVDMYsj6JBxOAkUHpPEwLf7.png", "name": "Pixar Animation Studios", "origin_country": "US", "parent_company": null }
+    """;
+
+    public const string Network213 = """
+    { "headquarters": "Los Gatos, California, United States", "homepage": "https://www.netflix.com", "id": 213, "logo_path": "/wwemzKWzjKYJFfCeiB57q3r4Bcm.png", "name": "Netflix", "origin_country": "" }
+    """;
+
     public const string Movie603 = """
     {
       "adult": false,

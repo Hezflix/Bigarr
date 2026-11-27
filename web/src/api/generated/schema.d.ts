@@ -12039,6 +12039,7 @@ export interface components {
             id: number;
             name: string;
             imageUrl: null | string;
+            darkImageUrl: null | string;
         };
         /** @enum {unknown} */
         DownloadClientImplementation: "qBittorrent" | "mock";
