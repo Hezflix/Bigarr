@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Http.Json;
 using Bigarr.Api.Features.Import;
 using Bigarr.Api.Infrastructure.Media;
 using Bigarr.Api.Infrastructure.Persistence;
@@ -152,6 +154,100 @@ public sealed class MediaBackfillTests : IDisposable
         Assert.Equal(8, rest.Probed);
         Assert.Equal(0, rest.Remaining);
         Assert.Equal(4, reader.Calls.Count(episodes.Contains));
+    }
+
+    [Fact]
+    public async Task Reading_a_film_now_replaces_what_it_shows_and_keeps_it_when_the_file_cannot_be_read()
+    {
+        var clock = new MutableTimeProvider(Start);
+        var reader = new FakeMediaInfoReader();
+        using var factory = new BackfillApiFactory(clock, reader);
+        var files = await SeedAsync(factory, 2, fromArr: true);
+        using var client = await Bigarr.Api.Tests.Quality.QualityTestClient.LoginAsync(factory);
+
+        var response = await client.PostAsync($"/api/v1/movies/{await MovieIdOfAsync(factory, files[0].Id)}/mediainfo", null);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<ReadMediaInfoResponse>();
+        Assert.Equal(new ReadMediaInfoResponse(true, 1, 1), result);
+        Assert.Equal([files[0].Path], reader.Calls);
+
+        // Read again while the file cannot be read: what it shows stays, the attempt is recorded.
+        reader.Calls.Clear();
+        reader.Broken.Add(files[0].Path);
+        var again = await client.PostAsync($"/api/v1/movies/{await MovieIdOfAsync(factory, files[0].Id)}/mediainfo", null);
+        Assert.Equal(new ReadMediaInfoResponse(true, 1, 0), await again.Content.ReadFromJsonAsync<ReadMediaInfoResponse>());
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+        var file = await db.MediaFiles.AsNoTracking().SingleAsync(f => f.Id == files[0].Id);
+        Assert.False(file.MediaInfoFromArr);
+        Assert.Equal("h264", file.MediaInfo!.VideoCodec);
+        Assert.Equal(Start.UtcDateTime, file.MediaInfoTriedAt);
+
+        // The other film was not touched.
+        var other = await db.MediaFiles.AsNoTracking().SingleAsync(f => f.Id == files[1].Id);
+        Assert.True(other.MediaInfoFromArr);
+
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsync("/api/v1/movies/999999/mediainfo", null)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Reading_a_series_now_covers_every_file_or_only_the_episodes_asked()
+    {
+        var clock = new MutableTimeProvider(Start);
+        var reader = new FakeMediaInfoReader();
+        using var factory = new BackfillApiFactory(clock, reader);
+        var (seriesId, episodes) = await SeedSeriesAsync(factory, 3);
+        using var client = await Bigarr.Api.Tests.Quality.QualityTestClient.LoginAsync(factory);
+
+        var some = await client.PostAsJsonAsync($"/api/v1/series/{seriesId}/mediainfo", new ReadSeriesMediaInfoRequest([episodes[1].EpisodeId]));
+        some.EnsureSuccessStatusCode();
+        Assert.Equal(new ReadMediaInfoResponse(true, 1, 1), await some.Content.ReadFromJsonAsync<ReadMediaInfoResponse>());
+        Assert.Equal([episodes[1].Path], reader.Calls);
+
+        reader.Calls.Clear();
+        var all = await client.PostAsJsonAsync($"/api/v1/series/{seriesId}/mediainfo", new ReadSeriesMediaInfoRequest(null));
+        Assert.Equal(new ReadMediaInfoResponse(true, 3, 3), await all.Content.ReadFromJsonAsync<ReadMediaInfoResponse>());
+        Assert.Equal(episodes.Select(e => e.Path), reader.Calls);
+
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsJsonAsync("/api/v1/series/999999/mediainfo", new ReadSeriesMediaInfoRequest(null))).StatusCode);
+    }
+
+    private static async Task<int> MovieIdOfAsync(BigarrApiFactory factory, int fileId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+        return await db.MediaFiles.Where(f => f.Id == fileId).Select(f => f.Version.MovieId).SingleAsync();
+    }
+
+    /// <summary>A series with one version and <paramref name="count"/> episodes, each with its own file on disk.</summary>
+    private async Task<(int SeriesId, List<(int EpisodeId, string Path)> Episodes)> SeedSeriesAsync(BigarrApiFactory factory, int count)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<BigarrDbContext>();
+        var profile = await db.QualityProfiles.FirstAsync(p => p.Kind == ProfileKind.Series);
+        var root = await RootAsync(db);
+        var series = new Bigarr.Domain.Tv.Series { TvdbId = 970_101, Title = "Read Show", SortTitle = "read show", DefaultRootFolder = root };
+        var season = new Season { Series = series, SeasonNumber = 1 };
+        var version = new SeriesVersion { Series = series, Name = "1080p", IsDefault = true, QualityProfile = profile, RootFolder = root, FolderName = "Read Show (2026)" };
+        db.Series.Add(series);
+        db.SeriesVersions.Add(version);
+
+        var seeded = new List<(Episode Episode, string Path)>();
+        for (var i = 1; i <= count; i++)
+        {
+            var episode = new Episode { Series = series, Season = season, TvdbId = 970_200 + i, SeasonNumber = 1, EpisodeNumber = i, Title = $"Episode {i}" };
+            var file = new EpisodeFile { Version = version, RelativePath = $"Season 01/Read.Show.S01E{i:00}.mkv", SeasonNumber = 1, Size = 16, QualityId = ParserQuality.Bluray1080p.Id };
+            db.Episodes.Add(episode);
+            db.EpisodeTargets.Add(new EpisodeTarget { Version = version, Episode = episode, EpisodeFile = file });
+            var path = Path.Combine(_root, version.FolderName, file.RelativePath);
+            seeded.Add((episode, path));
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await File.WriteAllBytesAsync(path, new byte[16]);
+        }
+
+        await db.SaveChangesAsync();
+        return (series.Id, seeded.Select(s => (s.Episode.Id, s.Path)).ToList());
     }
 
     private static async Task<BackfillResponse> BackfillAsync(BigarrApiFactory factory, int batchSize)

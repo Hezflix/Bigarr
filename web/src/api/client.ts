@@ -354,6 +354,8 @@ export const movies = {
   remove: (id: number, addImportExclusion: boolean, deleteFiles = false) =>
     del(`/api/v1/movies/${id}?addImportExclusion=${addImportExclusion}&deleteFiles=${deleteFiles}`),
   refresh: (id: number) => post<Movie>(`/api/v1/movies/${id}/refresh`),
+  /** Reads the media info of every file of the film now, replacing what they show. */
+  readMediaInfo: (id: number) => post<ReadMediaInfoResult>(`/api/v1/movies/${id}/mediainfo`),
   addVersion: (movieId: number, body: AddVersionRequest) => post<Version>(`/api/v1/movies/${movieId}/versions`, body),
   updateVersion: (movieId: number, versionId: number, body: UpdateVersionRequest) =>
     put<Version>(`/api/v1/movies/${movieId}/versions/${versionId}`, body),
@@ -800,6 +802,9 @@ export type MediaManagementRequest = Pick<
 export type NamingPreview = Schemas['NamingPreviewResponse']
 
 export type BackfillResult = Schemas['BackfillResponse']
+
+/** A read on demand from Cmd+K: the files it covered and how many ffprobe read. */
+export type ReadMediaInfoResult = Schemas['ReadMediaInfoResponse']
 
 export const mediaManagement = {
   get: () => api<MediaManagement>('/api/v1/mediamanagement'),
@@ -1759,6 +1764,8 @@ export const series = {
   refresh: (id: number) => post<Series>(`/api/v1/series/${id}/refresh`),
   files: (id: number) => api<SeriesFiles>(`/api/v1/series/${id}/files`),
   rescan: (id: number) => post<ScanStatus>(`/api/v1/series/${id}/rescan`),
+  /** Reads the media info of the series' files now (only those of `episodeIds` when given), replacing what they show. */
+  readMediaInfo: (id: number, episodeIds?: number[]) => post<ReadMediaInfoResult>(`/api/v1/series/${id}/mediainfo`, { episodeIds: episodeIds ?? null }),
   rescanStatus: (id: number) => api<ScanStatus>(`/api/v1/series/${id}/rescan`),
   rescanAll: () => post<ScanStatus[]>('/api/v1/series/rescan'),
   mapFolder: (unmappedId: number, body: MapSeriesFolderRequest) =>

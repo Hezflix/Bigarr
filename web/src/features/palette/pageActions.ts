@@ -1,7 +1,7 @@
 import type { TFunction } from 'i18next'
 import { CopyIcon, EyeIcon, EyeOffIcon, PencilIcon } from 'lucide-react'
 import { toast } from 'sonner'
-import { ApiError } from '@/api/client'
+import { ApiError, type ReadMediaInfoResult } from '@/api/client'
 import type { PaletteAction } from './actions'
 
 /** What a film and a series page both offer on their default version: edit it, copy its folder, (un)monitor it. */
@@ -48,4 +48,19 @@ export function versionActions(
         ),
     },
   ]
+}
+
+/** Cmd+K "Read media info now" on a film or series page: one toast from start to result, then the page reloads what it shows. */
+export function readMediaInfo(t: TFunction, read: () => Promise<ReadMediaInfoResult>, onDone: () => void): Promise<unknown> {
+  const id = toast.loading(t('palette.page.readingMediaInfo'))
+  return read().then(
+    (result) => {
+      if (!result.mediaInfoAvailable) toast.error(t('palette.page.mediaInfoUnavailable'), { id })
+      else if (result.files === 0) toast.info(t('palette.page.noFileToRead'), { id })
+      else if (result.read === result.files) toast.success(t('palette.page.mediaInfoRead', { count: result.read }), { id })
+      else toast.warning(t('palette.page.mediaInfoPartlyRead', { count: result.files, read: result.read }), { id })
+      onDone()
+    },
+    (e) => toast.error(e instanceof ApiError ? e.message : t('common.unexpectedError'), { id }),
+  )
 }

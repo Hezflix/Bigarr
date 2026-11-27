@@ -3405,7 +3405,15 @@
       "unmonitor": "Stop monitoring the {{version}} version",
       "monitored": "{{version}} is now monitored.",
       "unmonitored": "{{version}} is no longer monitored.",
-      "nothingMissing": "No missing episode to search."
+      "nothingMissing": "No missing episode to search.",
+      "readMediaInfo": "Read media info now",
+      "readingMediaInfo": "Reading media info…",
+      "mediaInfoRead_one": "Media info read on {{count}} file.",
+      "mediaInfoRead_other": "Media info read on {{count}} files.",
+      "mediaInfoPartlyRead_one": "Media info read on {{read}} of {{count}} file; the others keep what they showed.",
+      "mediaInfoPartlyRead_other": "Media info read on {{read}} of {{count}} files; the others keep what they showed.",
+      "noFileToRead": "No file to read.",
+      "mediaInfoUnavailable": "ffprobe is not available: media info cannot be read."
     },
     "param": {
       "seriesHint": "Season or episode",

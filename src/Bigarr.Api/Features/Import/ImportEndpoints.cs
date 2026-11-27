@@ -38,6 +38,15 @@ public static class ImportEndpoints
         settings.MapPost("/backfill", async Task<Ok<BackfillResponse>> (int? batch, MediaMaintenance maintenance, CancellationToken ct) =>
             TypedResults.Ok(await maintenance.BackfillAsync(batch, ct)));
 
+        // Cmd+K on a film or series page: read the files' media info now rather than wait for the backfill.
+        app.MapPost("/api/v1/movies/{id:int}/mediainfo", async Task<Results<Ok<ReadMediaInfoResponse>, NotFound>> (int id, MediaMaintenance maintenance, CancellationToken ct) =>
+                await maintenance.ReadFilmAsync(id, ct) is { } result ? TypedResults.Ok(result) : TypedResults.NotFound())
+            .WithTags("Movies").RequireAuthorization(AuthPolicies.Api);
+
+        app.MapPost("/api/v1/series/{id:int}/mediainfo", async Task<Results<Ok<ReadMediaInfoResponse>, NotFound>> (int id, ReadSeriesMediaInfoRequest? request, MediaMaintenance maintenance, CancellationToken ct) =>
+                await maintenance.ReadSeriesAsync(id, request?.EpisodeIds, ct) is { } result ? TypedResults.Ok(result) : TypedResults.NotFound())
+            .WithTags("Series").RequireAuthorization(AuthPolicies.Api);
+
         var manual = app.MapGroup("/api/v1/manualimport").WithTags("Manual import").RequireAuthorization(AuthPolicies.Api);
 
         manual.MapGet("/", async Task<Results<Ok<ManualImportResponse>, ProblemHttpResult>> (string? path, int? grabId, int? movieId, ManualImportService service, CancellationToken ct) =>

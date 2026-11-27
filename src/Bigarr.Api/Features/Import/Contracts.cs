@@ -66,6 +66,12 @@ public sealed record NamingPreviewResponse(string? FileName, List<string> FileEr
 
 public sealed record BackfillResponse(bool MediaInfoAvailable, int Probed, int Remaining);
 
+/// <summary>A read on demand: how many files it covered and how many ffprobe read (the rest kept what they showed).</summary>
+public sealed record ReadMediaInfoResponse(bool MediaInfoAvailable, int Files, int Read);
+
+/// <summary>The episodes whose files to read; none or empty: every file of the series.</summary>
+public sealed record ReadSeriesMediaInfoRequest(List<int>? EpisodeIds);
+
 /// <summary>One version's verdict on a file offered for import; the manual import lets the user override it.</summary>
 public sealed record ImportVersionOption(int VersionId, string VersionName, bool IsDefault, bool Approved, List<string> Rejections);
 
