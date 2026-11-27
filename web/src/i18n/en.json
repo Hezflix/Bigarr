@@ -25,9 +25,7 @@
     "systemStatus": "Status",
     "settingsConnect": "Connect",
     "settingsMediaServers": "Media servers",
-    "settingsImportRadarr": "Import from Radarr",
-    "settingsImportTautulli": "Import from Tautulli",
-    "settingsImportSeerr": "Import from Seerr",
+    "settingsImport": "Import",
     "settingsFollowedRadarrs": "Followed Radarrs",
     "compare": "Compare · Radarr",
     "compareSonarr": "Compare · Sonarr",
@@ -38,7 +36,6 @@
     "plays": "Plays",
     "playbackUsers": "Users",
     "playbackStats": "Stats",
-    "settingsImportSonarr": "Import from Sonarr",
     "settingsFollowedSonarrs": "Followed Sonarrs",
     "calendar": "Calendar",
     "seriesWanted": "Wanted",
@@ -2187,6 +2184,22 @@
     "shadowOnHint": "Bigarr records what it would grab ({{picks}} picks so far) and sends nothing to a download client; {{grabs}} Radarr grabs read so far.",
     "shadowOff": "Shadow mode is off for films",
     "shadowOffHint": "Bigarr grabs films for real. Following a Radarr is meant for shadow mode, next to it: set Bigarr__Shadow__Films=true (or Bigarr__Shadow__Enabled=true) so Bigarr records its film picks instead."
+  },
+  "import": {
+    "title": "Import",
+    "intro": "Move an existing setup into Bigarr: Radarr and Sonarr for the library, Tautulli for the play history, Seerr for the requests. An import runs on the server, so it keeps going when you switch tabs or leave the page. The colour of each icon tells how its last import went.",
+    "sources": {
+      "radarr": "Radarr",
+      "sonarr": "Sonarr",
+      "tautulli": "Tautulli",
+      "seerr": "Seerr"
+    },
+    "state": {
+      "idle": "Never run",
+      "running": "Running",
+      "done": "Done",
+      "failed": "Failed"
+    }
   },
   "importRadarr": {
     "title": "Import from Radarr",

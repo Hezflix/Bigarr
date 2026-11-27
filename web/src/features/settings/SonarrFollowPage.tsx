@@ -237,8 +237,8 @@ export function SonarrFollowPage() {
               <TableRow>
                 <TableCell colSpan={6} className="whitespace-normal text-muted-foreground">
                   {t('sonarrFollow.empty')}{' '}
-                  <Link to="/settings/import-sonarr" className="underline underline-offset-4">
-                    {t('nav.settingsImportSonarr')}
+                  <Link to="/settings/import" search={{ tab: 'sonarr' }} className="underline underline-offset-4">
+                    {t('importSonarr.title')}
                   </Link>
                 </TableCell>
               </TableRow>

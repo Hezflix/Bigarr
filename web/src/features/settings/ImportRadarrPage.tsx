@@ -36,7 +36,7 @@ export function ImportRadarrPage() {
 
   return (
     <>
-      <h1 className="text-2xl font-semibold tracking-tight">{t('importRadarr.title')}</h1>
+      <h2 className="text-xl font-semibold tracking-tight">{t('importRadarr.title')}</h2>
       <p className="max-w-3xl text-sm text-muted-foreground">{t('importRadarr.intro')}</p>
 
       {(step === 'connect' || step === null) && (
