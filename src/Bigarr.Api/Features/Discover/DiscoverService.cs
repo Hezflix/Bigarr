@@ -47,8 +47,8 @@ public sealed partial class DiscoverService(TmdbDiscoverClient tmdb, LibraryAvai
     {
         DiscoverSliderKind.MovieGenres => await GenreTilesAsync(await tmdb.MovieGenresAsync(ct), (genre, c) => tmdb.DiscoverMoviesAsync(genre, null, null, 1, c), ct),
         DiscoverSliderKind.SeriesGenres => await GenreTilesAsync(await tmdb.SeriesGenresAsync(ct), (genre, c) => tmdb.DiscoverSeriesAsync(genre, null, null, 1, c), ct),
-        DiscoverSliderKind.Studios => [.. Studios],
-        DiscoverSliderKind.Networks => [.. Networks],
+        DiscoverSliderKind.Studios => await LogoTilesAsync(Studios, tmdb.CompanyAsync, ct),
+        DiscoverSliderKind.Networks => await LogoTilesAsync(Networks, tmdb.NetworkAsync, ct),
         _ => [],
     };
 
@@ -269,6 +269,30 @@ public sealed partial class DiscoverService(TmdbDiscoverClient tmdb, LibraryAvai
     }
 
     /// <summary>
+    /// The studio or network tiles with the logo TMDB holds for each, as Seerr shows them. The names stay ours. A logo
+    /// TMDB cannot give leaves its tile plain.
+    /// </summary>
+    private async Task<List<DiscoverTile>> LogoTilesAsync(DiscoverTile[] tiles, Func<int, CancellationToken, Task<TmdbNamed?>> lookup, CancellationToken ct)
+    {
+        var logos = await Task.WhenAll(tiles.Select(t => DecorationAsync(() => lookup(t.Id, ct), ct)));
+        return [.. tiles.Select((t, i) => t with { ImageUrl = Image(logos[i]?.LogoPath, "w500") })];
+    }
+
+    /// <summary>A picture is decoration: a failed or timed-out answer leaves the tile plain, not the row empty.</summary>
+    private static async Task<T?> DecorationAsync<T>(Func<Task<T?>> fetch, CancellationToken ct)
+        where T : class
+    {
+        try
+        {
+            return await fetch();
+        }
+        catch (Exception e) when (e is HttpRequestException || (e is OperationCanceledException && !ct.IsCancellationRequested))
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// A tile per genre, behind it the backdrop of the genre's most popular title, as Seerr shows them. The first page
     /// asked is the one the genre's own page opens on, so the cache serves it there. Two genres do not share a backdrop
     /// when another title has one; a genre whose titles TMDB cannot give keeps its tile, without a picture.
@@ -276,18 +300,7 @@ public sealed partial class DiscoverService(TmdbDiscoverClient tmdb, LibraryAvai
     private async Task<List<DiscoverTile>> GenreTilesAsync(TmdbGenreList? list, Func<int, CancellationToken, Task<TmdbPage?>> titles, CancellationToken ct)
     {
         var genres = (list?.Genres ?? []).Where(g => !string.IsNullOrWhiteSpace(g.Name)).ToList();
-        var pages = await Task.WhenAll(genres.Select(async g =>
-        {
-            try
-            {
-                return await titles(g.Id, ct);
-            }
-            catch (Exception e) when (e is HttpRequestException || (e is OperationCanceledException && !ct.IsCancellationRequested))
-            {
-                // A backdrop is decoration: a failed or timed-out page leaves the tile plain, not the row empty.
-                return null;
-            }
-        }));
+        var pages = await Task.WhenAll(genres.Select(g => DecorationAsync(() => titles(g.Id, ct), ct)));
 
         var used = new HashSet<string>(StringComparer.Ordinal);
         var tiles = new List<DiscoverTile>(genres.Count);

@@ -41,7 +41,12 @@ public sealed class DiscoverEndpointsTests
         Assert.All(movieGenres, t => Assert.Equal("https://image.tmdb.org/t/p/w780/rcjK4Ul2qJnMWvSPEMYIDzYwlJV.jpg", t.ImageUrl)); // the only backdrop in the recording
         Assert.Contains(env.Tmdb.Requests, r => r.AbsolutePath == "/3/discover/movie" && r.Query.Contains("with_genres=16", StringComparison.Ordinal));
         Assert.All(home.Sliders.Single(s => s.Kind == DiscoverSliderKind.SeriesGenres).Tiles!, t => Assert.Null(t.ImageUrl)); // TMDB answers 404: the tile stays, plain
-        Assert.Contains(home.Sliders.Single(s => s.Kind == DiscoverSliderKind.Networks).Tiles!, t => t.Name == "Netflix");
+        var networks = home.Sliders.Single(s => s.Kind == DiscoverSliderKind.Networks).Tiles!;
+        Assert.Equal("https://image.tmdb.org/t/p/w500/wwemzKWzjKYJFfCeiB57q3r4Bcm.png", networks.Single(t => t.Name == "Netflix").ImageUrl);
+        Assert.Null(networks.Single(t => t.Name == "HBO").ImageUrl); // TMDB answers 404: the tile stays, plain
+        var studios = home.Sliders.Single(s => s.Kind == DiscoverSliderKind.Studios).Tiles!;
+        Assert.Equal("https://image.tmdb.org/t/p/w500/1TjvGVDMYsj6JBxOAkUHpPEwLf7.png", studios.Single(t => t.Id == 3).ImageUrl);
+        Assert.Equal("Pixar", studios.Single(t => t.Id == 3).Name); // the name stays ours
         Assert.Null(home.Sliders.Single(s => s.Kind == DiscoverSliderKind.Trending).Tiles);
 
         var trending = await env.Admin.GetFromJsonAsync<DiscoverPage>($"/api/v1/discover/sliders/{Id(home, DiscoverSliderKind.Trending)}", Json);
@@ -343,6 +348,8 @@ public sealed class DiscoverEndpointsTests
             ["/3/discover/movie"] = DiscoverRecorded.PopularMovies,
             ["/3/genre/movie/list"] = DiscoverRecorded.MovieGenres,
             ["/3/genre/tv/list"] = DiscoverRecorded.SeriesGenres,
+            ["/3/company/3"] = DiscoverRecorded.Company3,
+            ["/3/network/213"] = DiscoverRecorded.Network213,
             ["/3/movie/603"] = DiscoverRecorded.Movie603,
             ["/3/tv/1396"] = DiscoverRecorded.Tv1396,
             ["/3/search/multi"] = DiscoverRecorded.SearchMulti,
