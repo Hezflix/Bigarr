@@ -35,7 +35,8 @@ public sealed record DiscoverItem(
 
 public sealed record DiscoverPage(int Page, int TotalPages, int TotalResults, List<DiscoverItem> Results);
 
-public sealed record DiscoverTile(int Id, string Name);
+/// <param name="ImageUrl">A genre's backdrop (the backdrop of its most popular title); null for a studio or a network.</param>
+public sealed record DiscoverTile(int Id, string Name, string? ImageUrl = null);
 
 /// <param name="Title">Null for a built-in row: the page names it in the reader's language.</param>
 /// <param name="Tiles">Genre, studio or network tiles for those rows; null for a row of titles.</param>

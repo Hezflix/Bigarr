@@ -36,7 +36,11 @@ public sealed class DiscoverEndpointsTests
         Assert.True(home!.Configured);
         Assert.True(home.FourK);
         Assert.Equal(DiscoverSlider.Defaults, home.Sliders.Select(s => s.Kind));
-        Assert.Equal(["Action", "Animation", "Science Fiction"], home.Sliders.Single(s => s.Kind == DiscoverSliderKind.MovieGenres).Tiles!.Select(t => t.Name));
+        var movieGenres = home.Sliders.Single(s => s.Kind == DiscoverSliderKind.MovieGenres).Tiles!;
+        Assert.Equal(["Action", "Animation", "Science Fiction"], movieGenres.Select(t => t.Name));
+        Assert.All(movieGenres, t => Assert.Equal("https://image.tmdb.org/t/p/w780/rcjK4Ul2qJnMWvSPEMYIDzYwlJV.jpg", t.ImageUrl)); // the only backdrop in the recording
+        Assert.Contains(env.Tmdb.Requests, r => r.AbsolutePath == "/3/discover/movie" && r.Query.Contains("with_genres=16", StringComparison.Ordinal));
+        Assert.All(home.Sliders.Single(s => s.Kind == DiscoverSliderKind.SeriesGenres).Tiles!, t => Assert.Null(t.ImageUrl)); // TMDB answers 404: the tile stays, plain
         Assert.Contains(home.Sliders.Single(s => s.Kind == DiscoverSliderKind.Networks).Tiles!, t => t.Name == "Netflix");
         Assert.Null(home.Sliders.Single(s => s.Kind == DiscoverSliderKind.Trending).Tiles);
 
@@ -190,7 +194,8 @@ public sealed class DiscoverEndpointsTests
         Assert.Equal(("Animated films", "16"), (custom.Title, custom.Value));
 
         var genre = await user.GetFromJsonAsync<DiscoverPage>($"/api/v1/discover/sliders/{custom.Id}", Json);
-        Assert.Contains("with_genres=16", env.Tmdb.Requests.Last().Query);
+        // The genre tiles asked for this page already, for their backdrop: the row reads it from the cache.
+        Assert.Single(env.Tmdb.Requests, r => r.AbsolutePath == "/3/discover/movie" && r.Query.Contains("with_genres=16", StringComparison.Ordinal));
         Assert.Null(genre!.Results.Single(r => r.TmdbId == 604).Availability!.FourK);
 
         // The switched-off row: hidden from the user, still previewed by the admin.

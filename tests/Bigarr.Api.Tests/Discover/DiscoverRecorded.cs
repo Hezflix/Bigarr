@@ -24,7 +24,7 @@ public static class DiscoverRecorded
     {
       "page": 2,
       "results": [
-        { "adult": false, "id": 604, "title": "The Matrix Reloaded", "original_title": "The Matrix Reloaded", "overview": "Six months after the events depicted in The Matrix...", "poster_path": "/9TGHDvWrqKBzwDxDodHYXEmOE6J.jpg", "genre_ids": [12, 28], "popularity": 50.2, "release_date": "2003-05-15", "video": false, "vote_average": 7.0, "vote_count": 12000 },
+        { "adult": false, "backdrop_path": "/rcjK4Ul2qJnMWvSPEMYIDzYwlJV.jpg", "id": 604, "title": "The Matrix Reloaded", "original_title": "The Matrix Reloaded", "overview": "Six months after the events depicted in The Matrix...", "poster_path": "/9TGHDvWrqKBzwDxDodHYXEmOE6J.jpg", "genre_ids": [12, 28], "popularity": 50.2, "release_date": "2003-05-15", "video": false, "vote_average": 7.0, "vote_count": 12000 },
         { "adult": false, "id": 27205, "title": "Inception", "original_title": "Inception", "overview": "Cobb, a skilled thief...", "poster_path": null, "genre_ids": [28, 878, 12], "popularity": 90.0, "release_date": "2010-07-15", "video": false, "vote_average": 0, "vote_count": 0 }
       ],
       "total_pages": 48000,
