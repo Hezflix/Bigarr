@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { EyeIcon, EyeOffIcon, FileXIcon, FolderInputIcon, PencilIcon, PlusIcon, RefreshCwIcon, StarIcon, TextSearchIcon, Trash2Icon, TvIcon, ZapIcon } from 'lucide-react'
+import { EyeIcon, EyeOffIcon, FileVideoIcon, FileXIcon, FolderInputIcon, PencilIcon, PlusIcon, RefreshCwIcon, StarIcon, TextSearchIcon, Trash2Icon, TvIcon, ZapIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { LibraryIssuesLink } from '@/features/issues/TitleIssues'
 import { toast } from 'sonner'
@@ -47,7 +47,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { formatBytes, formatDate } from '@/i18n'
 import { useRecordRecent } from '@/features/palette/recent'
 import { usePaletteActions } from '@/features/palette/actions'
-import { versionActions } from '@/features/palette/pageActions'
+import { readMediaInfo, versionActions } from '@/features/palette/pageActions'
 
 
 export function MovieDetailPage() {
@@ -127,6 +127,17 @@ export function MovieDetailPage() {
               ]
             : []),
           { id: 'refresh', label: t('palette.page.refresh'), icon: RefreshCwIcon, keywords: ['tmdb'], run: () => refresh.mutate() },
+          ...(loaded.versions.some((v) => v.file)
+            ? [
+                {
+                  id: 'read-media-info',
+                  label: t('palette.page.readMediaInfo'),
+                  icon: FileVideoIcon,
+                  keywords: ['ffprobe', 'probe', 'codec', 'mediainfo'],
+                  run: () => readMediaInfo(t, () => movies.readMediaInfo(id), invalidate),
+                },
+              ]
+            : []),
           ...(loaded.versions.length > 0
             ? [{ id: 'manual-import', label: t('palette.page.manualImport'), icon: FolderInputIcon, keywords: ['import', 'files'], run: () => setImportOpen(true) }]
             : []),

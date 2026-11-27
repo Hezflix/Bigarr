@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { cn } from 'cn'
-import { BookmarkIcon, ChevronRightIcon, ClapperboardIcon, Columns3Icon, Link2Icon, FilePenLineIcon, FilterIcon, FolderInputIcon, FolderSearchIcon, ListChecksIcon, ListOrderedIcon, PencilIcon, PlusIcon, RefreshCwIcon, StarIcon, TextSearchIcon, Trash2Icon, WrenchIcon, ZapIcon } from 'lucide-react'
+import { BookmarkIcon, ChevronRightIcon, ClapperboardIcon, Columns3Icon, Link2Icon, FilePenLineIcon, FileVideoIcon, FilterIcon, FolderInputIcon, FolderSearchIcon, ListChecksIcon, ListOrderedIcon, PencilIcon, PlusIcon, RefreshCwIcon, StarIcon, TextSearchIcon, Trash2Icon, WrenchIcon, ZapIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { LibraryIssuesLink } from '@/features/issues/TitleIssues'
 import { SeriesCompareSection } from '@/features/activity/SeriesCompare'
@@ -72,7 +72,7 @@ import { AssignUnmatchedDialog, DeleteFilesOption, EpisodeFileActions, RenameSer
 import { OrderUndoBanner, ReassignFileDialog, SeriesOrderDialog, orderLabel } from './SeriesOrderDialog'
 import { useRecordRecent } from '@/features/palette/recent'
 import { usePaletteActions } from '@/features/palette/actions'
-import { versionActions } from '@/features/palette/pageActions'
+import { readMediaInfo, versionActions } from '@/features/palette/pageActions'
 
 export function SeriesDetailPage() {
   const { t } = useTranslation()
@@ -152,6 +152,12 @@ export function SeriesDetailPage() {
       if (scope) return run(scope)
     },
   })
+  // Every version's files of the scope; the file panels reload with the rest of the page.
+  const readSeriesMediaInfo = (episodeIds?: number[]) =>
+    readMediaInfo(t, () => seriesApi.readMediaInfo(id, episodeIds), () => {
+      invalidate()
+      void queryClient.invalidateQueries({ queryKey: ['episodeFile', id] })
+    })
   const shownVersion = loaded ? (loaded.versions.find((v) => v.id === chosenVersion) ?? loaded.versions.find((v) => v.isDefault) ?? loaded.versions[0]) : undefined
   usePaletteActions(
     loaded ? t('palette.page.series', { title: loaded.title }) : '',
@@ -198,6 +204,16 @@ export function SeriesDetailPage() {
           },
           { id: 'refresh', label: t('palette.page.refresh'), icon: RefreshCwIcon, keywords: ['tvdb', 'tmdb', 'metadata'], run: () => refresh.mutate() },
           { id: 'rescan', label: t('palette.page.rescan'), icon: FolderSearchIcon, keywords: ['scan', 'disk'], run: () => rescan.mutate() },
+          {
+            id: 'read-media-info',
+            label: t('palette.page.readMediaInfo'),
+            icon: FileVideoIcon,
+            keywords: ['ffprobe', 'probe', 'codec', 'mediainfo'],
+            run: () => readSeriesMediaInfo(),
+            param: scopeParam((scope) =>
+              readSeriesMediaInfo(scope.kind === 'series' ? undefined : scope.kind === 'season' ? scope.episodeIds : [scope.episode.id]),
+            ),
+          },
           { id: 'rename', label: t('palette.page.rename'), icon: FilePenLineIcon, keywords: ['files'], run: () => setRenameOpen(true) },
           { id: 'manual-import', label: t('palette.page.manualImport'), icon: FolderInputIcon, keywords: ['import', 'files'], run: () => setImportOpen(true) },
           ...versionActions(t, shownVersion, (monitored) => seriesApi.updateVersion(id, shownVersion?.id ?? 0, { monitored }), invalidate, () => setEditOpen(true)),

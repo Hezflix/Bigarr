@@ -300,6 +300,8 @@ pending files whose `MediaInfoTriedAt` is empty or older than `BackfillRetryHour
 | from the *arr | from the *arr, updated | a later follow pass, the *arr's `mediaInfo` changed | never over one Bigarr read |
 | none, from the *arr | read by Bigarr | the backfill's probe reads the file | |
 | none, from the *arr | same, `MediaInfoTriedAt` set | the probe reads nothing or the file is missing | the *arr's media info is kept, never wiped |
+| any | read by Bigarr | "Read media info now" (Cmd+K on a film or series page, `ReadFilmAsync` / `ReadSeriesAsync`) reads the file | the only path that replaces Bigarr's own reading |
+| any | same, `MediaInfoTriedAt` set | that read gets nothing | what the file showed is kept |
 
 Invariants: Bigarr's own reading is never replaced by an *arr's. Each backfill batch is shared between film and episode
 files, half each, the unused share going to the other kind; within a kind, files with nothing go before the *arr's,

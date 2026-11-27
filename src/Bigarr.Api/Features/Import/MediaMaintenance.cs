@@ -96,6 +96,97 @@ public sealed class MediaMaintenance(BigarrDbContext db, MediaManagementService 
         return new BackfillResponse(true, probed, remaining - probed);
     }
 
+    /// <summary>
+    /// Cmd+K on a film page: reads every file of the film now, whatever it shows. The reading replaces what was there
+    /// (Bigarr's own or Radarr's); a file that cannot be read keeps it and is recorded as tried.
+    /// </summary>
+    public async Task<ReadMediaInfoResponse?> ReadFilmAsync(int movieId, CancellationToken ct)
+    {
+        if (!await db.Movies.AnyAsync(m => m.Id == movieId, ct))
+        {
+            return null;
+        }
+
+        var files = await db.MediaFiles
+            .Include(f => f.Version).ThenInclude(v => v.RootFolder)
+            .Where(f => f.Version.MovieId == movieId)
+            .OrderBy(f => f.Id)
+            .ToListAsync(ct);
+        if (!probe.IsAvailable)
+        {
+            return new ReadMediaInfoResponse(false, files.Count, 0);
+        }
+
+        var now = time.GetUtcNow().UtcDateTime;
+        var read = 0;
+        foreach (var file in files)
+        {
+            var info = await ProbeAsync(Path.Combine(file.Version.RootFolder.Path, file.Version.FolderName, file.RelativePath), file.OriginalReleaseTitle, ct);
+            if (info is null)
+            {
+                file.MediaInfoTriedAt = now;
+                continue;
+            }
+
+            file.MediaInfo = info;
+            file.MediaInfoFromArr = false;
+            file.MediaInfoTriedAt = null;
+            read++;
+        }
+
+        // Nothing touched the disk: the request's token may still cancel the save.
+        await db.SaveChangesAsync(ct);
+        logger.LogInformation("Media info read on demand for film {MovieId}: {Read} of {Count} file(s)", movieId, read, files.Count);
+        return new ReadMediaInfoResponse(true, files.Count, read);
+    }
+
+    /// <summary>
+    /// The series twin of <see cref="ReadFilmAsync"/>: every episode file of the series, in every version, or only the
+    /// files of <paramref name="episodeIds"/> (a season or an episode picked with Tab).
+    /// </summary>
+    public async Task<ReadMediaInfoResponse?> ReadSeriesAsync(int seriesId, IReadOnlyCollection<int>? episodeIds, CancellationToken ct)
+    {
+        if (!await db.Series.AnyAsync(s => s.Id == seriesId, ct))
+        {
+            return null;
+        }
+
+        var query = db.EpisodeFiles
+            .Include(f => f.Version).ThenInclude(v => v.RootFolder)
+            .Where(f => f.Version.SeriesId == seriesId);
+        if (episodeIds is { Count: > 0 })
+        {
+            query = query.Where(f => db.EpisodeTargets.Any(t => t.EpisodeFileId == f.Id && episodeIds.Contains(t.EpisodeId)));
+        }
+
+        var files = await query.OrderBy(f => f.Id).ToListAsync(ct);
+        if (!probe.IsAvailable)
+        {
+            return new ReadMediaInfoResponse(false, files.Count, 0);
+        }
+
+        var now = time.GetUtcNow().UtcDateTime;
+        var read = 0;
+        foreach (var file in files)
+        {
+            var info = await ProbeAsync(Path.Combine(file.Version.RootFolder.Path, file.Version.FolderName, file.RelativePath), file.OriginalReleaseTitle, ct);
+            if (info is null)
+            {
+                file.MediaInfoTriedAt = now;
+                continue;
+            }
+
+            file.MediaInfo = info;
+            file.MediaInfoFromArr = false;
+            file.MediaInfoTriedAt = null;
+            read++;
+        }
+
+        await db.SaveChangesAsync(ct);
+        logger.LogInformation("Media info read on demand for series {SeriesId}: {Read} of {Count} file(s)", seriesId, read, files.Count);
+        return new ReadMediaInfoResponse(true, files.Count, read);
+    }
+
     private async Task<Domain.Movies.MediaInfo?> ProbeAsync(string path, string? releaseTitle, CancellationToken ct) =>
         File.Exists(path) ? await probe.ReadAsync(path, releaseTitle, ct) : null;
 
