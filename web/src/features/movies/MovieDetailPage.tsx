@@ -10,6 +10,7 @@ import { Poster } from '@/components/Poster'
 import { StatusBadge } from '@/components/StatusBadge'
 import { CompareTable } from '@/features/activity/CompareTable'
 import { HistoryTable } from '@/features/activity/HistoryTable'
+import { useShadowMode } from '@/hooks/useShadowMode'
 import { MoviePlays } from '@/features/playback/MoviePlays'
 import { extraSummary } from '@/features/import/extraFiles'
 import { ManualImportDialog } from '@/features/import/ManualImportDialog'
@@ -310,16 +311,19 @@ export function MovieDetailPage() {
 /**
  * Shadow mode, for this film: what the followed Radarrs grabbed next to what Bigarr would have grabbed, the rows of
  * Activity → Compare without the film column. Only shown when there is something to compare: a film whose history
- * predates the follow has no Radarr grab here (that history is in the journal below), so no section at all.
+ * predates the follow has no Radarr grab here (that history is in the journal below), so no section at all. Films out of
+ * shadow mode have nothing left to compare: no section either.
  */
 function MovieComparison({ tmdbId }: { tmdbId: number }) {
   const { t } = useTranslation()
+  const { films } = useShadowMode()
   const compare = useQuery({
     queryKey: ['compare', 'movie', tmdbId],
     queryFn: () => shadow.compare({ tmdbId, days: 0, windowHours: 24, page: 1, pageSize: 100 }),
+    enabled: films,
   })
   const data = compare.data
-  if (!data || data.rows.length === 0) return null
+  if (!films || !data || data.rows.length === 0) return null
 
   return (
     <section className="flex flex-col gap-3" data-testid="movie-compare">
