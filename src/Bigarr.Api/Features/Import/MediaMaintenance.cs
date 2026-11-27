@@ -9,16 +9,17 @@ using Microsoft.Extensions.Options;
 namespace Bigarr.Api.Features.Import;
 
 /// <summary>
-/// Fills media info on files that were scanned or imported without it and empties the recycle bin. A file that could not
-/// be read is recorded as tried and comes back after <see cref="MediaOptions.BackfillRetryHours"/>, behind the files never tried.
+/// Fills media info on files that were scanned or imported without it, replaces the one Radarr/Sonarr gave at import with
+/// Bigarr's own reading, and empties the recycle bin. A file that could not be read is recorded as tried and comes back
+/// after <see cref="MediaOptions.BackfillRetryHours"/>, behind the files never tried; whatever media info it had stays.
 /// </summary>
 public sealed class MediaMaintenance(BigarrDbContext db, MediaManagementService settings, IMediaInfoReader probe, RecycleBin recycleBin, IOptions<MediaOptions> options, IOptions<NotificationsOptions> notifications, TimeProvider time, ILogger<MediaMaintenance> logger)
 {
     public async Task<BackfillResponse> BackfillAsync(int? batchSize, CancellationToken ct)
     {
-        // Film files first, then episode files: one batch budget shared by both.
-        var remaining = await db.MediaFiles.CountAsync(f => f.MediaInfo == null, ct)
-                        + await db.EpisodeFiles.CountAsync(f => f.MediaInfo == null, ct);
+        // Pending: no media info yet, or only the one Radarr/Sonarr gave at import, which Bigarr's own probe replaces.
+        var remaining = await db.MediaFiles.CountAsync(f => f.MediaInfo == null || f.MediaInfoFromArr, ct)
+                        + await db.EpisodeFiles.CountAsync(f => f.MediaInfo == null || f.MediaInfoFromArr, ct);
         if (!probe.IsAvailable || remaining == 0)
         {
             return new BackfillResponse(probe.IsAvailable, 0, remaining);
@@ -27,46 +28,58 @@ public sealed class MediaMaintenance(BigarrDbContext db, MediaManagementService 
         var take = Math.Clamp(batchSize ?? options.Value.BackfillBatchSize, 1, 500);
         var now = time.GetUtcNow().UtcDateTime;
         var retryBefore = now.AddHours(-Math.Max(1, options.Value.BackfillRetryHours));
-        var files = await db.MediaFiles
+
+        // In each kind: files with nothing at all first, then the *arr's to replace; the ones never tried before the failed.
+        var films = await db.MediaFiles
             .Include(f => f.Version).ThenInclude(v => v.RootFolder)
-            .Where(f => f.MediaInfo == null && (f.MediaInfoTriedAt == null || f.MediaInfoTriedAt < retryBefore))
-            .OrderBy(f => f.MediaInfoTriedAt != null).ThenBy(f => f.MediaInfoTriedAt).ThenBy(f => f.Id)
+            .Where(f => (f.MediaInfo == null || f.MediaInfoFromArr) && (f.MediaInfoTriedAt == null || f.MediaInfoTriedAt < retryBefore))
+            .OrderBy(f => f.MediaInfo != null).ThenBy(f => f.MediaInfoTriedAt != null).ThenBy(f => f.MediaInfoTriedAt).ThenBy(f => f.Id)
+            .Take(take)
+            .ToListAsync(ct);
+        var episodes = await db.EpisodeFiles
+            .Include(f => f.Version).ThenInclude(v => v.RootFolder)
+            .Where(f => (f.MediaInfo == null || f.MediaInfoFromArr) && (f.MediaInfoTriedAt == null || f.MediaInfoTriedAt < retryBefore))
+            .OrderBy(f => f.MediaInfo != null).ThenBy(f => f.MediaInfoTriedAt != null).ThenBy(f => f.MediaInfoTriedAt).ThenBy(f => f.Id)
             .Take(take)
             .ToListAsync(ct);
 
+        // The batch is shared fairly: half each, and what one kind does not use goes to the other.
+        var filmShare = Math.Min(films.Count, Math.Max(take - (take / 2), take - episodes.Count));
+        var episodeShare = Math.Min(episodes.Count, take - filmShare);
+
         var probed = 0;
-        foreach (var file in files)
+        foreach (var file in films.Take(filmShare))
         {
             ct.ThrowIfCancellationRequested();
             var info = await ProbeAsync(Path.Combine(file.Version.RootFolder.Path, file.Version.FolderName, file.RelativePath), file.OriginalReleaseTitle, ct);
-            file.MediaInfo = info;
-            file.MediaInfoTriedAt = info is null ? now : null;
-            if (info is not null)
+            if (info is null)
             {
-                probed++;
+                // Nothing read: the *arr's media info, if any, stays.
+                file.MediaInfoTriedAt = now;
+                continue;
             }
+
+            file.MediaInfo = info;
+            file.MediaInfoFromArr = false;
+            file.MediaInfoTriedAt = null;
+            probed++;
         }
 
-        if (files.Count < take)
+        foreach (var file in episodes.Take(episodeShare))
         {
-            var episodeFiles = await db.EpisodeFiles
-                .Include(f => f.Version).ThenInclude(v => v.RootFolder)
-                .Where(f => f.MediaInfo == null && (f.MediaInfoTriedAt == null || f.MediaInfoTriedAt < retryBefore))
-                .OrderBy(f => f.MediaInfoTriedAt != null).ThenBy(f => f.MediaInfoTriedAt).ThenBy(f => f.Id)
-                .Take(take - files.Count)
-                .ToListAsync(ct);
-
-            foreach (var file in episodeFiles)
+            ct.ThrowIfCancellationRequested();
+            var info = await ProbeAsync(Path.Combine(file.Version.RootFolder.Path, file.Version.FolderName, file.RelativePath), file.OriginalReleaseTitle, ct);
+            if (info is null)
             {
-                ct.ThrowIfCancellationRequested();
-                var info = await ProbeAsync(Path.Combine(file.Version.RootFolder.Path, file.Version.FolderName, file.RelativePath), file.OriginalReleaseTitle, ct);
-                file.MediaInfo = info;
-                file.MediaInfoTriedAt = info is null ? now : null;
-                if (info is not null)
-                {
-                    probed++;
-                }
+                // Nothing read: the *arr's media info, if any, stays.
+                file.MediaInfoTriedAt = now;
+                continue;
             }
+
+            file.MediaInfo = info;
+            file.MediaInfoFromArr = false;
+            file.MediaInfoTriedAt = null;
+            probed++;
         }
 
         // A failed attempt is saved too: that is what moves the file behind the ones never tried.

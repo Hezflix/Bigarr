@@ -112,7 +112,9 @@ public sealed record SonarrEpisodeFile(
     RadarrLanguageRef? Language,
     RadarrQuality? Quality,
     int IndexerFlags = 0,
-    int? CustomFormatScore = null);
+    int? CustomFormatScore = null,
+    /// <summary>Sonarr's <c>mediaInfo</c>, kept raw: <see cref="Bigarr.Api.Features.Migration.ArrMediaInfo"/> reads it and drops what does not parse.</summary>
+    System.Text.Json.JsonElement? MediaInfo = null);
 
 /// <summary>A language profile of Sonarr v3 (gone in v4, where languages live in custom formats).</summary>
 public sealed record SonarrLanguageProfile(int Id, string Name);

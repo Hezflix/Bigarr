@@ -55,6 +55,12 @@ public sealed class EpisodeFile
     public DateTime? MediaInfoTriedAt { get; set; }
 
     /// <summary>
+    /// The media info is the one Radarr or Sonarr gave when the file was imported from it, not yet read by Bigarr: the
+    /// backfill still probes the file and replaces it, and a probe that reads nothing keeps it.
+    /// </summary>
+    public bool MediaInfoFromArr { get; set; }
+
+    /// <summary>
     /// Set on a file that is a hardlink of a linked film's file (S8): the film engine owns it. The series side never
     /// imports, upgrades or renames it on its own; the link keeper re-creates it when the film's file changes.
     /// </summary>

@@ -41,7 +41,9 @@ public sealed class SonarrImportTests(BigarrApiFactory factory) : IClassFixture<
 
         // Breaking Bad: one file for S01E01–E02, S01E03, a remux for S02E01 (Sonarr's id 20), and S01E04 Sonarr lists but the disk lacks.
         var multi = FakeSonarr.AddFile(bb, new(11, 1, "Season 01/Breaking.Bad.S01E01E02.1080p.BluRay.x264-DEMAND.mkv", 7, "Bluray-1080p", 4096, "DEMAND"), (1, 1), (1, 2));
-        var third = FakeSonarr.AddFile(bb, new(12, 1, "Season 01/Breaking.Bad.S01E03.1080p.BluRay.x264-DEMAND.mkv", 7, "Bluray-1080p", 2048, "DEMAND"), (1, 3));
+        // S01E03 comes with Sonarr's media info: Bigarr shows it until its own probe reads the file.
+        var sonarrMediaInfo = new { videoCodec = "x264", resolution = "1920x1080", audioCodec = "DTS", audioChannels = 5.1, audioLanguages = "eng/spa", runTime = "47:31", subtitles = "eng" };
+        var third = FakeSonarr.AddFile(bb, new(12, 1, "Season 01/Breaking.Bad.S01E03.1080p.BluRay.x264-DEMAND.mkv", 7, "Bluray-1080p", 2048, "DEMAND", MediaInfo: sonarrMediaInfo), (1, 3));
         var remux = FakeSonarr.AddFile(bb, new(13, 2, "Season 02/Breaking.Bad.S02E01.1080p.BluRay.REMUX.AVC.DTS-HD.MA.5.1-EPSiLON.mkv", 20, "Bluray-1080p Remux", 8192, "EPSiLON"), (2, 1));
         FakeSonarr.AddFile(bb, new(14, 1, "Season 01/Breaking.Bad.S01E04.1080p.BluRay.x264-DEMAND.mkv", 7, "Bluray-1080p", 2048, "DEMAND"), (1, 4));
         foreach (var file in new[] { multi, third, remux })
@@ -156,6 +158,18 @@ public sealed class SonarrImportTests(BigarrApiFactory factory) : IClassFixture<
             Assert.Equal(7, T(1, 1).EpisodeFile!.QualityId);
             Assert.Equal("Breaking.Bad.S01E01E02.1080p.BluRay.x264-DEMAND", T(1, 1).EpisodeFile!.OriginalReleaseTitle);
             Assert.Equal(30, T(2, 1).EpisodeFile!.QualityId);
+            Assert.Null(T(1, 1).EpisodeFile!.MediaInfo);
+            Assert.False(T(1, 1).EpisodeFile!.MediaInfoFromArr);
+            var fromSonarr = T(1, 3).EpisodeFile!;
+            Assert.True(fromSonarr.MediaInfoFromArr);
+            Assert.Equal("x264", fromSonarr.MediaInfo!.VideoCodec);
+            Assert.Equal(1920, fromSonarr.MediaInfo.Width);
+            Assert.Equal(1080, fromSonarr.MediaInfo.Height);
+            Assert.Equal("DTS", fromSonarr.MediaInfo.AudioCodec);
+            Assert.Equal(5.1, fromSonarr.MediaInfo.AudioChannels);
+            Assert.Equal(["English", "Spanish"], fromSonarr.MediaInfo.AudioLanguages);
+            Assert.Equal(["English"], fromSonarr.MediaInfo.Subtitles);
+            Assert.Equal(new TimeSpan(0, 47, 31), fromSonarr.MediaInfo.RunTime);
             Assert.Null(T(1, 4).EpisodeFileId);
             Assert.False(T(2, 13).Monitored);
             Assert.True(T(2, 12).Monitored);
