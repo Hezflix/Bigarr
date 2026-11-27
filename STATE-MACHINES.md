@@ -1155,6 +1155,20 @@ forgotten by causing about 5,000 failures on other keys, which buys it a few mor
 Tests: `SignInThrottleTests.A_full_table_still_records_a_new_key_and_forgets_the_one_that_failed_longest_ago`,
 `SignInThrottleTests.A_key_that_keeps_failing_is_not_the_one_forgotten`.
 
+#### F50. An episode import onto the path of the episode's file failed after replacing the file
+
+When the new file of an episode took the very path of the file in place (the same release imported again, or a
+replacement whose name came out the same), `SeriesImportService` removed the old row, added the new one and moved the
+episodes onto it in one save. The unique index on the version and path asks for the delete before the insert, the
+episodes' foreign key for the insert before their update and their update before the delete: EF refused the save as a
+circular dependency. The file on disk had already been replaced, so the episode kept a row for a file that was now
+another, and the import was reported failed.
+
+Fix: inside the import's transaction, the episodes are detached and the old rows removed in a first save, the new row
+added and the episodes attached in a second; a failure still rolls both back. The film side has no such cycle: its
+file row holds the key to its version, the version holds none to the file.
+Test: `SeriesImportFlowTests.A_manual_import_onto_the_path_of_the_episode_file_replaces_it`.
+
 ### Open
 
 What is known and not fixed:

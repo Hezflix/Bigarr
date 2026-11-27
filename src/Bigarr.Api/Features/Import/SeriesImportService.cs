@@ -424,13 +424,17 @@ public sealed class SeriesImportService(
         extras.AddRange(await TransferExtrasAsync(extraCandidates, destination, folder, plan.Mode, now, ct));
 
         var previousQuality = targets.ToDictionary(t => t.Id, t => t.EpisodeFile is { } f ? f.Quality?.Name ?? definitions.GetValueOrDefault(f.QualityId)?.Name : null);
-        foreach (var target in others)
+        // The old rows leave in a save of their own: the new file may take the very path of one of them (the unique
+        // index), and its episodes move from one to the other, a cycle EF cannot order in one save.
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        foreach (var target in others.Concat(targets))
         {
             target.EpisodeFileId = null;
             target.EpisodeFile = null;
         }
 
         db.EpisodeFiles.RemoveRange(existing);
+        await db.SaveChangesAsync(ct);
 
         var file = new EpisodeFile
         {
@@ -464,7 +468,6 @@ public sealed class SeriesImportService(
             plan.Grab.StatusMessages.RemoveAll(m => m.Title == ImportService.FailedMessageTitle);
         }
 
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await db.SaveChangesAsync(ct);
 
         foreach (var target in targets)
